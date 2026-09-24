@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import BranchMap from "../components/BranchMap";
 import AiTriageModal from "../components/AiTriageModal";
-import BookingModal from "../components/BookingModal";
+import BookingModal, { specialtyIdForDoctor } from "../components/BookingModal";
 import CareExperience from "../components/CareExperience";
 import DailyHealthTip from "../components/DailyHealthTip";
 import { CmsLiveSlot } from "../components/cms";
@@ -210,10 +210,11 @@ const DoctorPhoto: React.FC<DoctorPhotoProps> = ({ doctor, featured = false }) =
 interface DoctorCardProps {
   doctor: Doctor;
   featured?: boolean;
-  onBook: (doctorId: string) => void;
+  onBook: (doctorId: string, specialtyId?: string) => void;
+  specialtyId?: string;
 }
 
-const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBook }) => (
+const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBook, specialtyId }) => (
   <article className={`doctor-card${featured ? " doctor-card--featured" : ""}`}>
     <div className="doctor-card__photo-wrapper">
       <DoctorPhoto doctor={doctor} featured={featured} />
@@ -233,7 +234,7 @@ const DoctorCard: React.FC<DoctorCardProps> = ({ doctor, featured = false, onBoo
         {doctor.title ?? "Bác sĩ chuyên khoa"}
       </p>
       <p className="doctor-bio">{doctor.bio}</p>
-      <button aria-label={`Đặt lịch với bác sĩ ${doctor.fullName}`} className="text-button doctor-card__book-btn" onClick={() => onBook(doctor.id)} type="button">
+      <button aria-label={`Đặt lịch với bác sĩ ${doctor.fullName}`} className="text-button doctor-card__book-btn" onClick={() => onBook(doctor.id, specialtyId)} type="button">
         Đặt lịch với bác sĩ
         <Icon name="arrow-up-right" size={17} />
       </button>
@@ -634,10 +635,26 @@ export default function Home(): React.ReactElement {
     packageId?: string,
     branchId?: string,
   ): void => {
+    let resolvedSpecialtyId = specialtyId;
+    let resolvedBranchId = branchId;
+    if (doctorId && catalog?.doctors) {
+      const matchedDoctor = catalog.doctors.find((doc) => doc.id === doctorId);
+      if (matchedDoctor) {
+        if (!resolvedSpecialtyId && matchedDoctor.specialtyName && catalog.specialties) {
+          const spec = catalog.specialties.find(
+            (s) => s.name.trim().toLowerCase() === matchedDoctor.specialtyName!.trim().toLowerCase(),
+          );
+          if (spec) resolvedSpecialtyId = spec.id;
+        }
+        if (!resolvedBranchId) {
+          resolvedBranchId = matchedDoctor.branchId || matchedDoctor.branchIds?.[0];
+        }
+      }
+    }
     setSelectedDoctorId(doctorId);
-    setSelectedSpecialtyId(specialtyId);
+    setSelectedSpecialtyId(resolvedSpecialtyId);
     setSelectedPackageId(packageId);
-    setSelectedBranchId(branchId);
+    setSelectedBranchId(resolvedBranchId);
     setIsBookingOpen(true);
   };
 
@@ -932,9 +949,19 @@ export default function Home(): React.ReactElement {
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
             {!catalogLoading && homeDoctors.length > 0 ? (
               <div className="hm-doctor-grid" aria-label="Bác sĩ nổi bật">
-                {homeDoctors.map((doctor) => (
-                  <DoctorCard doctor={doctor} key={doctor.id} onBook={(doctorId) => handleOpenBooking(doctorId)} />
-                ))}
+                {homeDoctors.map((doctor) => {
+                  const docSpecialtyId = catalog?.specialties
+                    ? specialtyIdForDoctor(doctor, catalog.specialties) || undefined
+                    : undefined;
+                  return (
+                    <DoctorCard
+                      doctor={doctor}
+                      key={doctor.id}
+                      onBook={(doctorId, spId) => handleOpenBooking(doctorId, spId ?? docSpecialtyId)}
+                      specialtyId={docSpecialtyId}
+                    />
+                  );
+                })}
               </div>
             ) : catalogLoading ? (
               <div className="hm-doctor-grid" aria-label="Đang tải danh sách bác sĩ">

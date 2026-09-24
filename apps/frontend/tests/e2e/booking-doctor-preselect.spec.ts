@@ -26,6 +26,7 @@ test.describe("doctor CTA preselects the booking wizard", () => {
     const panel = page.getByTestId("booking-preselected-doctor");
     await expect(panel).toBeVisible();
     await expect(panel.locator("h4")).toHaveText(name);
+    await expect(page.locator(".booking-panel__title")).toContainText(name);
     await expect(page.locator("#booking-specialty")).not.toHaveValue("");
   });
 
@@ -41,6 +42,26 @@ test.describe("doctor CTA preselects the booking wizard", () => {
     const panel = page.getByTestId("booking-preselected-doctor");
     await expect(panel).toBeVisible();
     await expect(panel.locator("h4")).toHaveText(name);
+    await expect(page.locator(".booking-panel__title")).toContainText(name);
+    await expect(page.locator("#booking-specialty")).not.toHaveValue("");
+  });
+
+  test("homepage doctor card CTA opens the wizard with that doctor's name in header and step 1", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    const doctorCard = page.locator(".doctor-card").first();
+    await expect(doctorCard).toBeVisible();
+    const doctorName = (await doctorCard.locator("h3").innerText()).trim();
+    expect(doctorName.length).toBeGreaterThan(0);
+
+    await doctorCard.getByRole("button", { name: /^Đặt lịch với bác sĩ/ }).click();
+
+    const headerTitle = page.locator(".booking-panel__title");
+    await expect(headerTitle).toBeVisible();
+    await expect(headerTitle).toContainText(doctorName);
+
+    const panel = page.getByTestId("booking-preselected-doctor");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("h4")).toHaveText(doctorName);
     await expect(page.locator("#booking-specialty")).not.toHaveValue("");
   });
 

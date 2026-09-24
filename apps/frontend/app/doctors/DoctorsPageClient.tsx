@@ -14,6 +14,7 @@ import {
   PublicPageShell,
 } from "../../components/PublicPageShell";
 import ClinicalIcon from "../../components/ClinicalIcon";
+import { specialtyIdForDoctor } from "../../components/BookingModal";
 
 interface DoctorsPageClientProps {
   specialtySlug?: string;
@@ -148,7 +149,19 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
             </p>
             <div className="resource-actions">
               <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>
-              <PublicBookingButton selection={selectedSpecialty ? { specialtyId: selectedSpecialty.id } : featuredDoctor ? { doctorId: featuredDoctor.id } : undefined}>
+              <PublicBookingButton
+                selection={
+                  selectedSpecialty
+                    ? { specialtyId: selectedSpecialty.id }
+                    : featuredDoctor
+                      ? {
+                          doctorId: featuredDoctor.id,
+                          specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || undefined,
+                          branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
+                        }
+                      : undefined
+                }
+              >
                 Đặt lịch với bác sĩ
               </PublicBookingButton>
               <Link className="outline-button outline-button--light" href="/specialties">
@@ -203,13 +216,17 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                   <Link className="text-button" href={`/doctors/${featuredDoctor.slug}`}>
                     Xem hồ sơ →
                   </Link>
-                  <PublicBookingButton
-                    ariaLabel={`Đặt lịch với bác sĩ ${featuredDoctor.fullName}`}
-                    className="outline-button outline-button--small"
-                    selection={{ doctorId: featuredDoctor.id }}
-                  >
-                    Đặt lịch
-                  </PublicBookingButton>
+                    <PublicBookingButton
+                      ariaLabel={`Đặt lịch với bác sĩ ${featuredDoctor.fullName}`}
+                      className="outline-button outline-button--small"
+                      selection={{
+                        doctorId: featuredDoctor.id,
+                        specialtyId: selectedSpecialty?.id || specialtyIdForDoctor(featuredDoctor, specialties) || undefined,
+                        branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
+                      }}
+                    >
+                      Đặt lịch
+                    </PublicBookingButton>
                 </div>
               </>
             ) : (
@@ -260,7 +277,17 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                   <p className="catalog-card__summary">{doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
                   <div className="catalog-card__actions">
                     <Link className="text-button" href={`/doctors/${doctor.slug}`}>Xem hồ sơ →</Link>
-                    <PublicBookingButton ariaLabel={`Đặt lịch với bác sĩ ${doctor.fullName}`} className="outline-button outline-button--small" selection={{ doctorId: doctor.id }}>Đặt lịch</PublicBookingButton>
+                    <PublicBookingButton
+                      ariaLabel={`Đặt lịch với bác sĩ ${doctor.fullName}`}
+                      className="outline-button outline-button--small"
+                      selection={{
+                        doctorId: doctor.id,
+                        specialtyId: selectedSpecialty?.id || specialtyIdForDoctor(doctor, specialties) || undefined,
+                        branchId: doctor.branchId || doctor.branchIds?.[0],
+                      }}
+                    >
+                      Đặt lịch
+                    </PublicBookingButton>
                   </div>
                 </article>
               ))}
