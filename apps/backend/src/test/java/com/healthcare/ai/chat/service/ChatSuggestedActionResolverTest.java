@@ -74,7 +74,7 @@ class ChatSuggestedActionResolverTest {
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION);
         assertThat(ChatSuggestedActionResolver.hospitalSupportFallback(question))
             .extracting(action -> action.get("href"))
-            .containsExactly("/dat-lich", "/branches", "/specialties");
+            .containsExactly("/faq", "/branches", "/dat-lich");
         assertThat(ChatSuggestedActionResolver.classify("Có những gói khám tổng quát nào?"))
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.PACKAGE);
     }

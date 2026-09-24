@@ -138,7 +138,11 @@ public final class ChatSuggestedActionResolver {
                 source("Xem Cơ sở", "/branches"),
                 booking("Đặt lịch khám", "/dat-lich"),
                 source("Xem Chuyên khoa", "/specialties"));
-            case PREPARATION, GENERAL -> actions(
+            case PREPARATION -> actions(
+                source("Xem Câu hỏi thường gặp", "/faq"),
+                source("Xem Cơ sở", "/branches"),
+                booking("Đặt lịch khám", "/dat-lich"));
+            case GENERAL -> actions(
                 booking("Đặt lịch khám", "/dat-lich"),
                 source("Xem Cơ sở", "/branches"),
                 source("Xem Chuyên khoa", "/specialties"));
