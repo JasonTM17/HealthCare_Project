@@ -53,7 +53,7 @@ export default function DoctorDetailPage() {
   const isDemoDoctor = Boolean(doctor?.demo) || Boolean(doctor?.slug?.startsWith("demo-bs-"));
 
   return (
-    <PublicPageShell>
+    <PublicPageShell doctors={doctor ? [doctor] : []}>
       <div className="resource-page section-inner">
         <PublicBackLink href="/doctors">← Quay lại danh sách bác sĩ</PublicBackLink>
         <header className="resource-page__header">

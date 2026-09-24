@@ -387,6 +387,22 @@ function bookingSlotMinutes(slot?: TimeSlot): number | null {
   return end - start;
 }
 
+function doctorPhotoUrl(doctor?: Doctor | null): string | null {
+  const url = doctor?.photoUrl?.trim();
+  if (!url || url.includes("404")) return null;
+  return url;
+}
+
+function doctorInitials(fullName: string | undefined): string {
+  if (!fullName) return "BS";
+  const words = fullName.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "BS";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  const first = words[0][0] ?? "";
+  const last = words[words.length - 1][0] ?? "";
+  return `${first}${last}`.toUpperCase();
+}
+
 export interface BookingSelection {
   doctorId?: string;
   specialtyId?: string;
@@ -443,10 +459,38 @@ function BookingExperience({
   const [loadedDoctors, setLoadedDoctors] = useState<Doctor[]>([]);
   const [loadedSpecialties, setLoadedSpecialties] = useState<Specialty[]>([]);
   const [loadedBranches, setLoadedBranches] = useState<Branch[]>([]);
+  const [fetchedDoctor, setFetchedDoctor] = useState<Doctor | null>(null);
+
+  useEffect(() => {
+    if (!active || !initialDoctorId) return;
+    const existing = (providedDoctors.length > 0 ? providedDoctors : loadedDoctors).find(
+      (d) => d.id === initialDoctorId,
+    );
+    if (existing) return;
+
+    let cancelled = false;
+    void fetchDoctors({ page: 0, size: 50 })
+      .then((res) => {
+        if (cancelled) return;
+        const found = res.content.find((d) => d.id === initialDoctorId);
+        if (found) setFetchedDoctor(found);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [active, initialDoctorId, providedDoctors, loadedDoctors]);
+
   // Catalog pages pass teaser lists as providedDoctors; the booking wizard
   // always needs the full catalog, so loaded (complete) data wins once present
   // and provided data only seeds preselection before the load resolves.
-  const doctors = loadedDoctors.length > 0 ? loadedDoctors : providedDoctors;
+  const doctors = useMemo(() => {
+    const base = loadedDoctors.length > 0 ? loadedDoctors : providedDoctors;
+    if (fetchedDoctor && !base.some((d) => d.id === fetchedDoctor.id)) {
+      return [fetchedDoctor, ...base];
+    }
+    return base;
+  }, [loadedDoctors, providedDoctors, fetchedDoctor]);
   const specialties = providedSpecialties.length > 0 ? providedSpecialties : loadedSpecialties;
   const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -458,6 +502,9 @@ function BookingExperience({
 
   const [selectedDoctor, setSelectedDoctor] = useState<string>(initialDoctorId || "");
   const [selectedBranch, setSelectedBranch] = useState<string>(initialBranchId || "");
+  // A doctor CTA preselects that doctor; "Đổi bác sĩ khác" on step 1 dismisses
+  // the preselection so syncSelection stops re-applying `initialDoctorId`.
+  const [preselectionDismissed, setPreselectionDismissed] = useState<boolean>(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(initialPackageId || "");
   
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -564,6 +611,7 @@ function BookingExperience({
 
   const resetBookingState = useCallback(() => {
     setStep(1);
+    setPreselectionDismissed(false);
     setSelectedSpecialty(initialSpecialtyId || "");
     setSelectedDoctor(initialDoctorId || "");
     setSelectedBranch(initialBranchId || "");
@@ -631,7 +679,16 @@ function BookingExperience({
           // Prefill at load time: the syncSelection identity chain alone can
           // miss this transition under slow-runner timing and leave the
           // specialty select on its disabled placeholder.
-          setSelectedSpecialty((current) => current || resolvedSpecialty.content[0]?.id || "");
+          setSelectedSpecialty((current) => {
+            if (current) return current;
+            if (initialDoctorId) {
+              const allDocs = providedDoctors.length > 0 ? providedDoctors : loadedDoctors;
+              const doc = allDocs.find((d) => d.id === initialDoctorId);
+              const spId = specialtyIdForDoctor(doc, resolvedSpecialty.content);
+              if (spId) return spId;
+            }
+            return resolvedSpecialty.content[0]?.id || "";
+          });
           if (resolvedSpecialty.content.length === 0) missing.push("danh sách chuyên khoa");
         } else {
           missing.push("chuyên khoa");
@@ -640,7 +697,18 @@ function BookingExperience({
       if (needsBranches) {
         if (resolvedBranch) {
           setLoadedBranches(resolvedBranch.content);
-          setSelectedBranch((current) => current || resolvedBranch.content[0]?.id || "");
+          setSelectedBranch((current) => {
+            if (current) return current;
+            if (initialDoctorId) {
+              const allDocs = providedDoctors.length > 0 ? providedDoctors : loadedDoctors;
+              const doc = allDocs.find((d) => d.id === initialDoctorId);
+              if (doc) {
+                const br = resolvedBranch.content.find((b) => doctorMatchesBranch(doc, b.id));
+                if (br) return br.id;
+              }
+            }
+            return resolvedBranch.content[0]?.id || "";
+          });
           if (resolvedBranch.content.length === 0) missing.push("cơ sở khám");
         } else {
           missing.push("cơ sở khám");
@@ -691,7 +759,9 @@ function BookingExperience({
 
   const syncSelection = useCallback(() => {
     if (!active) return;
-    const requestedDoctor = doctors.find((doctor) => doctor.id === initialDoctorId);
+    const requestedDoctor = preselectionDismissed
+      ? undefined
+      : doctors.find((doctor) => doctor.id === initialDoctorId);
     // This callback re-runs whenever the combo doctor load replaces `doctors`.
     // Everything the patient already picked must therefore survive that refresh;
     // reading only the `initial*` props reset the form to the first specialty in
@@ -720,9 +790,11 @@ function BookingExperience({
       && doctorMatchesBranch(doctor, nextBranchId)
       && doctorMatchesSpecialty(doctor, nextSpecialty));
     const firstDoctor = keptDoctor
-      ?? doctors.find((doctor) => doctor.id === initialDoctorId
-        && doctorMatchesBranch(doctor, nextBranchId)
-        && doctorMatchesSpecialty(doctor, nextSpecialty))
+      ?? (!preselectionDismissed
+        ? doctors.find((doctor) => doctor.id === initialDoctorId
+          && doctorMatchesBranch(doctor, nextBranchId)
+          && doctorMatchesSpecialty(doctor, nextSpecialty))
+        : undefined)
       ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
         && doctorMatchesSpecialty(doctor, nextSpecialty));
     setSelectedSpecialty(nextSpecialtyId);
@@ -737,7 +809,8 @@ function BookingExperience({
     );
   }, [
     active, branches, doctors, initialBranchId, initialDoctorId, initialPackageId,
-    initialSpecialtyId, packages, selectedBranch, selectedDoctor, selectedSpecialty, specialties,
+    initialSpecialtyId, packages, preselectionDismissed, selectedBranch, selectedDoctor,
+    selectedSpecialty, specialties,
   ]);
 
   useEffect(() => {
@@ -1253,6 +1326,31 @@ function BookingExperience({
                     : "Chọn chuyên khoa phù hợp để chúng tôi tìm cơ sở và bác sĩ đang tiếp nhận lịch."}
                 </p>
               </div>
+              {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId ? (
+                <div
+                  data-testid="booking-preselected-doctor"
+                  role="status"
+                  className="rounded-lg border border-teal-200 bg-teal-50/80 p-4 text-sm text-teal-950"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Bác sĩ bạn chọn</p>
+                      <h4 className="mt-0.5 text-base font-bold text-teal-950">{currentDoctor.fullName}</h4>
+                      <p className="mt-1 text-xs text-teal-800">
+                        {currentSpecialty?.name ?? currentDoctor.title ?? "Bác sĩ chuyên khoa"}
+                        {currentBranch ? ` · ${currentBranch.name}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPreselectionDismissed(true)}
+                      className="shrink-0 rounded-lg border border-teal-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 transition-colors hover:bg-teal-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-300"
+                    >
+                      Đổi bác sĩ khác
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               {currentPackage && (
                 <div className="rounded-lg border border-teal-200 bg-teal-50/80 p-4 text-sm text-teal-950">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
