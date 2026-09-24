@@ -16,6 +16,7 @@ export type IconName =
   | "chevron-down"
   | "chevron-right"
   | "clock"
+  | "download"
   | "heart"
   | "home"
   | "eye"
@@ -98,6 +99,7 @@ const Icon: React.FC<IconProps> = ({
     "chevron-down": <path {...commonProps} d="m6 9 6 6 6-6" />,
     "chevron-right": <path {...commonProps} d="m9 5 7 7-7 7" />,
     clock: <path {...commonProps} d="M12 7v5l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+    download: <path {...commonProps} d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5 5 5 5-5m-5 5V3" />,
     heart: <path {...commonProps} d="M20.8 8.6c0 5.2-8.8 10.4-8.8 10.4S3.2 13.8 3.2 8.6A4.6 4.6 0 0 1 12 6.3a4.6 4.6 0 0 1 8.8 2.3Z" />,
     home: <path {...commonProps} d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
     eye: <><path {...commonProps} d="M2.5 12s3.3-5 9.5-5 9.5 5 9.5 5-3.3 5-9.5 5-9.5-5-9.5-5Z" /><circle {...commonProps} cx="12" cy="12" r="2.2" /></>,

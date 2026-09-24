@@ -14,6 +14,7 @@ import {
   PublicBookingButton,
   PublicPageShell,
 } from "../../../components/PublicPageShell";
+import { JsonLd } from "../../../components/JsonLd";
 
 const DOCTOR_STEPS = [
   ["01", "Xem chuyên khoa", "Kiểm tra xem bác sĩ có đúng phạm vi điều trị bạn đang cần không."],
@@ -66,8 +67,26 @@ export default function DoctorDetailPage() {
 
   const isDemoDoctor = Boolean(doctor?.demo) || Boolean(doctor?.slug?.startsWith("demo-bs-"));
 
+  const doctorJsonLd = doctor
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Physician",
+        name: doctor.fullName,
+        jobTitle: doctor.title || "Bác sĩ chuyên khoa",
+        medicalSpecialty: doctor.specialtyName || "Y đa khoa",
+        description: doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm tại Hệ thống Bệnh viện Đa khoa HealthCare",
+        image: getDoctorPhoto(doctor) ? `https://www.healthcare.id.vn${getDoctorPhoto(doctor)}` : undefined,
+        worksFor: {
+          "@type": "MedicalOrganization",
+          name: "Hệ thống Bệnh viện Đa khoa HealthCare",
+          url: "https://www.healthcare.id.vn",
+        },
+      }
+    : null;
+
   return (
     <PublicPageShell doctors={doctor ? [doctor] : []} specialties={specialties}>
+      {doctorJsonLd ? <JsonLd data={doctorJsonLd} id="doctor-jsonld" /> : null}
       <div className="resource-page section-inner">
         <PublicBackLink href="/doctors">← Quay lại danh sách bác sĩ</PublicBackLink>
         <header className="resource-page__header">

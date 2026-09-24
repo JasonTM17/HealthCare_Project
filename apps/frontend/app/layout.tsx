@@ -39,6 +39,12 @@ export const metadata: Metadata = {
   // its own. Pinning SITE_URL here would canonicalise every page (specialties,
   // doctors, articles, ...) to the homepage.
   alternates: { canonical: "./" },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "HealthCare",
+  },
   robots: indexingAllowed()
     ? { index: true, follow: true }
     : { index: false, follow: false },
