@@ -45,6 +45,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private final int paymentLimit;
     private final int webhookLimit;
     private final int aiLimit;
+    private final int aiCancellationLimit;
     private final int publicTriageLimit;
     private final int careerApplicationLimit;
     private final int consultationLimit;
@@ -92,6 +93,9 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         this.paymentLimit = environment.getProperty("app.security.rate-limit.payment-limit", Integer.class, 20);
         this.webhookLimit = environment.getProperty("app.security.rate-limit.webhook-limit", Integer.class, 120);
         this.aiLimit = environment.getProperty("app.security.rate-limit.ai-limit", Integer.class, 30);
+        this.aiCancellationLimit = environment.getProperty(
+            "app.security.rate-limit.ai-cancellation-limit", Integer.class, 120
+        );
         this.publicTriageLimit = environment.getProperty(
             "app.security.rate-limit.public-triage-limit", Integer.class, 20
         );
@@ -255,6 +259,13 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         // 6. Public triage recommendation
         if ("POST".equals(method) && path.equals("/api/v1/public/specialty-recommendation")) {
             return new LimitRule("public-triage", publicTriageLimit);
+        }
+
+        // 6a. Private BFF chat cancellation control plane. Keep this bounded,
+        // but separate from both normal AI traffic and unrelated mutations so
+        // either bucket cannot prevent an active request from being stopped.
+        if ("POST".equals(method) && path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+            return new LimitRule("ai-chat-cancellation", aiCancellationLimit);
         }
 
         // 7. AI chat, conversation streaming and intelligence services

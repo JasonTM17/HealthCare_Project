@@ -135,6 +135,7 @@ app:
       payment-limit: ${APP_SECURITY_RATE_LIMIT_PAYMENT_LIMIT:20}
       webhook-limit: ${APP_SECURITY_RATE_LIMIT_WEBHOOK_LIMIT:120}
       ai-limit: ${APP_SECURITY_RATE_LIMIT_AI_LIMIT:30}
+      ai-cancellation-limit: ${APP_SECURITY_RATE_LIMIT_AI_CANCELLATION_LIMIT:120}
       public-triage-limit: ${APP_SECURITY_RATE_LIMIT_PUBLIC_TRIAGE_LIMIT:20}
       career-application-limit: ${APP_SECURITY_RATE_LIMIT_CAREER_APPLICATION_LIMIT:10}
       consultation-limit: ${APP_SECURITY_RATE_LIMIT_CONSULTATION_LIMIT:40}
@@ -269,6 +270,12 @@ ai:
     symptom-triage-enabled: ${AI_CHAT_SYMPTOM_TRIAGE_ENABLED:false}
     health-education-enabled: ${AI_CHAT_HEALTH_EDUCATION_ENABLED:false}
     chunked-enabled: ${AI_CHAT_CHUNKED_ENABLED:true}
+    cancellation:
+      # Every chat operation must register in shared Redis before provider work.
+      # The short-lived UUID state carries no patient content.
+      state-ttl-seconds: ${AI_CHAT_CANCELLATION_STATE_TTL_SECONDS:180}
+      # Pub/Sub is the fast path; active owners reconcile missed messages at this bounded interval.
+      owner-poll-interval-ms: ${AI_CHAT_CANCELLATION_OWNER_POLL_INTERVAL_MS:50}
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${AI_SERVICE_TOKEN:}

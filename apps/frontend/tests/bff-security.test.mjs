@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { isIP } from "node:net";
 import test from "node:test";
 import vm from "node:vm";
@@ -643,7 +644,10 @@ test("BFF aborts its upstream fetch when the browser cancels a response body", a
     ["ai", "conversations", "c-1", "messages", "stream"],
     {
       runtimeConfig: { ...runtimeConfig, streamRequestTimeoutMs: 1_000 },
-      fetchImpl: async (_target, init = {}) => {
+      fetchImpl: async (target, init = {}) => {
+        if (new URL(target).pathname.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          return new Response(null, { status: 204 });
+        }
         upstreamSignal = init.signal;
         return new Response(new ReadableStream({ start() {} }), {
           status: 200,
@@ -710,7 +714,10 @@ test("BFF aborts an in-flight public chat fetch when the browser disconnects", a
     ["public", "ai", "chat"],
     {
       runtimeConfig,
-      fetchImpl: async (_target, init = {}) => {
+      fetchImpl: async (target, init = {}) => {
+        if (new URL(target).pathname.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          return new Response(null, { status: 204 });
+        }
         upstreamSignal = init.signal;
         upstreamStarted();
         return await new Promise((_resolve, reject) => {
@@ -730,6 +737,309 @@ test("BFF aborts an in-flight public chat fetch when the browser disconnects", a
   assert.equal(upstreamSignal?.aborted, true);
   assert.equal(response.status, 200);
   assert.equal((await response.json()).safety_action, "INSUFFICIENT_EVIDENCE");
+});
+
+test("BFF notifies the backend over a separate socket when patient chat is cancelled", async () => {
+  const backend = createServer();
+  const started = new Promise((resolve) => { backend.once("request", resolve); });
+  let releaseProvider;
+  let providerFinished = false;
+  let cancelReceived = false;
+  let finishProvider;
+  const blockedProvider = new Promise((resolve) => { finishProvider = resolve; });
+  const providerRelease = new Promise((resolve) => { releaseProvider = resolve; });
+  let resolveCancel;
+  const cancelSignal = new Promise((resolve) => { resolveCancel = resolve; });
+
+  backend.on("request", async (incoming, outgoing) => {
+    if (incoming.url?.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+      const operationId = incoming.url.split("/").at(-1);
+      cancelReceived = true;
+      resolveCancel(incoming.headers["x-request-id"] ?? "");
+      outgoing.writeHead(operationId === incoming.headers["x-request-id"] ? 204 : 400).end();
+      return;
+    }
+    incoming.on("close", () => {
+      if (!incoming.complete) finishProvider();
+    });
+    await Promise.race([providerRelease, cancelSignal]);
+    providerFinished = cancelReceived;
+    if (!outgoing.destroyed) outgoing.writeHead(200).end("event: done\ndata: {}\n\n");
+  });
+
+  await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
+  const address = backend.address();
+  assert.ok(address && typeof address === "object");
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: "{}",
+      signal: browserController.signal,
+    }),
+    ["ai", "conversations", "c-1", "messages", "stream"],
+    {
+      runtimeConfig: {
+        ...runtimeConfig,
+        backendOrigin: `http://127.0.0.1:${address.port}`,
+        streamRequestTimeoutMs: 2_000,
+      },
+      fetchImpl: fetch,
+    },
+  );
+
+  try {
+    await started;
+    browserController.abort("browser-navigation");
+    const cancelledRequestId = await Promise.race([
+      cancelSignal,
+      new Promise((resolve) => setTimeout(() => resolve(""), 750)),
+    ]);
+    assert.match(cancelledRequestId, /^[0-9a-f-]{36}$/i, "BFF must send the original server-owned trace id");
+    await responsePromise;
+    assert.equal(providerFinished, true, "blocked provider work must observe the backend cancellation signal");
+  } finally {
+    releaseProvider();
+    finishProvider();
+    await responsePromise.catch(() => {});
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+  }
+});
+
+test("BFF notifies the backend over a separate socket when public chat is cancelled", async () => {
+  const backend = createServer();
+  const started = new Promise((resolve) => { backend.once("request", resolve); });
+  let requestId = "";
+  let cancelRequestId = "";
+  let outgoingSocketClosed = false;
+  let resolveProviderDisconnected;
+  const providerDisconnectSignal = new Promise((resolve) => { resolveProviderDisconnected = resolve; });
+  let resolveCancel;
+  const cancelSignal = new Promise((resolve) => { resolveCancel = resolve; });
+
+  backend.on("request", async (incoming, outgoing) => {
+    if (incoming.url?.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+      cancelRequestId = incoming.headers["x-request-id"] ?? "";
+      resolveCancel();
+      outgoing.writeHead(204).end();
+      return;
+    }
+    requestId = incoming.headers["x-request-id"] ?? "";
+    outgoing.on("close", () => {
+      outgoingSocketClosed = true;
+      resolveProviderDisconnected();
+    });
+    await cancelSignal;
+    if (!outgoing.destroyed) outgoing.writeHead(200).end("{}");
+  });
+
+  await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
+  const address = backend.address();
+  assert.ok(address && typeof address === "object");
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Bệnh viện có những chuyên khoa nào?" }),
+      signal: browserController.signal,
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig: {
+        ...runtimeConfig,
+        backendOrigin: `http://127.0.0.1:${address.port}`,
+        publicAiRequestTimeoutMs: 2_000,
+      },
+      fetchImpl: fetch,
+    },
+  );
+
+  try {
+    await started;
+    browserController.abort("browser-navigation");
+    await Promise.race([cancelSignal, new Promise((resolve) => setTimeout(resolve, 750))]);
+    await responsePromise;
+    await Promise.race([providerDisconnectSignal, new Promise((resolve) => setTimeout(resolve, 750))]);
+    assert.match(requestId, /^[0-9a-f-]{36}$/i);
+    assert.equal(cancelRequestId, requestId, "guest cancellation must address the same backend request");
+    assert.equal(outgoingSocketClosed, true, "guest provider work must lose its backend socket");
+  } finally {
+    await responsePromise.catch(() => {});
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+  }
+});
+
+test("BFF waits for backend cancellation acknowledgement before returning from an aborted chat request", async () => {
+  const backend = createServer();
+  let resolveStarted;
+  const started = new Promise((resolve) => { resolveStarted = resolve; });
+  let cancelAckSent = false;
+
+  backend.on("request", async (incoming, outgoing) => {
+    if (incoming.url?.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      cancelAckSent = true;
+      outgoing.writeHead(204).end();
+      return;
+    }
+    resolveStarted();
+    incoming.on("close", () => {
+      if (!incoming.complete) outgoing.destroy();
+    });
+  });
+
+  await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
+  const address = backend.address();
+  assert.ok(address && typeof address === "object");
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: "{}",
+      signal: browserController.signal,
+    }),
+    ["ai", "conversations", "c-1", "messages", "stream"],
+    {
+      runtimeConfig: {
+        ...runtimeConfig,
+        backendOrigin: `http://127.0.0.1:${address.port}`,
+        streamRequestTimeoutMs: 2_000,
+      },
+      fetchImpl: fetch,
+    },
+  );
+
+  try {
+    await started;
+    browserController.abort("browser-navigation");
+    const response = await responsePromise;
+    assert.equal(response.status, 502);
+    assert.equal(
+      cancelAckSent,
+      true,
+      "the BFF handler must stay alive until the cancellation endpoint acknowledges the tombstone",
+    );
+  } finally {
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+  }
+});
+
+test("BFF waits for cancellation acknowledgement after a guest-chat deadline", async () => {
+  const backend = createServer();
+  let resolveStarted;
+  const started = new Promise((resolve) => { resolveStarted = resolve; });
+  let cancelAckSent = false;
+
+  backend.on("request", async (incoming, outgoing) => {
+    if (incoming.url?.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      cancelAckSent = true;
+      outgoing.writeHead(204).end();
+      return;
+    }
+    resolveStarted();
+    incoming.on("close", () => {
+      if (!incoming.complete) outgoing.destroy();
+    });
+  });
+
+  await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
+  const address = backend.address();
+  assert.ok(address && typeof address === "object");
+  const bff = await loadBff();
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Bệnh viện có những chuyên khoa nào?" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig: {
+        ...runtimeConfig,
+        backendOrigin: `http://127.0.0.1:${address.port}`,
+        publicAiRequestTimeoutMs: 60,
+      },
+      fetchImpl: fetch,
+    },
+  );
+
+  try {
+    await started;
+    const response = await responsePromise;
+    assert.equal(response.status, 200);
+    assert.equal(
+      cancelAckSent,
+      true,
+      "the BFF deadline response must wait for its private cancellation tombstone acknowledgement",
+    );
+  } finally {
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+  }
+});
+
+test("BFF stream cancellation awaits the cancellation side-call before settling its body", async () => {
+  const backend = createServer();
+  let resolveStarted;
+  const started = new Promise((resolve) => { resolveStarted = resolve; });
+  let cancelAckSent = false;
+
+  backend.on("request", async (incoming, outgoing) => {
+    if (incoming.url?.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      cancelAckSent = true;
+      outgoing.writeHead(204).end();
+      return;
+    }
+    resolveStarted();
+    outgoing.writeHead(200, { "Content-Type": "text/event-stream" }).flushHeaders();
+  });
+
+  await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
+  const address = backend.address();
+  assert.ok(address && typeof address === "object");
+  const bff = await loadBff();
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: "{}",
+    }),
+    ["ai", "conversations", "c-1", "messages", "stream"],
+    {
+      runtimeConfig: {
+        ...runtimeConfig,
+        backendOrigin: `http://127.0.0.1:${address.port}`,
+        streamRequestTimeoutMs: 2_000,
+      },
+      fetchImpl: fetch,
+    },
+  );
+
+  try {
+    await started;
+    const response = await responsePromise;
+    assert.equal(response.status, 200);
+    await response.body.cancel("browser-navigation");
+    assert.equal(
+      cancelAckSent,
+      true,
+      "ReadableStream cancellation must await the side-call while the route owns the live response body",
+    );
+  } finally {
+    backend.closeAllConnections();
+    await new Promise((resolve) => backend.close(resolve));
+  }
 });
 
 test("BFF bounds a slow chunked request body before contacting the backend", async () => {

@@ -9,8 +9,11 @@ import com.healthcare.ai.chat.dto.ChatContracts.FeedbackResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.MessagePageResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.SendMessageRequest;
 import com.healthcare.ai.chat.service.AiConversationService;
+import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
+import com.healthcare.observability.RequestTrace;
 import jakarta.validation.Valid;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +35,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import org.springframework.web.server.ResponseStatusException;
 
 @Tag(name = "AI Health Assistant", description = "Trợ lý trí tuệ nhân tạo y tế phân luồng triệu chứng và tư vấn")
 @RestController
@@ -41,10 +46,15 @@ public class AiConversationController {
 
     private final AiConversationService conversationService;
     private final ObjectMapper objectMapper;
+    private final ChatRequestCancellationRegistry cancellations;
 
-    public AiConversationController(AiConversationService conversationService, ObjectMapper objectMapper) {
+    public AiConversationController(
+            AiConversationService conversationService,
+            ObjectMapper objectMapper,
+            ChatRequestCancellationRegistry cancellations) {
         this.conversationService = conversationService;
         this.objectMapper = objectMapper;
+        this.cancellations = cancellations;
     }
 
     @Operation(summary = "Tạo cuộc hội thoại AI mới", description = "Khởi tạo phiên tư vấn sức khỏe bảo mật dành cho người bệnh")
@@ -86,10 +96,16 @@ public class AiConversationController {
             @AuthenticationPrincipal UserDetails principal,
             @PathVariable UUID conversationId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @Valid @RequestBody SendMessageRequest request) {
-        return ResponseEntity.ok(
-            conversationService.send(principal, conversationId, idempotencyKey, request.content())
-        );
+            @Valid @RequestBody SendMessageRequest request,
+            HttpServletRequest servletRequest) {
+        try (var registration = cancellations.register(requestId(servletRequest))) {
+            return ResponseEntity.ok(conversationService.send(
+                principal, conversationId, idempotencyKey, request.content(), registration.cancellation()));
+        } catch (CancellationException exception) {
+            throw cancelledRequest(exception);
+        } catch (IllegalStateException exception) {
+            throw cancellationStateUnavailable(exception);
+        }
     }
 
     /**
@@ -106,15 +122,27 @@ public class AiConversationController {
             @AuthenticationPrincipal UserDetails principal,
             @PathVariable UUID conversationId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @Valid @RequestBody SendMessageRequest request) throws Exception {
+            @Valid @RequestBody SendMessageRequest request,
+            HttpServletRequest servletRequest) throws Exception {
         if (!conversationService.isChunkedDeliveryEnabled()) {
             // Return an empty response directly. The route only produces SSE,
             // so routing this state through the JSON exception handler causes
             // content negotiation to replace the intended 404 with a 500.
             return ResponseEntity.notFound().build();
         }
-        ChatExchangeResponse exchange = conversationService.sendForChunkedDelivery(
-            principal, conversationId, idempotencyKey, request.content());
+        ChatExchangeResponse exchange;
+        try (var registration = cancellations.register(requestId(servletRequest))) {
+            exchange = conversationService.sendForChunkedDelivery(
+                principal,
+                conversationId,
+                idempotencyKey,
+                request.content(),
+                registration.cancellation());
+        } catch (CancellationException exception) {
+            throw cancelledRequest(exception);
+        } catch (IllegalStateException exception) {
+            throw cancellationStateUnavailable(exception);
+        }
         String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
         StringBuilder events = new StringBuilder();
         for (String slice : com.healthcare.ai.chat.service.ChatAnswerChunker.slices(answer)) {
@@ -134,6 +162,28 @@ public class AiConversationController {
             target.append("data: ").append(line).append('\n');
         }
         target.append('\n');
+    }
+
+    private String requestId(HttpServletRequest request) {
+        Object requestId = request.getAttribute(RequestTrace.REQUEST_ATTRIBUTE);
+        if (requestId instanceof String value && !value.isBlank()) return value;
+        return RequestTrace.currentId();
+    }
+
+    private ResponseStatusException cancelledRequest(CancellationException exception) {
+        return new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Chat request was cancelled",
+            exception
+        );
+    }
+
+    private ResponseStatusException cancellationStateUnavailable(IllegalStateException exception) {
+        return new ResponseStatusException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Shared chat cancellation state is unavailable",
+            exception
+        );
     }
 
     @Operation(summary = "Xác nhận đồng ý điều khoản AI", description = "Ghi nhận sự đồng ý của bệnh nhân về miễn trừ trách nhiệm y khoa AI")
