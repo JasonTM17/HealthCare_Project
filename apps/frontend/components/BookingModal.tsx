@@ -18,6 +18,7 @@ import {
 } from "../lib/api";
 import {
   fetchBranches,
+  fetchDoctorCatalog,
   fetchDoctors,
   fetchSpecialties,
   getAuthSessionSnapshot,
@@ -324,8 +325,17 @@ function doctorMatchesSpecialty(doctor: Doctor, specialty?: Specialty): boolean 
   return Boolean(doctor.specialtyName && doctor.specialtyName === specialty.name);
 }
 
-function specialtyIdForDoctor(doctor: Doctor | undefined, specialties: Specialty[]): string {
+export function specialtyIdForDoctor(doctor: Doctor | undefined, specialties: Specialty[]): string {
   if (!doctor) return "";
+
+  const docRecord = doctor as unknown as Record<string, unknown>;
+  if (typeof docRecord.specialtyId === "string" && docRecord.specialtyId) {
+    return docRecord.specialtyId;
+  }
+  if (Array.isArray(docRecord.specialties) && docRecord.specialties.length > 0) {
+    const first = docRecord.specialties[0] as { id?: string } | undefined;
+    if (first?.id) return first.id;
+  }
 
   const primaryName = doctor.specialtyName?.trim().toLocaleLowerCase("vi-VN");
   if (primaryName) {
@@ -473,7 +483,15 @@ function BookingExperience({
       .then((res) => {
         if (cancelled) return;
         const found = res.content.find((d) => d.id === initialDoctorId);
-        if (found) setFetchedDoctor(found);
+        if (found) {
+          setFetchedDoctor(found);
+          return;
+        }
+        return fetchDoctorCatalog().then((allDocs) => {
+          if (cancelled) return;
+          const deepFound = allDocs.find((d) => d.id === initialDoctorId);
+          if (deepFound) setFetchedDoctor(deepFound);
+        });
       })
       .catch(() => {});
     return () => {
@@ -486,11 +504,16 @@ function BookingExperience({
   // and provided data only seeds preselection before the load resolves.
   const doctors = useMemo(() => {
     const base = loadedDoctors.length > 0 ? loadedDoctors : providedDoctors;
-    if (fetchedDoctor && !base.some((d) => d.id === fetchedDoctor.id)) {
-      return [fetchedDoctor, ...base];
+    const result = [...base];
+    if (fetchedDoctor && !result.some((d) => d.id === fetchedDoctor.id)) {
+      result.unshift(fetchedDoctor);
     }
-    return base;
-  }, [loadedDoctors, providedDoctors, fetchedDoctor]);
+    const seedDoctor = providedDoctors.find((d) => d.id === initialDoctorId);
+    if (seedDoctor && !result.some((d) => d.id === seedDoctor.id)) {
+      result.unshift(seedDoctor);
+    }
+    return result;
+  }, [loadedDoctors, providedDoctors, fetchedDoctor, initialDoctorId]);
   const specialties = providedSpecialties.length > 0 ? providedSpecialties : loadedSpecialties;
   const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -679,16 +702,7 @@ function BookingExperience({
           // Prefill at load time: the syncSelection identity chain alone can
           // miss this transition under slow-runner timing and leave the
           // specialty select on its disabled placeholder.
-          setSelectedSpecialty((current) => {
-            if (current) return current;
-            if (initialDoctorId) {
-              const allDocs = providedDoctors.length > 0 ? providedDoctors : loadedDoctors;
-              const doc = allDocs.find((d) => d.id === initialDoctorId);
-              const spId = specialtyIdForDoctor(doc, resolvedSpecialty.content);
-              if (spId) return spId;
-            }
-            return resolvedSpecialty.content[0]?.id || "";
-          });
+          setSelectedSpecialty((current) => current || initialSpecialtyId || resolvedSpecialty.content[0]?.id || "");
           if (resolvedSpecialty.content.length === 0) missing.push("danh sách chuyên khoa");
         } else {
           missing.push("chuyên khoa");
@@ -697,18 +711,7 @@ function BookingExperience({
       if (needsBranches) {
         if (resolvedBranch) {
           setLoadedBranches(resolvedBranch.content);
-          setSelectedBranch((current) => {
-            if (current) return current;
-            if (initialDoctorId) {
-              const allDocs = providedDoctors.length > 0 ? providedDoctors : loadedDoctors;
-              const doc = allDocs.find((d) => d.id === initialDoctorId);
-              if (doc) {
-                const br = resolvedBranch.content.find((b) => doctorMatchesBranch(doc, b.id));
-                if (br) return br.id;
-              }
-            }
-            return resolvedBranch.content[0]?.id || "";
-          });
+          setSelectedBranch((current) => current || initialBranchId || resolvedBranch.content[0]?.id || "");
           if (resolvedBranch.content.length === 0) missing.push("cơ sở khám");
         } else {
           missing.push("cơ sở khám");
@@ -725,7 +728,7 @@ function BookingExperience({
       cancelled = true;
       void task;
     };
-  }, [active, catalogRequest, providedBranches.length, providedSpecialties.length]);
+  }, [active, catalogRequest, initialBranchId, initialSpecialtyId, providedBranches.length, providedSpecialties.length]);
 
   // Doctor options are fetched server-side per specialty+branch combo instead
   // of as a full catalog: hosted backends reject large unfiltered doctor
@@ -791,9 +794,10 @@ function BookingExperience({
       && doctorMatchesSpecialty(doctor, nextSpecialty));
     const firstDoctor = keptDoctor
       ?? (!preselectionDismissed
-        ? doctors.find((doctor) => doctor.id === initialDoctorId
+        ? (doctors.find((doctor) => doctor.id === initialDoctorId
           && doctorMatchesBranch(doctor, nextBranchId)
           && doctorMatchesSpecialty(doctor, nextSpecialty))
+          ?? (requestedDoctor ? requestedDoctor : undefined))
         : undefined)
       ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
         && doctorMatchesSpecialty(doctor, nextSpecialty));
@@ -927,6 +931,12 @@ function BookingExperience({
   const currentSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
   const currentBranch = branches.find((branch) => branch.id === selectedBranch);
   const currentPackage = packages.find((pkg) => pkg.id === selectedPackage);
+  const availableBranches = (!currentDoctor || preselectionDismissed)
+    ? branches
+    : (() => {
+        const filtered = branches.filter((branch) => doctorMatchesBranch(currentDoctor, branch.id));
+        return filtered.length > 0 ? filtered : branches;
+      })();
   const availableDoctors = doctors.filter(
     (doctor) => doctorMatchesBranch(doctor, selectedBranch) && doctorMatchesSpecialty(doctor, currentSpecialty),
   );
@@ -1223,10 +1233,15 @@ function BookingExperience({
         <div className="booking-panel__header flex items-center justify-between">
           <div>
             <span className="booking-panel__eyebrow">
-              Hệ thống đặt lịch khám
+              {currentDoctor && !preselectionDismissed
+                ? `Bác sĩ tiếp nhận: ${currentDoctor.fullName}`
+                : "Hệ thống đặt lịch khám"}
             </span>
             <h2 id={panelTitleId} className="booking-panel__title flex items-center gap-2">
-              <Icon name="calendar" size={18} /> Đặt lịch trực tuyến nhanh chóng
+              <Icon name="calendar" size={18} />
+              {currentDoctor && !preselectionDismissed
+                ? `Đặt lịch trực tuyến cùng ${currentDoctor.fullName}`
+                : "Đặt lịch trực tuyến nhanh chóng"}
             </h2>
           </div>
           {isModal ? (
@@ -1240,7 +1255,9 @@ function BookingExperience({
             </button>
           ) : (
             <span className="booking-panel__context">
-              Đặt lịch khám
+              {currentDoctor && !preselectionDismissed
+                ? `Bác sĩ tiếp nhận: ${currentDoctor.fullName}`
+                : "Đặt lịch khám"}
             </span>
           )}
         </div>
@@ -1318,28 +1335,61 @@ function BookingExperience({
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">01 · Nhu cầu khám</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
-                  {currentPackage ? `Đặt lịch theo gói: ${currentPackage.name}` : "Bạn muốn được hỗ trợ ở chuyên khoa nào?"}
+                  {currentPackage
+                    ? `Đặt lịch theo gói: ${currentPackage.name}`
+                    : currentDoctor && !preselectionDismissed
+                      ? `Đặt lịch khám cùng bác sĩ ${currentDoctor.fullName}`
+                      : "Bạn muốn được hỗ trợ ở chuyên khoa nào?"}
                 </h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">
                   {currentPackage
                     ? "Gói khám đã bao gồm danh mục khám và xét nghiệm tiêu chuẩn. Bạn có thể chọn thêm chuyên khoa hoặc tiếp tục chọn cơ sở tiếp nhận."
-                    : "Chọn chuyên khoa phù hợp để chúng tôi tìm cơ sở và bác sĩ đang tiếp nhận lịch."}
+                    : currentDoctor && !preselectionDismissed
+                      ? `Bác sĩ ${currentDoctor.fullName} thuộc chuyên khoa ${currentSpecialty?.name ?? currentDoctor.specialtyName ?? "chuyên khoa tiếp nhận"}. Chuyên khoa đã được tự động chọn để bạn tiếp tục chọn cơ sở và thời gian khám.`
+                      : "Chọn chuyên khoa phù hợp để chúng tôi tìm cơ sở và bác sĩ đang tiếp nhận lịch."}
                 </p>
               </div>
               {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId ? (
                 <div
                   data-testid="booking-preselected-doctor"
                   role="status"
-                  className="rounded-lg border border-teal-200 bg-teal-50/80 p-4 text-sm text-teal-950"
+                  className="rounded-lg border border-teal-200 bg-teal-50/80 p-4 text-sm text-teal-950 shadow-sm"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Bác sĩ bạn chọn</p>
-                      <h4 className="mt-0.5 text-base font-bold text-teal-950">{currentDoctor.fullName}</h4>
-                      <p className="mt-1 text-xs text-teal-800">
-                        {currentSpecialty?.name ?? currentDoctor.title ?? "Bác sĩ chuyên khoa"}
-                        {currentBranch ? ` · ${currentBranch.name}` : ""}
-                      </p>
+                    <div className="flex items-start gap-3.5">
+                      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-teal-300 bg-teal-100 text-teal-800 font-bold shadow-sm">
+                        {doctorPhotoUrl(currentDoctor) ? (
+                          <img
+                            src={doctorPhotoUrl(currentDoctor)!}
+                            alt={`Ảnh bác sĩ ${currentDoctor.fullName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-sm font-bold tracking-tight">
+                            {doctorInitials(currentDoctor.fullName)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Bác sĩ bạn chọn</p>
+                          {currentDoctor.title ? (
+                            <span className="rounded bg-teal-100 px-1.5 py-0.5 text-[11px] font-semibold text-teal-800">
+                              {currentDoctor.title}
+                            </span>
+                          ) : null}
+                        </div>
+                        <h4 className="mt-0.5 text-base font-bold text-teal-950">{currentDoctor.fullName}</h4>
+                        <p className="mt-0.5 text-xs text-teal-800">
+                          <span className="font-semibold">{currentSpecialty?.name ?? currentDoctor.specialtyName ?? "Bác sĩ chuyên khoa"}</span>
+                          {currentBranch ? ` · ${currentBranch.name}` : ""}
+                          {currentDoctor.experienceYears ? ` · ${currentDoctor.experienceYears}+ năm kinh nghiệm` : ""}
+                        </p>
+                        <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-teal-700">
+                          <Icon name="check" size={14} className="inline text-teal-600" />
+                          Bác sĩ đã được chỉ định theo yêu cầu của bạn
+                        </p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -1407,13 +1457,21 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
-                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Chọn cơ sở y tế thuận tiện nhất</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Lịch làm việc và khung giờ sẽ được kiểm tra theo đúng cơ sở này.</p>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
+                  {currentDoctor && !preselectionDismissed
+                    ? `Chọn cơ sở khám cùng ${currentDoctor.fullName}`
+                    : "Chọn cơ sở y tế thuận tiện nhất"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  {currentDoctor && !preselectionDismissed
+                    ? `Danh sách hiển thị các cơ sở tiếp nhận lịch khám của ${currentDoctor.fullName}.`
+                    : "Lịch làm việc và khung giờ sẽ được kiểm tra theo đúng cơ sở này."}
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-branch">Cơ sở bệnh viện / phòng khám</label>
                 <select id="booking-branch" name="branch" required value={selectedBranch} onChange={(e) => handleBranchChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
-                  {branches.map((br) => <option key={br.id} value={br.id}>{br.name}</option>)}
+                  {availableBranches.map((br) => <option key={br.id} value={br.id}>{br.name}</option>)}
                 </select>
               </div>
               <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-sm text-brand-950">
@@ -1435,8 +1493,16 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
-                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Lựa chọn bác sĩ chuyên khoa tiếp nhận</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Danh sách được lọc theo chuyên khoa và cơ sở bạn vừa chọn.</p>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
+                  {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
+                    ? `Xác nhận bác sĩ tiếp nhận: ${currentDoctor.fullName}`
+                    : "Lựa chọn bác sĩ chuyên khoa tiếp nhận"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
+                    ? "Bác sĩ đã được chỉ định theo yêu cầu của bạn. Bạn có thể tiếp tục hoặc chọn bác sĩ khác."
+                    : "Danh sách được lọc theo chuyên khoa và cơ sở bạn vừa chọn."}
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-doctor">Bác sĩ chuyên gia</label>
@@ -1447,11 +1513,27 @@ function BookingExperience({
                 {!catalogLoading && !catalogError && selectedBranch && selectedSpecialty && availableDoctors.length === 0 ? <p className="mt-1.5 text-xs text-amber-800" role="status">Chưa có bác sĩ nhận lịch cho chuyên khoa này tại cơ sở đã chọn.</p> : null}
               </div>
               <div className="flex items-center gap-4 rounded-sm border border-brand-100 bg-brand-50/60 p-4">
-                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-brand-700 text-xl font-bold text-white"><Icon name="stethoscope" size={26} /></div>
-                <div>
+                <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-brand-300 bg-brand-700 text-xl font-bold text-white shadow-sm">
+                  {doctorPhotoUrl(currentDoctor) ? (
+                    <img
+                      src={doctorPhotoUrl(currentDoctor)!}
+                      alt={`Ảnh bác sĩ ${currentDoctor?.fullName}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{doctorInitials(currentDoctor?.fullName)}</span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
                   <h4 className="text-base font-bold text-brand-900">{currentDoctor?.fullName ?? "Chưa chọn bác sĩ"}</h4>
                   <p className="text-xs text-brand-700">{currentSpecialty?.name ?? currentDoctor?.title ?? "Chưa có hồ sơ bác sĩ"}{currentDoctor?.experienceYears ? ` • ${currentDoctor.experienceYears} năm kinh nghiệm` : ""}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-gray-500">{currentDoctor?.bio ?? "Chọn bác sĩ để xem thông tin phù hợp."}</p>
+                  {initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId ? (
+                    <p className="mt-1.5 flex items-center gap-1 text-xs font-semibold text-teal-700">
+                      <Icon name="check" size={14} className="inline text-teal-600" />
+                      Bác sĩ đã được chỉ định theo yêu cầu của bạn
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <div className="booking-step-actions flex items-center justify-between border-t border-gray-100 pt-4">
@@ -1468,8 +1550,16 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">04 · Ngày khám</p>
-                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Chọn ngày thuận tiện cho bạn</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Quý khách vui lòng chọn ngày khám từ ngày làm việc tiếp theo.</p>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
+                  {currentDoctor
+                    ? `Chọn ngày khám cùng ${currentDoctor.fullName}`
+                    : "Chọn ngày thuận tiện cho bạn"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  {currentDoctor
+                    ? `Chọn ngày để tiếp tục chọn khung giờ khám cùng ${currentDoctor.fullName}.`
+                    : "Quý khách vui lòng chọn ngày khám từ ngày làm việc tiếp theo."}
+                </p>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
@@ -1493,8 +1583,16 @@ function BookingExperience({
             <div className="space-y-5">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">05 · Khung giờ</p>
-                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Chọn một khung giờ còn trống</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">Khung giờ khám theo lịch trực thực tế của bác sĩ và được bảo lưu giữ chỗ khi xác nhận.</p>
+                <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
+                  {currentDoctor
+                    ? `Chọn khung giờ khám cùng ${currentDoctor.fullName}`
+                    : "Chọn một khung giờ còn trống"}
+                </h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">
+                  {currentDoctor
+                    ? `Chọn khung giờ khám cùng ${currentDoctor.fullName} theo lịch trực thực tế tại ${currentBranch?.name ?? "cơ sở"}.`
+                    : "Khung giờ khám theo lịch trực thực tế của bác sĩ và được bảo lưu giữ chỗ khi xác nhận."}
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-sm border border-brand-100 bg-brand-50/60 p-3 text-xs text-brand-900">
                 <span><strong>Ngày:</strong> {formatBusinessDate(selectedDate)}</span>

@@ -5,8 +5,9 @@ import Image from "next/image";
 import { getDoctorInitials, getDoctorPhoto } from "../../../lib/doctor-portrait";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { fetchDoctorBySlug } from "../../../lib/api-client";
-import type { Doctor } from "../../../types/hospital";
+import { fetchDoctorBySlug, fetchSpecialties } from "../../../lib/api-client";
+import type { Doctor, Specialty } from "../../../types/hospital";
+import { specialtyIdForDoctor } from "../../../components/BookingModal";
 import {
   PublicAiButton,
   PublicBackLink,
@@ -27,8 +28,21 @@ function initials(name: string): string {
 export default function DoctorDetailPage() {
   const params = useParams<{ slug: string }>();
   const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSpecialties(0, 100)
+      .then((data) => {
+        if (!cancelled) setSpecialties(data.content);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +67,7 @@ export default function DoctorDetailPage() {
   const isDemoDoctor = Boolean(doctor?.demo) || Boolean(doctor?.slug?.startsWith("demo-bs-"));
 
   return (
-    <PublicPageShell doctors={doctor ? [doctor] : []}>
+    <PublicPageShell doctors={doctor ? [doctor] : []} specialties={specialties}>
       <div className="resource-page section-inner">
         <PublicBackLink href="/doctors">← Quay lại danh sách bác sĩ</PublicBackLink>
         <header className="resource-page__header">
@@ -104,7 +118,15 @@ export default function DoctorDetailPage() {
                   </p>
                 ) : null}
                 <div className="resource-actions">
-                  <PublicBookingButton selection={{ doctorId: doctor.id }}>Đặt lịch với bác sĩ</PublicBookingButton>
+                  <PublicBookingButton
+                    selection={{
+                      doctorId: doctor.id,
+                      specialtyId: specialtyIdForDoctor(doctor, specialties) || undefined,
+                      branchId: doctor.branchId || doctor.branchIds?.[0],
+                    }}
+                  >
+                    Đặt lịch với bác sĩ
+                  </PublicBookingButton>
                   <PublicAiButton className="outline-button outline-button--light">Hỗ trợ chọn chuyên khoa</PublicAiButton>
                 </div>
                 <dl className="resource-meta-grid">
