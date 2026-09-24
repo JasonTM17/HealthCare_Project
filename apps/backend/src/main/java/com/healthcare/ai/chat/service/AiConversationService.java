@@ -116,6 +116,7 @@ public class AiConversationService {
     private final boolean healthEducationEnabled;
     private final boolean syntheticBetaAsserted;
     private final SyntheticBetaGuardService syntheticBetaGuard;
+    private final ChatRequestCancellationRegistry cancellationRegistry;
 
     @Value("${ai.chat.chunked-enabled:false}")
     private boolean chunkedEnabled = false;
@@ -142,7 +143,8 @@ public class AiConversationService {
             @Value("${ai.chat.symptom-triage-enabled:false}") boolean symptomTriageEnabled,
             @Value("${ai.chat.health-education-enabled:false}") boolean healthEducationEnabled,
             @Value("${ai.chat.synthetic-beta-asserted:false}") boolean syntheticBetaAsserted,
-            SyntheticBetaGuardService syntheticBetaGuard) {
+            SyntheticBetaGuardService syntheticBetaGuard,
+            ChatRequestCancellationRegistry cancellationRegistry) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.feedbackRepository = feedbackRepository;
@@ -162,6 +164,7 @@ public class AiConversationService {
         this.syntheticBetaAsserted = syntheticBetaAsserted;
         this.syntheticBetaGuard = syntheticBetaGuard == null
             ? SyntheticBetaGuardService.disabled() : syntheticBetaGuard;
+        this.cancellationRegistry = cancellationRegistry;
     }
 
     /** Compatibility constructor for focused unit tests and older callers. */
@@ -196,7 +199,8 @@ public class AiConversationService {
             true,
             true,
             false,
-            SyntheticBetaGuardService.disabled()
+            SyntheticBetaGuardService.disabled(),
+            null
         );
     }
 
@@ -235,7 +239,8 @@ public class AiConversationService {
             symptomTriageEnabled,
             healthEducationEnabled,
             false,
-            SyntheticBetaGuardService.disabled()
+            SyntheticBetaGuardService.disabled(),
+            null
         );
     }
 
@@ -276,7 +281,8 @@ public class AiConversationService {
             symptomTriageEnabled,
             healthEducationEnabled,
             syntheticBetaAsserted,
-            syntheticBetaGuard
+            syntheticBetaGuard,
+            null
         );
     }
 
@@ -382,7 +388,16 @@ public class AiConversationService {
             UUID conversationId,
             String rawIdempotencyKey,
             String rawContent) {
-        return sendInternal(principal, conversationId, rawIdempotencyKey, rawContent, false);
+        return send(principal, conversationId, rawIdempotencyKey, rawContent, null);
+    }
+
+    public ChatExchangeResponse send(
+            UserDetails principal,
+            UUID conversationId,
+            String rawIdempotencyKey,
+            String rawContent,
+            ChatRequestCancellation cancellation) {
+        return sendInternal(principal, conversationId, rawIdempotencyKey, rawContent, false, cancellation);
     }
 
     /**
@@ -399,7 +414,16 @@ public class AiConversationService {
             UUID conversationId,
             String rawIdempotencyKey,
             String rawContent) {
-        return sendInternal(principal, conversationId, rawIdempotencyKey, rawContent, true);
+        return sendForChunkedDelivery(principal, conversationId, rawIdempotencyKey, rawContent, null);
+    }
+
+    public ChatExchangeResponse sendForChunkedDelivery(
+            UserDetails principal,
+            UUID conversationId,
+            String rawIdempotencyKey,
+            String rawContent,
+            ChatRequestCancellation cancellation) {
+        return sendInternal(principal, conversationId, rawIdempotencyKey, rawContent, true, cancellation);
     }
 
     private ChatExchangeResponse sendInternal(
@@ -407,7 +431,9 @@ public class AiConversationService {
             UUID conversationId,
             String rawIdempotencyKey,
             String rawContent,
-            boolean chunkedDeliveryGeneration) {
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
+        if (cancellation != null) cancellation.throwIfCancelled();
         UUID userId = currentUserId(principal);
         String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
         String content = normalizeContent(rawContent);
@@ -421,12 +447,14 @@ public class AiConversationService {
             throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not prepare chat request");
         }
         if (prepared.replay() != null) {
+            if (cancellation != null && cancellationRegistry != null) cancellationRegistry.complete(cancellation);
             recordChatStage("preparation", "replay", preparationStartedAt);
             return prepared.replay();
         }
         recordChatStage("preparation", "completed", preparationStartedAt);
 
         try {
+            if (cancellation != null) cancellation.throwIfCancelled();
             AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
                 .orElseThrow(this::notFound);
             // A prepared free answer is the credit-gate exemption: it is
@@ -437,7 +465,14 @@ public class AiConversationService {
                 ? prepared.freeAnswer()
                 : groundedResponse(
                     userId, conversation.getMode(), content, recentTurns(conversationId),
-                    chunkedDeliveryGeneration);
+                    chunkedDeliveryGeneration, cancellation);
+            if (cancellation != null) {
+                cancellation.throwIfCancelled();
+                if (cancellationRegistry == null) {
+                    throw new IllegalStateException("Shared chat cancellation state is not configured");
+                }
+                cancellationRegistry.claimCommit(cancellation);
+            }
             long persistenceStartedAt = System.nanoTime();
             ChatExchangeResponse completed;
             try {
@@ -460,12 +495,19 @@ public class AiConversationService {
                 throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not persist AI response");
             }
             recordChatStage("persistence", "completed", persistenceStartedAt);
+            if (cancellation != null) cancellationRegistry.complete(cancellation);
             return completed;
         } catch (BusinessException ex) {
             markFailed(userId, conversationId, prepared.userMessageId(), prepared.processingToken());
+            if (cancellation != null && cancellationRegistry != null) {
+                cancellationRegistry.fail(cancellation.requestId());
+            }
             throw ex;
         } catch (RuntimeException ex) {
             markFailed(userId, conversationId, prepared.userMessageId(), prepared.processingToken());
+            if (cancellation != null && cancellationRegistry != null) {
+                cancellationRegistry.fail(cancellation.requestId());
+            }
             throw new BusinessException(
                 503,
                 ErrorCodes.AI_UNAVAILABLE,
@@ -496,7 +538,7 @@ public class AiConversationService {
             ChatMode mode,
             String content,
             List<Map<String, String>> turns) {
-        return groundedResponse(userId, mode, content, turns, false);
+        return groundedResponse(userId, mode, content, turns, false, null);
     }
 
     private SanitizedAiResponse groundedResponse(
@@ -504,7 +546,8 @@ public class AiConversationService {
             ChatMode mode,
             String content,
             List<Map<String, String>> turns,
-            boolean chunkedDeliveryGeneration) {
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
         SanitizedAiResponse deterministicBranch = deterministicBranchResponse(mode, content);
         if (deterministicBranch != null) return deterministicBranch;
 
@@ -520,8 +563,11 @@ public class AiConversationService {
         Map<String, Object> retrieved = null;
         long retrievalStartedAt = System.nanoTime();
         try {
-            retrieved = aiService.retrieveChat(request);
+            retrieved = cancellation == null
+                ? aiService.retrieveChat(request)
+                : aiService.retrieveChat(request, cancellation);
         } catch (RuntimeException ex) {
+            if (cancellation != null && cancellation.isCancelled()) throw ex;
             log.warn(
                 "AI candidate retrieval deferred requestId={} errorType={}",
                 RequestTrace.currentId(), ex.getClass().getSimpleName()
@@ -531,6 +577,7 @@ public class AiConversationService {
                 "retrieval-result", retrieved == null ? "unavailable" : "completed", retrievalStartedAt
             );
         }
+        if (cancellation != null) cancellation.throwIfCancelled();
 
         if (retrieved == null) {
             return supportAwareFallback(mode, content);
@@ -554,6 +601,7 @@ public class AiConversationService {
         if (authorized.isEmpty()) {
             return supportAwareFallback(mode, content);
         }
+        if (cancellation != null) cancellation.throwIfCancelled();
 
         Map<String, Object> generation = new LinkedHashMap<>();
         generation.put("message", content);
@@ -569,9 +617,13 @@ public class AiConversationService {
         long generationStartedAt = System.nanoTime();
         Map<String, Object> generated;
         try {
-            generated = chunkedDeliveryGeneration
-                ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
-                : aiService.generateChat(generation);
+            generated = cancellation == null
+                ? (chunkedDeliveryGeneration
+                    ? aiService.generateChatStream(generation, upstreamDeliverySlices::add)
+                    : aiService.generateChat(generation))
+                : (chunkedDeliveryGeneration
+                    ? aiService.generateChatStream(generation, upstreamDeliverySlices::add, cancellation)
+                    : aiService.generateChat(generation, cancellation));
         } catch (RuntimeException ex) {
             recordChatStage("generation-result", "failed", generationStartedAt);
             throw ex;

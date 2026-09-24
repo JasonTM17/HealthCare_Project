@@ -39,6 +39,9 @@ const MAX_HEADER_VALUE_LENGTH = 16_384;
 const MIN_SERVICE_TOKEN_BYTES = 32;
 const MAX_SERVICE_TOKEN_BYTES = 512;
 const PUBLIC_AI_CHAT_PATH = `${API_PREFIX}public/ai/chat`;
+const PATIENT_AI_CHAT_PATTERN = /^\/api\/v1\/ai\/conversations\/[^/]+\/messages(?:\/stream)?$/u;
+const INTERNAL_CHAT_CANCEL_PATH = "/api/v1/internal/ai/chat-cancellations";
+const CHAT_CANCEL_NOTIFY_TIMEOUT_MS = 750;
 const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 const EMERGENCY_FALLBACK_TERMS = [
   "dau nguc du doi",
@@ -738,7 +741,7 @@ function allowlistedSetCookie(rawCookie: string): string | null {
 function createBrowserResponse(
   upstream: Response,
   requestMethod: string,
-  onBodySettled?: (outcome: "completed" | "cancelled" | "failed") => void,
+  onBodySettled?: (outcome: "completed" | "cancelled" | "failed") => void | Promise<void>,
 ): Response {
   const headers = new Headers();
   for (const [name, value] of upstream.headers.entries()) {
@@ -752,7 +755,7 @@ function createBrowserResponse(
 
   const withoutBody = requestMethod === "HEAD" || upstream.status === 204 || upstream.status === 304;
   if (withoutBody || !upstream.body || !onBodySettled) {
-    onBodySettled?.("completed");
+    void onBodySettled?.("completed");
     return new Response(withoutBody ? null : upstream.body, {
       status: upstream.status,
       headers,
@@ -762,10 +765,10 @@ function createBrowserResponse(
   const reader = upstream.body.getReader();
   let settled = false;
   let cancellationRequested = false;
-  const settle = (outcome: "completed" | "cancelled" | "failed") => {
+  const settle = async (outcome: "completed" | "cancelled" | "failed") => {
     if (settled) return;
     settled = true;
-    onBodySettled(outcome);
+    await onBodySettled(outcome);
   };
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -773,21 +776,25 @@ function createBrowserResponse(
         const chunk = await reader.read();
         if (chunk.done) {
           controller.close();
-          settle("completed");
+          await settle("completed");
         } else if (chunk.value) {
           controller.enqueue(chunk.value);
         }
       } catch (error) {
         controller.error(error);
-        settle(cancellationRequested ? "cancelled" : "failed");
+        await settle(cancellationRequested ? "cancelled" : "failed");
       }
     },
     async cancel(reason) {
       cancellationRequested = true;
+      // Start cancellation delivery before waiting for the upstream body to
+      // acknowledge its own cancellation. The shared state tombstone is what
+      // prevents Spring from persisting work after this response disconnects.
+      const settlement = settle("cancelled");
       try {
-        await reader.cancel(reason);
+        void reader.cancel(reason).catch(() => undefined);
       } finally {
-        settle("cancelled");
+        await settlement;
       }
     },
   });
@@ -820,6 +827,7 @@ export async function proxyHealthcareRequest(
 
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let abortFromBrowser: (() => void) | undefined;
+  let cancellationNotification: Promise<void> | undefined;
   let responseBodyOwnsCleanup = false;
   let publicChatMessage = "";
   let deadlineExpired = false;
@@ -833,6 +841,9 @@ export async function proxyHealthcareRequest(
   try {
     const requestUrl = new URL(request.url);
     apiPath = buildValidatedApiPath(requestUrl, pathSegments);
+    if (apiPath === INTERNAL_CHAT_CANCEL_PATH || apiPath.startsWith(`${INTERNAL_CHAT_CANCEL_PATH}/`)) {
+      return tracedResponse(jsonError(404, "BFF_ROUTE_UNAVAILABLE"), "failed");
+    }
     if (BLOCKED_BEARER_MINT_PATHS.has(apiPath.toLowerCase())) {
       return tracedResponse(jsonError(404, "BFF_ROUTE_UNAVAILABLE"), "failed");
     }
@@ -861,9 +872,59 @@ export async function proxyHealthcareRequest(
       headers.set("X-CSRF-Token", securityCookies.csrf);
     }
 
+    const isCancellableChatRequest = apiPath === PUBLIC_AI_CHAT_PATH
+      || PATIENT_AI_CHAT_PATTERN.test(apiPath);
+    const notifyBackendCancellation = () => {
+      if (!isCancellableChatRequest || cancellationNotification) return;
+      cancellationNotification = (async () => {
+        const cancelHeaders = new Headers(headers);
+        cancelHeaders.set(REQUEST_ID_HEADER, requestId);
+        cancelHeaders.delete("authorization");
+        const cancellationTarget = new URL(
+          `${INTERNAL_CHAT_CANCEL_PATH}/${encodeURIComponent(requestId)}`,
+          `${runtime.backendOrigin}/`,
+        );
+        let delivered = false;
+        let lastStatus: number | undefined;
+        for (let attempt = 0; attempt < 2 && !delivered; attempt += 1) {
+          const cancelController = new AbortController();
+          const cancelTimeoutId = setTimeout(
+            () => cancelController.abort("chat-cancel-notification-timeout"),
+            CHAT_CANCEL_NOTIFY_TIMEOUT_MS,
+          );
+          try {
+            const cancellationResponse = await (options.fetchImpl ?? fetch)(cancellationTarget, {
+              method: "POST",
+              headers: cancelHeaders,
+              cache: "no-store",
+              redirect: "manual",
+              signal: cancelController.signal,
+            });
+            lastStatus = cancellationResponse.status;
+            delivered = cancellationResponse.ok;
+            await cancelUpstreamBody(cancellationResponse, "BFF_CHAT_CANCELLATION_ACK");
+          } catch {
+            // Retry once with the same idempotent server-owned operation id.
+          } finally {
+            clearTimeout(cancelTimeoutId);
+          }
+        }
+        if (!delivered) {
+          // The original upstream fetch is still aborted below. Keep this
+          // control-plane failure content-free and bounded; Spring refuses to
+          // start requests when its shared cancellation state is unavailable.
+          console.warn("healthcare_chat_cancel_delivery_failed", {
+            requestId,
+            ...(lastStatus === undefined ? {} : { status: lastStatus }),
+          });
+        }
+      })();
+    };
+
     const requestController = new AbortController();
     abortFromBrowser = () => {
       browserAborted = true;
+      notifyBackendCancellation();
       requestController.abort(request.signal.reason);
     };
     if (request.signal.aborted) abortFromBrowser();
@@ -878,6 +939,7 @@ export async function proxyHealthcareRequest(
     const retryDeadlineAt = Date.now() + requestTimeoutMs;
     timeoutId = setTimeout(() => {
       deadlineExpired = true;
+      notifyBackendCancellation();
       requestController.abort();
     }, requestTimeoutMs);
     const body = await boundedRequestBody(request, requestController.signal);
@@ -917,9 +979,13 @@ export async function proxyHealthcareRequest(
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
       return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
     }
-    const response = createBrowserResponse(upstream, method, (outcome) => {
-      if (outcome !== "completed") requestController.abort(outcome);
-      cleanup();
+    const response = createBrowserResponse(upstream, method, async (outcome) => {
+      let cancellationWait: Promise<void> | undefined;
+      if (outcome !== "completed") {
+        notifyBackendCancellation();
+        requestController.abort(outcome);
+        cancellationWait = cancellationNotification;
+      }
       recordChatTrace(
         apiPath,
         requestId,
@@ -927,6 +993,8 @@ export async function proxyHealthcareRequest(
         interruptedOutcome(outcome),
         upstream.status,
       );
+      if (cancellationWait) await cancellationWait;
+      cleanup();
     });
     response.headers.set(REQUEST_ID_HEADER, requestId);
     responseBodyOwnsCleanup = true;
@@ -940,6 +1008,9 @@ export async function proxyHealthcareRequest(
     }
     return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
   } finally {
-    if (!responseBodyOwnsCleanup) cleanup();
+    if (!responseBodyOwnsCleanup) {
+      cleanup();
+      if (cancellationNotification) await cancellationNotification;
+    }
   }
 }
