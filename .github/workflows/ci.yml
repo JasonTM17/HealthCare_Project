@@ -116,6 +116,10 @@ jobs:
       - name: Install dependencies
         working-directory: apps/frontend
         run: npm ci
+      - name: Audit production dependencies
+        working-directory: apps/frontend
+        # Runtime deps only: dev-only advisories do not ship to Vercel.
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint
         working-directory: apps/frontend
         run: npm run lint

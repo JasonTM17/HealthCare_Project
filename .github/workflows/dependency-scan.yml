@@ -1,0 +1,44 @@
+name: dependency-scan
+
+# Weekly deep dependency audit. OWASP dependency-check pulls the full NVD
+# snapshot, which is far too slow for every push; the per-push frontend gate
+# stays in ci.yml (npm audit --omit=dev --audit-level=high).
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  backend-dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: OWASP dependency check
+        working-directory: apps/backend
+        # Advisory gate: report every finding, fail only on high-and-above
+        # CVSS 9 so known-noise libraries do not permanently redden the job.
+        run: ./mvnw -B org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=9
+
+  frontend-dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: apps/frontend
+        run: npm ci
+      - name: Full audit including dev dependencies
+        working-directory: apps/frontend
+        run: npm audit --audit-level=critical
