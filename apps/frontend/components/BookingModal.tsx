@@ -2,6 +2,7 @@
 
 import React, { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Doctor,
   Specialty,
@@ -1359,9 +1360,11 @@ function BookingExperience({
                     <div className="flex items-start gap-3.5">
                       <div className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-teal-300 bg-teal-100 text-teal-800 font-bold shadow-sm">
                         {doctorPhotoUrl(currentDoctor) ? (
-                          <img
+                          <Image
                             src={doctorPhotoUrl(currentDoctor)!}
                             alt={`Ảnh bác sĩ ${currentDoctor.fullName}`}
+                            width={56}
+                            height={56}
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -1515,9 +1518,11 @@ function BookingExperience({
               <div className="flex items-center gap-4 rounded-sm border border-brand-100 bg-brand-50/60 p-4">
                 <div className="relative flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-brand-300 bg-brand-700 text-xl font-bold text-white shadow-sm">
                   {doctorPhotoUrl(currentDoctor) ? (
-                    <img
+                    <Image
                       src={doctorPhotoUrl(currentDoctor)!}
                       alt={`Ảnh bác sĩ ${currentDoctor?.fullName}`}
+                      width={56}
+                      height={56}
                       className="h-full w-full object-cover"
                     />
                   ) : (
