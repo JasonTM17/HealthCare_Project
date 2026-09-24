@@ -68,6 +68,18 @@ class ChatSuggestedActionResolverTest {
     }
 
     @Test
+    void preparationQuestionAboutGeneralCheckupDoesNotBecomePackageShopping() {
+        String question = "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?";
+        assertThat(ChatSuggestedActionResolver.classify(question))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION);
+        assertThat(ChatSuggestedActionResolver.hospitalSupportFallback(question))
+            .extracting(action -> action.get("href"))
+            .containsExactly("/dat-lich", "/branches", "/specialties");
+        assertThat(ChatSuggestedActionResolver.classify("Có những gói khám tổng quát nào?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.PACKAGE);
+    }
+
+    @Test
     void doesNotTreatAWordFragmentAsASymptom() {
         assertThat(ChatSuggestedActionResolver.classify("Bạn cho tôi biết nên khám khoa nào"))
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL);
