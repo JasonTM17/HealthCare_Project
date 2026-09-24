@@ -164,6 +164,54 @@ def test_deepseek_client_uses_default_base_url_when_legacy_value_is_empty() -> N
     assert client.base_url == "https://api.deepseek.com"
 
 
+def test_build_llm_client_refuses_base_url_outside_the_https_host_allowlist() -> None:
+    settings = SimpleNamespace(
+        ai_provider="deepseek",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="deepseek-v4-flash",
+        deepseek_model="deepseek-v4-flash",
+        ai_base_url="https://evil.example.com/v1",
+        deepseek_base_url="",
+        ai_timeout_seconds=10,
+        remote_ai_https_host_allowlist="api.deepseek.com",
+    )
+
+    # The egress host allowlist is enforced when configured: a configured base
+    # URL pointing anywhere else yields no remote client and the deterministic
+    # fallback instead.
+    assert build_llm_client(settings) is None
+
+
+def test_build_llm_client_enforces_the_allowlist_against_a_resolved_legacy_base_url() -> None:
+    settings = SimpleNamespace(
+        ai_provider="deepseek",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="",
+        deepseek_model="",
+        ai_base_url="",
+        deepseek_base_url="https://evil.example.com/v1",
+        ai_timeout_seconds=10,
+        remote_ai_https_host_allowlist="api.deepseek.com",
+    )
+
+    assert build_llm_client(settings) is None
+
+
+def test_build_llm_client_allows_allowlisted_host() -> None:
+    settings = SimpleNamespace(
+        ai_provider="deepseek",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="deepseek-v4-flash",
+        deepseek_model="deepseek-v4-flash",
+        ai_base_url="https://api.deepseek.com",
+        deepseek_base_url="",
+        ai_timeout_seconds=10,
+        remote_ai_https_host_allowlist="api.deepseek.com",
+    )
+
+    assert isinstance(build_llm_client(settings), OpenAIChatClient)
+
+
 def test_missing_deepseek_secret_returns_no_client_and_fails_closed() -> None:
     settings = SimpleNamespace(
         ai_provider="deepseek",
