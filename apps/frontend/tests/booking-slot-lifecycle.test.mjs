@@ -61,7 +61,7 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     if (specifier === "react/jsx-runtime") {
       return { Fragment: Symbol("Fragment"), jsx: () => null, jsxs: () => null };
     }
-    if (specifier === "next/link") return () => null;
+    if (specifier === "next/link" || specifier === "next/image") return () => null;
     if (specifier === "../lib/api") {
       return { confirmAppointment() {}, fetchDoctorSlots() {}, holdAppointmentSlot() {} };
     }

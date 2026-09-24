@@ -66,7 +66,49 @@ test("step 1 shows the preselected doctor and lets the patient switch away", asy
 test("doctor detail page hands its doctor to the booking shell", async () => {
   const source = await readFile(new URL("../app/doctors/[slug]/page.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /<PublicPageShell doctors=\{doctor \? \[doctor\] : \[\]\}>/);
+  assert.match(source, /<PublicPageShell\s+doctors=\{doctor \? \[doctor\] : \[\]\}/);
+});
+
+test("doctor booking identity is highlighted on header and steps 1, 4, and 5", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  // Header displays doctor context
+  assert.match(source, /Bác sĩ tiếp nhận: \$\{currentDoctor\.fullName\}/);
+  assert.match(source, /Đặt lịch trực tuyến cùng \$\{currentDoctor\.fullName\}/);
+
+  // Step 1 Doctor Highlight Card
+  assert.match(source, /data-testid="booking-preselected-doctor"/);
+  assert.match(source, /doctorPhotoUrl\(currentDoctor\)/);
+  assert.match(source, /doctorInitials\(currentDoctor\.fullName\)/);
+  assert.match(source, /Bác sĩ đã được chỉ định theo yêu cầu của bạn/);
+  assert.match(source, /currentDoctor\.title/);
+
+  // Step 4 & 5 Headings include doctor full name
+  assert.match(source, /Chọn ngày khám cùng \$\{currentDoctor\.fullName\}/);
+  assert.match(source, /Chọn khung giờ khám cùng \$\{currentDoctor\.fullName\}/);
+});
+
+test("doctor CTA callers propagate doctorId, specialtyId, and branchId", async () => {
+  const [home, doctors, doctorDetail, search] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/doctors/DoctorsPageClient.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/doctors/[slug]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/search/SearchPageClient.tsx", import.meta.url), "utf8"),
+  ]);
+
+  // Home
+  assert.match(home, /specialtyIdForDoctor\(doctor, catalog\.specialties\)/);
+  assert.match(home, /onBook=\{\(doctorId, spId\) => handleOpenBooking\(doctorId, spId \?\? docSpecialtyId\)\}/);
+
+  // Doctors catalog
+  assert.match(doctors, /specialtyIdForDoctor\(featuredDoctor, specialties\)/);
+  assert.match(doctors, /specialtyIdForDoctor\(doctor, specialties\)/);
+
+  // Doctor detail
+  assert.match(doctorDetail, /specialtyId: specialtyIdForDoctor\(doctor, specialties\) \|\| undefined/);
+
+  // Search
+  assert.match(search, /specialtyId: specialtyIdForDoctor\(item, catalog\.specialties\) \|\| undefined/);
 });
 
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
