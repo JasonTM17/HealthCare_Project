@@ -20,6 +20,7 @@ import {
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
 import { presentApiError } from "../lib/present-api-error";
+import { buildGoogleCalendarUrl, downloadIcsFile } from "../lib/appointment-calendar";
 import Icon from "./UiIcon";
 import useDialogFocus from "./useDialogFocus";
 
@@ -1293,6 +1294,45 @@ export default function PackageBookingModal({
                         ĐÃ XÁC NHẬN
                       </span>
                     </div>
+                  </div>
+
+                  {/* Calendar Integration Action Bar */}
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2" data-testid="package-booking-calendar-actions">
+                    <a
+                      href={buildGoogleCalendarUrl({
+                        bookingCode: confirmedAppointment.bookingCode,
+                        patientName: confirmedAppointment.patientName,
+                        doctorName: packageItem.name,
+                        specialtyName: "Gói khám sức khỏe",
+                        appointmentDate: confirmedAppointment.appointmentDate,
+                        startTime: confirmedAppointment.startTime,
+                        endTime: confirmedAppointment.endTime,
+                        branchName: currentBranch?.name || confirmedAppointment.branchName,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-white border border-teal-300 text-teal-900 text-xs font-semibold shadow-2xs hover:bg-teal-50 transition-colors focus-visible:outline-2 focus-visible:outline-teal-600"
+                      data-testid="package-add-google-calendar"
+                    >
+                      <Icon name="calendar" size={14} /> Thêm vào Google Calendar
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => downloadIcsFile({
+                        bookingCode: confirmedAppointment.bookingCode,
+                        patientName: confirmedAppointment.patientName,
+                        doctorName: packageItem.name,
+                        specialtyName: "Gói khám sức khỏe",
+                        appointmentDate: confirmedAppointment.appointmentDate,
+                        startTime: confirmedAppointment.startTime,
+                        endTime: confirmedAppointment.endTime,
+                        branchName: currentBranch?.name || confirmedAppointment.branchName,
+                      })}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-sm bg-white border border-teal-300 text-teal-900 text-xs font-semibold shadow-2xs hover:bg-teal-50 transition-colors focus-visible:outline-2 focus-visible:outline-teal-600"
+                      data-testid="package-download-ics"
+                    >
+                      <Icon name="download" size={14} /> Tải file nhắc hẹn (.ics)
+                    </button>
                   </div>
 
                   <div className="pt-3 flex flex-wrap items-center justify-center gap-3">

@@ -291,6 +291,12 @@ test.describe("doctor CTA preselects the booking wizard", () => {
 
     await expect(page.locator("h3")).toContainText("Đặt lịch khám thành công!");
     await expect(page.getByTestId("booking-confirmed-doctor")).toContainText(DOCTOR.fullName);
+    await expect(page.getByTestId("booking-calendar-actions")).toBeVisible();
+    await expect(page.getByTestId("booking-add-google-calendar")).toBeVisible();
+    const gCalHref = await page.getByTestId("booking-add-google-calendar").getAttribute("href");
+    expect(gCalHref).toContain("calendar.google.com");
+    expect(gCalHref).toContain("action=TEMPLATE");
+    await expect(page.getByTestId("booking-download-ics")).toBeVisible();
   });
 
   test("generic navbar booking allows selecting any branch on step 2 without doctor lock", async ({ page, context }) => {
@@ -408,5 +414,17 @@ test.describe("doctor CTA preselects the booking wizard", () => {
     await expect(switchBtn).toBeVisible();
     await switchBtn.click();
     await expect(panel).toHaveCount(0);
+  });
+
+  test("doctor detail page renders valid Schema.org Physician JSON-LD", async ({ page, context }) => {
+    await installCatalogMocks(context);
+    await page.goto(`/doctors/${DOCTOR.slug}`, { waitUntil: "domcontentloaded" });
+    const jsonLdScript = page.locator("script#doctor-jsonld");
+    await expect(jsonLdScript).toBeAttached({ timeout: 15000 });
+    const jsonText = await jsonLdScript.textContent();
+    expect(jsonText).toBeTruthy();
+    const data = JSON.parse(jsonText!);
+    expect(data["@type"]).toBe("Physician");
+    expect(data.name).toBe(DOCTOR.fullName);
   });
 });

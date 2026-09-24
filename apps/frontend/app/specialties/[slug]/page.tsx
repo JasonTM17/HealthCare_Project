@@ -12,6 +12,7 @@ import {
   PublicBookingButton,
   PublicPageShell,
 } from "../../../components/PublicPageShell";
+import { JsonLd } from "../../../components/JsonLd";
 
 const SPECIALTY_STEPS = [
   ["01", "Đối chiếu triệu chứng", "Xem nhóm dấu hiệu thường gặp để chuẩn bị câu hỏi trước khi khám."],
@@ -49,8 +50,19 @@ export default function SpecialtyDetailPage() {
   const preparationCount = specialty?.preparationSteps?.length ?? 0;
   const relatedDoctorCount = specialty?.relatedDoctors?.length ?? 0;
 
+  const specialtyJsonLd = specialty
+    ? {
+        "@context": "https://schema.org",
+        "@type": "MedicalSpecialty",
+        name: specialty.name,
+        description: specialty.description || `Khám và điều trị chuyên khoa ${specialty.name} tại Hệ thống Bệnh viện HealthCare`,
+        url: `https://www.healthcare.id.vn/specialties/${params?.slug || ""}`,
+      }
+    : null;
+
   return (
     <PublicPageShell>
+      {specialtyJsonLd ? <JsonLd data={specialtyJsonLd} id="specialty-jsonld" /> : null}
       <div className="resource-page section-inner">
         <PublicBackLink href="/specialties">← Quay lại danh sách chuyên khoa</PublicBackLink>
         <header className="resource-page__header">
