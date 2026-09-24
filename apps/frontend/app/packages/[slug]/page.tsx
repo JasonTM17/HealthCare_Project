@@ -9,6 +9,7 @@ import { fetchPackageBySlug } from "../../../lib/api-client";
 import { getPackageVisual } from "../../../lib/package-visuals";
 import type { HealthPackage } from "../../../types/hospital";
 import PackageBookingModal from "../../../components/PackageBookingModal";
+import { JsonLd } from "../../../components/JsonLd";
 
 const currency = (price: number) => new Intl.NumberFormat("vi-VN").format(price);
 const PACKAGE_DETAIL_STEPS = [
@@ -43,9 +44,31 @@ export default function PackageDetailPage() {
   }, [slug]);
 
   const visual = item ? getPackageVisual(item) : null;
+  const packageJsonLd = item
+    ? {
+        "@context": "https://schema.org",
+        "@type": "MedicalProcedure",
+        name: item.name,
+        description: item.description || "Gói khám sức khỏe toàn diện tại Hệ thống Y tế HealthCare.",
+        url: `https://www.healthcare.id.vn/packages/${item.slug}`,
+        image: visual ? [visual.imageSrc] : undefined,
+        offers: {
+          "@type": "Offer",
+          price: item.price,
+          priceCurrency: "VND",
+          availability: "https://schema.org/InStock",
+        },
+        provider: {
+          "@type": "MedicalOrganization",
+          name: "Hệ thống Y tế Đa khoa HealthCare",
+          url: "https://www.healthcare.id.vn",
+        },
+      }
+    : null;
 
   return (
     <PublicPageShell onBookingRequest={() => setPackageBookingOpen(true)} packages={item ? [item] : []}>
+      {packageJsonLd ? <JsonLd data={packageJsonLd} id="package-jsonld" /> : null}
       <div className="resource-page section-inner">
         <PublicBackLink href="/packages">← Quay lại danh mục gói khám</PublicBackLink>
         {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải gói khám…</p> : null}

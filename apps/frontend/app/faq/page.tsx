@@ -7,6 +7,7 @@ import type { Faq } from "../../types/hospital";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import CatalogPagination from "../../components/CatalogPagination";
 import { presentApiError } from "../../lib/present-api-error";
+import { JsonLd } from "../../components/JsonLd";
 
 const FAQ_STEPS = [
   {
@@ -67,8 +68,24 @@ export default function FaqPage() {
     };
   }, [currentPage, retryCount]);
 
+  const faqJsonLd = page?.content?.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: page.content.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: item.answer,
+          },
+        })),
+      }
+    : null;
+
   return (
     <PublicPageShell>
+      {faqJsonLd ? <JsonLd data={faqJsonLd} id="faq-jsonld" /> : null}
       <div aria-busy={loading} className="resource-page section-inner">
         <header className="resource-page__header">
           <p className="section-note">Hỗ trợ người bệnh</p>

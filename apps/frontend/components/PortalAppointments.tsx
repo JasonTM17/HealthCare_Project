@@ -1,6 +1,7 @@
 import type { Page } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
 import type { DoctorPortalAppointment, PatientPortalAppointment } from "../types/hospital";
+import { buildGoogleCalendarUrl, downloadIcsFile } from "../lib/appointment-calendar";
 
 type PortalAppointmentsProps =
   | {
@@ -153,6 +154,45 @@ export default function PortalAppointments({
             && (appointment.status === "CONFIRMED" || appointment.status === "PENDING_CONFIRMATION")
             && (onReschedule || onCancel || onPayment) ? (
             <div className="portal-appointment__actions">
+              {appointment.status === "CONFIRMED" ? (
+                <>
+                  <a
+                    className="outline-button outline-button--small"
+                    href={buildGoogleCalendarUrl({
+                      bookingCode: appointment.bookingCode,
+                      doctorName: appointment.doctorName,
+                      specialtyName: appointment.specialtyName,
+                      appointmentDate: appointment.appointmentDate,
+                      startTime: appointment.startTime,
+                      endTime: appointment.endTime,
+                      branchName: appointment.branchName,
+                    })}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                    title="Thêm lịch hẹn vào Google Calendar"
+                  >
+                    Google Calendar
+                  </a>
+                  <button
+                    className="outline-button outline-button--small"
+                    onClick={() =>
+                      downloadIcsFile({
+                        bookingCode: appointment.bookingCode,
+                        doctorName: appointment.doctorName,
+                        specialtyName: appointment.specialtyName,
+                        appointmentDate: appointment.appointmentDate,
+                        startTime: appointment.startTime,
+                        endTime: appointment.endTime,
+                        branchName: appointment.branchName,
+                      })
+                    }
+                    title="Tải tệp lịch nhắc hẹn (.ics)"
+                    type="button"
+                  >
+                    Tải .ics
+                  </button>
+                </>
+              ) : null}
               {onReschedule && appointment.status === "CONFIRMED" ? (
                 <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
               ) : null}
