@@ -1016,12 +1016,15 @@
   }
 
   .panel {
-    /* 100vw includes the vertical scrollbar in desktop browser emulation.
-       Leave enough room for the mobile gutter so the fixed panel cannot
-       start outside the content viewport at 360px and below. */
-    width: min(25rem, calc(100vw - 1.5rem));
-    height: min(39rem, calc(100dvh - 6.5rem));
-    max-height: calc(100dvh - 6.5rem);
+    /* Reserve space for the mobile care rail, launcher, gap, and scrollbars.
+       The panel header must remain reachable even at a 320px viewport. */
+    width: min(25rem, calc(100vw - 2.5rem));
+    height: min(39rem, calc(100dvh - var(--assistant-bottom-clearance) - 7rem));
+    max-height: calc(100dvh - var(--assistant-bottom-clearance) - 7rem);
+  }
+
+  .thread {
+    min-height: 0;
   }
 
   .launcher {
