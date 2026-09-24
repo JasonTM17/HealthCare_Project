@@ -24,29 +24,8 @@ function cleanIsoTime(timeStr: string): string {
   return `${h}${m}00`;
 }
 
-/**
- * Builds a direct Google Calendar event creation URL.
- */
+/** Keep third-party calendar URLs free of patient and visit details. */
 export function buildGoogleCalendarUrl(appt: CalendarAppointmentInput): string {
-  const doctor = appt.doctorName?.trim() || "Bác sĩ chuyên khoa";
-  const specialty = appt.specialtyName?.trim() || "Đa khoa";
-  const branch = appt.branchName?.trim() || "Hệ thống Bệnh viện Đa khoa HealthCare";
-  const patient = appt.patientName?.trim() || "Bệnh nhân";
-
-  const title = `Lịch khám tại HealthCare: ${doctor} - ${specialty}`;
-  const details = [
-    `Mã phiếu khám: ${appt.bookingCode}`,
-    `Người khám: ${patient}`,
-    `Bác sĩ phụ trách: ${doctor}`,
-    `Chuyên khoa: ${specialty}`,
-    `Cơ sở tiếp nhận: ${branch}`,
-    "",
-    "Lưu ý quan trọng:",
-    "- Vui lòng đến trước giờ hẹn 30 phút để hoàn tất thủ tục tiếp đón.",
-    "- Mang theo CCCD/Hộ chiếu và thẻ BHYT (nếu có) cùng mã phiếu khám này.",
-    "- Nếu cần đổi lịch hoặc hỗ trợ y tế khẩn cấp, vui lòng liên hệ hotline 1900 1234 hoặc 115.",
-  ].join("\n");
-
   const datePart = cleanIsoDate(appt.appointmentDate);
   const startPart = cleanIsoTime(appt.startTime);
   const endPart = cleanIsoTime(appt.endTime);
@@ -55,27 +34,17 @@ export function buildGoogleCalendarUrl(appt: CalendarAppointmentInput): string {
 
   const params = new URLSearchParams({
     action: "TEMPLATE",
-    text: title,
+    text: "Lịch hẹn cá nhân",
     dates: dates,
     ctz: "Asia/Ho_Chi_Minh",
-    details: details,
-    location: branch,
+    details: "Xem thông tin chi tiết trong ứng dụng nơi bạn đặt lịch.",
   });
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-/**
- * Generates an iCalendar (.ics) string and triggers a browser download.
- */
-export function downloadIcsFile(appt: CalendarAppointmentInput): void {
-  if (typeof window === "undefined") return;
-
-  const doctor = appt.doctorName?.trim() || "Bác sĩ chuyên khoa";
-  const specialty = appt.specialtyName?.trim() || "Đa khoa";
-  const branch = appt.branchName?.trim() || "Hệ thống Bệnh viện Đa khoa HealthCare";
-  const patient = appt.patientName?.trim() || "Bệnh nhân";
-
+/** The downloadable event may later be imported into a cloud calendar. */
+export function buildIcsCalendar(appt: CalendarAppointmentInput): string {
   const datePart = cleanIsoDate(appt.appointmentDate);
   const startPart = cleanIsoTime(appt.startTime);
   const endPart = cleanIsoTime(appt.endTime);
@@ -83,46 +52,42 @@ export function downloadIcsFile(appt: CalendarAppointmentInput): void {
   const now = new Date();
   const dtStamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
-  const summary = `Lịch khám tại HealthCare: ${doctor} - ${specialty}`;
-  const description = [
-    `Mã phiếu khám: ${appt.bookingCode}`,
-    `Bệnh nhân: ${patient}`,
-    `Bác sĩ: ${doctor}`,
-    `Chuyên khoa: ${specialty}`,
-    `Cơ sở: ${branch}`,
-    "Vui lòng đến trước 30 phút và mang theo CCCD/BHYT.",
-  ].join("\\n");
-
   const icsLines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//HealthCare Vietnam//Appointment System//VI",
+    "PRODID:-//Personal Appointment Reminder//VI",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
-    `UID:${appt.bookingCode}-${datePart}@healthcare.id.vn`,
+    `UID:${globalThis.crypto.randomUUID()}@calendar.local`,
     `DTSTAMP:${dtStamp}`,
     `DTSTART;TZID=Asia/Ho_Chi_Minh:${datePart}T${startPart}`,
     `DTEND;TZID=Asia/Ho_Chi_Minh:${datePart}T${endPart}`,
-    `SUMMARY:${summary}`,
-    `DESCRIPTION:${description}`,
-    `LOCATION:${branch}`,
+    "SUMMARY:Lịch hẹn cá nhân",
+    "DESCRIPTION:Xem thông tin chi tiết trong ứng dụng nơi bạn đặt lịch.",
     "STATUS:CONFIRMED",
     "BEGIN:VALARM",
     "TRIGGER:-PT2H",
     "ACTION:DISPLAY",
-    "DESCRIPTION:Nhắc nhở: Bạn có lịch khám bệnh tại HealthCare sau 2 giờ nữa",
+    "DESCRIPTION:Nhắc bạn về lịch hẹn sau 2 giờ nữa",
     "END:VALARM",
     "END:VEVENT",
     "END:VCALENDAR",
   ];
 
-  const icsBlob = new Blob([icsLines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+  return icsLines.join("\r\n");
+}
+
+/** Generates a private iCalendar (.ics) reminder and triggers a browser download. */
+export function downloadIcsFile(appt: CalendarAppointmentInput): void {
+  if (typeof window === "undefined") return;
+
+  const icsBlob = new Blob([buildIcsCalendar(appt)], { type: "text/calendar;charset=utf-8" });
   const downloadUrl = URL.createObjectURL(icsBlob);
 
   const link = document.createElement("a");
   link.href = downloadUrl;
-  link.download = `lich-kham-${appt.bookingCode}.ics`;
+  link.download = "lich-hen.ics";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
