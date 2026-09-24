@@ -595,6 +595,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                         <p>{doctorResultMeta(item)}</p>
                       </Link>
                       <PublicBookingButton
+                        ariaLabel={`Đặt lịch với bác sĩ ${item.fullName}`}
                         className="outline-button outline-button--small"
                         selection={{
                           doctorId: item.id,

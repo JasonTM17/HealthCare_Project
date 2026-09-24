@@ -151,14 +151,14 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
               <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>
               <PublicBookingButton
                 selection={
-                  selectedSpecialty
-                    ? { specialtyId: selectedSpecialty.id }
-                    : featuredDoctor
-                      ? {
-                          doctorId: featuredDoctor.id,
-                          specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || undefined,
-                          branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
-                        }
+                  featuredDoctor
+                    ? {
+                        doctorId: featuredDoctor.id,
+                        specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || selectedSpecialty?.id || undefined,
+                        branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
+                      }
+                    : selectedSpecialty
+                      ? { specialtyId: selectedSpecialty.id }
                       : undefined
                 }
               >
@@ -221,7 +221,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                       className="outline-button outline-button--small"
                       selection={{
                         doctorId: featuredDoctor.id,
-                        specialtyId: selectedSpecialty?.id || specialtyIdForDoctor(featuredDoctor, specialties) || undefined,
+                        specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || selectedSpecialty?.id || undefined,
                         branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
                       }}
                     >
@@ -282,7 +282,7 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
                       className="outline-button outline-button--small"
                       selection={{
                         doctorId: doctor.id,
-                        specialtyId: selectedSpecialty?.id || specialtyIdForDoctor(doctor, specialties) || undefined,
+                        specialtyId: specialtyIdForDoctor(doctor, specialties) || selectedSpecialty?.id || undefined,
                         branchId: doctor.branchId || doctor.branchIds?.[0],
                       }}
                     >
