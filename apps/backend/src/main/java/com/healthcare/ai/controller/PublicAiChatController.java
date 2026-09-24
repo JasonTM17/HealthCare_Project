@@ -148,6 +148,8 @@ public class PublicAiChatController {
                 }
                 Map<String, Object> fallback = publicCatalogFallback(userMessage);
                 if (fallback != null) return ResponseEntity.ok(fallback);
+                fallback = publicMissingVerifiedSourceFallback(userMessage, publicMode);
+                if (fallback != null) return ResponseEntity.ok(fallback);
             }
             throw ex;
         }
@@ -311,6 +313,8 @@ public class PublicAiChatController {
             Map<String, Object> navigationFallback = publicNavigationFallback(
                 userMessage, publicMode, provenance);
             if (navigationFallback != null) return navigationFallback;
+            Map<String, Object> sourceFallback = publicMissingVerifiedSourceFallback(userMessage, publicMode);
+            if (sourceFallback != null) return sourceFallback;
             throw badGateway("AI answer is missing a verified public catalog source");
         }
         if ("INSUFFICIENT_EVIDENCE".equals(safetyAction)) {
@@ -444,6 +448,24 @@ public class PublicAiChatController {
 
     private Map<String, Object> publicSafetyFallback(String userMessage, String safetyAction) {
         return publicSafetyFallback(userMessage, safetyAction, ChatMode.HEALTH_EDUCATION);
+    }
+
+    private Map<String, Object> publicMissingVerifiedSourceFallback(
+            String userMessage, ChatMode publicMode) {
+        if (publicMode != ChatMode.HOSPITAL_SUPPORT) return null;
+        ChatSuggestedActionResolver.HospitalSupportIntent intent =
+            ChatSuggestedActionResolver.classify(userMessage);
+        if (intent != ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION
+                && intent != ChatSuggestedActionResolver.HospitalSupportIntent.PACKAGE
+                && intent != ChatSuggestedActionResolver.HospitalSupportIntent.SERVICE) return null;
+        Map<String, Object> fallback = publicSafetyFallback(
+            userMessage, "INSUFFICIENT_EVIDENCE", publicMode);
+        fallback.put("answer", "Mình chưa có nguồn đã xác thực để trả lời chi tiết câu hỏi này. "
+            + "Bạn hãy xem thông tin trên website hoặc xác nhận trực tiếp với cơ sở trước buổi khám.");
+        fallback.put("suggested_actions",
+            ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        fallback.put("routingReason", "public_missing_verified_source");
+        return fallback;
     }
 
     private Map<String, Object> publicSafetyFallback(

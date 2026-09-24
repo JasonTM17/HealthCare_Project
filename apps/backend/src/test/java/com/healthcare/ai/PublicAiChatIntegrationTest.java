@@ -89,6 +89,31 @@ class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void ungroundedPreparationAnswerReturnsSafePublicResponse() throws Exception {
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn phải nhịn ăn 12 giờ trước buổi khám tổng quát.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "remote_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        mockMvc.perform(post("/api/v1/public/ai/chat")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.safety_action").value("INSUFFICIENT_EVIDENCE"))
+            .andExpect(jsonPath("$.provenance").value("local_fallback"))
+            .andExpect(jsonPath("$.routingReason").value("public_missing_verified_source"))
+            .andExpect(jsonPath("$.citations").isEmpty())
+            .andExpect(jsonPath("$.suggested_actions").isArray());
+
+        assertThat(aiConversationRepository.count()).isZero();
+        assertThat(aiMessageRepository.count()).isZero();
+    }
+
+    @Test
     void publicHospitalSupportChatRejectsModeAndOversizedContent() throws Exception {
         mockMvc.perform(post("/api/v1/public/ai/chat")
                 .contentType(MediaType.APPLICATION_JSON)

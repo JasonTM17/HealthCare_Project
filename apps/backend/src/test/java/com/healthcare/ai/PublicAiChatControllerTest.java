@@ -3,6 +3,7 @@ package com.healthcare.ai;
 import com.healthcare.ai.controller.PublicAiChatController;
 import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.service.AiChatSourceResolver;
+import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.ai.service.AiService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -176,6 +177,53 @@ class PublicAiChatControllerTest {
             .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
+    }
+
+    @Test
+    void degradesUngroundedPreparationAnswerToHonestGuidance() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn phải nhịn ăn 12 giờ trước buổi khám tổng quát.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "remote_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("citations", List.of())
+            .containsEntry("routingReason", "public_missing_verified_source")
+            .containsEntry("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(
+                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?"));
+        assertThat((String) body.get("answer")).doesNotContain("12 giờ");
+    }
+
+    @Test
+    void degradesUnavailableAiForPreparationQuestionToHonestGuidance() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "AI service has no verified context"));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("citations", List.of())
+            .containsEntry("routingReason", "public_missing_verified_source")
+            .containsEntry("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(
+                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?"));
     }
 
     @Test
