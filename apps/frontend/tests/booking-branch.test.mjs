@@ -42,11 +42,31 @@ test("AI specialty identity fails closed when the live booking catalog is stale"
 test("booking keeps a doctor CTA scoped to that doctor's specialty and branch", async () => {
   const source = await readFile(modalPath, "utf8");
 
-  assert.match(source, /const requestedDoctor = doctors\.find\(\(doctor\) => doctor\.id === initialDoctorId\)/);
+  assert.match(source, /const requestedDoctor = preselectionDismissed\s*\?\s*undefined\s*:\s*doctors\.find\(\(doctor\) => doctor\.id === initialDoctorId\)/);
   assert.match(source, /specialtyIdForDoctor\(requestedDoctor, specialties\)/);
   assert.match(source, /branches\.find\(\(branch\) => requestedDoctor && doctorMatchesBranch\(requestedDoctor, branch\.id\)\)/);
   assert.match(source, /Chọn bác sĩ thuộc chuyên khoa đã chọn/);
   assert.match(source, /currentSpecialty\?\.name \|\| doc\.title/);
+});
+
+test("step 1 shows the preselected doctor and lets the patient switch away", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  assert.match(source, /data-testid="booking-preselected-doctor"/);
+  assert.match(source, /initialDoctorId && !preselectionDismissed && currentDoctor\?\.id === initialDoctorId/);
+  assert.match(source, /Bác sĩ bạn chọn/);
+  assert.match(source, /onClick=\{\(\) => setPreselectionDismissed\(true\)\}/);
+  // Dismissing must survive the combo-doctor refresh: syncSelection may not
+  // re-apply initialDoctorId once the patient chose to switch doctors.
+  assert.match(source, /\?\? \(!preselectionDismissed/);
+  // Reopening the wizard must restore the preselection.
+  assert.match(source, /setPreselectionDismissed\(false\)/);
+});
+
+test("doctor detail page hands its doctor to the booking shell", async () => {
+  const source = await readFile(new URL("../app/doctors/[slug]/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /<PublicPageShell doctors=\{doctor \? \[doctor\] : \[\]\}>/);
 });
 
 test("branch two selection resets slot identity and passes the selected branch to hold", async () => {
