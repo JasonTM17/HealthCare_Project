@@ -10888,6 +10888,9 @@ main {
   .site-footer a:focus-visible,
   .site-shell .site-footer a:focus,
   .site-shell .site-footer a:focus-visible {
+    outline: 3px solid Highlight !important;
+    outline-width: 3px !important;
+    outline-style: solid !important;
     outline-color: Highlight !important;
   }
 }
