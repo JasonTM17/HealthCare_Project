@@ -70,6 +70,7 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     }
     if (specifier === "../lib/business-time") return { businessDate: () => "2026-08-26" };
     if (specifier === "../lib/present-api-error") return { presentApiError: () => "Chưa thể hoàn tất yêu cầu. Vui lòng thử lại." };
+    if (specifier === "../lib/appointment-calendar") return { buildGoogleCalendarUrl: () => "", downloadIcsFile: () => {} };
     if (specifier === "./UiIcon" || specifier === "./useDialogFocus") return () => null;
     if (specifier === "../types/hospital") return {};
     if (specifier === "./secure-random") return loadSecureRandom();

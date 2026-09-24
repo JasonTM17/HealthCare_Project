@@ -18,6 +18,8 @@ const ERROR_COPY_BY_CODE = Object.freeze({
   APPOINTMENT_NOT_FOUND: "Không tìm thấy thông tin lịch hẹn. Vui lòng kiểm tra lại.",
   DOCTOR_UNAVAILABLE: "Bác sĩ hiện không có lịch tiếp nhận vào khung giờ này. Vui lòng chọn thời gian khác.",
   PAYMENT_FAILED: "Thanh toán không thành công. Vui lòng kiểm tra phương thức và thử lại.",
+  BFF_UPSTREAM_UNAVAILABLE: "Máy chủ y tế đang kết nối lại (khoảng 15-30 giây). Vui lòng đợi trong giây lát rồi thử lại.",
+  BFF_UPSTREAM_TIMEOUT: "Máy chủ y tế phản hồi chậm. Vui lòng đợi trong giây lát rồi thử lại.",
 
   AI_CONTENT_ALREADY_DECIDED: "Revision này đã được xử lý. Vui lòng tải lại hàng đợi.",
   AI_CONTENT_APPROVER_NOT_INDEPENDENT: "Nội dung phải được một bác sĩ độc lập duyệt.",
