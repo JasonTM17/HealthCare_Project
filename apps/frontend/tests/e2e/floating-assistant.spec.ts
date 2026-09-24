@@ -342,6 +342,38 @@ test("floating panel remains reachable in a short landscape viewport", async ({ 
   await expect(dialog.getByRole("button", { name: "Đóng cửa sổ trợ lý" })).toBeVisible();
 });
 
+test("guest assistant header and close control stay inside a 320px viewport", async ({ context, page }) => {
+  await unavailableApi(context);
+  await installMockBrowserSession(context, null);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
+  const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+  await expect(dialog).toBeVisible();
+  const geometry = await page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>("#floating-health-assistant-panel");
+    const close = panel?.querySelector<HTMLButtonElement>("button[aria-label='Đóng cửa sổ trợ lý']");
+    if (!panel || !close) throw new Error("Assistant panel or close control is missing");
+    const panelRect = panel.getBoundingClientRect();
+    const closeRect = close.getBoundingClientRect();
+    return {
+      panel: { left: panelRect.left, top: panelRect.top, right: panelRect.right, bottom: panelRect.bottom },
+      close: { left: closeRect.left, top: closeRect.top, right: closeRect.right, bottom: closeRect.bottom },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    };
+  });
+
+  expect(geometry.panel.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.panel.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewport.width);
+  expect(geometry.panel.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+  expect(geometry.close.left).toBeGreaterThanOrEqual(0);
+  expect(geometry.close.top).toBeGreaterThanOrEqual(0);
+  expect(geometry.close.right).toBeLessThanOrEqual(geometry.viewport.width);
+  expect(geometry.close.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+});
+
 test("patient mobile widget creates and sends through the REST conversation API", async ({ context, page }) => {
   const observedKeys: string[] = [];
   await installChatMocks(context, observedKeys);

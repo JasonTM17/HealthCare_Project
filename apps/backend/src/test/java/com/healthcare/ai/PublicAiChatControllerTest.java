@@ -221,9 +221,29 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
             .containsEntry("provenance", "local_fallback")
             .containsEntry("citations", List.of())
-            .containsEntry("routingReason", "public_missing_verified_source")
+            .containsEntry("routingReason", "public_ai_unavailable")
             .containsEntry("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(
                 "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?"));
+        assertThat((String) body.get("answer")).contains("tạm thời gián đoạn")
+            .doesNotContain("chưa có nguồn đã xác thực");
+    }
+
+    @Test
+    void rejectsMalformedPreparationPayloadInsteadOfClaimingAiUnavailable() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Hãy nhịn ăn 12 giờ trước buổi khám.",
+            "provenance", "remote_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null)))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+            .hasMessageContaining("502 BAD_GATEWAY");
     }
 
     @Test
@@ -278,10 +298,10 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void keepsSafePreparationFallbackVisibleWhenNoCitationIsAvailable() {
+    void replacesUnverifiedPreparationFallbackEvenWhenAiLabelsItInsufficient() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Yêu cầu nhịn ăn tùy loại xét nghiệm; hãy xác nhận trước với cơ sở hoặc bác sĩ.",
+            "answer", "Bạn phải nhịn ăn 12 giờ trước xét nghiệm máu.",
             "disclaimer", "Chỉ mang tính tham khảo.",
             "provenance", "local_fallback",
             "safety_action", "INSUFFICIENT_EVIDENCE",
@@ -295,9 +315,36 @@ class PublicAiChatControllerTest {
             .getBody();
 
         assertThat(body)
-            .containsEntry("answer", "Yêu cầu nhịn ăn tùy loại xét nghiệm; hãy xác nhận trước với cơ sở hoặc bác sĩ.")
             .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_missing_verified_source")
             .containsEntry("citations", List.of());
+        assertThat((String) body.get("answer")).doesNotContain("12 giờ");
+    }
+
+    @Test
+    void doesNotClaimMissingSourceWhenInsufficientPreparationHasVerifiedCitation() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn phải nhịn ăn 12 giờ trước buổi khám.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "remote_provider",
+            "safety_action", "INSUFFICIENT_EVIDENCE",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of(Map.of(
+                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch"))
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("routingReason", "public_insufficient_evidence")
+            .containsEntry("citations", List.of());
+        assertThat((String) body.get("answer")).doesNotContain("12 giờ");
     }
 
     @Test
@@ -699,6 +746,29 @@ class PublicAiChatControllerTest {
             .containsEntry("mode", "HOSPITAL_SUPPORT")
             .containsEntry("safety_action", "HUMAN_HANDOFF")
             .containsEntry("suggested_actions", List.of());
+    }
+
+    @Test
+    void handsOffProtectedPreparationWhenAiReturnsInsufficientEvidence() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Hãy nhịn ăn 12 giờ trước khi khám.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "INSUFFICIENT_EVIDENCE",
+            "provenance", "local_provider",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Tôi đau đầu, cần chuẩn bị gì trước khi khám?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "HUMAN_HANDOFF")
+            .containsEntry("suggested_actions", List.of());
+        assertThat((String) body.get("answer")).doesNotContain("12 giờ");
     }
 
     @Test
