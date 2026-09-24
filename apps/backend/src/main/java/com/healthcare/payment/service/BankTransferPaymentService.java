@@ -103,6 +103,22 @@ public class BankTransferPaymentService {
         return enabled && !bankName.isBlank() && !bankAccount.isBlank() && !bankBin.isBlank();
     }
 
+    /** Ownership-verified, locked payment load — shared by the receipt issuer. */
+    @Transactional
+    public BankTransferPayment loadOwnedPaymentForUpdate(UUID appointmentId, UserDetails principal) {
+        requireConfigured();
+        ownAppointmentForUpdate(appointmentId, principal);
+        return paymentRepository.findByAppointmentIdForUpdate(appointmentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu thanh toán"));
+    }
+
+    /** Locked payment load for admin-side document issuance. */
+    @Transactional
+    public BankTransferPayment loadPaymentForUpdate(UUID paymentId) {
+        return paymentRepository.findByIdForUpdate(paymentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
+    }
+
     /** Called inside booking confirmation so amount and transfer content are immutable snapshots. */
     @Transactional
     public BankTransferPayment initialize(Appointment appointment) {

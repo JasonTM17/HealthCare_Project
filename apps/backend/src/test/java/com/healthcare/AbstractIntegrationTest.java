@@ -30,6 +30,7 @@ import com.healthcare.user.repository.UserRepository;
 import com.healthcare.storage.repository.StoredFileRepository;
 import com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository;
 import com.healthcare.payment.repository.BankTransferPaymentRepository;
+import com.healthcare.payment.repository.PaymentInvoiceRepository;
 import com.healthcare.appointment.repository.AppointmentAccountClaimRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -178,6 +179,7 @@ public abstract class AbstractIntegrationTest {
     @Autowired protected DoctorScheduleExceptionRepository doctorScheduleExceptionRepository;
     @Autowired protected PatientProfileRepository patientProfileRepository;
     @Autowired protected BankTransferPaymentRepository bankTransferPaymentRepository;
+    @Autowired protected PaymentInvoiceRepository paymentInvoiceRepository;
     @Autowired protected AppointmentAccountClaimRepository appointmentAccountClaimRepository;
 
     // ── Clinical overlay ─────────────────────────────────────────────────────
@@ -279,6 +281,7 @@ public abstract class AbstractIntegrationTest {
 
         // Appointment domain (FK dependencies on hospital & patient)
         appointmentAccountClaimRepository.deleteAll();
+        paymentInvoiceRepository.deleteAll();
         bankTransferPaymentRepository.deleteAll();
         appointmentRepository.deleteAll();
         doctorScheduleExceptionRepository.deleteAll();
