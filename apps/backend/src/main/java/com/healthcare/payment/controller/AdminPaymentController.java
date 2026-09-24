@@ -1,9 +1,11 @@
 package com.healthcare.payment.controller;
 
 import com.healthcare.payment.dto.BankTransferPaymentResponse;
+import com.healthcare.payment.dto.PaymentWebhookEventAdminView;
 import com.healthcare.payment.dto.ReviewBankTransferRequest;
 import com.healthcare.payment.dto.RefundBankTransferRequest;
 import com.healthcare.payment.service.BankTransferPaymentService;
+import com.healthcare.payment.service.PaymentWebhookEventAdminService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,9 +33,12 @@ import java.util.UUID;
 public class AdminPaymentController {
 
     private final BankTransferPaymentService paymentService;
+    private final PaymentWebhookEventAdminService webhookEventAdminService;
 
-    public AdminPaymentController(BankTransferPaymentService paymentService) {
+    public AdminPaymentController(BankTransferPaymentService paymentService,
+            PaymentWebhookEventAdminService webhookEventAdminService) {
         this.paymentService = paymentService;
+        this.webhookEventAdminService = webhookEventAdminService;
     }
 
     @Operation(summary = "Danh sách giao dịch thanh toán viện phí", description = "Truy xuất danh sách chuyển khoản viện phí của bệnh nhân theo trạng thái")
@@ -42,6 +47,14 @@ public class AdminPaymentController {
             @RequestParam(required = false) String status,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(paymentService.listForAdmin(status, pageable));
+    }
+
+    @Operation(summary = "Thông báo ngân hàng chưa khớp", description = "Danh sách bằng chứng chuyển khoản từ webhook ngân hàng chưa ghép được thanh toán, gồm các bản đã bị đánh dấu không thể ghép tự động (sai số tiền, lịch đã hủy) để xử lý thủ công")
+    @GetMapping("/webhook-events")
+    public ResponseEntity<java.util.List<PaymentWebhookEventAdminView>> webhookEvents(
+            @RequestParam(defaultValue = "unprocessed") String scope,
+            @RequestParam(defaultValue = "50") int limit) {
+        return ResponseEntity.ok(webhookEventAdminService.list(scope, limit));
     }
 
     @Operation(summary = "Duyệt giao dịch chuyển khoản", description = "Xác nhận đối soát hoặc từ chối chứng từ thanh toán viện phí của bệnh nhân")

@@ -4,6 +4,7 @@ import com.healthcare.payment.entity.PaymentStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -15,6 +16,8 @@ public record BankTransferPaymentResponse(
     String doctorName,
     String packageName,
     LocalDate appointmentDate,
+    LocalTime appointmentStartTime,
+    OffsetDateTime payByDeadline,
     BigDecimal amount,
     String currency,
     PaymentStatus status,

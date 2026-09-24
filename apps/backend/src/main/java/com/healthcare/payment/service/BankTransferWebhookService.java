@@ -27,6 +27,9 @@ import java.util.Set;
 @Service
 public class BankTransferWebhookService {
 
+    private static final org.slf4j.Logger LOGGER =
+        org.slf4j.LoggerFactory.getLogger(BankTransferWebhookService.class);
+
     private static final int MAX_RAW_BODY_LENGTH = 4096;
 
     private final BankTransferPaymentService paymentService;
@@ -145,10 +148,13 @@ public class BankTransferWebhookService {
         int completed = 0;
         for (int index = 0; index < 25; index++) {
             // Commit the lease before matching; a crashed attempt becomes due again.
+            // permanent_failure rows are excluded: the retry worker proved they can
+            // never be matched, so they belong to the admin dead-letter view only.
             java.util.List<RecoveryEvent> claimed = eventTemplate.execute(status -> jdbcTemplate.query("""
                 with candidate as (
                     select event_id from payment_webhook_events
                     where processed_at is null and transfer_content is not null
+                        and permanent_failure = false
                         and retry_attempts < 20 and next_retry_at <= current_timestamp
                     order by next_retry_at, received_at, event_id
                     limit 1 for update skip locked
@@ -166,15 +172,39 @@ public class BankTransferWebhookService {
             try {
                 confirmAndMarkProcessed(event.request(), event.eventId());
                 completed++;
+            } catch (PaymentNotYetConfirmableException deferred) {
+                // Transient by design: the booking hold is still awaiting OTP
+                // confirmation, so the evidence stays queued for the next pass.
+            } catch (ResponseStatusException conflict) {
+                if (conflict.getStatusCode() == HttpStatus.CONFLICT) {
+                    // Permanent mismatch (wrong amount, cancelled appointment,
+                    // superseded reference): retrying can never succeed, so the
+                    // row moves to the admin dead-letter view instead of being
+                    // retried until the attempt budget runs out in silence.
+                    markPermanentFailure(event.eventId(), conflict.getReason());
+                } else {
+                    LOGGER.warn("Payment webhook retry deferred: {}", conflict.getClass().getSimpleName());
+                }
             } catch (RuntimeException exception) {
-                org.slf4j.LoggerFactory.getLogger(BankTransferWebhookService.class)
-                    .warn("Payment webhook retry deferred: {}", exception.getClass().getSimpleName());
+                LOGGER.warn("Payment webhook retry deferred: {}", exception.getClass().getSimpleName());
             }
         }
         return completed;
     }
 
-    private record RecoveryEvent(String eventId, BankTransferWebhookRequest request) { }
+    private void markPermanentFailure(String eventId, String reason) {
+        String sanitized = reason == null ? "không xác định" : reason.replaceAll("[\\r\\n\\t]+", " ").trim();
+        jdbcTemplate.update(
+            """
+            update payment_webhook_events
+               set permanent_failure = true, failure_reason = ?
+             where event_id = ? and processed_at is null
+            """,
+            sanitized.substring(0, Math.min(300, sanitized.length())), eventId
+        );
+    }
+
+    record RecoveryEvent(String eventId, BankTransferWebhookRequest request) { }
 
     /** Null when the event id is unknown to the caller's current transaction. */
     private String ambientPayloadHash(String eventId) {
