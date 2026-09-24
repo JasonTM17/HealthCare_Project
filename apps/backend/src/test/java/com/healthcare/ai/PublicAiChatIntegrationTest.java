@@ -1,26 +1,82 @@
 package com.healthcare.ai;
 
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.AbstractRedisIntegrationTest;
+import com.healthcare.ai.chat.service.ChatRequestCancellation;
+import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
 import com.healthcare.ai.service.AiService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class PublicAiChatIntegrationTest extends AbstractIntegrationTest {
+class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
 
     @MockitoBean
     private AiService aiService;
+
+    @Autowired
+    private ChatRequestCancellationRegistry cancellations;
+
+    @BeforeEach
+    void delegateCancellablePublicChatToTheConfiguredProviderStub() {
+        when(aiService.chat(anyMap(), any(ChatRequestCancellation.class)))
+            .thenAnswer(invocation -> aiService.chat(invocation.getArgument(0)));
+    }
+
+    @Test
+    void guestChatCancellationReachesTheBlockedAiServiceCall() throws Exception {
+        String requestId = UUID.randomUUID().toString();
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch providerCancelled = new CountDownLatch(1);
+        when(aiService.chat(any(), any(ChatRequestCancellation.class))).thenAnswer(invocation -> {
+            ChatRequestCancellation cancellation = invocation.getArgument(1);
+            cancellation.onCancel(providerCancelled::countDown);
+            providerStarted.countDown();
+            if (!providerCancelled.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Cancellation did not reach the blocked guest provider stage");
+            }
+            throw new CancellationException("Synthetic blocked provider stopped");
+        });
+
+        CompletableFuture<org.springframework.test.web.servlet.MvcResult> request =
+            CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mockMvc.perform(post("/api/v1/public/ai/chat")
+                            .header("X-Request-ID", requestId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+                        .andReturn();
+                } catch (Exception exception) {
+                    throw new CompletionException(exception);
+                }
+            });
+
+        assertThat(providerStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        cancellations.cancel(requestId);
+
+        org.springframework.test.web.servlet.MvcResult response = request.get(5, TimeUnit.SECONDS);
+        assertThat(response.getResponse().getStatus()).isEqualTo(503);
+        assertThat(providerCancelled.await(1, TimeUnit.SECONDS)).isTrue();
+    }
 
     @Test
     void unauthenticatedHospitalSupportChatIsStatelessAndBounded() throws Exception {

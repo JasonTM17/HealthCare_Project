@@ -404,6 +404,40 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void chatCancellationHasItsOwnRateLimitSoOtherPostBucketsCannotSuppressIt() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.ai-limit", "1")
+            .withProperty("app.security.rate-limit.ai-cancellation-limit", "1")
+            .withProperty("app.security.rate-limit.default-post-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse defaultPost = invokePost(
+            filter, accepted, "/api/v1/custom/action", "10.0.9.1");
+        MockHttpServletResponse defaultPostLimited = invokePost(
+            filter, accepted, "/api/v1/custom/action", "10.0.9.1");
+        MockHttpServletResponse aiRequest = invokePost(
+            filter, accepted, "/api/v1/ai/conversations/one/messages/stream", "10.0.9.1");
+        MockHttpServletResponse aiRequestLimited = invokePost(
+            filter, accepted, "/api/v1/ai/conversations/two/messages/stream", "10.0.9.1");
+        MockHttpServletResponse cancellation = invokePost(
+            filter, accepted,
+            "/api/v1/internal/ai/chat-cancellations/90000000-0000-4000-8000-000000000001", "10.0.9.1");
+        MockHttpServletResponse cancellationLimited = invokePost(
+            filter, accepted,
+            "/api/v1/internal/ai/chat-cancellations/90000000-0000-4000-8000-000000000002", "10.0.9.1");
+
+        assertThat(defaultPost.getStatus()).isEqualTo(200);
+        assertThat(defaultPostLimited.getStatus()).isEqualTo(429);
+        assertThat(aiRequest.getStatus()).isEqualTo(200);
+        assertThat(aiRequestLimited.getStatus()).isEqualTo(429);
+        assertThat(cancellation.getStatus()).isEqualTo(200);
+        assertThat(cancellationLimited.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(3);
+    }
+
+    @Test
     void rateLimitsAdminMutationsAndFallsBackToDefaultPostLimit() throws Exception {
         MockEnvironment environment = new MockEnvironment()
             .withProperty("app.security.rate-limit.admin-mutation-limit", "1")

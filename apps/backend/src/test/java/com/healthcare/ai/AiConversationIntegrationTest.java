@@ -1,12 +1,14 @@
 package com.healthcare.ai;
 
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.AbstractRedisIntegrationTest;
 import com.healthcare.ai.chat.entity.AiConversation;
 import com.healthcare.ai.chat.entity.AiConversationStatus;
 import com.healthcare.ai.chat.entity.AiMessage;
 import com.healthcare.ai.chat.entity.AiMessageRole;
 import com.healthcare.ai.chat.entity.AiMessageStatus;
 import com.healthcare.ai.chat.service.AiConversationService;
+import com.healthcare.ai.chat.service.ChatRequestCancellation;
+import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
 import com.healthcare.ai.service.AiCreditService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.appointment.entity.PatientProfile;
@@ -26,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,6 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -43,13 +48,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class AiConversationIntegrationTest extends AbstractIntegrationTest {
+class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
 
     @MockitoBean
     private AiService aiService;
 
     @Autowired
     private AiConversationService conversationService;
+
+    @Autowired
+    private ChatRequestCancellationRegistry cancellations;
 
     /**
      * The real ledger service, used by the refund-idempotency check: the
@@ -66,6 +74,13 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
         // local and provider-free while concurrency tests below override this
         // same retrieval call with their latch-controlled schedule.
         when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
+        when(aiService.retrieveChat(any(), any()))
+            .thenAnswer(invocation -> aiService.retrieveChat(invocation.getArgument(0)));
+        when(aiService.generateChat(any(), any()))
+            .thenAnswer(invocation -> aiService.generateChat(invocation.getArgument(0)));
+        when(aiService.generateChatStream(any(), any(), any()))
+            .thenAnswer(invocation -> aiService.generateChatStream(
+                invocation.getArgument(0), invocation.getArgument(1)));
     }
 
     @Test
@@ -171,6 +186,63 @@ class AiConversationIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.replayed").value(true));
 
         assertThat(aiMessageRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void cancellationBeforePersistenceReleasesTheLeaseAndDoesNotChargeThePatient() throws Exception {
+        String email = "patient.cancel-before-commit@example.com";
+        User patient = createUser(email);
+        createPatientProfile(patient, "0901002017", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        String requestId = UUID.randomUUID().toString();
+        CountDownLatch providerStarted = new CountDownLatch(1);
+        CountDownLatch providerCancelled = new CountDownLatch(1);
+
+        doAnswer(invocation -> {
+            ChatRequestCancellation cancellation = invocation.getArgument(1);
+            cancellation.onCancel(providerCancelled::countDown);
+            providerStarted.countDown();
+            if (!providerCancelled.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Cancellation did not reach the blocked provider stage");
+            }
+            throw new CancellationException("Synthetic blocked provider stopped");
+        }).when(aiService).retrieveChat(any(), any());
+
+        CompletableFuture<org.springframework.test.web.servlet.MvcResult> request =
+            CompletableFuture.supplyAsync(() -> {
+                try {
+                    return mockMvc.perform(post("/api/v1/ai/conversations/{id}/messages", conversation.getId())
+                            .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors
+                                .user(email).roles("PATIENT"))
+                            .header("X-Request-ID", requestId)
+                            .header("Idempotency-Key", "cancel-before-commit-0001")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"content\":\"Can tu van thong tin suc khoe\"}"))
+                        .andReturn();
+                } catch (Exception exception) {
+                    throw new CompletionException(exception);
+                }
+            });
+
+        assertThat(providerStarted.await(5, TimeUnit.SECONDS))
+            .withFailMessage("Retrieval provider was not entered; request completed=%s", request.isDone())
+            .isTrue();
+        cancellations.cancel(requestId);
+
+        org.springframework.test.web.servlet.MvcResult response = request.get(5, TimeUnit.SECONDS);
+        assertThat(response.getResponse().getStatus()).isEqualTo(503);
+        assertThat(providerCancelled.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .filteredOn(message -> message.getRole() == AiMessageRole.ASSISTANT)
+            .isEmpty();
+        AiConversation current = aiConversationRepository.findById(conversation.getId()).orElseThrow();
+        assertThat(current.isInFlight()).isFalse();
+        assertThat(current.getInFlightToken()).isNull();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits()).isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isZero();
+        verify(aiService, never()).generateChat(any(), any());
     }
 
     @Test

@@ -5,8 +5,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.service.AiChatSourceResolver;
 import com.healthcare.ai.chat.service.ChatMedicalSafety;
+import com.healthcare.ai.chat.service.ChatRequestCancellation;
+import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
 import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.ai.service.AiService;
+import com.healthcare.observability.RequestTrace;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -16,6 +19,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,8 +36,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.function.Function;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 /**
  * Stateless public hospital-support chat for visitors who have not signed in.
@@ -97,10 +104,23 @@ public class PublicAiChatController {
 
     private final AiService aiService;
     private final AiChatSourceResolver sourceResolver;
+    private final ChatRequestCancellationRegistry cancellations;
 
+    @Autowired
+    public PublicAiChatController(
+            AiService aiService,
+            AiChatSourceResolver sourceResolver,
+            ChatRequestCancellationRegistry cancellations) {
+        this.aiService = aiService;
+        this.sourceResolver = sourceResolver;
+        this.cancellations = cancellations;
+    }
+
+    /** Compatibility constructor for direct controller tests without a request lifecycle. */
     public PublicAiChatController(AiService aiService, AiChatSourceResolver sourceResolver) {
         this.aiService = aiService;
         this.sourceResolver = sourceResolver;
+        this.cancellations = null;
     }
 
     @Operation(summary = "Tư vấn sức khỏe AI thông minh", description = "Hỏi đáp triệu chứng, phân luồng chuyên khoa y tế và hướng dẫn cấp cứu/đặt khám")
@@ -118,6 +138,7 @@ public class PublicAiChatController {
         }
 
         String userMessage = request.message().trim();
+        List<Map<String, String>> recentTurns = mappedTurns;
         ChatMode publicMode = ChatSuggestedActionResolver.publicMode(userMessage);
         payload.put("mode", publicMode.name());
         boolean protectedInput = ChatMedicalSafety.containsProtectedInputCue(userMessage);
@@ -130,11 +151,20 @@ public class PublicAiChatController {
                 return ResponseEntity.ok(publicSafetyFallback(
                     userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
             }
-            return ResponseEntity.ok(publicEducationChat(userMessage, mappedTurns));
+            try {
+                return ResponseEntity.ok(runCancellableChat(cancellation ->
+                    publicEducationChat(userMessage, recentTurns, cancellation)));
+            } catch (CancellationException exception) {
+                throw cancelledRequest(exception);
+            }
         }
         Map<String, Object> upstream;
         try {
-            upstream = aiService.chat(payload);
+            upstream = runCancellableChat(cancellation -> cancellation == null
+                ? aiService.chat(payload)
+                : aiService.chat(payload, cancellation));
+        } catch (CancellationException exception) {
+            throw cancelledRequest(exception);
         } catch (ResponseStatusException ex) {
             // Broad catalog navigation can be answered from the same live
             // Spring catalog even while the semantic/RAG service is cold or
@@ -165,7 +195,8 @@ public class PublicAiChatController {
      */
     private Map<String, Object> publicEducationChat(
             String userMessage,
-            List<Map<String, String>> recentTurns) {
+            List<Map<String, String>> recentTurns,
+            ChatRequestCancellation cancellation) {
         Map<String, Object> retrieval = new LinkedHashMap<>();
         retrieval.put("message", userMessage);
         retrieval.put("mode", ChatMode.HEALTH_EDUCATION.name());
@@ -174,7 +205,9 @@ public class PublicAiChatController {
 
         Map<String, Object> retrieved;
         try {
-            retrieved = aiService.retrieveChat(retrieval);
+            retrieved = cancellation == null
+                ? aiService.retrieveChat(retrieval)
+                : aiService.retrieveChat(retrieval, cancellation);
         } catch (ResponseStatusException ex) {
             if (isAiFailure(ex)) return publicEducationFallback(userMessage);
             throw ex;
@@ -212,12 +245,52 @@ public class PublicAiChatController {
 
         Map<String, Object> generated;
         try {
-            generated = aiService.generateChat(generation);
+            generated = cancellation == null
+                ? aiService.generateChat(generation)
+                : aiService.generateChat(generation, cancellation);
         } catch (ResponseStatusException ex) {
             if (isAiFailure(ex)) return publicEducationFallback(userMessage);
             throw ex;
         }
         return sanitize(generated, userMessage, ChatMode.HEALTH_EDUCATION, authorized);
+    }
+
+    private <T> T runCancellableChat(Function<ChatRequestCancellation, T> operation) {
+        if (cancellations == null) return operation.apply(null);
+        final ChatRequestCancellationRegistry.Registration registration;
+        try {
+            registration = cancellations.register(RequestTrace.currentId());
+        } catch (IllegalStateException exception) {
+            throw cancellationStateUnavailable(exception);
+        }
+        try (registration) {
+            ChatRequestCancellation cancellation = registration.cancellation();
+            try {
+                T result = operation.apply(cancellation);
+                cancellation.throwIfCancelled();
+                cancellations.complete(cancellation);
+                return result;
+            } catch (RuntimeException exception) {
+                cancellations.fail(cancellation.requestId());
+                throw exception;
+            }
+        }
+    }
+
+    private ResponseStatusException cancelledRequest(CancellationException exception) {
+        return new ResponseStatusException(
+            SERVICE_UNAVAILABLE,
+            "AI chat request was cancelled",
+            exception
+        );
+    }
+
+    private ResponseStatusException cancellationStateUnavailable(IllegalStateException exception) {
+        return new ResponseStatusException(
+            SERVICE_UNAVAILABLE,
+            "Shared chat cancellation state is unavailable",
+            exception
+        );
     }
 
     /** Unauthenticated public chat with no authorized sources; see the four-argument overload. */

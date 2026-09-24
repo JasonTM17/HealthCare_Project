@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.ai.chat.entity.ChatMode;
+import com.healthcare.ai.chat.service.ChatRequestCancellation;
 import com.healthcare.observability.RequestTrace;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,13 +28,24 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.ByteBuffer;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Flow;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -53,6 +65,8 @@ public class AiService {
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
+    private final HttpClient cancellableHttpClient;
+    private final Duration upstreamTimeout;
 
     @FunctionalInterface
     public interface ChatDeltaConsumer {
@@ -122,6 +136,12 @@ public class AiService {
             )
             .build();
         this.objectMapper = objectMapper;
+        this.cancellableHttpClient = HttpClient.newBuilder()
+            .connectTimeout(connectTimeout)
+            // FastAPI/Uvicorn rejects the cleartext h2c upgrade sent by the JDK's HTTP/2 default.
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
+        this.upstreamTimeout = readTimeout;
     }
 
     public Map<String, Object> chat(Map<String, Object> request) {
@@ -160,6 +180,37 @@ public class AiService {
             payload.put("mode", normalizedMode);
         }
         return postJson("/chat", payload);
+    }
+
+    /** Same server-owned public contract, with cooperative upstream cancellation for a live chat operation. */
+    public Map<String, Object> chat(Map<String, Object> request, ChatRequestCancellation cancellation) {
+        if (request == null || !(request.get("message") instanceof String message)
+            || message.trim().length() < MIN_CHAT_INPUT_CHARS) {
+            throw new ResponseStatusException(BAD_REQUEST, "Message must be between 2 and 10000 characters");
+        }
+        String normalized = message.trim();
+        int inputLimit = maxInputChars > 0 ? Math.min(maxInputChars, DEFAULT_MAX_INPUT_CHARS) : DEFAULT_MAX_INPUT_CHARS;
+        if (normalized.length() > inputLimit) {
+            throw new ResponseStatusException(BAD_REQUEST, "Message must be between 2 and " + inputLimit + " characters");
+        }
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("message", normalized);
+        Object recentTurns = request.get("recent_turns");
+        if (recentTurns == null) recentTurns = request.get("recent_history");
+        payload.put("recent_turns", normalizeRecentTurns(recentTurns));
+        Object publicSupportChat = request.get("public_support_chat");
+        if (publicSupportChat == null) publicSupportChat = request.get("publicSupportChat");
+        if (publicSupportChat != null) payload.put("public_support_chat", publicSupportChat);
+        Object mode = request.get("mode");
+        if (mode != null) {
+            if (!(mode instanceof String rawMode)) throw new ResponseStatusException(BAD_REQUEST, "mode is invalid");
+            try {
+                payload.put("mode", ChatMode.valueOf(rawMode.trim()).name());
+            } catch (IllegalArgumentException exception) {
+                throw new ResponseStatusException(BAD_REQUEST, "mode is invalid", exception);
+            }
+        }
+        return cancellableJsonRequest("/chat", payload, cancellation);
     }
 
     /**
@@ -208,6 +259,13 @@ public class AiService {
         return postJson("/chat/retrieve", normalizePatientChatPayload(request, false));
     }
 
+    public Map<String, Object> retrieveChat(
+            Map<String, Object> request,
+            ChatRequestCancellation cancellation) {
+        return cancellableJsonRequest(
+            "/chat/retrieve", normalizePatientChatPayload(request, false), cancellation);
+    }
+
     /** Alias used by callers that prefer the endpoint terminology. */
     public Map<String, Object> retrieveChatCandidates(Map<String, Object> request) {
         return retrieveChat(request);
@@ -219,6 +277,13 @@ public class AiService {
      */
     public Map<String, Object> generateChat(Map<String, Object> request) {
         return postJson("/chat/generate", normalizePatientChatPayload(request, true));
+    }
+
+    public Map<String, Object> generateChat(
+            Map<String, Object> request,
+            ChatRequestCancellation cancellation) {
+        return cancellableJsonRequest(
+            "/chat/generate", normalizePatientChatPayload(request, true), cancellation);
     }
 
     /** Alias retained for explicit two-step call sites and test doubles. */
@@ -258,6 +323,33 @@ public class AiService {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        } finally {
+            recordChatStage("/chat/generate/stream", outcome, startedAt);
+        }
+    }
+
+    /** Cancellable internal SSE fetch; the completed, validated answer is still chunked only by Spring afterwards. */
+    public Map<String, Object> generateChatStream(
+            Map<String, Object> request,
+            ChatDeltaConsumer onDelta,
+            ChatRequestCancellation cancellation) {
+        Map<String, Object> payload = normalizePatientChatPayload(request, true);
+        long startedAt = System.nanoTime();
+        String outcome = "failed";
+        try {
+            byte[] body = objectMapper.writeValueAsBytes(payload);
+            byte[] response = cancellableRequest("/chat/generate/stream", body, cancellation, true);
+            Map<String, Object> decoded = readChatSse(
+                new ByteArrayInputStream(response), onDelta);
+            if (decoded == null || decoded.isEmpty()) {
+                throw new ResponseStatusException(BAD_GATEWAY, "AI service stream returned an empty response");
+            }
+            outcome = "completed";
+            return decoded;
+        } catch (JsonProcessingException exception) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", exception);
+        } catch (IOException exception) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service stream returned invalid data", exception);
         } finally {
             recordChatStage("/chat/generate/stream", outcome, startedAt);
         }
@@ -488,6 +580,148 @@ public class AiService {
             );
         } catch (JsonProcessingException e) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI request could not be encoded", e);
+        }
+    }
+
+    private Map<String, Object> cancellableJsonRequest(
+            String path,
+            Map<String, Object> request,
+            ChatRequestCancellation cancellation) {
+        if (cancellation == null) throw new IllegalArgumentException("Chat cancellation context is required");
+        ensureServiceAuthConfiguration();
+        try {
+            byte[] raw = cancellableRequest(
+                path, objectMapper.writeValueAsBytes(request), cancellation, false);
+            return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() { });
+        } catch (IOException exception) {
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service returned invalid JSON", exception);
+        }
+    }
+
+    /**
+     * Uses JDK HttpClient's cancellable future for patient/public chat work.
+     * The response body is bounded while it is read, and cancellation closes
+     * the in-flight connection before the caller can reach persistence.
+     */
+    private byte[] cancellableRequest(
+            String path,
+            byte[] body,
+            ChatRequestCancellation cancellation,
+            boolean eventStream) {
+        cancellation.throwIfCancelled();
+        long startedAt = System.nanoTime();
+        String outcome = "failed";
+        try {
+            HttpHeaders headers = headers();
+            if (eventStream) headers.setAccept(List.of(MediaType.TEXT_EVENT_STREAM));
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(endpoint(path)))
+                .timeout(upstreamTimeout)
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body));
+            headers.forEach((name, values) -> values.forEach(value -> requestBuilder.header(name, value)));
+
+            CompletableFuture<HttpResponse<byte[]>> future = cancellableHttpClient.sendAsync(
+                requestBuilder.build(),
+                responseInfo -> new BoundedByteArraySubscriber(
+                    maxResponseBytes > 0 ? maxResponseBytes : DEFAULT_MAX_RESPONSE_BYTES));
+            AutoCloseable cancellationRegistration = cancellation.onCancel(() -> future.cancel(true));
+            try {
+                HttpResponse<byte[]> response = future.get();
+                cancellation.throwIfCancelled();
+                if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                    log.warn("AI upstream returned HTTP {} for {}", response.statusCode(), path);
+                    throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable");
+                }
+                byte[] raw = response.body();
+                if (raw == null || raw.length == 0) {
+                    throw new ResponseStatusException(BAD_GATEWAY, "AI service returned an empty response");
+                }
+                outcome = "completed";
+                return raw;
+            } finally {
+                try {
+                    cancellationRegistration.close();
+                } catch (Exception ignored) {
+                    // Listener removal is local bookkeeping only.
+                }
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            cancellation.throwIfCancelled();
+            throw new CancellationException("AI request was interrupted");
+        } catch (ExecutionException exception) {
+            Throwable cause = exception.getCause();
+            if (cause instanceof CancellationException) throw (CancellationException) cause;
+            if (cause instanceof ResponseStatusException statusException) throw statusException;
+            log.warn("AI upstream request failed for {}: {}", path,
+                cause == null ? exception.getClass().getSimpleName() : cause.getClass().getSimpleName());
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", cause);
+        } catch (CancellationException exception) {
+            throw exception;
+        } catch (ResponseStatusException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            log.warn("AI upstream request failed for {}: {}", path, exception.getClass().getSimpleName());
+            throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", exception);
+        } finally {
+            recordChatStage(path, outcome, startedAt);
+        }
+    }
+
+    private final class BoundedByteArraySubscriber implements HttpResponse.BodySubscriber<byte[]> {
+        private final int maxBytes;
+        private final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        private final CompletableFuture<byte[]> result = new CompletableFuture<>();
+        private final AtomicReference<Flow.Subscription> subscription = new AtomicReference<>();
+
+        private BoundedByteArraySubscriber(int maxBytes) {
+            this.maxBytes = maxBytes;
+        }
+
+        @Override
+        public CompletionStage<byte[]> getBody() {
+            return result;
+        }
+
+        @Override
+        public void onSubscribe(Flow.Subscription candidate) {
+            if (!subscription.compareAndSet(null, candidate)) {
+                candidate.cancel();
+                return;
+            }
+            candidate.request(1);
+        }
+
+        @Override
+        public void onNext(List<ByteBuffer> buffers) {
+            try {
+                for (ByteBuffer buffer : buffers) {
+                    if (buffer.remaining() > maxBytes - body.size()) {
+                        Flow.Subscription current = subscription.get();
+                        if (current != null) current.cancel();
+                        result.completeExceptionally(new IOException("AI response exceeded the configured limit"));
+                        return;
+                    }
+                    byte[] chunk = new byte[buffer.remaining()];
+                    buffer.get(chunk);
+                    body.writeBytes(chunk);
+                }
+                Flow.Subscription current = subscription.get();
+                if (current != null) current.request(1);
+            } catch (RuntimeException exception) {
+                Flow.Subscription current = subscription.get();
+                if (current != null) current.cancel();
+                result.completeExceptionally(exception);
+            }
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+            result.completeExceptionally(throwable);
+        }
+
+        @Override
+        public void onComplete() {
+            result.complete(body.toByteArray());
         }
     }
 
