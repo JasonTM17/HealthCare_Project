@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { adminListBankWebhookEvents, adminListPayments, adminRefundPayment, adminReviewPayment, type BankTransferPayment, type PaymentWebhookEventView } from "../../../lib/api-client";
+import { adminImportBankStatement, adminListBankWebhookEvents, adminListPayments, adminRefundPayment, adminReviewPayment, type BankStatementImportResult, type BankTransferPayment, type PaymentWebhookEventView } from "../../../lib/api-client";
 import { formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import AdminState from "../_components/AdminState";
@@ -43,6 +43,10 @@ export default function AdminPaymentsPage() {
   const [decisionPending, setDecisionPending] = useState(false);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [webhookEvents, setWebhookEvents] = useState<PaymentWebhookEventView[]>([]);
+  const [statementFile, setStatementFile] = useState<File | null>(null);
+  const [statementPending, setStatementPending] = useState(false);
+  const [statementResult, setStatementResult] = useState<BankStatementImportResult | null>(null);
+  const [statementError, setStatementError] = useState<string | null>(null);
   const loadRequestRef = useRef(0);
   const decisionPendingRef = useRef(false);
 
@@ -106,6 +110,23 @@ export default function AdminPaymentsPage() {
 
   const decisionItem = decision?.item ?? null;
 
+  const submitStatement = async (): Promise<void> => {
+    if (!statementFile || statementPending) return;
+    setStatementPending(true);
+    setStatementError(null);
+    setStatementResult(null);
+    try {
+      const result = await adminImportBankStatement(statementFile);
+      setStatementResult(result);
+      setStatementFile(null);
+      await load();
+    } catch (cause) {
+      setStatementError(describeAdminError(cause).description);
+    } finally {
+      setStatementPending(false);
+    }
+  };
+
   return (
     <div>
       <header className="border-b border-slate-200 pb-6">
@@ -116,6 +137,25 @@ export default function AdminPaymentsPage() {
         <label className="text-sm font-semibold">Trạng thái<select className="mt-1 block min-h-11 rounded-lg border border-slate-300 px-3" onChange={(event) => { setStatus(event.target.value); setPage(0); }} value={status}><option value="">Tất cả</option>{PAYMENT_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <div className="flex items-center gap-4"><span className="text-sm text-slate-600">Tổng cộng <strong>{total.toLocaleString("vi-VN")}</strong></span><button className="text-sm font-bold text-teal-800 underline" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
       </div>
+      <section aria-label="Nhập sao kê ngân hàng" className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-bold text-slate-900">Nhập sao kê ngân hàng</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Tệp CSV, mỗi dòng: <code className="font-mono">số tiền; nội dung chuyển khoản; mã giao dịch (tùy chọn)</code>. Dòng khớp nội dung và số tiền sẽ vào hàng chờ đối soát như một thông báo ngân hàng — hệ thống không tự đánh dấu “Đã thanh toán”.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <input accept=".csv,text/csv,text/plain" aria-label="Chọn tệp sao kê" className="text-sm" disabled={statementPending} onChange={(event) => { setStatementFile(event.target.files?.[0] ?? null); setStatementResult(null); setStatementError(null); }} type="file" />
+          <button className="min-h-11 rounded-lg bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50" disabled={!statementFile || statementPending} onClick={() => void submitStatement()} type="button">{statementPending ? "Đang nhập…" : "Nhập sao kê"}</button>
+        </div>
+        {statementError ? <p className="mt-2 text-xs font-semibold text-red-700" role="alert">{statementError}</p> : null}
+        {statementResult ? (
+          <div className="mt-3 text-xs leading-5 text-slate-700">
+            <p><strong>{statementResult.matchedRows}</strong> dòng vào hàng chờ đối soát · <strong>{statementResult.duplicateRows}</strong> trùng lặp đã bỏ qua · <strong>{statementResult.invalidRows}</strong> dòng lỗi định dạng, tổng <strong>{statementResult.totalRows}</strong> dòng.</p>
+            {statementResult.unmatched.length > 0 ? (
+              <ul className="mt-2 list-disc pl-5">
+                {statementResult.unmatched.map((row) => <li key={`${row.transferContent}-${row.bankReference ?? "-"}`}>{row.transferContent} · {Number(row.amount).toLocaleString("vi-VN")} ₫ — {row.note}</li>)}
+              </ul>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
       {error ? <div className="mt-4"><AdminState tone="error" title="Không thể xử lý thanh toán" description={error} /></div> : null}
       {!loading && webhookEvents.length > 0 ? (
         <section aria-label="Thông báo ngân hàng chưa khớp" className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
