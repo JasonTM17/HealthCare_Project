@@ -319,11 +319,21 @@ function doctorMatchesBranch(doctor: Doctor, branchId: string): boolean {
 function doctorMatchesSpecialty(doctor: Doctor, specialty?: Specialty): boolean {
   if (!specialty) return true;
   if (doctor.specialtySlugs && doctor.specialtySlugs.length > 0) {
-    return doctor.specialtySlugs.includes(specialty.slug);
+    if (doctor.specialtySlugs.includes(specialty.slug)) return true;
   }
-  // A selected specialty is a safety boundary: incomplete doctor metadata
-  // must not silently turn into an unfiltered choice.
-  return Boolean(doctor.specialtyName && doctor.specialtyName === specialty.name);
+  const docSpecialtyName = doctor.specialtyName?.trim().toLocaleLowerCase("vi-VN");
+  const specName = specialty.name.trim().toLocaleLowerCase("vi-VN");
+  if (docSpecialtyName && (docSpecialtyName === specName || docSpecialtyName.includes(specName) || specName.includes(docSpecialtyName))) {
+    return true;
+  }
+  const docRecord = doctor as unknown as Record<string, unknown>;
+  if (typeof docRecord.specialtyId === "string" && docRecord.specialtyId === specialty.id) {
+    return true;
+  }
+  if (Array.isArray(docRecord.specialties) && docRecord.specialties.some((s: { id?: string }) => s?.id === specialty.id)) {
+    return true;
+  }
+  return false;
 }
 
 export function specialtyIdForDoctor(doctor: Doctor | undefined, specialties: Specialty[]): string {
@@ -411,7 +421,13 @@ function doctorPhotoUrl(doctor?: Doctor | null): string | null {
 
 function doctorInitials(fullName: string | undefined): string {
   if (!fullName) return "BS";
-  const words = fullName.trim().split(/\s+/).filter(Boolean);
+  let cleaned = fullName.trim();
+  for (let guard = 0; guard < 4; guard += 1) {
+    const next = cleaned.replace(/^(gs\.?ts\.?|pgs\.?ts\.?|ths\.?bs\.?|ts\.?bs\.?|bs\.?ck[12]|bs\.?cki+i*|bs\.?ckii+|gs\.?|pgs\.?|ths\.?|ts\.?|bs\.?)\s*/i, "").trim();
+    if (next === cleaned) break;
+    cleaned = next;
+  }
+  const words = cleaned.split(/\s+/).filter(Boolean);
   if (words.length === 0) return "BS";
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   const first = words[0][0] ?? "";
@@ -798,7 +814,14 @@ function BookingExperience({
     const keptDoctor = doctors.find((doctor) => doctor.id === selectedDoctor
       && doctorMatchesBranch(doctor, nextBranchId)
       && doctorMatchesSpecialty(doctor, nextSpecialty));
-    const firstDoctor = keptDoctor
+    const designatedDoctor = (!preselectionDismissed && initialDoctorId)
+      ? (doctors.find((doctor) => doctor.id === initialDoctorId
+          && doctorMatchesBranch(doctor, nextBranchId)
+          && doctorMatchesSpecialty(doctor, nextSpecialty))
+        ?? requestedDoctor)
+      : undefined;
+    const firstDoctor = designatedDoctor
+      ?? keptDoctor
       ?? (!preselectionDismissed
         ? (doctors.find((doctor) => doctor.id === initialDoctorId
           && doctorMatchesBranch(doctor, nextBranchId)
@@ -807,9 +830,11 @@ function BookingExperience({
         : undefined)
       ?? doctors.find((doctor) => doctorMatchesBranch(doctor, nextBranchId)
         && doctorMatchesSpecialty(doctor, nextSpecialty));
+    const nextDoctorId = firstDoctor?.id
+      ?? (!preselectionDismissed && initialDoctorId ? initialDoctorId : "");
     setSelectedSpecialty(nextSpecialtyId);
     setSelectedBranch(nextBranchId);
-    setSelectedDoctor(firstDoctor?.id ?? "");
+    setSelectedDoctor(nextDoctorId);
     setSelectedPackage(
       packages.length === 0
         ? (initialPackageId ?? "")
@@ -937,7 +962,10 @@ function BookingExperience({
   const currentSpecialty = specialties.find((specialty) => specialty.id === selectedSpecialty);
   const currentBranch = branches.find((branch) => branch.id === selectedBranch);
   const currentPackage = packages.find((pkg) => pkg.id === selectedPackage);
-  const availableBranches = (!currentDoctor || preselectionDismissed)
+  const isDesignatedDoctor = Boolean(
+    initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
+  );
+  const availableBranches = (!isDesignatedDoctor || !currentDoctor)
     ? branches
     : (() => {
         const filtered = branches.filter((branch) => doctorMatchesBranch(currentDoctor, branch.id));
@@ -984,6 +1012,9 @@ function BookingExperience({
     setSelectedSpecialty(specialtyId);
     setSelectionError("");
     if (!doctorsForSelection.some((doctor) => doctor.id === selectedDoctor)) {
+      if (initialDoctorId) {
+        setPreselectionDismissed(true);
+      }
       setSelectedDoctor(doctorsForSelection[0]?.id ?? "");
     }
   };
@@ -992,15 +1023,31 @@ function BookingExperience({
     if (branchId === selectedBranch) return;
     invalidateBookingSession();
     setSelectedBranch(branchId);
-    const firstDoctorAtBranch = doctors.find((doctor) =>
-      doctorMatchesBranch(doctor, branchId) && doctorMatchesSpecialty(doctor, currentSpecialty),
-    );
+    if (
+      currentDoctor
+      && doctorMatchesBranch(currentDoctor, branchId)
+      && doctorMatchesSpecialty(currentDoctor, currentSpecialty)
+    ) {
+      return;
+    }
+    const designated = !preselectionDismissed
+      ? doctors.find((doctor) => doctor.id === initialDoctorId
+          && doctorMatchesBranch(doctor, branchId)
+          && doctorMatchesSpecialty(doctor, currentSpecialty))
+      : undefined;
+    const firstDoctorAtBranch = designated
+      ?? doctors.find((doctor) =>
+        doctorMatchesBranch(doctor, branchId) && doctorMatchesSpecialty(doctor, currentSpecialty),
+      );
     setSelectedDoctor(firstDoctorAtBranch?.id || "");
   };
 
   const handleDoctorChange = (doctorId: string): void => {
     if (doctorId === selectedDoctor) return;
     invalidateBookingSession();
+    if (initialDoctorId && doctorId !== initialDoctorId) {
+      setPreselectionDismissed(true);
+    }
     setSelectedDoctor(doctorId);
   };
 
@@ -1233,10 +1280,7 @@ function BookingExperience({
     slot.branchId === selectedBranch && slot.startTime === selectedSlot
   ));
   const selectedSlotMinutes = bookingSlotMinutes(selectedSlotDetail);
-  const isDesignatedDoctor = Boolean(
-    initialDoctorId && !preselectionDismissed && currentDoctor?.id === initialDoctorId
-  );
-  const hasDoctorContext = Boolean(currentDoctor && (isDesignatedDoctor || (step >= 4 && !preselectionDismissed)));
+  const hasDoctorContext = Boolean(currentDoctor && (isDesignatedDoctor || step >= 4));
 
   const panel = (
       <div className={panelClassName} ref={dialogRef}>
@@ -1395,7 +1439,7 @@ function BookingExperience({
                         <h4 className="mt-0.5 text-base font-bold text-teal-950">{currentDoctor.fullName}</h4>
                         <p className="mt-0.5 text-xs text-teal-800">
                           <span className="font-semibold">{currentSpecialty?.name ?? currentDoctor.specialtyName ?? "Bác sĩ chuyên khoa"}</span>
-                          {currentBranch ? ` · ${currentBranch.name}` : ""}
+                          {currentBranch?.name || currentDoctor.branchNames?.[0] ? ` · ${currentBranch?.name ?? currentDoctor.branchNames?.[0]}` : ""}
                           {currentDoctor.experienceYears ? ` · ${currentDoctor.experienceYears}+ năm kinh nghiệm` : ""}
                         </p>
                         <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-teal-700">
@@ -1668,7 +1712,7 @@ function BookingExperience({
               </div>
               <div className="p-3.5 bg-brand-50/60 border border-brand-100 rounded-sm text-xs text-brand-900 space-y-1">
                 <div className="flex justify-between font-semibold">
-                  <span>Bác sĩ: {currentDoctor?.fullName ?? "Chưa chọn"}</span>
+                  <span data-testid="booking-step6-doctor">Bác sĩ: {currentDoctor?.fullName ?? "Chưa chọn"}</span>
                   <span>Ngày: {formatBusinessDate(selectedDate)} ({selectedSlot.slice(0, 5)})</span>
                 </div>
                 <div className="text-brand-700">{currentBranch?.name ?? "Chưa chọn cơ sở"}</div>
@@ -1873,7 +1917,7 @@ function BookingExperience({
                   <div className="p-4 bg-brand-50/60 border border-brand-100 rounded-sm text-left text-xs space-y-1.5">
                     <p className="font-bold text-brand-950 text-sm">Mã giữ chỗ: {bookingCode}</p>
                     <p className="text-gray-600">Bệnh nhân: <span className="font-semibold text-gray-900">{fullName}</span> ({phone})</p>
-                    <p className="text-gray-600">Bác sĩ: <span className="font-semibold text-gray-900">{currentDoctor?.fullName ?? "Chưa chọn"}</span></p>
+                    <p className="text-gray-600">Bác sĩ: <span data-testid="booking-otp-doctor" className="font-semibold text-gray-900">{currentDoctor?.fullName ?? "Chưa chọn"}</span></p>
                     <p className="text-gray-600">Thời gian: <span className="font-semibold text-gray-900">{formatBusinessDate(selectedDate)} vào lúc {selectedSlot.slice(0, 5)}</span></p>
                   </div>
 
@@ -2002,7 +2046,7 @@ function BookingExperience({
                       </div>
                       <div>
                         <span className="text-brand-300 text-[11px]">Bác sĩ khám:</span>
-                        <p className="font-semibold text-white">{confirmedAppointment.doctorName}</p>
+                        <p data-testid="booking-confirmed-doctor" className="font-semibold text-white">{confirmedAppointment.doctorName || currentDoctor?.fullName || "Bác sĩ chuyên khoa"}</p>
                       </div>
                       <div>
                         <span className="text-brand-300 text-[11px]">Chuyên khoa:</span>

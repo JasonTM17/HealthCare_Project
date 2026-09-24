@@ -402,3 +402,15 @@ test("booking form fields have stable accessible labels and progress state", asy
   assert.match(source, /aria-current=\{current \? "step" : undefined\}/);
   assert.match(source, /aria-live="assertive"[\s\S]*role="alert"/);
 });
+
+test("generic booking flow does not lock available branches to arbitrary doctor", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  // availableBranches must check !isDesignatedDoctor before filtering to a specific doctor's branches
+  assert.match(source, /const availableBranches = \(!isDesignatedDoctor \|\| !currentDoctor\)/);
+  // Header doctor context must be active whenever doctor is designated or user is on step 4+
+  assert.match(source, /const hasDoctorContext = Boolean\(currentDoctor && \(isDesignatedDoctor \|\| step >= 4\)\)/);
+  // Step 6 and confirmation e-card must record doctor name
+  assert.match(source, /data-testid="booking-step6-doctor"/);
+  assert.match(source, /data-testid="booking-confirmed-doctor"/);
+});
