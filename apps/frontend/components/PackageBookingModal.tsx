@@ -1300,6 +1300,7 @@ export default function PackageBookingModal({
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2" data-testid="package-booking-calendar-actions">
                     <a
                       href={buildGoogleCalendarUrl({
+                        appointmentId: confirmedAppointment.id,
                         bookingCode: confirmedAppointment.bookingCode,
                         patientName: confirmedAppointment.patientName,
                         doctorName: packageItem.name,
@@ -1319,6 +1320,7 @@ export default function PackageBookingModal({
                     <button
                       type="button"
                       onClick={() => downloadIcsFile({
+                        appointmentId: confirmedAppointment.id,
                         bookingCode: confirmedAppointment.bookingCode,
                         patientName: confirmedAppointment.patientName,
                         doctorName: packageItem.name,

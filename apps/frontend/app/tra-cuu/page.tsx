@@ -380,6 +380,7 @@ export default function TraCuuPage() {
                     <>
                       <a
                         href={buildGoogleCalendarUrl({
+                          appointmentId: appointment.id,
                           bookingCode: appointment.bookingCode,
                           patientName: appointment.patientName,
                           doctorName: appointment.doctorName,
@@ -400,6 +401,7 @@ export default function TraCuuPage() {
                         type="button"
                         onClick={() =>
                           downloadIcsFile({
+                            appointmentId: appointment.id,
                             bookingCode: appointment.bookingCode,
                             patientName: appointment.patientName,
                             doctorName: appointment.doctorName,

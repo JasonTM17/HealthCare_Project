@@ -2089,6 +2089,7 @@ function BookingExperience({
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2" data-testid="booking-calendar-actions">
                     <a
                       href={buildGoogleCalendarUrl({
+                        appointmentId: confirmedAppointment.id,
                         bookingCode: confirmedAppointment.bookingCode,
                         patientName: confirmedAppointment.patientName,
                         doctorName: confirmedAppointment.doctorName || currentDoctor?.fullName,
@@ -2108,6 +2109,7 @@ function BookingExperience({
                     <button
                       type="button"
                       onClick={() => downloadIcsFile({
+                        appointmentId: confirmedAppointment.id,
                         bookingCode: confirmedAppointment.bookingCode,
                         patientName: confirmedAppointment.patientName,
                         doctorName: confirmedAppointment.doctorName || currentDoctor?.fullName,
