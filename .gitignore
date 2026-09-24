@@ -90,7 +90,9 @@ plans/
 # Private AgentKit/runtime source kept on the local workspace only
 .agentkit/
 .agents/
+.claude
 .claude/
+.claude.json
 .codex/
 .gemini/
 .opencode/
