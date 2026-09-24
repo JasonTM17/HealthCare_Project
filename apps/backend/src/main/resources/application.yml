@@ -77,6 +77,7 @@ app:
     # code; normal runtimes generate a random code and keep this false.
     allow-test-otp: ${APP_BOOKING_ALLOW_TEST_OTP:false}
   payment:
+    provider: ${PAYMENT_PROVIDER:vietqr}
     bank-transfer:
       enabled: ${APP_PAYMENT_BANK_TRANSFER_ENABLED:false}
       bank-name: ${PAYMENT_BANK_NAME:}
