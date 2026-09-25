@@ -93,5 +93,9 @@ liệu; phần dưới là những việc CẦN QUYẾT ĐÁNH HOẶC TÀI NGUY�
 - `0becf35` — seam `PaymentChannelProvider` (chuẩn bị gateway).
 - Commit E — dọn crash log cục bộ, quét phụ thuộc CI (npm audit per-push +
   workflow weekly dependency-check), enforce host allowlist egress AI.
+- Quyết định sản phẩm (theo yêu cầu chủ dự án): thanh toán là **giả lập** —
+  `DemoMutationBoundaryFilter` không còn chặn duyệt/hoàn tiền/nhập sao kê của
+  admin demo, để luồng "bệnh nhân khai báo → admin accept → PAID" chạy trọn vẹn
+  trong demo. AI-credit, user admin và đổi mật khẩu vẫn bị chặn cho demo.
 - CSP nonce: chuyển vào mục 2.1 theo escape hatch của kế hoạch (rủi ro gãy UI
   đáng kể, cần phiên e2e riêng).

@@ -35,8 +35,9 @@ public class DemoBoundaryStartupInvariant implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         if (properties.isLoginAllowed()) {
             log.info(
-                "Demo boundary: mode={}, demo login allowed. High-impact financial/security "
-                    + "mutations are denied server-side for demo principals.",
+                "Demo boundary: mode={}, demo login allowed. Identity/security admin "
+                    + "mutations are denied server-side for demo principals; simulated "
+                    + "payment decisions stay available.",
                 properties.getBoundary()
             );
             return;

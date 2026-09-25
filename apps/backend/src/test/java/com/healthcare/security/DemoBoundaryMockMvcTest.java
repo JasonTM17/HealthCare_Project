@@ -26,10 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Endpoint-level proof (HC-01/D-01) that a demo principal receives 403 with
- * the stable {@code DEMO_MUTATION_FORBIDDEN} code from a payment-decision
- * shaped route, while non-demo principals and the patient booking journey are
- * untouched. Uses a stub controller with the real boundary filter; no
- * Spring context or database required.
+ * the stable {@code DEMO_MUTATION_FORBIDDEN} code from a blocked identity
+ * route, while simulated payment decisions, non-demo principals and the
+ * patient booking journey are untouched. Uses a stub controller with the real
+ * boundary filter; no Spring context or database required.
  */
 class DemoBoundaryMockMvcTest {
 
@@ -52,27 +52,41 @@ class DemoBoundaryMockMvcTest {
     }
 
     @Test
-    @DisplayName("Demo principal PATCHing a payment decision gets 403 DEMO_MUTATION_FORBIDDEN")
-    void demoPrincipalBlockedFromPaymentDecision() throws Exception {
+    @DisplayName("Demo principal POSTing an AI-credit grant gets 403 DEMO_MUTATION_FORBIDDEN")
+    void demoPrincipalBlockedFromAiCreditGrant() throws Exception {
         setPrincipal(HealthcareUserPrincipal.from(DemoMutationBoundaryFilterTest.Fixtures.user(true)));
 
-        mockMvc.perform(patch("/api/v1/admin/payments/{id}/refund", UUID.randomUUID())
+        mockMvc.perform(post("/api/v1/admin/ai-credits/grant")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"demo probe\"}"))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("DEMO_MUTATION_FORBIDDEN"));
 
-        assertThat(controller.paymentDecisions).isZero();
+        assertThat(controller.aiCreditGrants).isZero();
     }
 
     @Test
-    @DisplayName("Non-demo principal PATCHing the same route proceeds (200 from stub)")
+    @DisplayName("Non-demo principal POSTing the same route proceeds (200 from stub)")
     void nonDemoPrincipalUnaffected() throws Exception {
         setPrincipal(HealthcareUserPrincipal.from(DemoMutationBoundaryFilterTest.Fixtures.user(false)));
 
-        mockMvc.perform(patch("/api/v1/admin/payments/{id}/refund", UUID.randomUUID())
+        mockMvc.perform(post("/api/v1/admin/ai-credits/grant")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reason\":\"operator action\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("REVIEWED"));
+
+        assertThat(controller.aiCreditGrants).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Demo admin PATCHing a simulated payment decision proceeds (200 from stub)")
+    void demoPaymentDecisionNotIntercepted() throws Exception {
+        setPrincipal(HealthcareUserPrincipal.from(DemoMutationBoundaryFilterTest.Fixtures.user(true)));
+
+        mockMvc.perform(patch("/api/v1/admin/payments/{id}/refund", UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"simulated refund\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("REVIEWED"));
 
@@ -104,11 +118,18 @@ class DemoBoundaryMockMvcTest {
 
         int paymentDecisions;
         int bookingMutations;
+        int aiCreditGrants;
 
         @PatchMapping("/api/v1/admin/payments/{paymentId}/refund")
         java.util.Map<String, String> refund(@PathVariable UUID paymentId) {
             paymentDecisions++;
             return java.util.Map.of("status", "REVIEWED", "paymentId", paymentId.toString());
+        }
+
+        @PostMapping("/api/v1/admin/ai-credits/grant")
+        java.util.Map<String, String> grant() {
+            aiCreditGrants++;
+            return java.util.Map.of("status", "REVIEWED");
         }
 
         @PostMapping("/api/v1/appointments/hold")
