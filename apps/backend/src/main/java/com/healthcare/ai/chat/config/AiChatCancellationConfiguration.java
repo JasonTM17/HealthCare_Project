@@ -1,6 +1,7 @@
 package com.healthcare.ai.chat.config;
 
 import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -8,6 +9,7 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
 @Configuration
+@ConditionalOnProperty(prefix = "ai.chat.cancellation", name = "subscriber-enabled", havingValue = "true", matchIfMissing = true)
 public class AiChatCancellationConfiguration {
 
     @Bean

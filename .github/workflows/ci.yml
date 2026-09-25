@@ -13,7 +13,7 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16-alpine
@@ -25,6 +25,15 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -51,8 +60,7 @@ jobs:
           for image in \
             "cgr.dev/chainguard/minio:latest" \
             "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z" \
-            "docker.io/minio/minio:RELEASE.2025-07-23T15-54-02Z" \
-            "minio/minio:RELEASE.2025-07-23T15-54-02Z"; do
+            "docker.io/minio/minio:RELEASE.2025-07-23T15-54-02Z"; do
             if docker pull "$image"; then
               MINIO_IMAGE="$image"
               break
@@ -106,6 +114,7 @@ jobs:
           TEST_DB_ALLOW_CLEANUP: true
           TEST_DB_USERNAME: healthcare_test
           TEST_DB_PASSWORD: healthcare_test
+          TEST_MINIO_IMAGE: cgr.dev/chainguard/minio:latest
         run: ./mvnw -B verify
       - name: Stop MinIO
         if: always()
