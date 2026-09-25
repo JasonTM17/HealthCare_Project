@@ -855,7 +855,10 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
     response_model=ChatRetrieveResponse,
     dependencies=[Depends(require_service_auth)],
 )
-def chat_retrieve(request: ChatRetrieveRequest) -> ChatRetrieveResponse:
+async def chat_retrieve(
+    request: ChatRetrieveRequest,
+    http_request: Request,
+) -> ChatRetrieveResponse:
     """Return bounded candidates without invoking a language model.
 
     Spring must re-authorize these identities against its current SQL catalog
@@ -868,7 +871,16 @@ def chat_retrieve(request: ChatRetrieveRequest) -> ChatRetrieveResponse:
         setting_name="ai_max_input_chars",
     )
     bounded_request = request.model_copy(update={"message": message})
-    return retrieve_chat_candidates(bounded_request, settings, rag_service, embedder=embed)
+    return await _run_cancellable_chat(
+        http_request,
+        lambda cancellation: retrieve_chat_candidates(
+            bounded_request,
+            settings,
+            rag_service,
+            embedder=embed,
+            cancellation=cancellation,
+        ),
+    )
 
 
 @app.post(

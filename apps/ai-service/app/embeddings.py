@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 from dataclasses import dataclass
 from typing import Any, Iterator, List, Protocol
 
+from app.cancellation import ChatCancellation
 from app.providers import (
     LOCAL_EMBEDDING_PROVIDERS,
     ProviderUnavailable,
@@ -73,8 +75,15 @@ class OpenAIEmbeddingClient:
     base_url: str
     model: str
     timeout_seconds: float
+    cancellation: ChatCancellation | None = None
 
     def embed(self, text: str) -> EmbeddingResult:
+        if self.cancellation is not None:
+            self.cancellation.raise_if_cancelled()
+            response = asyncio.run(self._embed_cancellable(text))
+            self.cancellation.raise_if_cancelled()
+            return self._validated_result(response)
+
         from openai import OpenAI
 
         client = OpenAI(
@@ -91,6 +100,43 @@ class OpenAIEmbeddingClient:
             input=text,
             dimensions=EMBEDDING_DIMENSION,
         )
+        return self._validated_result(response)
+
+    async def _embed_cancellable(self, text: str) -> Any:
+        from openai import AsyncOpenAI
+
+        cancellation = self.cancellation
+        if cancellation is None:
+            raise RuntimeError("cancellation context is missing")
+        loop = asyncio.get_running_loop()
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("embedding provider task is missing")
+
+        def cancel_provider() -> None:
+            try:
+                loop.call_soon_threadsafe(task.cancel)
+            except RuntimeError:
+                # The request already completed and closed its event loop.
+                pass
+
+        unregister = cancellation.register(cancel_provider)
+        try:
+            async with AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+                max_retries=0,
+            ) as client:
+                return await client.embeddings.create(
+                    model=self.model,
+                    input=text,
+                    dimensions=EMBEDDING_DIMENSION,
+                )
+        finally:
+            unregister()
+
+    def _validated_result(self, response: Any) -> EmbeddingResult:
         if not response.data or not response.data[0].embedding:
             raise ValueError("embedding provider returned no vector")
         vector = [float(value) for value in response.data[0].embedding]
@@ -105,7 +151,10 @@ class OpenAIEmbeddingClient:
         )
 
 
-def build_embedding_client(settings: Any) -> EmbeddingClient:
+def build_embedding_client(
+    settings: Any,
+    cancellation: ChatCancellation | None = None,
+) -> EmbeddingClient:
     """Resolve the configured provider without exposing credentials."""
 
     provider = string_setting(settings, "embedding_provider", "local").lower()
@@ -124,6 +173,7 @@ def build_embedding_client(settings: Any) -> EmbeddingClient:
             base_url=base_url,
             model=model,
             timeout_seconds=bounded_timeout_setting(settings),
+            cancellation=cancellation,
         )
     return LocalEmbeddingClient()
 
@@ -134,6 +184,7 @@ def embed(
     *,
     synthetic_beta: bool = False,
     allow_public_operational: bool = False,
+    cancellation: ChatCancellation | None = None,
 ) -> EmbeddingResult:
     """Return a result with explicit local/remote provenance.
 
@@ -141,6 +192,9 @@ def embed(
     Non-local runtimes fail closed so a local vector is never mislabeled as a
     successful remote result.
     """
+
+    if cancellation is not None:
+        cancellation.raise_if_cancelled()
 
     remote_requested = remote_provider_requested(
         settings,
@@ -176,9 +230,12 @@ def embed(
             return EmbeddingResult(local.vector, local.model, "local_fallback")
         raise ProviderUnavailable()
 
-    client = build_embedding_client(settings)
+    client = build_embedding_client(settings, cancellation)
     try:
-        return client.embed(text)
+        result = client.embed(text)
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
+        return result
     except Exception:
         if allow_fallback:
             local = LocalEmbeddingClient().embed(text)

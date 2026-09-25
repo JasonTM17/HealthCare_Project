@@ -404,8 +404,9 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
-    void chatCancellationHasItsOwnRateLimitSoOtherPostBucketsCannotSuppressIt() throws Exception {
+    void trustedChatCancellationBypassesAppBucketButUntrustedRequestsStayBounded() throws Exception {
         MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.bff.service-token", TEST_BFF_TOKEN)
             .withProperty("app.security.rate-limit.ai-limit", "1")
             .withProperty("app.security.rate-limit.ai-cancellation-limit", "1")
             .withProperty("app.security.rate-limit.default-post-limit", "1")
@@ -421,20 +422,26 @@ class RequestRateLimitFilterTest {
             filter, accepted, "/api/v1/ai/conversations/one/messages/stream", "10.0.9.1");
         MockHttpServletResponse aiRequestLimited = invokePost(
             filter, accepted, "/api/v1/ai/conversations/two/messages/stream", "10.0.9.1");
-        MockHttpServletResponse cancellation = invokePost(
+        MockHttpServletResponse cancellation = invokeTrustedCancellation(
+            filter, accepted, "10.0.9.1", "90000000-0000-4000-8000-000000000001");
+        MockHttpServletResponse repeatedCancellation = invokeTrustedCancellation(
+            filter, accepted, "10.0.9.1", "90000000-0000-4000-8000-000000000002");
+        MockHttpServletResponse untrustedCancellation = invokePost(
             filter, accepted,
-            "/api/v1/internal/ai/chat-cancellations/90000000-0000-4000-8000-000000000001", "10.0.9.1");
-        MockHttpServletResponse cancellationLimited = invokePost(
+            "/api/v1/internal/ai/chat-cancellations/90000000-0000-4000-8000-000000000003", "10.0.9.2");
+        MockHttpServletResponse untrustedCancellationLimited = invokePost(
             filter, accepted,
-            "/api/v1/internal/ai/chat-cancellations/90000000-0000-4000-8000-000000000002", "10.0.9.1");
+            "/api/v1/internal/ai/chat-cancellations/90000000-0000-4000-8000-000000000004", "10.0.9.2");
 
         assertThat(defaultPost.getStatus()).isEqualTo(200);
         assertThat(defaultPostLimited.getStatus()).isEqualTo(429);
         assertThat(aiRequest.getStatus()).isEqualTo(200);
         assertThat(aiRequestLimited.getStatus()).isEqualTo(429);
         assertThat(cancellation.getStatus()).isEqualTo(200);
-        assertThat(cancellationLimited.getStatus()).isEqualTo(429);
-        assertThat(accepted).hasValue(3);
+        assertThat(repeatedCancellation.getStatus()).isEqualTo(200);
+        assertThat(untrustedCancellation.getStatus()).isEqualTo(200);
+        assertThat(untrustedCancellationLimited.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(5);
     }
 
     @Test
@@ -590,6 +597,20 @@ class RequestRateLimitFilterTest {
             String remoteAddress) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
         request.setRemoteAddr(remoteAddress);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> accepted.incrementAndGet());
+        return response;
+    }
+
+    private MockHttpServletResponse invokeTrustedCancellation(
+            RequestRateLimitFilter filter,
+            AtomicInteger accepted,
+            String remoteAddress,
+            String requestId) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+            "POST", "/api/v1/internal/ai/chat-cancellations/" + requestId);
+        request.setRemoteAddr(remoteAddress);
+        request.addHeader(BffRequestVerifier.CREDENTIAL_HEADER, TEST_BFF_TOKEN);
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> accepted.incrementAndGet());
         return response;

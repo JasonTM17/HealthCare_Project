@@ -56,7 +56,27 @@ async function loadBff(env = {}) {
     if (specifier === "node:net") return { isIP };
     throw new Error(`Unexpected runtime import: ${specifier}`);
   }, compiledModule);
-  return compiledModule.exports;
+  const bff = compiledModule.exports;
+  const proxyHealthcareRequest = bff.proxyHealthcareRequest;
+  bff.proxyHealthcareRequest = (request, pathSegments, options = {}) => {
+    const { useRealChatLeaseControl = false, ...proxyOptions } = options;
+    const fetchImpl = proxyOptions.fetchImpl ?? fetch;
+    if (useRealChatLeaseControl) {
+      return proxyHealthcareRequest(request, pathSegments, proxyOptions);
+    }
+    const fetchWithChatLeaseStub = async (target, init) => {
+      const path = new URL(target).pathname;
+      if (/^\/api\/v1\/internal\/ai\/chat-leases\/[0-9a-fA-F-]{36}\/open$/u.test(path)) {
+        return Response.json({ renewalPermit: "test-open-renewal-permit-012345678901234567890123456789" });
+      }
+      if (/^\/api\/v1\/internal\/ai\/chat-leases\/[0-9a-fA-F-]{36}\/renew$/u.test(path)) {
+        return Response.json({ renewalPermit: "test-next-renewal-permit-012345678901234567890123456789" });
+      }
+      return fetchImpl(target, init);
+    };
+    return proxyHealthcareRequest(request, pathSegments, { ...proxyOptions, fetchImpl: fetchWithChatLeaseStub });
+  };
+  return bff;
 }
 
 function browserRequest(path, init = {}) {
@@ -645,10 +665,21 @@ test("BFF aborts its upstream fetch when the browser cancels a response body", a
     {
       runtimeConfig: { ...runtimeConfig, streamRequestTimeoutMs: 1_000 },
       fetchImpl: async (target, init = {}) => {
-        if (new URL(target).pathname.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+        const path = new URL(target).pathname;
+        if (path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
           return new Response(null, { status: 204 });
         }
         upstreamSignal = init.signal;
+        if (path.endsWith("/messages/prepare")) {
+          return Response.json({ replayed: false, preparedPayload: "payload", commitPermit: "permit" });
+        }
+        if (path.endsWith("/messages/commit")) {
+          return Response.json({
+            userMessage: { id: "u" },
+            assistantMessage: { content: "answer" },
+            replayed: false,
+          });
+        }
         return new Response(new ReadableStream({ start() {} }), {
           status: 200,
           headers: { "Content-Type": "text/event-stream" },
@@ -662,7 +693,7 @@ test("BFF aborts its upstream fetch when the browser cancels a response body", a
   assert.equal(upstreamSignal?.aborted, true);
 });
 
-test("BFF records a response-body deadline as a timeout", async () => {
+test("BFF records a patient-chat prepare deadline as a timeout", async () => {
   const bff = await loadBff();
   const traceRecords = [];
   const originalConsoleInfo = console.info;
@@ -677,19 +708,21 @@ test("BFF records a response-body deadline as a timeout", async () => {
       ["ai", "conversations", "c-1", "messages", "stream"],
       {
         runtimeConfig: { ...runtimeConfig, streamRequestTimeoutMs: 20 },
-        fetchImpl: async (_target, init = {}) => new Response(new ReadableStream({
-          start(controller) {
-            init.signal.addEventListener(
-              "abort",
-              () => controller.error(new Error("upstream timed out")),
-              { once: true },
-            );
-          },
-        })),
+        fetchImpl: async (target, init = {}) => {
+          if (new URL(target).pathname.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+            return new Response(null, { status: 204 });
+          }
+          return await new Promise((_resolve, reject) => {
+            const fail = () => reject(new DOMException("upstream timed out", "AbortError"));
+            if (init.signal.aborted) fail();
+            else init.signal.addEventListener("abort", fail, { once: true });
+          });
+        },
       },
     );
 
-    await assert.rejects(response.text(), /upstream timed out/);
+    assert.equal(response.status, 502);
+    assert.equal((await response.json()).code, "BFF_UPSTREAM_UNAVAILABLE");
   } finally {
     console.info = originalConsoleInfo;
   }
@@ -1002,7 +1035,22 @@ test("BFF stream cancellation awaits the cancellation side-call before settling 
       return;
     }
     resolveStarted();
-    outgoing.writeHead(200, { "Content-Type": "text/event-stream" }).flushHeaders();
+    if (incoming.url?.endsWith("/messages/prepare")) {
+      incoming.resume();
+      outgoing.writeHead(200, { "Content-Type": "application/json" })
+        .end(JSON.stringify({ replayed: false, preparedPayload: "payload", commitPermit: "permit" }));
+      return;
+    }
+    if (incoming.url?.endsWith("/messages/commit")) {
+      incoming.resume();
+      outgoing.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({
+        userMessage: { id: "u" },
+        assistantMessage: { content: "answer" },
+        replayed: false,
+      }));
+      return;
+    }
+    outgoing.writeHead(404).end();
   });
 
   await new Promise((resolve) => backend.listen(0, "127.0.0.1", resolve));
@@ -1212,7 +1260,7 @@ test("BFF cancels a chunked request as soon as its streamed body exceeds 12 MiB"
 test("BFF gives the chunked chat route its longer generation deadline", async () => {
   const bff = await loadBff();
   let capturedSignal;
-  const runtime = { ...runtimeConfig, requestTimeoutMs: 10, streamRequestTimeoutMs: 40 };
+  const runtime = { ...runtimeConfig, requestTimeoutMs: 10, streamRequestTimeoutMs: 100 };
   const response = await bff.proxyHealthcareRequest(
     browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
       method: "POST",
@@ -1222,7 +1270,7 @@ test("BFF gives the chunked chat route its longer generation deadline", async ()
     ["ai", "conversations", "c-1", "messages", "stream"],
     {
       runtimeConfig: runtime,
-      fetchImpl: async (_target, init) => {
+      fetchImpl: async (target, init) => {
         capturedSignal = init.signal;
         await new Promise((resolve, reject) => {
           const timer = setTimeout(resolve, 20);
@@ -1231,12 +1279,20 @@ test("BFF gives the chunked chat route its longer generation deadline", async ()
             reject(new DOMException("aborted", "AbortError"));
           }, { once: true });
         });
-        return Response.json({ ok: true });
+        if (new URL(target).pathname.endsWith("/messages/prepare")) {
+          return Response.json({ replayed: false, preparedPayload: "payload", commitPermit: "permit" });
+        }
+        return Response.json({
+          userMessage: { id: "u" },
+          assistantMessage: { content: "answer" },
+          replayed: false,
+        });
       },
     },
   );
   assert.equal(response.status, 200);
   assert.equal(capturedSignal.aborted, false);
+  await response.body?.cancel("test-complete");
 });
 
 test("BFF gives public hospital-support chat a bounded cold-start deadline", async () => {
@@ -1339,4 +1395,502 @@ test("BFF accepts the 127.0.0.1 loopback origin when the runtime URL is localhos
 
   assert.equal(response.status, 200);
   assert.equal(observedOrigin, "http://127.0.0.1:3000");
+});
+
+test("patient chat hides the private prepare permit and preserves the public JSON exchange", async () => {
+  const bff = await loadBff();
+  const exchange = {
+    userMessage: { id: "user-1", content: "hello" },
+    assistantMessage: { id: "assistant-1", content: "A safe reply." },
+    replayed: false,
+  };
+  const calls = [];
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json", "Idempotency-Key": "chat-json-0001" },
+      body: JSON.stringify({ content: "hello" }),
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        calls.push({ path, init });
+        if (path.endsWith("/messages/prepare")) {
+          return Response.json({
+            replayed: false,
+            exchange: null,
+            preparedPayload: "private-answer-payload",
+            commitPermit: "private-signed-permit",
+          });
+        }
+        assert.equal(path.endsWith("/messages/commit"), true);
+        return Response.json(exchange);
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const publicPayload = await response.text();
+  assert.deepEqual(JSON.parse(publicPayload), exchange);
+  assert.deepEqual(calls.map(({ path }) => path), [
+    "/api/v1/ai/conversations/c-1/messages/prepare",
+    "/api/v1/ai/conversations/c-1/messages/commit",
+  ]);
+  assert.equal(calls[1].init.headers.get("Idempotency-Key"), "chat-json-0001");
+  const committedBody = JSON.parse(calls[1].init.body);
+  assert.equal(committedBody.preparedPayload, "private-answer-payload");
+  assert.equal(committedBody.commitPermit, "private-signed-permit");
+  assert.equal(publicPayload.includes("private-signed-permit"), false);
+  assert.equal(publicPayload.includes("private-answer-payload"), false);
+});
+
+test("BFF refuses direct browser access to private patient-chat prepare and commit routes", async () => {
+  const bff = await loadBff();
+  let upstreamCalls = 0;
+
+  for (const operation of ["prepare", "commit"]) {
+    const response = await bff.proxyHealthcareRequest(
+      browserRequest(`/api/v1/ai/conversations/c-1/messages/${operation}`, {
+        method: "POST",
+        headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+        body: JSON.stringify({ preparedPayload: "browser-controlled", commitPermit: "forged" }),
+      }),
+      ["ai", "conversations", "c-1", "messages", operation],
+      {
+        runtimeConfig,
+        fetchImpl: async () => {
+          upstreamCalls += 1;
+          return Response.json({ unexpected: true });
+        },
+      },
+    );
+
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { code: "BFF_ROUTE_UNAVAILABLE" });
+  }
+
+  assert.equal(upstreamCalls, 0, "private chat routes must stop before trusted BFF credentials reach Spring");
+});
+
+test("patient chat observed abort sends no commit even when both cancel notifications are rejected", async () => {
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  let resolvePrepareStarted;
+  const prepareStarted = new Promise((resolve) => { resolvePrepareStarted = resolve; });
+  let prepareCalls = 0;
+  let commitCalls = 0;
+  let cancellationAttempts = 0;
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json", "Idempotency-Key": "chat-abort-0001" },
+      body: JSON.stringify({ content: "hello" }),
+      signal: browserController.signal,
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        if (path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          cancellationAttempts += 1;
+          return new Response(null, { status: 503 });
+        }
+        if (path.endsWith("/messages/prepare")) {
+          prepareCalls += 1;
+          resolvePrepareStarted();
+          return await new Promise((_resolve, reject) => {
+            init.signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("aborted", "AbortError")),
+              { once: true },
+            );
+          });
+        }
+        if (path.endsWith("/messages/commit")) commitCalls += 1;
+        throw new Error(`Unexpected patient chat target ${path}`);
+      },
+    },
+  );
+
+  const didEnterPrepare = await Promise.race([
+    prepareStarted.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), 250)),
+  ]);
+  if (!didEnterPrepare) {
+    browserController.abort("test-cleanup");
+    await responsePromise;
+    assert.equal(prepareCalls, 1, "patient chat must enter the private prepare stage");
+    return;
+  }
+  browserController.abort("user-cancelled");
+  const response = await responsePromise;
+
+  assert.equal(response.status, 502);
+  assert.equal(prepareCalls, 1, "patient chat must enter the private prepare stage");
+  assert.equal(cancellationAttempts, 2, "the BFF retains its bounded idempotent cancel retries");
+  assert.equal(commitCalls, 0, "an abort observed by this BFF invocation must prevent commit dispatch");
+});
+
+test("patient chat SSE keeps delta and done events after private commit", async () => {
+  const bff = await loadBff();
+  const exchange = {
+    userMessage: { id: "user-1", content: "hello" },
+    assistantMessage: { id: "assistant-1", content: "x".repeat(50) },
+    replayed: false,
+  };
+  const paths = [];
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages/stream", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json", "Idempotency-Key": "chat-sse-0001" },
+      body: JSON.stringify({ content: "hello" }),
+    }),
+    ["ai", "conversations", "c-1", "messages", "stream"],
+    {
+      runtimeConfig,
+      fetchImpl: async (target) => {
+        const path = new URL(target).pathname;
+        paths.push(path);
+        if (path.endsWith("/messages/prepare")) {
+          return Response.json({ replayed: false, preparedPayload: "payload", commitPermit: "permit" });
+        }
+        return Response.json(exchange);
+      },
+    },
+  );
+  const stream = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Content-Type"), "text/event-stream; charset=utf-8");
+  assert.deepEqual(paths, [
+    "/api/v1/ai/conversations/c-1/messages/prepare",
+    "/api/v1/ai/conversations/c-1/messages/commit",
+  ]);
+  assert.ok(stream.includes(`event: delta\ndata: ${"x".repeat(48)}\n\n`));
+  assert.ok(stream.includes(`event: delta\ndata: xx\n\n`));
+  assert.ok(stream.includes(`event: done\ndata: ${JSON.stringify(exchange)}\n\n`));
+  assert.equal(stream.includes("permit"), false);
+});
+
+test("guest chat opens a private lease before provider dispatch without exposing prompt data", async () => {
+  const bff = await loadBff();
+  const calls = [];
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+        Cookie: "__Host-healthcare_session=opaque-guest-session",
+      },
+      body: JSON.stringify({ message: "synthetic guest question" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      useRealChatLeaseControl: true,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        calls.push({ path, init });
+        if (path.endsWith("/open")) {
+          return Response.json({ renewalPermit: "guest-initial-permit-012345678901234567890123456789" });
+        }
+        if (path === "/api/v1/public/ai/chat") return Response.json({ answer: "safe guest answer" });
+        throw new Error(`Unexpected guest chat target ${path}`);
+      },
+    },
+  );
+  const publicBody = await response.text();
+  const openCall = calls[0];
+  const providerCall = calls[1];
+  const openRequestId = openCall.init.headers.get("X-Request-ID");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls.map(({ path }) => path), [
+    `/api/v1/internal/ai/chat-leases/${openRequestId}/open`,
+    "/api/v1/public/ai/chat",
+  ]);
+  assert.match(openRequestId, /^[0-9a-f-]{36}$/iu);
+  assert.deepEqual(JSON.parse(openCall.init.body), { scope: "PUBLIC_CHAT" });
+  assert.equal(openCall.init.headers.get("Authorization"), null);
+  assert.equal(openCall.init.headers.get("Cookie"), null);
+  assert.equal(openCall.init.headers.get("X-Healthcare-Bff-Token"), runtimeConfig.serviceToken);
+  assert.equal(providerCall.init.headers.get("X-Request-ID"), openRequestId);
+  assert.equal(JSON.parse(Buffer.from(providerCall.init.body).toString()).message, "synthetic guest question");
+  assert.equal(publicBody.includes("guest-initial-permit"), false);
+});
+
+test("patient chat opens its bound lease before prepare and never returns the renewal permit", async () => {
+  const bff = await loadBff();
+  const exchange = {
+    userMessage: { id: "user-1", content: "hello" },
+    assistantMessage: { id: "assistant-1", content: "A safe reply." },
+    replayed: false,
+  };
+  const calls = [];
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+        Cookie: "__Host-healthcare_session=opaque-patient-session",
+        "Idempotency-Key": "chat-lease-patient-0001",
+      },
+      body: JSON.stringify({ content: "hello" }),
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig,
+      useRealChatLeaseControl: true,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        calls.push({ path, init });
+        if (path.endsWith("/open")) {
+          return Response.json({ renewalPermit: "patient-initial-permit-012345678901234567890123456789" });
+        }
+        if (path.endsWith("/messages/prepare")) {
+          return Response.json({
+            replayed: false,
+            preparedPayload: "private-answer-payload",
+            commitPermit: "private-signed-permit",
+          });
+        }
+        if (path.endsWith("/messages/commit")) return Response.json(exchange);
+        throw new Error(`Unexpected patient chat target ${path}`);
+      },
+    },
+  );
+  const publicBody = await response.text();
+  const [openCall, prepareCall, commitCall] = calls;
+  const requestId = openCall.init.headers.get("X-Request-ID");
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls.map(({ path }) => path), [
+    `/api/v1/internal/ai/chat-leases/${requestId}/open`,
+    "/api/v1/ai/conversations/c-1/messages/prepare",
+    "/api/v1/ai/conversations/c-1/messages/commit",
+  ]);
+  assert.deepEqual(JSON.parse(openCall.init.body), { scope: "PATIENT", conversationId: "c-1" });
+  assert.equal(openCall.init.headers.get("Idempotency-Key"), "chat-lease-patient-0001");
+  assert.equal(openCall.init.headers.get("Cookie"), "__Host-healthcare_session=opaque-patient-session");
+  assert.equal(prepareCall.init.headers.get("X-Request-ID"), requestId);
+  assert.equal(commitCall.init.headers.get("X-Request-ID"), requestId);
+  assert.deepEqual(JSON.parse(publicBody), exchange);
+  assert.equal(publicBody.includes("patient-initial-permit"), false);
+  assert.equal(publicBody.includes("private-signed-permit"), false);
+});
+
+test("in-flight lease renewal is single-flight and browser abort sends no commit when cancel calls fail", async () => {
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  let resolvePrepareStarted;
+  let resolveRenewalStarted;
+  const prepareStarted = new Promise((resolve) => { resolvePrepareStarted = resolve; });
+  const renewalStarted = new Promise((resolve) => { resolveRenewalStarted = resolve; });
+  let prepareAborted = false;
+  let commitCalls = 0;
+  let cancellationAttempts = 0;
+  let cancellationCookieHeader;
+  let cancellationCsrfHeader;
+  let renewalCalls = 0;
+  let activeRenewals = 0;
+  let maxActiveRenewals = 0;
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "chat-lease-abort-0001",
+        Cookie: "__Host-healthcare_session=opaque-patient-session",
+      },
+      body: JSON.stringify({ content: "hello" }),
+      signal: browserController.signal,
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig: { ...runtimeConfig, requestTimeoutMs: 5_000 },
+      useRealChatLeaseControl: true,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        if (path.endsWith("/open")) {
+          return Response.json({ renewalPermit: "initial-permit-012345678901234567890123456789" });
+        }
+        if (path.endsWith("/renew")) {
+          renewalCalls += 1;
+          activeRenewals += 1;
+          maxActiveRenewals = Math.max(maxActiveRenewals, activeRenewals);
+          resolveRenewalStarted();
+          try {
+            return await new Promise((_resolve, reject) => {
+              const fail = () => reject(new DOMException("renewal aborted", "AbortError"));
+              if (init.signal.aborted) fail();
+              else init.signal.addEventListener("abort", fail, { once: true });
+            });
+          } finally {
+            activeRenewals -= 1;
+          }
+        }
+        if (path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          cancellationAttempts += 1;
+          cancellationCookieHeader = new Headers(init.headers).get("Cookie");
+          cancellationCsrfHeader = new Headers(init.headers).get("X-CSRF-Token");
+          return new Response(null, { status: 503 });
+        }
+        if (path.endsWith("/messages/prepare")) {
+          resolvePrepareStarted();
+          return await new Promise((_resolve, reject) => {
+            const fail = () => {
+              prepareAborted = true;
+              reject(new DOMException("prepare aborted", "AbortError"));
+            };
+            if (init.signal.aborted) fail();
+            else init.signal.addEventListener("abort", fail, { once: true });
+          });
+        }
+        if (path.endsWith("/messages/commit")) commitCalls += 1;
+        throw new Error(`Unexpected patient lease target ${path}`);
+      },
+    },
+  );
+
+  await Promise.all([prepareStarted, renewalStarted]);
+  browserController.abort("browser-disconnect");
+  const response = await responsePromise;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+
+  assert.equal(response.status, 502);
+  assert.equal(prepareAborted, true);
+  assert.equal(renewalCalls, 1, "an in-flight renewal must be aborted, not overlapped or retried");
+  assert.equal(maxActiveRenewals, 1);
+  assert.equal(cancellationAttempts, 2, "the failed cancellation path remains bounded to two attempts");
+  assert.equal(cancellationCookieHeader, null, "the control-plane cancellation needs no patient session cookie");
+  assert.equal(cancellationCsrfHeader, null, "the control-plane cancellation needs no patient CSRF token");
+  assert.equal(commitCalls, 0, "the originating BFF must not commit after it observes browser abort");
+});
+
+test("uncertain lease renewal aborts patient prepare and prevents commit", async () => {
+  const bff = await loadBff();
+  let resolveRenewalStarted;
+  const renewalStarted = new Promise((resolve) => { resolveRenewalStarted = resolve; });
+  let prepareAborted = false;
+  let commitCalls = 0;
+  let cancellationAttempts = 0;
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "chat-lease-failure-0001",
+      },
+      body: JSON.stringify({ content: "hello" }),
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig: { ...runtimeConfig, requestTimeoutMs: 5_000 },
+      useRealChatLeaseControl: true,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        if (path.endsWith("/open")) {
+          return Response.json({ renewalPermit: "initial-permit-012345678901234567890123456789" });
+        }
+        if (path.endsWith("/renew")) {
+          resolveRenewalStarted();
+          return new Response(null, { status: 503 });
+        }
+        if (path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          cancellationAttempts += 1;
+          return new Response(null, { status: 503 });
+        }
+        if (path.endsWith("/messages/prepare")) {
+          return await new Promise((_resolve, reject) => {
+            const fail = () => {
+              prepareAborted = true;
+              reject(new DOMException("prepare aborted after uncertain renewal", "AbortError"));
+            };
+            if (init.signal.aborted) fail();
+            else init.signal.addEventListener("abort", fail, { once: true });
+          });
+        }
+        if (path.endsWith("/messages/commit")) commitCalls += 1;
+        throw new Error(`Unexpected patient lease target ${path}`);
+      },
+    },
+  );
+
+  await renewalStarted;
+  const response = await responsePromise;
+
+  assert.equal(response.status, 502);
+  assert.equal(prepareAborted, true);
+  assert.equal(cancellationAttempts, 2);
+  assert.equal(commitCalls, 0, "an uncertain lease cannot authorize a patient commit");
+});
+
+test("lease heartbeat keeps its one-second cadence anchored to permit issuance", async () => {
+  const bff = await loadBff();
+  const browserController = new AbortController();
+  let resolveRenewalStarted;
+  const renewalStarted = new Promise((resolve) => { resolveRenewalStarted = resolve; });
+  let openStartedAt = 0;
+  let renewalStartedAt = 0;
+  let commitCalls = 0;
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "chat-lease-cadence-0001",
+      },
+      body: JSON.stringify({ content: "hello" }),
+      signal: browserController.signal,
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig: { ...runtimeConfig, requestTimeoutMs: 3_000 },
+      useRealChatLeaseControl: true,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        if (path.endsWith("/open")) {
+          openStartedAt = Date.now();
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          return Response.json({ renewalPermit: "cadence-initial-permit-012345678901234567890123456789" });
+        }
+        if (path.endsWith("/renew")) {
+          renewalStartedAt = Date.now();
+          resolveRenewalStarted();
+          browserController.abort("cadence-test-complete");
+          return Response.json({ renewalPermit: "cadence-next-permit-012345678901234567890123456789" });
+        }
+        if (path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          return new Response(null, { status: 204 });
+        }
+        if (path.endsWith("/messages/prepare")) {
+          return await new Promise((_resolve, reject) => {
+            const fail = () => reject(new DOMException("prepare aborted", "AbortError"));
+            if (init.signal.aborted) fail();
+            else init.signal.addEventListener("abort", fail, { once: true });
+          });
+        }
+        if (path.endsWith("/messages/commit")) commitCalls += 1;
+        throw new Error(`Unexpected patient cadence target ${path}`);
+      },
+    },
+  );
+
+  await renewalStarted;
+  const response = await responsePromise;
+
+  assert.equal(response.status, 502);
+  assert.ok(
+    renewalStartedAt - openStartedAt <= 1_200,
+    `first renewal arrived ${renewalStartedAt - openStartedAt}ms after lease open began`,
+  );
+  assert.equal(commitCalls, 0);
 });

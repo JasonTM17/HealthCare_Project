@@ -262,11 +262,34 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             return new LimitRule("public-triage", publicTriageLimit);
         }
 
-        // 6a. Private BFF chat cancellation control plane. Keep this bounded,
-        // but separate from both normal AI traffic and unrelated mutations so
-        // either bucket cannot prevent an active request from being stopped.
+        // 6a. The trusted BFF cancellation control plane must remain available
+        // when an active chat needs to stop. Untrusted requests still use a
+        // separate bounded bucket, and the controller independently verifies
+        // the same credential before writing cancellation state.
+        if ("POST".equals(method)
+                && path.matches("^/api/v1/internal/ai/chat-cancellations/[0-9a-fA-F-]{36}$")
+                && bffRequestVerifier.isTrusted(request)) {
+            return null;
+        }
         if ("POST".equals(method) && path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
             return new LimitRule("ai-chat-cancellation", aiCancellationLimit);
+        }
+
+        // Lease open is bounded independently per client so a trusted BFF
+        // cannot create unbounded guest records while the public AI bucket
+        // remains unchanged. Heartbeats are exempt only for the trusted BFF;
+        // the controller also validates each single-use Redis permit.
+        if ("POST".equals(method)
+                && path.matches("^/api/v1/internal/ai/chat-leases/[0-9a-fA-F-]{36}/renew$")
+                && bffRequestVerifier.isTrusted(request)) {
+            return null;
+        }
+        if ("POST".equals(method)
+                && path.matches("^/api/v1/internal/ai/chat-leases/[0-9a-fA-F-]{36}/open$")) {
+            return new LimitRule("ai-chat-lease-open", aiLimit);
+        }
+        if ("POST".equals(method) && path.startsWith("/api/v1/internal/ai/chat-leases/")) {
+            return new LimitRule("ai-chat-lease-control", aiCancellationLimit);
         }
 
         // 7. AI chat, conversation streaming and intelligence services

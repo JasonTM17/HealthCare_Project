@@ -65,8 +65,13 @@ ON CONFLICT (slug) DO UPDATE SET
     photo_url = EXCLUDED.photo_url;
 
 -- ── Doctor ↔ Specialty links ──────────────────────────────────────────────────
+-- The local demo doctor identity must own the demo profile: earlier catalog
+-- migrations bind the slug to the hosted .com persona, so the old
+-- "user_id IS NULL" guard never fired on a fresh chain and /doctor/profile
+-- 404'd for the compose demo doctor. The local seed runs after the chain and
+-- is the authority for the local demo, so rebind unconditionally.
 UPDATE doctors SET user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.local')
-WHERE slug = 'nguyen-minh-khoi' AND user_id IS NULL;
+WHERE slug = 'nguyen-minh-khoi';
 
 -- Resolve the demo profile by its user identity. If an unrelated profile
 -- already owns the demo phone, leave it untouched instead of rebinding it.

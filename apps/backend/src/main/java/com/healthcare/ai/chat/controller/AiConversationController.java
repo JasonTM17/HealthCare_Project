@@ -7,9 +7,13 @@ import com.healthcare.ai.chat.dto.ChatContracts.CreateConversationRequest;
 import com.healthcare.ai.chat.dto.ChatContracts.FeedbackRequest;
 import com.healthcare.ai.chat.dto.ChatContracts.FeedbackResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.MessagePageResponse;
+import com.healthcare.ai.chat.dto.ChatContracts.PreparedChatCommitRequest;
+import com.healthcare.ai.chat.dto.ChatContracts.PreparedChatExchangeResponse;
 import com.healthcare.ai.chat.dto.ChatContracts.SendMessageRequest;
 import com.healthcare.ai.chat.service.AiConversationService;
+import com.healthcare.ai.chat.service.ChatCommitPermitService;
 import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
+import com.healthcare.auth.security.BffRequestVerifier;
 import com.healthcare.observability.RequestTrace;
 import jakarta.validation.Valid;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +36,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
@@ -47,14 +52,20 @@ public class AiConversationController {
     private final AiConversationService conversationService;
     private final ObjectMapper objectMapper;
     private final ChatRequestCancellationRegistry cancellations;
+    private final BffRequestVerifier bffVerifier;
+    private final ChatCommitPermitService commitPermits;
 
     public AiConversationController(
             AiConversationService conversationService,
             ObjectMapper objectMapper,
-            ChatRequestCancellationRegistry cancellations) {
+            ChatRequestCancellationRegistry cancellations,
+            BffRequestVerifier bffVerifier,
+            ChatCommitPermitService commitPermits) {
         this.conversationService = conversationService;
         this.objectMapper = objectMapper;
         this.cancellations = cancellations;
+        this.bffVerifier = bffVerifier;
+        this.commitPermits = commitPermits;
     }
 
     @Operation(summary = "Tạo cuộc hội thoại AI mới", description = "Khởi tạo phiên tư vấn sức khỏe bảo mật dành cho người bệnh")
@@ -106,6 +117,87 @@ public class AiConversationController {
         } catch (IllegalStateException exception) {
             throw cancellationStateUnavailable(exception);
         }
+    }
+
+    /** Private first stage used only by the authenticated same-origin BFF. */
+    @Hidden
+    @PostMapping("/{conversationId}/messages/prepare")
+    public ResponseEntity<PreparedChatExchangeResponse> prepareForBffCommit(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody SendMessageRequest request,
+            @RequestHeader(value = "X-Healthcare-Chat-Delivery", required = false) String delivery,
+            HttpServletRequest servletRequest) throws Exception {
+        requireTrustedBff(servletRequest);
+        boolean chunkedDelivery = "chunked".equals(delivery);
+        if (chunkedDelivery && !conversationService.isChunkedDeliveryEnabled()) {
+            return ResponseEntity.notFound().build();
+        }
+        AiConversationService.PatientChatLeaseBinding patientBinding =
+            conversationService.authorizePatientChatLease(principal, conversationId, idempotencyKey);
+        ChatRequestCancellationRegistry.LeaseBinding leaseBinding = ChatRequestCancellationRegistry.LeaseBinding.patient(
+            patientBinding.patientId(),
+            patientBinding.conversationId(),
+            patientBinding.idempotencyKey());
+        try (var registration = cancellations.registerBffLease(requestId(servletRequest), leaseBinding)) {
+            AiConversationService.PreparedChatResult result = conversationService.prepareForBffCommit(
+                principal,
+                conversationId,
+                idempotencyKey,
+                request.content(),
+                chunkedDelivery,
+                registration.cancellation());
+            if (result.replayed()) {
+                return ResponseEntity.ok(new PreparedChatExchangeResponse(true, result.exchange(), null, null));
+            }
+            String exactPayload = objectMapper.writeValueAsString(result.payload());
+            registration.cancellation().throwIfCancelled();
+            String permit = commitPermits.issue(
+                registration.cancellation().requestId(),
+                result.payload().patientId(),
+                conversationId,
+                result.payload().idempotencyKey(),
+                exactPayload);
+            return ResponseEntity.ok(new PreparedChatExchangeResponse(false, null, exactPayload, permit));
+        } catch (CancellationException exception) {
+            throw cancelledRequest(exception);
+        } catch (IllegalStateException exception) {
+            throw cancellationStateUnavailable(exception);
+        }
+    }
+
+    /** Private second stage; the signed permit authorizes this exact answer and request tuple. */
+    @Hidden
+    @PostMapping("/{conversationId}/messages/commit")
+    public ResponseEntity<ChatExchangeResponse> commitPreparedForBff(
+            @AuthenticationPrincipal UserDetails principal,
+            @PathVariable UUID conversationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody PreparedChatCommitRequest request,
+            HttpServletRequest servletRequest) throws Exception {
+        requireTrustedBff(servletRequest);
+        AiConversationService.PreparedChatCommitPayload payload;
+        try {
+            payload = objectMapper.readValue(
+                request.preparedPayload(), AiConversationService.PreparedChatCommitPayload.class);
+        } catch (Exception exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Prepared AI response is invalid", exception);
+        }
+        String operationId = requestId(servletRequest);
+        if (payload == null || payload.idempotencyKey() == null
+                || !commitPermits.verifies(
+                    request.commitPermit(),
+                    operationId,
+                    payload.patientId(),
+                    conversationId,
+                    idempotencyKey.strip(),
+                    request.preparedPayload())
+                || !idempotencyKey.strip().equals(payload.idempotencyKey())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Prepared chat authorization is invalid");
+        }
+        return ResponseEntity.ok(conversationService.commitPreparedForBff(
+            principal, operationId, conversationId, idempotencyKey, payload));
     }
 
     /**
@@ -168,6 +260,12 @@ public class AiConversationController {
         Object requestId = request.getAttribute(RequestTrace.REQUEST_ATTRIBUTE);
         if (requestId instanceof String value && !value.isBlank()) return value;
         return RequestTrace.currentId();
+    }
+
+    private void requireTrustedBff(HttpServletRequest request) {
+        if (!bffVerifier.isTrusted(request)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Trusted BFF credential is required");
+        }
     }
 
     private ResponseStatusException cancelledRequest(CancellationException exception) {
