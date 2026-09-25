@@ -14,7 +14,7 @@ import re
 import sys
 
 MIGRATIONS = "apps/backend/src/main/resources/db/migration"
-FIXTURE = "apps/backend/src/test/resources/db/test/v86-catalog-prerequisites.sql"
+FIXTURE = "apps/backend/src/main/resources/db/catalog/v86-catalog-prerequisites.sql"
 UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
 
