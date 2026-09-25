@@ -70,7 +70,9 @@ public class BankTransferWebhookService {
         BankTransferWebhookRequest request = parse(rawBody);
         String payloadHash = sha256(rawBody);
         // process() is deliberately NOT @Transactional. Evidence survival and
-        // deadlock-freedom come from the order below:
+        // self-deadlock-freedom come from the order below (cross-transaction
+        // AB-BA deadlocks against appointment-first writers are still possible
+        // and are resolved by PostgreSQL aborting one participant):
         //  1) The replay check reads in the AMBIENT transaction, so a caller
         //     that already touched this event id sees its own uncommitted row
         //     and takes the duplicate path without a nested write.
