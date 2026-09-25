@@ -141,7 +141,7 @@ export default function AdminPaymentsPage() {
         <h2 className="text-sm font-bold text-slate-900">Nhập sao kê ngân hàng</h2>
         <p className="mt-1 text-xs leading-5 text-slate-600">Tệp CSV, mỗi dòng: <code className="font-mono">số tiền; nội dung chuyển khoản; mã giao dịch (tùy chọn)</code>. Dòng khớp nội dung và số tiền sẽ vào hàng chờ đối soát như một thông báo ngân hàng — hệ thống không tự đánh dấu “Đã thanh toán”.</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <input accept=".csv,text/csv,text/plain" aria-label="Chọn tệp sao kê" className="text-sm" disabled={statementPending} onChange={(event) => { setStatementFile(event.target.files?.[0] ?? null); setStatementResult(null); setStatementError(null); }} type="file" />
+          <input accept=".csv,text/csv,text/plain" aria-label="Chọn tệp sao kê" className="min-w-0 max-w-full text-sm" disabled={statementPending} onChange={(event) => { setStatementFile(event.target.files?.[0] ?? null); setStatementResult(null); setStatementError(null); }} type="file" />
           <button className="min-h-11 rounded-lg bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50" disabled={!statementFile || statementPending} onClick={() => void submitStatement()} type="button">{statementPending ? "Đang nhập…" : "Nhập sao kê"}</button>
         </div>
         {statementError ? <p className="mt-2 text-xs font-semibold text-red-700" role="alert">{statementError}</p> : null}
