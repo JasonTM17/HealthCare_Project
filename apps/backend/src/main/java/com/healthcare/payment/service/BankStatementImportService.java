@@ -21,7 +21,9 @@ import java.util.UUID;
  * exact same confirm gate as a webhook — matching transfer content, exact
  * amount, payable appointment — so an import can only ever queue a payment
  * for admin review, never mark it PAID. Row hashes make a re-imported file a
- * counted no-op instead of a second match.
+ * counted no-op for already-matched rows, while previously UNMATCHED rows are
+ * re-driven through the gate (a 404 or an unconfirmed hold is transient, and
+ * a later import must be able to pick them up).
  */
 @Service
 public class BankStatementImportService {
@@ -82,8 +84,18 @@ public class BankStatementImportService {
                 """,
                 UUID.randomUUID(), importId, rowHash, row.amount(), row.transferContent(), row.bankReference());
             if (inserted == null || inserted == 0) {
-                duplicates++;
-                continue;
+                // Hash-dedup keeps one ingest per statement line. A row that was
+                // previously recorded UNMATCHED (payment not initialized yet, hold
+                // not yet OTP-confirmed) must not stay burned: re-drive the match
+                // so a later import of the same file can pick it up. Genuinely
+                // matched rows stay counted duplicates.
+                Boolean alreadyMatched = jdbcTemplate.queryForObject(
+                    "select matched from bank_statement_rows where row_hash = ?",
+                    Boolean.class, rowHash);
+                if (alreadyMatched == null || alreadyMatched) {
+                    duplicates++;
+                    continue;
+                }
             }
             String note = match(row, rowHash);
             if (note == null) {
