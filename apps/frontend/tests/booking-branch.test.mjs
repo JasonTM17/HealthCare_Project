@@ -414,3 +414,19 @@ test("generic booking flow does not lock available branches to arbitrary doctor"
   assert.match(source, /data-testid="booking-step6-doctor"/);
   assert.match(source, /data-testid="booking-confirmed-doctor"/);
 });
+
+test("booking wizard always loads the complete catalog, teaser props only seed preselection", async () => {
+  const source = await readFile(modalPath, "utf8");
+
+  // The homepage passes a 12-item specialty teaser; a non-empty prop must not
+  // gate the full fetch, and loaded (complete) data wins once present with
+  // teaser items appended so preselection targets never disappear.
+  assert.doesNotMatch(source, /needsSpecialties = providedSpecialties\.length === 0/);
+  assert.doesNotMatch(source, /needsBranches = providedBranches\.length === 0/);
+  assert.match(source, /const specialties = useMemo\(\(\) => \{[\s\S]*?loadedSpecialties\.length > 0 \? loadedSpecialties : providedSpecialties[\s\S]*?\}, \[loadedSpecialties, providedSpecialties\]\)/);
+  assert.match(source, /const branches = useMemo\(\(\) => \{[\s\S]*?loadedBranches\.length > 0 \? loadedBranches : providedBranches[\s\S]*?\}, \[loadedBranches, providedBranches\]\)/);
+  // Both lists are fetched unconditionally when the dialog opens.
+  assert.match(source, /fetchSpecialties\(0, 100\)/);
+  assert.match(source, /fetchBranches\(0, 100\)/);
+  assert.doesNotMatch(source, /needsSpecialties \? fetchSpecialties/);
+});

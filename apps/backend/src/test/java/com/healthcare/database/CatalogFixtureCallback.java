@@ -41,7 +41,10 @@ import java.sql.SQLException;
 public class CatalogFixtureCallback implements Callback {
 
     private static final Logger log = LoggerFactory.getLogger(CatalogFixtureCallback.class);
-    private static final String FIXTURE_RESOURCE = "db/test/v86-catalog-prerequisites.sql";
+    // Single source of truth: the fixture lives on the main classpath so the
+    // production-side V86CatalogPrerequisitesCallback and this test callback
+    // execute the identical file.
+    private static final String FIXTURE_RESOURCE = "db/catalog/v86-catalog-prerequisites.sql";
     private static final String ALIGN_RESOURCE = "db/test/align-guard-search-path.sql";
     private static final String V86 = "86";
 
