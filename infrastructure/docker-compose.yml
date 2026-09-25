@@ -248,6 +248,11 @@ services:
       APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED: "true"
       STORAGE_UPLOAD_ENABLED: ${STORAGE_UPLOAD_ENABLED:-false}
       STORAGE_AV_REQUIRED: "true"
+      # The backend refuses to boot with uploads on unless storage is pinned to
+      # a private endpoint; keep the local stack fail-closed-compliant. Local
+      # runtimes that turn uploads off may relax this to allow the loopback
+      # presign endpoint.
+      STORAGE_REQUIRE_PRIVATE_ENDPOINT: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:-true}
       STORAGE_AV_SERVICE_URL: http://attachment-scanner:8080/scan
       STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
       STORAGE_AV_ALLOWED_HOSTS: attachment-scanner
