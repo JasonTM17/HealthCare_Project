@@ -150,7 +150,7 @@ export default function AdminPaymentsPage() {
             <p><strong>{statementResult.matchedRows}</strong> dòng vào hàng chờ đối soát · <strong>{statementResult.duplicateRows}</strong> trùng lặp đã bỏ qua · <strong>{statementResult.invalidRows}</strong> dòng lỗi định dạng, tổng <strong>{statementResult.totalRows}</strong> dòng.</p>
             {statementResult.unmatched.length > 0 ? (
               <ul className="mt-2 list-disc pl-5">
-                {statementResult.unmatched.map((row) => <li key={`${row.transferContent}-${row.bankReference ?? "-"}`}>{row.transferContent} · {Number(row.amount).toLocaleString("vi-VN")} ₫ — {row.note}</li>)}
+                {statementResult.unmatched.map((row) => <li key={`${row.transferContent}-${row.bankReference ?? "-"}`}>{row.transferContent} · {money(Number(row.amount))} — {row.note}</li>)}
               </ul>
             ) : null}
           </div>

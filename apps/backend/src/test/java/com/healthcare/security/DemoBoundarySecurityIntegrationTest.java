@@ -34,13 +34,27 @@ class DemoBoundarySecurityIntegrationTest extends AbstractIntegrationTest {
     @Autowired private PlatformTransactionManager transactionManager;
 
     @Test
-    void demoAdminCannotDecidePaymentsThroughDirectApi() throws Exception {
-        String bearer = bearerFor(true);
-
+    void demoAdminReachesTheSimulatedPaymentDecisionController() throws Exception {
+        // Payments are simulated (no money rails), so the demo admin must be
+        // able to complete the review loop: the request passes the demo
+        // filter and the controller itself answers 404 for an unknown id.
         mockMvc.perform(patch("/api/v1/admin/payments/{paymentId}/refund", UUID.randomUUID())
-                .header("Authorization", bearer)
+                .header("Authorization", bearerFor(true))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refundReference\":\"REF-100001\"}"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value(org.hamcrest.Matchers.not("DEMO_MUTATION_FORBIDDEN")));
+    }
+
+    @Test
+    void demoAdminIsStillBlockedFromAiCreditGrants() throws Exception {
+        String bearer = bearerFor(true);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .post("/api/v1/admin/ai-credits/grant")
+                .header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"boundary probe\"}"))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.code").value("DEMO_MUTATION_FORBIDDEN"));
     }

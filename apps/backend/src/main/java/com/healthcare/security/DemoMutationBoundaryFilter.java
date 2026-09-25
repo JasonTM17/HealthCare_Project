@@ -24,11 +24,9 @@ import java.util.List;
  * <p>UI hiding is never the enforcement boundary. This filter runs inside the
  * Spring Security chain, after authentication has populated the
  * {@link SecurityContextHolder}, and rejects mutating requests from demo
- * principals against the high-impact financial/security admin surface:
+ * principals against the high-impact identity/security admin surface:
  *
  * <ul>
- *   <li>payment decisions: {@code PATCH /api/v1/admin/payments/{id}} (review)
- *       and {@code PATCH /api/v1/admin/payments/{id}/refund} (AdminPaymentController)</li>
  *   <li>AI-credit adjustments: {@code POST /api/v1/admin/ai-credits/grant} and
  *       {@code PUT /api/v1/admin/ai-credits/tier} (AdminAiCreditController)</li>
  *   <li>identity/role/security admin surface: {@code /api/v1/users/admin/**}
@@ -39,6 +37,11 @@ import java.util.List;
  *       rotation is a persistent shared-security mutation that would lock out
  *       every other demo visitor</li>
  * </ul>
+ *
+ * <p>Payment decisions are deliberately NOT blocked: the platform has no real
+ * money rails, every payment is a simulated transfer that must end with an
+ * administrator accepting it, so the demo admin completes the exact review
+ * loop a production operator would (verify/reject/refund/statement import).
  *
  * <p>Everything else stays usable for demo principals: GET reads, patient
  * booking/chat journeys ({@code /api/v1/appointments/**},
@@ -57,7 +60,6 @@ public class DemoMutationBoundaryFilter extends OncePerRequestFilter {
      * synthetic, resettable content areas that the demo experience needs.
      */
     private static final List<String> BLOCKED_MUTATION_PATHS = List.of(
-        "/api/v1/admin/payments/**",
         "/api/v1/admin/ai-credits/**",
         "/api/v1/users/admin/**",
         "/api/v1/admin/users/**",
