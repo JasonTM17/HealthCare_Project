@@ -151,4 +151,3 @@ class PaymentInvoiceServiceTest {
             email, "not-used", List.of());
     }
 }
-
