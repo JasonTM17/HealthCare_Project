@@ -605,19 +605,18 @@ async function submitPaymentThroughPatientUi(page: Page, bookingCode: string): P
 }
 
 /**
- * The demo trust boundary (HC-01, decision D-01) enforced in a real browser.
+ * The simulated payment loop (HC-01, decision D-01) exercised in a real
+ * browser.
  *
- * `admin@healthcare.local` is a synthetic demo principal, so
- * {@code DemoMutationBoundaryFilter} must refuse its financial decisions
- * server-side — the reconciliation queue keeps the row and the operator sees the
- * refusal. Asserting the denial is the honest version of this step: with the
- * boundary on, no hosted demo session can reach `PAID`, so an expectation that
- * the row leaves the queue would be testing a capability the product removes on
- * purpose. The `PAID`/refund transitions themselves are covered by
- * `AppointmentPortalIntegrationTest`, which drives the same service with a
- * non-demo principal and a signed bank webhook.
+ * Payments are simulated: the platform has no money rails, the patient's
+ * reported transfer only ever reaches `PENDING_VERIFICATION`, and an
+ * administrator accepting it is the sole transition to `PAID`.
+ * `admin@healthcare.local` is a synthetic demo principal and — because the
+ * payment is simulated — the demo boundary lets it complete that review loop
+ * exactly as a production operator would, so the hosted demo can demonstrate
+ * the full journey end to end.
  */
-async function expectDemoAdminPaymentApprovalIsDenied(
+async function expectDemoAdminPaymentApprovalSucceeds(
   browser: Browser,
   bookingCode: string,
   reference: string,
@@ -643,25 +642,21 @@ async function expectDemoAdminPaymentApprovalIsDenied(
       response.url().includes("/admin/payments/") && response.request().method() === "PATCH"
     ));
     await approveDialog.getByRole("button", { name: "Phê duyệt thanh toán" }).click();
-    const denied = await reviewResponse;
-    expect(denied.status()).toBe(403);
-    expect((await denied.json() as { code?: string }).code).toBe("DEMO_MUTATION_FORBIDDEN");
-    await expect(approveDialog.getByRole("alert")).toBeVisible();
-    await expect(paymentRow).toContainText("Chờ đối soát");
-    await approveDialog.getByRole("button", { name: "Đóng" }).click();
+    const approved = await reviewResponse;
+    expect(approved.status()).toBe(200);
     await expect(approveDialog).toHaveCount(0);
+    await expect(paymentRow).toContainText("Đã thanh toán");
   } finally {
     await context.close();
   }
 }
 
-async function expectPatientStillSeesPendingPayment(page: Page, bookingCode: string): Promise<void> {
+async function expectPatientSeesConfirmedPayment(page: Page, bookingCode: string): Promise<void> {
   await openPatientDashboardTab(page, "appointments");
   const appointmentCard = page.locator(".portal-appointment").filter({ hasText: bookingCode });
-  await expect(appointmentCard).toContainText("Chờ đối soát");
-  await expect(appointmentCard).not.toContainText("Đã thanh toán");
+  await expect(appointmentCard).toContainText("Đã thanh toán");
   await openPatientDashboardTab(page, "notifications");
-  await expect(page.locator("#notifications")).not.toContainText("Thanh toán đã được xác nhận");
+  await expect(page.locator("#notifications")).toContainText("Thanh toán đã được xác nhận");
 }
 
 async function expectDoctorCanSeeAppointment(
@@ -947,8 +942,8 @@ test.describe("live Compose role-based demo", () => {
 
       await expectPatientCanSeeAppointment(patientPage, bookingCode);
       const paymentReference = await submitPaymentThroughPatientUi(patientPage, bookingCode);
-      await expectDemoAdminPaymentApprovalIsDenied(browser, bookingCode, paymentReference, browserIssues);
-      await expectPatientStillSeesPendingPayment(patientPage, bookingCode);
+      await expectDemoAdminPaymentApprovalSucceeds(browser, bookingCode, paymentReference, browserIssues);
+      await expectPatientSeesConfirmedPayment(patientPage, bookingCode);
       await exercisePrivateChannels(appointment);
       await expectDoctorCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);
       await expectAdminCanSeeAppointment(browser, bookingCode, selection.date, browserIssues);

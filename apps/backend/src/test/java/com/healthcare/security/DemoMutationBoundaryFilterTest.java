@@ -29,17 +29,25 @@ class DemoMutationBoundaryFilterTest {
     }
 
     @Test
-    @DisplayName("Demo principal is blocked from a payment decision with 403 DEMO_MUTATION_FORBIDDEN")
-    void blocksDemoPaymentReview() throws Exception {
+    @DisplayName("Demo admin completes the simulated payment loop: review, refund, statement import")
+    void allowsDemoPaymentDecisions() throws Exception {
         DemoMutationBoundaryFilter filter = filter(enforce());
         AtomicInteger downstream = new AtomicInteger();
 
-        MockHttpServletResponse response = invoke(filter, "PATCH",
+        // Payments are simulated (no money rails), so the demo admin must be
+        // able to run the exact review loop: verify/reject, refund and
+        // statement import all pass the boundary untouched.
+        MockHttpServletResponse review = invoke(filter, "PATCH",
+            "/api/v1/admin/payments/9f6a2bd8-2bd2-4f05-9a44-3ff5a0f5b021", demoPrincipal(), downstream);
+        MockHttpServletResponse refund = invoke(filter, "PATCH",
             "/api/v1/admin/payments/9f6a2bd8-2bd2-4f05-9a44-3ff5a0f5b021/refund", demoPrincipal(), downstream);
+        MockHttpServletResponse statementImport = invoke(filter, "POST",
+            "/api/v1/admin/payments/statements/import", demoPrincipal(), downstream);
 
-        assertThat(response.getStatus()).isEqualTo(403);
-        assertThat(response.getContentAsString()).contains("DEMO_MUTATION_FORBIDDEN");
-        assertThat(downstream).hasValue(0);
+        assertThat(review.getStatus()).isEqualTo(200);
+        assertThat(refund.getStatus()).isEqualTo(200);
+        assertThat(statementImport.getStatus()).isEqualTo(200);
+        assertThat(downstream).hasValue(3);
     }
 
     @Test
@@ -89,12 +97,12 @@ class DemoMutationBoundaryFilterTest {
     }
 
     @Test
-    @DisplayName("Demo principal can still read the blocked admin surface (GET passes)")
+    @DisplayName("Demo principal can still read a blocked admin surface (GET passes)")
     void allowsDemoReadsOfBlockedSurface() throws Exception {
         DemoMutationBoundaryFilter filter = filter(enforce());
         AtomicInteger downstream = new AtomicInteger();
 
-        MockHttpServletResponse response = invoke(filter, "GET", "/api/v1/admin/payments",
+        MockHttpServletResponse response = invoke(filter, "GET", "/api/v1/admin/ai-credits",
             demoPrincipal(), downstream);
 
         assertThat(response.getStatus()).isEqualTo(200);
@@ -127,7 +135,7 @@ class DemoMutationBoundaryFilterTest {
         DemoMutationBoundaryFilter filter = filter(enforce());
         AtomicInteger downstream = new AtomicInteger();
 
-        MockHttpServletResponse response = invoke(filter, "PATCH", "/api/v1/admin/payments/abc/refund",
+        MockHttpServletResponse response = invoke(filter, "POST", "/api/v1/admin/ai-credits/grant",
             nonDemoPrincipal(), downstream);
 
         assertThat(response.getStatus()).isEqualTo(200);
@@ -140,7 +148,7 @@ class DemoMutationBoundaryFilterTest {
         DemoMutationBoundaryFilter filter = filter(enforce());
         AtomicInteger downstream = new AtomicInteger();
 
-        MockHttpServletResponse response = invoke(filter, "POST", "/api/v1/admin/payments/abc/refund",
+        MockHttpServletResponse response = invoke(filter, "POST", "/api/v1/admin/ai-credits/grant",
             null, downstream);
 
         assertThat(response.getStatus()).isEqualTo(200);
@@ -155,7 +163,7 @@ class DemoMutationBoundaryFilterTest {
         DemoMutationBoundaryFilter filter = filter(off);
         AtomicInteger downstream = new AtomicInteger();
 
-        MockHttpServletResponse response = invoke(filter, "PATCH", "/api/v1/admin/payments/abc/refund",
+        MockHttpServletResponse response = invoke(filter, "POST", "/api/v1/admin/ai-credits/grant",
             demoPrincipal(), downstream);
 
         assertThat(response.getStatus()).isEqualTo(200);
@@ -168,7 +176,7 @@ class DemoMutationBoundaryFilterTest {
         DemoMutationBoundaryFilter filter = filter(enforce());
         AtomicInteger downstream = new AtomicInteger();
 
-        MockHttpServletResponse response = invoke(filter, "OPTIONS", "/api/v1/admin/payments/abc",
+        MockHttpServletResponse response = invoke(filter, "OPTIONS", "/api/v1/admin/ai-credits/grant",
             demoPrincipal(), downstream);
 
         assertThat(response.getStatus()).isEqualTo(200);
