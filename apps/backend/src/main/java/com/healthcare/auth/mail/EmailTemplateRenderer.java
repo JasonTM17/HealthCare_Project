@@ -145,13 +145,12 @@ public class EmailTemplateRenderer {
         builder.append(escapeHtml(preheader));
         builder.append("</div>");
         builder.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#eef3f2;\"><tr><td align=\"center\" style=\"padding:24px 12px 40px;\">");
-        builder.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;max-width:600px;background:#ffffff;border:1px solid #d9e5e2;\">");
+        builder.append("<table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;max-width:600px;background:#ffffff;border:1px solid #d9e5e2;\">");
 
         // Flat-color, table-based header remains legible in common mail clients.
         builder.append("<tr><td bgcolor=\"#0f766e\" style=\"background:#0f766e;padding:24px 32px;\">");
         builder.append("<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\"><tr>");
-        builder.append("<td width=\"40\" height=\"40\" align=\"center\" style=\"width:40px;height:40px;border:1px solid #8ad8ce;color:#ffffff;font-size:26px;line-height:40px;font-weight:700;\">+</td>");
-        builder.append("<td style=\"padding-left:12px;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.02em;\">HealthCare</td>");
+        builder.append("<td style=\"color:#ffffff;font-size:21px;font-weight:700;letter-spacing:0.03em;\">HealthCare</td>");
         builder.append("</tr></table></td></tr>");
 
         // Content body
@@ -168,7 +167,7 @@ public class EmailTemplateRenderer {
             String code = firstNonBlank(variables.get("code"), "******");
             String minutes = firstNonBlank(variables.get("minutes"), "10");
 
-            builder.append("<p style=\"margin:0 0 16px;color:#334155;font-size:15px;line-height:1.6;\">");
+            builder.append("<p style=\"margin:0 0 16px;color:#334155;font-size:16px;line-height:1.6;\">");
             builder.append("Dùng mã dưới đây để hoàn tất yêu cầu của bạn. Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email.");
             builder.append("</p>");
 
@@ -189,14 +188,11 @@ public class EmailTemplateRenderer {
             builder.append("</div>");
 
             // Security callout
-            builder.append("<div style=\"background:#fff9ed;border-left:3px solid #d69228;padding:12px 16px;margin:20px 0;font-size:14px;color:#654a1f;line-height:1.5;\">");
+            builder.append("<div style=\"background:#fff9ed;border:1px solid #f0ddb6;padding:12px 16px;margin:20px 0;font-size:14px;color:#654a1f;line-height:1.5;\">");
             builder.append("<strong>Giữ mã riêng tư.</strong> Không chia sẻ mã xác thực với bất kỳ ai. Nhân viên hỗ trợ không cần biết mã này.");
             builder.append("</div>");
         } else {
-            String accentColor = getCategoryAccentColor(templateKey);
-            builder.append("<div style=\"background:#f6faf9;border:1px solid #d9e5e2;border-left:3px solid ")
-                .append(accentColor)
-                .append(";padding:18px 20px;margin:20px 0;color:#17312e;font-size:15px;line-height:1.6;\">");
+            builder.append("<div style=\"background:#f6faf9;border:1px solid #d9e5e2;padding:18px 20px;margin:20px 0;color:#17312e;font-size:16px;line-height:1.6;\">");
             String message = firstNonBlank(variables.get("message"), "Có một cập nhật mới từ HealthCare.");
             for (String paragraph : splitParagraphs(message)) {
                 builder.append("<p style=\"margin:0 0 12px;color:#1e293b;\">")
@@ -244,7 +240,7 @@ public class EmailTemplateRenderer {
                 bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Xác minh tài khoản";
             }
             case PASSWORD_RESET -> {
-                bg = "#fffbeb"; border = "#fde68a"; color = "#b45309"; text = "Đặt lại mật khẩu";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Đặt lại mật khẩu";
             }
             case BOOKING_OTP -> {
                 bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Xác nhận đặt lịch";
@@ -253,25 +249,25 @@ public class EmailTemplateRenderer {
                 bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Xác thực lịch hẹn";
             }
             case APPOINTMENT_CONFIRMATION -> {
-                bg = "#ecfdf5"; border = "#a7f3d0"; color = "#047857"; text = "Lịch khám đã được xác nhận";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Lịch khám đã được xác nhận";
             }
             case APPOINTMENT_CHANGE -> {
-                bg = "#f0f9ff"; border = "#bae6fd"; color = "#0369a1"; text = "Lịch khám đã được thay đổi";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Lịch khám đã được thay đổi";
             }
             case APPOINTMENT_CANCEL -> {
                 bg = "#fff1f2"; border = "#fecdd3"; color = "#be123c"; text = "Lịch khám đã được hủy";
             }
             case PAYMENT_STATUS -> {
-                bg = "#eef2ff"; border = "#c7d2fe"; color = "#4338ca"; text = "Cập nhật thanh toán";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Cập nhật thanh toán";
             }
             case RESULTS_READY -> {
-                bg = "#eff6ff"; border = "#bfdbfe"; color = "#1d4ed8"; text = "Kết quả cận lâm sàng";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Kết quả cận lâm sàng";
             }
             case PRESCRIPTION_READY -> {
-                bg = "#faf5ff"; border = "#e9d5ff"; color = "#7e22ce"; text = "Toa thuốc điện tử mới";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Toa thuốc điện tử mới";
             }
             case CONSULTATION_REPLY -> {
-                bg = "#ecfeff"; border = "#a5f3fc"; color = "#0e7490"; text = "Phản hồi tư vấn y khoa";
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Phản hồi tư vấn y khoa";
             }
             case CARE_PLAN_REMINDER -> {
                 bg = "#fffbeb"; border = "#fde68a"; color = "#b45309"; text = "Nhắc nhở chăm sóc sức khỏe";
@@ -288,20 +284,6 @@ public class EmailTemplateRenderer {
             + escapeHtml(text) + "</div>";
     }
 
-    private String getCategoryAccentColor(EmailTemplateKey templateKey) {
-        return switch (templateKey) {
-            case APPOINTMENT_CONFIRMATION -> "#059669";
-            case APPOINTMENT_CHANGE -> "#0284c7";
-            case APPOINTMENT_CANCEL -> "#e11d48";
-            case PAYMENT_STATUS -> "#4f46e5";
-            case RESULTS_READY -> "#2563eb";
-            case PRESCRIPTION_READY -> "#9333ea";
-            case CONSULTATION_REPLY -> "#0891b2";
-            case CARE_PLAN_REMINDER -> "#d97706";
-            default -> "#0d9488";
-        };
-    }
-
     private String buildContextualGuidanceHtml(EmailTemplateKey templateKey) {
         String title = switch (templateKey) {
             case APPOINTMENT_CONFIRMATION, APPOINTMENT_CHANGE -> "Trước buổi khám";
@@ -316,7 +298,7 @@ public class EmailTemplateRenderer {
         if (title.isBlank()) {
             return "";
         }
-        return "<div style=\"background:#f6faf9;border-left:3px solid #8dbeb5;padding:14px 18px;margin:20px 0;color:#34544e;font-size:14px;line-height:1.55;\">"
+        return "<div style=\"background:#f6faf9;border:1px solid #d9e5e2;padding:14px 18px;margin:20px 0;color:#34544e;font-size:14px;line-height:1.55;\">"
             + "<strong>" + escapeHtml(title) + ":</strong> "
             + escapeHtml(contextualTextGuidance(templateKey)) + "</div>";
     }

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.List;
 import java.util.Map;
@@ -23,12 +24,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@TestPropertySource(properties = "app.security.bff.service-token=test-bff-public-chat-lease-token-32-bytes")
 class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
+
+    private static final String BFF_TOKEN = "test-bff-public-chat-lease-token-32-bytes";
 
     @MockitoBean
     private AiService aiService;
@@ -40,6 +46,27 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
     void delegateCancellablePublicChatToTheConfiguredProviderStub() {
         when(aiService.chat(anyMap(), any(ChatRequestCancellation.class)))
             .thenAnswer(invocation -> aiService.chat(invocation.getArgument(0)));
+    }
+
+    @Test
+    void publicProviderChatRequiresTrustedBffAndAnOpenedLivenessLease() throws Exception {
+        String untrustedRequestId = UUID.randomUUID().toString();
+        mockMvc.perform(post("/api/v1/public/ai/chat")
+                .header("X-Request-ID", untrustedRequestId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+            .andExpect(status().isUnauthorized());
+
+        String trustedWithoutLeaseRequestId = UUID.randomUUID().toString();
+        mockMvc.perform(post("/api/v1/public/ai/chat")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", trustedWithoutLeaseRequestId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+            .andExpect(status().isServiceUnavailable());
+
+        verify(aiService, never()).chat(anyMap(), any(ChatRequestCancellation.class));
     }
 
     @Test
@@ -57,10 +84,13 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
             throw new CancellationException("Synthetic blocked provider stopped");
         });
 
+        openPublicChatLease(requestId);
         CompletableFuture<org.springframework.test.web.servlet.MvcResult> request =
             CompletableFuture.supplyAsync(() -> {
                 try {
                     return mockMvc.perform(post("/api/v1/public/ai/chat")
+                            .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                            .header("X-Healthcare-Original-Origin", "http://localhost:3000")
                             .header("X-Request-ID", requestId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
@@ -98,9 +128,7 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
             ))
         ));
 
-        mockMvc.perform(post("/api/v1/public/ai/chat")
-                .header("X-Request-ID", requestId)
-                .contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(trustedPublicChatRequest(requestId)
                 .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\",\"recent_turns\":[]}"))
             .andExpect(status().isOk())
             .andExpect(header().string("X-Request-ID", requestId))
@@ -135,8 +163,8 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
             ))
         ));
 
-        mockMvc.perform(post("/api/v1/public/ai/chat")
-                .contentType(MediaType.APPLICATION_JSON)
+        String requestId = UUID.randomUUID().toString();
+        mockMvc.perform(trustedPublicChatRequest(requestId)
                 .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
             .andExpect(status().isBadGateway());
 
@@ -155,8 +183,8 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
             "citations", List.of()
         ));
 
-        mockMvc.perform(post("/api/v1/public/ai/chat")
-                .contentType(MediaType.APPLICATION_JSON)
+        String requestId = UUID.randomUUID().toString();
+        mockMvc.perform(trustedPublicChatRequest(requestId)
                 .content("{\"message\":\"Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.safety_action").value("INSUFFICIENT_EVIDENCE"))
@@ -167,6 +195,26 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
 
         assertThat(aiConversationRepository.count()).isZero();
         assertThat(aiMessageRepository.count()).isZero();
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder trustedPublicChatRequest(
+            String requestId) throws Exception {
+        openPublicChatLease(requestId);
+        return post("/api/v1/public/ai/chat")
+            .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+            .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+            .header("X-Request-ID", requestId)
+            .contentType(MediaType.APPLICATION_JSON);
+    }
+
+    private void openPublicChatLease(String requestId) throws Exception {
+        mockMvc.perform(post("/api/v1/internal/ai/chat-leases/{requestId}/open", requestId)
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"scope\":\"PUBLIC_CHAT\"}"))
+            .andExpect(status().isOk());
     }
 
     @Test

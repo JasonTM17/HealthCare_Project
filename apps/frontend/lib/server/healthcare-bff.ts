@@ -41,7 +41,14 @@ const MAX_SERVICE_TOKEN_BYTES = 512;
 const PUBLIC_AI_CHAT_PATH = `${API_PREFIX}public/ai/chat`;
 const PATIENT_AI_CHAT_PATTERN = /^\/api\/v1\/ai\/conversations\/[^/]+\/messages(?:\/stream)?$/u;
 const INTERNAL_CHAT_CANCEL_PATH = "/api/v1/internal/ai/chat-cancellations";
+const INTERNAL_CHAT_LEASE_PATH = "/api/v1/internal/ai/chat-leases";
+const INTERNAL_PATIENT_CHAT_PATH = "/api/v1/internal/ai/chat";
+const PRIVATE_PATIENT_CHAT_PATH = /^\/api\/v1\/ai\/conversations\/[^/]+\/messages\/(?:prepare|commit|lease)$/u;
+const PRIVATE_CHAT_DELIVERY_HEADER = "X-Healthcare-Chat-Delivery";
 const CHAT_CANCEL_NOTIFY_TIMEOUT_MS = 750;
+const CHAT_LEASE_OPEN_TIMEOUT_MS = 500;
+const CHAT_LEASE_RENEW_INTERVAL_MS = 1_000;
+const CHAT_LEASE_RENEW_TIMEOUT_MS = 500;
 const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 const EMERGENCY_FALLBACK_TERMS = [
   "dau nguc du doi",
@@ -102,6 +109,7 @@ const RESERVED_BROWSER_HEADERS = new Set([
   "x-csrf-token",
   "x-healthcare-bff-token",
   "x-healthcare-client-ip",
+  "x-healthcare-chat-delivery",
   "x-healthcare-original-origin",
   "x-request-id",
 ]);
@@ -804,6 +812,56 @@ function createBrowserResponse(
   });
 }
 
+interface PublicChatExchange {
+  userMessage: Record<string, unknown>;
+  assistantMessage: Record<string, unknown>;
+  replayed: boolean;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPublicChatExchange(value: unknown): value is PublicChatExchange {
+  return isRecord(value)
+    && isRecord(value.userMessage)
+    && isRecord(value.assistantMessage)
+    && typeof value.replayed === "boolean";
+}
+
+function createPublicPatientChatResponse(
+  exchange: PublicChatExchange,
+  isStream: boolean,
+  requestId: string,
+): Response {
+  const headers = new Headers({
+    "Cache-Control": "no-store",
+    "X-Request-ID": requestId,
+  });
+  if (!isStream) {
+    headers.set("Content-Type", "application/json; charset=utf-8");
+    return new Response(JSON.stringify(exchange), { status: 200, headers });
+  }
+
+  const answer = typeof exchange.assistantMessage.content === "string"
+    ? exchange.assistantMessage.content
+    : "";
+  let events = "";
+  const appendEvent = (eventName: string, data: string) => {
+    events += `event: ${eventName}\n`;
+    const normalized = data.replace(/\r\n/gu, "\n").replace(/\r/gu, "\n");
+    for (const line of normalized.split("\n")) events += `data: ${line}\n`;
+    events += "\n";
+  };
+  for (let index = 0; index < answer.length; index += 48) {
+    appendEvent("delta", answer.slice(index, index + 48));
+  }
+  appendEvent("done", JSON.stringify(exchange));
+  headers.set("Content-Type", "text/event-stream; charset=utf-8");
+  headers.set("X-Accel-Buffering", "no");
+  return new Response(events, { status: 200, headers });
+}
+
 export async function proxyHealthcareRequest(
   request: Request,
   pathSegments: readonly string[],
@@ -828,6 +886,7 @@ export async function proxyHealthcareRequest(
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let abortFromBrowser: (() => void) | undefined;
   let cancellationNotification: Promise<void> | undefined;
+  let stopChatLeaseHeartbeat: (() => void) | undefined;
   let responseBodyOwnsCleanup = false;
   let publicChatMessage = "";
   let deadlineExpired = false;
@@ -837,11 +896,18 @@ export async function proxyHealthcareRequest(
   const cleanup = () => {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
     if (abortFromBrowser) request.signal.removeEventListener("abort", abortFromBrowser);
+    stopChatLeaseHeartbeat?.();
   };
   try {
     const requestUrl = new URL(request.url);
     apiPath = buildValidatedApiPath(requestUrl, pathSegments);
-    if (apiPath === INTERNAL_CHAT_CANCEL_PATH || apiPath.startsWith(`${INTERNAL_CHAT_CANCEL_PATH}/`)) {
+    if (apiPath === INTERNAL_CHAT_CANCEL_PATH
+        || apiPath.startsWith(`${INTERNAL_CHAT_CANCEL_PATH}/`)
+        || apiPath === INTERNAL_CHAT_LEASE_PATH
+        || apiPath.startsWith(`${INTERNAL_CHAT_LEASE_PATH}/`)
+        || apiPath === INTERNAL_PATIENT_CHAT_PATH
+        || apiPath.startsWith(`${INTERNAL_PATIENT_CHAT_PATH}/`)
+        || PRIVATE_PATIENT_CHAT_PATH.test(apiPath)) {
       return tracedResponse(jsonError(404, "BFF_ROUTE_UNAVAILABLE"), "failed");
     }
     if (BLOCKED_BEARER_MINT_PATHS.has(apiPath.toLowerCase())) {
@@ -872,14 +938,17 @@ export async function proxyHealthcareRequest(
       headers.set("X-CSRF-Token", securityCookies.csrf);
     }
 
-    const isCancellableChatRequest = apiPath === PUBLIC_AI_CHAT_PATH
-      || PATIENT_AI_CHAT_PATTERN.test(apiPath);
+    const isCancellableChatRequest = method === "POST" && (
+      apiPath === PUBLIC_AI_CHAT_PATH || PATIENT_AI_CHAT_PATTERN.test(apiPath)
+    );
     const notifyBackendCancellation = () => {
       if (!isCancellableChatRequest || cancellationNotification) return;
       cancellationNotification = (async () => {
         const cancelHeaders = new Headers(headers);
         cancelHeaders.set(REQUEST_ID_HEADER, requestId);
         cancelHeaders.delete("authorization");
+        cancelHeaders.delete("cookie");
+        cancelHeaders.delete("x-csrf-token");
         const cancellationTarget = new URL(
           `${INTERNAL_CHAT_CANCEL_PATH}/${encodeURIComponent(requestId)}`,
           `${runtime.backendOrigin}/`,
@@ -924,6 +993,7 @@ export async function proxyHealthcareRequest(
     const requestController = new AbortController();
     abortFromBrowser = () => {
       browserAborted = true;
+      stopChatLeaseHeartbeat?.();
       notifyBackendCancellation();
       requestController.abort(request.signal.reason);
     };
@@ -939,11 +1009,310 @@ export async function proxyHealthcareRequest(
     const retryDeadlineAt = Date.now() + requestTimeoutMs;
     timeoutId = setTimeout(() => {
       deadlineExpired = true;
+      stopChatLeaseHeartbeat?.();
       notifyBackendCancellation();
       requestController.abort();
     }, requestTimeoutMs);
+    const onChatResponseBodySettled = (status: number) => async (
+      outcome: "completed" | "cancelled" | "failed",
+    ): Promise<void> => {
+      let cancellationWait: Promise<void> | undefined;
+      if (outcome !== "completed") {
+        stopChatLeaseHeartbeat?.();
+        notifyBackendCancellation();
+        requestController.abort(outcome);
+        cancellationWait = cancellationNotification;
+      }
+      recordChatTrace(
+        apiPath,
+        requestId,
+        traceStartedAt,
+        interruptedOutcome(outcome),
+        status,
+      );
+      if (cancellationWait) await cancellationWait;
+      cleanup();
+    };
     const body = await boundedRequestBody(request, requestController.signal);
     publicChatMessage = apiPath === PUBLIC_AI_CHAT_PATH ? readPublicChatMessage(body) : "";
+
+    const chatLeaseScope = !isCancellableChatRequest
+      ? null
+      : apiPath === PUBLIC_AI_CHAT_PATH ? "PUBLIC_CHAT" as const : "PATIENT" as const;
+    let renewalPermit: string | undefined;
+    let renewalTimer: ReturnType<typeof setTimeout> | undefined;
+    let renewalController: AbortController | undefined;
+    let leaseHeartbeatStopped = false;
+    const stopLeaseHeartbeat = () => {
+      leaseHeartbeatStopped = true;
+      if (renewalTimer !== undefined) clearTimeout(renewalTimer);
+      renewalTimer = undefined;
+      renewalController?.abort("chat-lease-heartbeat-stopped");
+    };
+    stopChatLeaseHeartbeat = stopLeaseHeartbeat;
+
+    const leaseTarget = new URL(
+      `${INTERNAL_CHAT_LEASE_PATH}/${encodeURIComponent(requestId)}/renew`,
+      `${runtime.backendOrigin}/`,
+    );
+    const leaseControlHeaders = new Headers({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-Healthcare-Bff-Token": runtime.serviceToken,
+      "X-Healthcare-Original-Origin": upstreamOrigin,
+      [REQUEST_ID_HEADER]: requestId,
+    });
+    if (clientIp) leaseControlHeaders.set("X-Healthcare-Client-IP", clientIp);
+
+    const failLeaseHeartbeat = () => {
+      if (leaseHeartbeatStopped) return;
+      stopLeaseHeartbeat();
+      notifyBackendCancellation();
+      requestController.abort("chat-lease-renewal-uncertain");
+    };
+    const scheduleLeaseRenewal = (delayMs: number = CHAT_LEASE_RENEW_INTERVAL_MS) => {
+      if (leaseHeartbeatStopped || requestController.signal.aborted || !renewalPermit || !chatLeaseScope) return;
+      renewalTimer = setTimeout(() => {
+        renewalTimer = undefined;
+        void renewChatLease();
+      }, delayMs);
+    };
+    const renewChatLease = async (): Promise<void> => {
+      if (leaseHeartbeatStopped || requestController.signal.aborted || !renewalPermit || !chatLeaseScope) return;
+      const renewStartedAt = Date.now();
+      const permitBeingUsed = renewalPermit;
+      const controller = new AbortController();
+      renewalController = controller;
+      const abortWithRequest = () => controller.abort(requestController.signal.reason);
+      requestController.signal.addEventListener("abort", abortWithRequest, { once: true });
+      const renewalTimeoutId = setTimeout(
+        () => controller.abort("chat-lease-renewal-timeout"),
+        CHAT_LEASE_RENEW_TIMEOUT_MS,
+      );
+      try {
+        const response = await (options.fetchImpl ?? fetch)(leaseTarget, {
+          method: "POST",
+          headers: leaseControlHeaders,
+          body: JSON.stringify({ scope: chatLeaseScope, renewalPermit: permitBeingUsed }),
+          cache: "no-store",
+          redirect: "manual",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          await cancelUpstreamBody(response, "BFF_CHAT_LEASE_RENEWAL_REJECTED");
+          throw new Error("chat lease renewal rejected");
+        }
+        const value: unknown = await response.json();
+        if (!isRecord(value) || typeof value.renewalPermit !== "string" || !value.renewalPermit) {
+          throw new Error("chat lease renewal response invalid");
+        }
+        renewalPermit = value.renewalPermit;
+        const renewElapsed = Date.now() - renewStartedAt;
+        scheduleLeaseRenewal(Math.max(50, CHAT_LEASE_RENEW_INTERVAL_MS - renewElapsed));
+      } catch {
+        failLeaseHeartbeat();
+      } finally {
+        clearTimeout(renewalTimeoutId);
+        requestController.signal.removeEventListener("abort", abortWithRequest);
+        if (renewalController === controller) renewalController = undefined;
+      }
+    };
+
+    if (chatLeaseScope) {
+      const openHeaders = new Headers(headers);
+      openHeaders.set("Accept", "application/json");
+      openHeaders.set("Content-Type", "application/json");
+      openHeaders.delete("content-length");
+      const openController = new AbortController();
+      const abortOpenWithRequest = () => openController.abort(requestController.signal.reason);
+      requestController.signal.addEventListener("abort", abortOpenWithRequest, { once: true });
+      const openTimeoutId = setTimeout(
+        () => openController.abort("chat-lease-open-timeout"),
+        CHAT_LEASE_OPEN_TIMEOUT_MS,
+      );
+      try {
+        let leaseOpenBody: Record<string, string>;
+        if (chatLeaseScope === "PUBLIC_CHAT") {
+          openHeaders.delete("authorization");
+          openHeaders.delete("cookie");
+          openHeaders.delete("x-csrf-token");
+          openHeaders.delete("idempotency-key");
+          leaseOpenBody = { scope: chatLeaseScope };
+        } else {
+          const patientMatch = apiPath.match(/^\/api\/v1\/ai\/conversations\/([^/]+)\/messages(?:\/stream)?$/u);
+          if (!patientMatch) throw new BffRequestError(502, "BFF_CHAT_LEASE_UNAVAILABLE");
+          leaseOpenBody = { scope: chatLeaseScope, conversationId: patientMatch[1] };
+        }
+        const openStartedAt = Date.now();
+        const openResponse = await (options.fetchImpl ?? fetch)(new URL(
+          `${INTERNAL_CHAT_LEASE_PATH}/${encodeURIComponent(requestId)}/open`,
+          `${runtime.backendOrigin}/`,
+        ), {
+          method: "POST",
+          headers: openHeaders,
+          body: JSON.stringify(leaseOpenBody),
+          cache: "no-store",
+          redirect: "manual",
+          signal: openController.signal,
+        });
+        if (!openResponse.ok) {
+          await cancelUpstreamBody(openResponse, "BFF_CHAT_LEASE_OPEN_REJECTED");
+          if (chatLeaseScope === "PUBLIC_CHAT" && PUBLIC_AI_FALLBACK_STATUSES.has(openResponse.status)) {
+            stopLeaseHeartbeat();
+            return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
+          }
+          throw new BffRequestError(502, "BFF_CHAT_LEASE_UNAVAILABLE");
+        }
+        const value: unknown = await openResponse.json();
+        if (!isRecord(value) || typeof value.renewalPermit !== "string" || !value.renewalPermit) {
+          throw new BffRequestError(502, "BFF_CHAT_LEASE_UNAVAILABLE");
+        }
+        renewalPermit = value.renewalPermit;
+        const openElapsed = Date.now() - openStartedAt;
+        scheduleLeaseRenewal(Math.max(50, CHAT_LEASE_RENEW_INTERVAL_MS - openElapsed));
+      } catch (error) {
+        stopLeaseHeartbeat();
+        if (chatLeaseScope === "PUBLIC_CHAT") {
+          return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), interruptedOutcome("fallback"));
+        }
+        notifyBackendCancellation();
+        requestController.abort("chat-lease-open-uncertain");
+        if (error instanceof BffRequestError) throw error;
+        throw new BffRequestError(502, "BFF_CHAT_LEASE_UNAVAILABLE");
+      } finally {
+        clearTimeout(openTimeoutId);
+        requestController.signal.removeEventListener("abort", abortOpenWithRequest);
+      }
+    }
+
+    if (method === "POST" && PATIENT_AI_CHAT_PATTERN.test(apiPath)) {
+      const isStream = apiPath.endsWith("/messages/stream");
+      const preparePath = apiPath.replace(/\/messages(?:\/stream)?$/u, "/messages/prepare");
+      const commitPath = apiPath.replace(/\/messages(?:\/stream)?$/u, "/messages/commit");
+      const prepareTarget = new URL(preparePath, `${runtime.backendOrigin}/`);
+      const prepareHeaders = new Headers(headers);
+      if (isStream) prepareHeaders.set(PRIVATE_CHAT_DELIVERY_HEADER, "chunked");
+      const prepareResponse = await (options.fetchImpl ?? fetch)(prepareTarget, {
+        method: "POST",
+        headers: prepareHeaders,
+        body,
+        cache: "no-store",
+        redirect: "manual",
+        signal: requestController.signal,
+      });
+      if (prepareResponse.status >= 300 && prepareResponse.status < 400) {
+        stopLeaseHeartbeat();
+        await cancelUpstreamBody(prepareResponse, "BFF_PRIVATE_CHAT_REDIRECT_REJECTED");
+        notifyBackendCancellation();
+        return tracedResponse(jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED"), "failed");
+      }
+      if (!prepareResponse.ok) {
+        stopLeaseHeartbeat();
+        notifyBackendCancellation();
+        const forwarded = createBrowserResponse(
+          prepareResponse,
+          method,
+          onChatResponseBodySettled(prepareResponse.status),
+        );
+        forwarded.headers.set(REQUEST_ID_HEADER, requestId);
+        responseBodyOwnsCleanup = true;
+        return forwarded;
+      }
+
+      let preparedValue: unknown;
+      try {
+        preparedValue = await prepareResponse.json();
+      } catch {
+        stopLeaseHeartbeat();
+        notifyBackendCancellation();
+        throw new BffRequestError(502, "BFF_CHAT_PREPARE_INVALID");
+      }
+      if (!isRecord(preparedValue) || typeof preparedValue.replayed !== "boolean") {
+        stopLeaseHeartbeat();
+        notifyBackendCancellation();
+        throw new BffRequestError(502, "BFF_CHAT_PREPARE_INVALID");
+      }
+
+      let exchangeValue: unknown;
+      if (preparedValue.replayed) {
+        exchangeValue = preparedValue.exchange;
+        stopLeaseHeartbeat();
+      } else {
+        const preparedPayload = preparedValue.preparedPayload;
+        const commitPermit = preparedValue.commitPermit;
+        if (typeof preparedPayload !== "string" || !preparedPayload
+                || typeof commitPermit !== "string" || !commitPermit) {
+          stopLeaseHeartbeat();
+          notifyBackendCancellation();
+          throw new BffRequestError(502, "BFF_CHAT_PREPARE_INVALID");
+        }
+        // This originating invocation is the only place that observes the
+        // browser signal. It must not dispatch commit after observing abort,
+        // even if both separate cancellation notifications were rejected.
+        if (request.signal.aborted || browserAborted || requestController.signal.aborted || deadlineExpired) {
+          stopLeaseHeartbeat();
+          notifyBackendCancellation();
+          return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
+        }
+        const commitHeaders = new Headers(headers);
+        commitHeaders.set("Content-Type", "application/json");
+        let commitResponse: Response;
+        try {
+          commitResponse = await (options.fetchImpl ?? fetch)(new URL(commitPath, `${runtime.backendOrigin}/`), {
+            method: "POST",
+            headers: commitHeaders,
+            body: JSON.stringify({ preparedPayload, commitPermit }),
+            cache: "no-store",
+            redirect: "manual",
+            signal: requestController.signal,
+          });
+        } catch (error) {
+          stopLeaseHeartbeat();
+          notifyBackendCancellation();
+          throw error;
+        }
+        if (commitResponse.status >= 300 && commitResponse.status < 400) {
+          stopLeaseHeartbeat();
+          await cancelUpstreamBody(commitResponse, "BFF_PRIVATE_CHAT_REDIRECT_REJECTED");
+          notifyBackendCancellation();
+          return tracedResponse(jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED"), "failed");
+        }
+        if (!commitResponse.ok) {
+          stopLeaseHeartbeat();
+          notifyBackendCancellation();
+          const forwarded = createBrowserResponse(
+            commitResponse,
+            method,
+            onChatResponseBodySettled(commitResponse.status),
+          );
+          forwarded.headers.set(REQUEST_ID_HEADER, requestId);
+          responseBodyOwnsCleanup = true;
+          return forwarded;
+        }
+        try {
+          exchangeValue = await commitResponse.json();
+          stopLeaseHeartbeat();
+        } catch {
+          stopLeaseHeartbeat();
+          throw new BffRequestError(502, "BFF_CHAT_COMMIT_INVALID");
+        }
+      }
+
+      if (!isPublicChatExchange(exchangeValue)) {
+        stopLeaseHeartbeat();
+        notifyBackendCancellation();
+        throw new BffRequestError(502, "BFF_CHAT_EXCHANGE_INVALID");
+      }
+      const patientResponse = createPublicPatientChatResponse(exchangeValue, isStream, requestId);
+      const response = createBrowserResponse(
+        patientResponse,
+        method,
+        onChatResponseBodySettled(patientResponse.status),
+      );
+      response.headers.set(REQUEST_ID_HEADER, requestId);
+      responseBodyOwnsCleanup = true;
+      return response;
+    }
 
     const retryAllowed = RETRYABLE_METHODS.has(method);
     const canRetryUpstream = () =>
@@ -968,6 +1337,7 @@ export async function proxyHealthcareRequest(
         signal: requestController.signal,
       },
     );
+    stopChatLeaseHeartbeat?.();
     if (upstream === null) {
       return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
     }
@@ -979,23 +1349,7 @@ export async function proxyHealthcareRequest(
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
       return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
     }
-    const response = createBrowserResponse(upstream, method, async (outcome) => {
-      let cancellationWait: Promise<void> | undefined;
-      if (outcome !== "completed") {
-        notifyBackendCancellation();
-        requestController.abort(outcome);
-        cancellationWait = cancellationNotification;
-      }
-      recordChatTrace(
-        apiPath,
-        requestId,
-        traceStartedAt,
-        interruptedOutcome(outcome),
-        upstream.status,
-      );
-      if (cancellationWait) await cancellationWait;
-      cleanup();
-    });
+    const response = createBrowserResponse(upstream, method, onChatResponseBodySettled(upstream.status));
     response.headers.set(REQUEST_ID_HEADER, requestId);
     responseBodyOwnsCleanup = true;
     return response;

@@ -426,6 +426,149 @@ public class AiConversationService {
         return sendInternal(principal, conversationId, rawIdempotencyKey, rawContent, true, cancellation);
     }
 
+    /** Validates the authenticated owner and normalizes the idempotency binding before lease creation. */
+    @Transactional(readOnly = true)
+    public PatientChatLeaseBinding authorizePatientChatLease(
+            UserDetails principal,
+            UUID conversationId,
+            String rawIdempotencyKey) {
+        UUID userId = currentUserId(principal);
+        requireOwned(conversationId, userId);
+        return new PatientChatLeaseBinding(
+            userId,
+            conversationId,
+            normalizeIdempotencyKey(rawIdempotencyKey)
+        );
+    }
+
+    /** Generates and validates a patient reply while leaving persistence behind the private BFF commit gate. */
+    public PreparedChatResult prepareForBffCommit(
+            UserDetails principal,
+            UUID conversationId,
+            String rawIdempotencyKey,
+            String rawContent,
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
+        if (cancellation == null || cancellationRegistry == null) {
+            throw new IllegalStateException("Shared chat cancellation state is not configured");
+        }
+        cancellation.throwIfCancelled();
+        UUID userId = currentUserId(principal);
+        String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+        String content = normalizeContent(rawContent);
+
+        long preparationStartedAt = System.nanoTime();
+        PreparedMessage prepared = transactions.execute(status ->
+            prepare(userId, conversationId, idempotencyKey, content)
+        );
+        if (prepared == null) {
+            recordChatStage("preparation", "failed", preparationStartedAt);
+            throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not prepare chat request");
+        }
+        if (prepared.replay() != null) {
+            cancellationRegistry.complete(cancellation);
+            recordChatStage("preparation", "replay", preparationStartedAt);
+            return new PreparedChatResult(prepared.replay(), null);
+        }
+        recordChatStage("preparation", "completed", preparationStartedAt);
+
+        try {
+            GeneratedChatDraft generated = generatePreparedAnswer(
+                userId, conversationId, content, prepared, chunkedDeliveryGeneration, cancellation);
+            cancellation.throwIfCancelled();
+            return new PreparedChatResult(null, new PreparedChatCommitPayload(
+                cancellation.requestId(),
+                userId,
+                conversationId,
+                idempotencyKey,
+                prepared.userMessageId(),
+                prepared.processingToken(),
+                generated.mode(),
+                generated.response()
+            ));
+        } catch (BusinessException exception) {
+            markFailed(userId, conversationId, prepared.userMessageId(), prepared.processingToken());
+            cancellationRegistry.fail(cancellation.requestId());
+            throw exception;
+        } catch (RuntimeException exception) {
+            markFailed(userId, conversationId, prepared.userMessageId(), prepared.processingToken());
+            cancellationRegistry.fail(cancellation.requestId());
+            throw new BusinessException(
+                503,
+                ErrorCodes.AI_UNAVAILABLE,
+                "AI assistant is temporarily unavailable. Please try again."
+            );
+        }
+    }
+
+    /** Verifies the private payload bindings, then claims Redis before the existing SQL commit transaction. */
+    public ChatExchangeResponse commitPreparedForBff(
+            UserDetails principal,
+            String requestId,
+            UUID conversationId,
+            String rawIdempotencyKey,
+            PreparedChatCommitPayload payload) {
+        UUID userId = currentUserId(principal);
+        String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+        if (payload == null
+                || payload.requestId() == null
+                || !payload.requestId().equals(requestId)
+                || !userId.equals(payload.patientId())
+                || !conversationId.equals(payload.conversationId())
+                || !idempotencyKey.equals(payload.idempotencyKey())
+                || payload.userMessageId() == null
+                || payload.processingToken() == null
+                || payload.mode() == null
+                || payload.response() == null) {
+            throw new BusinessException(400, ErrorCodes.CHAT_INPUT_INVALID, "Prepared AI response is invalid");
+        }
+        if (cancellationRegistry == null) {
+            throw new IllegalStateException("Shared chat cancellation state is not configured");
+        }
+
+        try {
+            cancellationRegistry.claimCommit(
+                requestId,
+                ChatRequestCancellationRegistry.LeaseBinding.patient(userId, conversationId, idempotencyKey));
+            long persistenceStartedAt = System.nanoTime();
+            ChatExchangeResponse completed;
+            try {
+                completed = transactions.execute(status ->
+                    complete(
+                        userId,
+                        conversationId,
+                        payload.userMessageId(),
+                        payload.processingToken(),
+                        payload.response(),
+                        payload.mode()
+                    )
+                );
+            } catch (RuntimeException exception) {
+                recordChatStage("persistence", "failed", persistenceStartedAt);
+                throw exception;
+            }
+            if (completed == null) {
+                recordChatStage("persistence", "failed", persistenceStartedAt);
+                throw new BusinessException(500, ErrorCodes.INTERNAL_ERROR, "Could not persist AI response");
+            }
+            recordChatStage("persistence", "completed", persistenceStartedAt);
+            cancellationRegistry.complete(requestId);
+            return completed;
+        } catch (BusinessException exception) {
+            markFailed(userId, conversationId, payload.userMessageId(), payload.processingToken());
+            cancellationRegistry.fail(requestId);
+            throw exception;
+        } catch (RuntimeException exception) {
+            markFailed(userId, conversationId, payload.userMessageId(), payload.processingToken());
+            cancellationRegistry.fail(requestId);
+            throw new BusinessException(
+                503,
+                ErrorCodes.AI_UNAVAILABLE,
+                "AI assistant is temporarily unavailable. Please try again."
+            );
+        }
+    }
+
     private ChatExchangeResponse sendInternal(
             UserDetails principal,
             UUID conversationId,
@@ -454,18 +597,8 @@ public class AiConversationService {
         recordChatStage("preparation", "completed", preparationStartedAt);
 
         try {
-            if (cancellation != null) cancellation.throwIfCancelled();
-            AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
-                .orElseThrow(this::notFound);
-            // A prepared free answer is the credit-gate exemption: it is
-            // already the final, source-less reply — the static safety text
-            // or the degraded answer — so the retrieval and generation stages
-            // below are skipped entirely rather than merely going unpaid.
-            SanitizedAiResponse sanitized = prepared.freeAnswer() != null
-                ? prepared.freeAnswer()
-                : groundedResponse(
-                    userId, conversation.getMode(), content, recentTurns(conversationId),
-                    chunkedDeliveryGeneration, cancellation);
+            GeneratedChatDraft generated = generatePreparedAnswer(
+                userId, conversationId, content, prepared, chunkedDeliveryGeneration, cancellation);
             if (cancellation != null) {
                 cancellation.throwIfCancelled();
                 if (cancellationRegistry == null) {
@@ -482,8 +615,8 @@ public class AiConversationService {
                         conversationId,
                         prepared.userMessageId(),
                         prepared.processingToken(),
-                        sanitized,
-                        conversation.getMode()
+                        generated.response(),
+                        generated.mode()
                     )
                 );
             } catch (RuntimeException ex) {
@@ -514,6 +647,26 @@ public class AiConversationService {
                 "AI assistant is temporarily unavailable. Please try again."
             );
         }
+    }
+
+    private GeneratedChatDraft generatePreparedAnswer(
+            UUID userId,
+            UUID conversationId,
+            String content,
+            PreparedMessage prepared,
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
+        if (cancellation != null) cancellation.throwIfCancelled();
+        AiConversation conversation = conversationRepository.findByIdAndUserId(conversationId, userId)
+            .orElseThrow(this::notFound);
+        // Credit-gated answers are final and source-less, so no provider call is made.
+        SanitizedAiResponse sanitized = prepared.freeAnswer() != null
+            ? prepared.freeAnswer()
+            : groundedResponse(
+                userId, conversation.getMode(), content, recentTurns(conversationId),
+                chunkedDeliveryGeneration, cancellation);
+        if (cancellation != null) cancellation.throwIfCancelled();
+        return new GeneratedChatDraft(conversation.getMode(), sanitized);
     }
 
     public boolean isChunkedDeliveryEnabled() {
@@ -2220,7 +2373,34 @@ public class AiConversationService {
     ) {
     }
 
-    private record SanitizedAiResponse(
+    private record GeneratedChatDraft(ChatMode mode, SanitizedAiResponse response) {
+    }
+
+    public record PreparedChatResult(
+        ChatExchangeResponse exchange,
+        PreparedChatCommitPayload payload
+    ) {
+        public boolean replayed() {
+            return exchange != null;
+        }
+    }
+
+    public record PatientChatLeaseBinding(UUID patientId, UUID conversationId, String idempotencyKey) {
+    }
+
+    public record PreparedChatCommitPayload(
+        String requestId,
+        UUID patientId,
+        UUID conversationId,
+        String idempotencyKey,
+        UUID userMessageId,
+        UUID processingToken,
+        ChatMode mode,
+        SanitizedAiResponse response
+    ) {
+    }
+
+    public record SanitizedAiResponse(
         String answer,
         String disclaimer,
         String provenance,

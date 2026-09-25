@@ -153,4 +153,44 @@ public final class ChatContracts {
         boolean replayed
     ) {
     }
+
+    /** Private BFF prepare response. The payload and permit must never reach the browser. */
+    public record PreparedChatExchangeResponse(
+        boolean replayed,
+        ChatExchangeResponse exchange,
+        String preparedPayload,
+        String commitPermit
+    ) {
+    }
+
+    /** Bounded private BFF commit request; the Spring permit authenticates the exact payload. */
+    public record PreparedChatCommitRequest(
+        @NotBlank @Size(max = 1_000_000) String preparedPayload,
+        @NotBlank @Size(max = 4_096) String commitPermit
+    ) {
+    }
+
+    /** Private BFF lease-open request. It contains no chat prompt or answer. */
+    public record ChatLeaseOpenRequest(
+        @NotNull ChatLeaseScope scope,
+        UUID conversationId
+    ) {
+    }
+
+    public enum ChatLeaseScope {
+        PUBLIC_CHAT,
+        PATIENT
+    }
+
+    /** Request-scoped one-use heartbeat permit; accepted only by the trusted lease route. */
+    public record ChatLeaseRenewRequest(
+        @NotNull ChatLeaseScope scope,
+        @NotBlank @Size(max = 128) String renewalPermit
+    ) {
+    }
+
+    public record ChatLeaseRenewResponse(
+        @NotBlank @Size(max = 128) String renewalPermit
+    ) {
+    }
 }

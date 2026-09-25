@@ -12,6 +12,7 @@ import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
 import com.healthcare.ai.service.AiCreditService;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.appointment.entity.PatientProfile;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.hospital.entity.MedicalService;
 import com.healthcare.user.entity.User;
@@ -21,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -48,10 +50,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@TestPropertySource(properties = "app.security.bff.service-token=test-bff-chat-commit-token-32-bytes-minimum")
 class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
+
+    private static final String BFF_TOKEN = "test-bff-chat-commit-token-32-bytes-minimum";
 
     @MockitoBean
     private AiService aiService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Autowired
     private AiConversationService conversationService;
@@ -243,6 +251,175 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
         assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits()).isEqualTo(3);
         assertThat(creditTransactionCount(patient.getId())).isZero();
         verify(aiService, never()).generateChat(any(), any());
+    }
+
+    @Test
+    @WithMockUser(username = "patient.prepare-commit@example.com", roles = "PATIENT")
+    void preparedChatDoesNotPersistOrChargeUntilTheBffCommitsAndReplayDoesNotChargeAgain() throws Exception {
+        String email = "patient.prepare-commit@example.com";
+        User patient = createUser(email);
+        createPatientProfile(patient, "0901002040", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
+
+        String requestId = UUID.randomUUID().toString();
+        String endpoint = "/api/v1/ai/conversations/" + conversation.getId() + "/messages";
+        openPatientChatLease(requestId, conversation.getId(), "prepare-commit-chat-0001");
+        org.springframework.test.web.servlet.MvcResult prepared = mockMvc.perform(post(endpoint + "/prepare")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .header("Idempotency-Key", "prepare-commit-chat-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Xin tu van suc khoe\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andReturn();
+
+        com.fasterxml.jackson.databind.JsonNode preparedBody = objectMapper.readTree(
+            prepared.getResponse().getContentAsString());
+        assertThat(preparedBody.path("preparedPayload").asText()).isNotBlank();
+        assertThat(preparedBody.path("commitPermit").asText()).isNotBlank();
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .hasSize(1)
+            .allSatisfy(message -> assertThat(message.getRole()).isEqualTo(AiMessageRole.USER));
+        assertThat(aiConversationRepository.findById(conversation.getId()).orElseThrow().isInFlight()).isTrue();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits()).isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isZero();
+
+        String commitBody = objectMapper.writeValueAsString(Map.of(
+            "preparedPayload", preparedBody.path("preparedPayload").asText(),
+            "commitPermit", preparedBody.path("commitPermit").asText()));
+        mockMvc.perform(post(endpoint + "/commit")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .header("Idempotency-Key", "prepare-commit-chat-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(commitBody))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("REFUSE"));
+
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .hasSize(2);
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits()).isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+
+        String replayRequestId = UUID.randomUUID().toString();
+        openPatientChatLease(replayRequestId, conversation.getId(), "prepare-commit-chat-0001");
+        mockMvc.perform(post(endpoint + "/prepare")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", replayRequestId)
+                .header("Idempotency-Key", "prepare-commit-chat-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Xin tu van suc khoe\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(true))
+            .andExpect(jsonPath("$.exchange.replayed").value(true));
+
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .hasSize(2);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.prepare-cancel@example.com", roles = "PATIENT")
+    void rejectedCancellationWinsRedisCasAndPreparedAnswerCannotBeCommitted() throws Exception {
+        String email = "patient.prepare-cancel@example.com";
+        User patient = createUser(email);
+        createPatientProfile(patient, "0901002041", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
+
+        String requestId = UUID.randomUUID().toString();
+        String endpoint = "/api/v1/ai/conversations/" + conversation.getId() + "/messages";
+        openPatientChatLease(requestId, conversation.getId(), "prepare-cancel-chat-0001");
+        org.springframework.test.web.servlet.MvcResult prepared = mockMvc.perform(post(endpoint + "/prepare")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .header("Idempotency-Key", "prepare-cancel-chat-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Xin tu van suc khoe\"}"))
+            .andExpect(status().isOk())
+            .andReturn();
+        com.fasterxml.jackson.databind.JsonNode preparedBody = objectMapper.readTree(
+            prepared.getResponse().getContentAsString());
+
+        cancellations.cancel(requestId);
+        mockMvc.perform(post(endpoint + "/commit")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .header("Idempotency-Key", "prepare-cancel-chat-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "preparedPayload", preparedBody.path("preparedPayload").asText(),
+                    "commitPermit", preparedBody.path("commitPermit").asText()))))
+            .andExpect(status().isServiceUnavailable());
+
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .filteredOn(message -> message.getRole() == AiMessageRole.ASSISTANT)
+            .isEmpty();
+        AiConversation current = aiConversationRepository.findById(conversation.getId()).orElseThrow();
+        assertThat(current.isInFlight()).isFalse();
+        assertThat(current.getInFlightToken()).isNull();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits()).isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isZero();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.prepare-abort-recovery@example.com", roles = "PATIENT")
+    void abandonedPreparedChatLeaseRecoversWithoutAssistantOrCharge() throws Exception {
+        String email = "patient.prepare-abort-recovery@example.com";
+        User patient = createUser(email);
+        createPatientProfile(patient, "0901002042", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
+
+        String requestId = UUID.randomUUID().toString();
+        String endpoint = "/api/v1/ai/conversations/" + conversation.getId() + "/messages";
+        openPatientChatLease(requestId, conversation.getId(), "prepare-abort-recovery-0001");
+        mockMvc.perform(post(endpoint + "/prepare")
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .header("Idempotency-Key", "prepare-abort-recovery-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Xin tu van suc khoe\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false));
+
+        cancellations.cancel(requestId);
+        AiConversation abandoned = aiConversationRepository.findById(conversation.getId()).orElseThrow();
+        abandoned.setInFlightStartedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(5));
+        aiConversationRepository.saveAndFlush(abandoned);
+        conversationService.repairStaleInFlight();
+
+        AiConversation recovered = aiConversationRepository.findById(conversation.getId()).orElseThrow();
+        assertThat(recovered.isInFlight()).isFalse();
+        assertThat(recovered.getInFlightToken()).isNull();
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .filteredOn(message -> message.getRole() == AiMessageRole.USER)
+            .singleElement()
+            .extracting(AiMessage::getStatus)
+            .isEqualTo(AiMessageStatus.FAILED);
+        assertThat(aiMessageRepository.findAll())
+            .filteredOn(message -> message.getConversation().getId().equals(conversation.getId()))
+            .filteredOn(message -> message.getRole() == AiMessageRole.ASSISTANT)
+            .isEmpty();
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits()).isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId())).isZero();
     }
 
     @Test
@@ -1231,6 +1408,20 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
         assertThat(deleted).isGreaterThanOrEqualTo(1);
         assertThat(aiConversationRepository.findById(oldConv.getId())).isEmpty();
         assertThat(aiConversationRepository.findById(recentConv.getId())).isPresent();
+    }
+
+    private void openPatientChatLease(String requestId, UUID conversationId, String idempotencyKey)
+            throws Exception {
+        mockMvc.perform(post("/api/v1/internal/ai/chat-leases/{requestId}/open", requestId)
+                .header("X-Healthcare-Bff-Token", BFF_TOKEN)
+                .header("X-Healthcare-Original-Origin", "http://localhost:3000")
+                .header("X-Request-ID", requestId)
+                .header("Idempotency-Key", idempotencyKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "scope", "PATIENT",
+                    "conversationId", conversationId))))
+            .andExpect(status().isOk());
     }
 
     private User createUser(String email) {
