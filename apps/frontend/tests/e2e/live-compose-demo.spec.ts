@@ -44,7 +44,9 @@ const API_REQUESTS_BYPASS_BFF = new URL(API_BASE_URL).origin !== new URL(BASE_UR
 const API_TIMEOUT_MS = 12_000;
 // V58 realigns every `*.healthcare.local` demo account to this credential; the
 // V56 hash is no longer what the live database accepts.
-const DEMO_PASSWORD = "HealthCare@2026";
+// The .local compose personas are seeded by db/seed/seed-local-data.sql,
+// which pins a compose-specific password distinct from the hosted .com demo.
+const DEMO_PASSWORD = "LocalDemo!2026";
 const DEMO_PATIENT = {
   email: "patient@healthcare.local",
   name: "Bệnh nhân Local",
