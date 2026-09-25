@@ -103,6 +103,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/browser-sessions").permitAll()
                 // The controller independently requires the constant-time BFF service credential.
                 .requestMatchers("/api/v1/internal/ai/chat-cancellations/**").permitAll()
+                .requestMatchers("/api/v1/internal/ai/chat-leases/**").permitAll()
                 .requestMatchers("/api/v1/health").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/payments/webhooks/bank-transfer").permitAll()
                 .requestMatchers("/api/v1/hospital/**").permitAll()

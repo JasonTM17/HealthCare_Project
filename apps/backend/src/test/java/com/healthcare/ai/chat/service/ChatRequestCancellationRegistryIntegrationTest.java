@@ -99,6 +99,123 @@ class ChatRequestCancellationRegistryIntegrationTest extends AbstractRedisIntegr
         }
     }
 
+    @Test
+    void legacyRegistrationCannotReviveALeaseAfterItsLogicalDeadline() throws Exception {
+        String requestId = UUID.randomUUID().toString();
+        String permit = cancellations.openLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseBinding.publicChat());
+        assertThat(permit).isNotBlank();
+
+        Thread.sleep(ChatRequestCancellationRegistry.LEASE_TTL_MILLIS + 100);
+
+        try {
+            assertThatThrownBy(() -> {
+                try (var registration = cancellations.register(requestId)) {
+                    throw new IllegalArgumentException("expired lease was revived as a legacy request");
+                }
+            }).isInstanceOf(IllegalStateException.class);
+            assertThat(redis.opsForValue().get(stateKey(requestId))).isNotEqualTo("ACTIVE");
+            assertThat(redis.getExpire(stateKey(requestId), java.util.concurrent.TimeUnit.MILLISECONDS))
+                .isGreaterThan(150_000L);
+        } finally {
+            redis.delete(stateKey(requestId));
+        }
+    }
+
+    @Test
+    void renewalPermitRotatesOnceAndCannotCrossChatScopes() {
+        String requestId = UUID.randomUUID().toString();
+        String permit = cancellations.openLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseBinding.publicChat());
+        String nextPermit = cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
+            permit);
+
+        assertThatThrownBy(() -> cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
+            permit)).isInstanceOf(CancellationException.class);
+
+        assertThatThrownBy(() -> cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PATIENT,
+            nextPermit)).isInstanceOf(CancellationException.class);
+        assertThat(cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
+            nextPermit)).isNotBlank();
+        redis.delete(stateKey(requestId));
+    }
+
+    @Test
+    void patientCommitRequiresTheExactLeaseBindingAndCommitWinsLateCancel() throws Exception {
+        ChatRequestCancellationRegistry otherInstance = new ChatRequestCancellationRegistry(redis, 180);
+        String requestId = UUID.randomUUID().toString();
+        UUID patientId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        ChatRequestCancellationRegistry.LeaseBinding binding =
+            ChatRequestCancellationRegistry.LeaseBinding.patient(patientId, conversationId, "chat-lease-0001");
+        cancellations.openLease(requestId, binding);
+
+        try (var registration = cancellations.registerBffLease(requestId, binding)) {
+            ChatRequestCancellationRegistry.LeaseBinding wrongConversation =
+                ChatRequestCancellationRegistry.LeaseBinding.patient(
+                    patientId, UUID.randomUUID(), "chat-lease-0001");
+            assertThatThrownBy(() -> cancellations.claimCommit(requestId, wrongConversation))
+                .isInstanceOf(CancellationException.class);
+
+            cancellations.claimCommit(requestId, binding);
+            otherInstance.cancel(requestId);
+            assertThat(registration.cancellation().isCancelled()).isFalse();
+            cancellations.complete(registration.cancellation());
+            assertThat(redis.opsForValue().get(stateKey(requestId))).isEqualTo("COMMITTED");
+        } finally {
+            redis.delete(stateKey(requestId));
+        }
+    }
+
+    @Test
+    void ownerPollingCancelsProviderWhenLeaseExpiresWithoutCancellationPost() throws Exception {
+        String requestId = UUID.randomUUID().toString();
+        ChatRequestCancellationRegistry.LeaseBinding binding =
+            ChatRequestCancellationRegistry.LeaseBinding.publicChat();
+        cancellations.openLease(requestId, binding);
+        var registration = cancellations.registerBffLease(requestId, binding);
+        java.util.concurrent.CountDownLatch stopped = new java.util.concurrent.CountDownLatch(1);
+        registration.cancellation().onCancel(stopped::countDown);
+
+        try {
+            assertThat(stopped.await(4, java.util.concurrent.TimeUnit.SECONDS))
+                .as("owner poll must observe Redis lease expiry promptly")
+                .isTrue();
+            assertThat(redis.opsForValue().get(stateKey(requestId))).isEqualTo("CANCELLED");
+            assertThatThrownBy(() -> cancellations.claimCommit(requestId))
+                .isInstanceOf(CancellationException.class);
+        } finally {
+            registration.close();
+            redis.delete(stateKey(requestId));
+        }
+    }
+
+    @Test
+    void malformedOrUnknownLeaseRecordsFailClosedInsteadOfStartingProviderWork() {
+        String requestId = UUID.randomUUID().toString();
+        redis.opsForValue().set(
+            stateKey(requestId),
+            "{\"version\":99,\"state\":\"ACTIVE\",\"scope\":\"PUBLIC_CHAT\"}",
+            java.time.Duration.ofSeconds(180));
+
+        assertThatThrownBy(() -> cancellations.registerBffLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseBinding.publicChat()))
+            .isInstanceOf(CancellationException.class);
+        assertThat(redis.opsForValue().get(stateKey(requestId))).isEqualTo("CANCELLED");
+        redis.delete(stateKey(requestId));
+    }
+
     private void awaitCancellationSubscriber() throws InterruptedException {
         long deadline = System.nanoTime() + java.time.Duration.ofSeconds(5).toNanos();
         while (System.nanoTime() < deadline) {

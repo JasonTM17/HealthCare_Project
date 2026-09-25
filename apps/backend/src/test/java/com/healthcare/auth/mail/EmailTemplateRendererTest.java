@@ -44,6 +44,27 @@ class EmailTemplateRendererTest {
     }
 
     @Test
+    void keepsClinicalEmailLayoutCalmReadableAndOutlookFriendly() {
+        RenderedEmail rendered = renderer.render(EmailTemplateKey.APPOINTMENT_CONFIRMATION, Map.of(
+            "message", "Lịch khám đã được xác nhận.",
+            "portalUrl", "https://portal.example.test/appointments/123"
+        ));
+        String html = rendered.htmlBody();
+
+        assertTrue(html.contains("width=\"600\""));
+        assertTrue(html.contains("style=\"width:100%;max-width:600px;"));
+        assertTrue(html.contains("color:#17312e;font-size:16px;line-height:1.6;"));
+        assertFalse(html.contains("border-left:"));
+        assertFalse(html.contains(">+</td>"));
+
+        RenderedEmail otp = renderer.render(EmailTemplateKey.BOOKING_OTP, Map.of(
+            "code", "123456",
+            "minutes", "10"
+        ));
+        assertTrue(otp.htmlBody().contains("margin:0 0 16px;color:#334155;font-size:16px;line-height:1.6;"));
+    }
+
+    @Test
     void rejectsUnsafePortalUrlAndEscapesDynamicValues() {
         assertThrows(IllegalArgumentException.class, () -> renderer.render(EmailTemplateKey.SYSTEM_NOTIFICATION, Map.of(
             "message", "A < B & C", "portalUrl", "javascript:alert(1)")));

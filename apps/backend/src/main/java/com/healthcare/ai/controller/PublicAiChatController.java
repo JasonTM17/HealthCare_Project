@@ -8,6 +8,7 @@ import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.ai.chat.service.ChatRequestCancellation;
 import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
 import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
+import com.healthcare.auth.security.BffRequestVerifier;
 import com.healthcare.ai.service.AiService;
 import com.healthcare.observability.RequestTrace;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -105,15 +107,18 @@ public class PublicAiChatController {
     private final AiService aiService;
     private final AiChatSourceResolver sourceResolver;
     private final ChatRequestCancellationRegistry cancellations;
+    private final BffRequestVerifier bffVerifier;
 
     @Autowired
     public PublicAiChatController(
             AiService aiService,
             AiChatSourceResolver sourceResolver,
-            ChatRequestCancellationRegistry cancellations) {
+            ChatRequestCancellationRegistry cancellations,
+            BffRequestVerifier bffVerifier) {
         this.aiService = aiService;
         this.sourceResolver = sourceResolver;
         this.cancellations = cancellations;
+        this.bffVerifier = bffVerifier;
     }
 
     /** Compatibility constructor for direct controller tests without a request lifecycle. */
@@ -121,11 +126,14 @@ public class PublicAiChatController {
         this.aiService = aiService;
         this.sourceResolver = sourceResolver;
         this.cancellations = null;
+        this.bffVerifier = null;
     }
 
     @Operation(summary = "Tư vấn sức khỏe AI thông minh", description = "Hỏi đáp triệu chứng, phân luồng chuyên khoa y tế và hướng dẫn cấp cứu/đặt khám")
     @PostMapping("/chat")
-    public ResponseEntity<Map<String, Object>> chat(@Valid @RequestBody PublicChatRequest request) {
+    public ResponseEntity<Map<String, Object>> chat(
+            @Valid @RequestBody PublicChatRequest request,
+            HttpServletRequest servletRequest) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("message", request.message().trim());
         payload.put("public_support_chat", true);
@@ -152,7 +160,7 @@ public class PublicAiChatController {
                     userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
             }
             try {
-                return ResponseEntity.ok(runCancellableChat(cancellation ->
+                return ResponseEntity.ok(runCancellableChat(servletRequest, cancellation ->
                     publicEducationChat(userMessage, recentTurns, cancellation)));
             } catch (CancellationException exception) {
                 throw cancelledRequest(exception);
@@ -160,7 +168,7 @@ public class PublicAiChatController {
         }
         Map<String, Object> upstream;
         try {
-            upstream = runCancellableChat(cancellation -> cancellation == null
+            upstream = runCancellableChat(servletRequest, cancellation -> cancellation == null
                 ? aiService.chat(payload)
                 : aiService.chat(payload, cancellation));
         } catch (CancellationException exception) {
@@ -255,11 +263,29 @@ public class PublicAiChatController {
         return sanitize(generated, userMessage, ChatMode.HEALTH_EDUCATION, authorized);
     }
 
-    private <T> T runCancellableChat(Function<ChatRequestCancellation, T> operation) {
+    /** Direct controller-test compatibility; Spring dispatches the request-aware mapping above. */
+    public ResponseEntity<Map<String, Object>> chat(PublicChatRequest request) {
+        return chat(request, null);
+    }
+
+    private <T> T runCancellableChat(
+            HttpServletRequest request,
+            Function<ChatRequestCancellation, T> operation) {
         if (cancellations == null) return operation.apply(null);
         final ChatRequestCancellationRegistry.Registration registration;
         try {
-            registration = cancellations.register(RequestTrace.currentId());
+            if (request != null && bffVerifier != null) {
+                if (!bffVerifier.isTrusted(request)) {
+                    throw new ResponseStatusException(
+                        org.springframework.http.HttpStatus.UNAUTHORIZED,
+                        "Trusted BFF credential is required");
+                }
+                registration = cancellations.registerBffLease(
+                    RequestTrace.currentId(),
+                    ChatRequestCancellationRegistry.LeaseBinding.publicChat());
+            } else {
+                registration = cancellations.register(RequestTrace.currentId());
+            }
         } catch (IllegalStateException exception) {
             throw cancellationStateUnavailable(exception);
         }

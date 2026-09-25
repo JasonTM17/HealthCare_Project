@@ -1051,8 +1051,12 @@ def retrieve_chat_candidates(
     rag_service: RagServiceContract,
     *,
     embedder: Callable[..., object] = embed,
+    cancellation: ChatCancellation | None = None,
 ) -> ChatRetrieveResponse:
     """Retrieve only eligible, mode-allowed candidates above the threshold."""
+
+    if cancellation is not None:
+        cancellation.raise_if_cancelled()
 
     safety = chat_safety_response(
         request.message,
@@ -1100,12 +1104,15 @@ def retrieve_chat_candidates(
                     request.message,
                     settings,
                     synthetic_beta=request.synthetic_beta,
+                    cancellation=cancellation,
                 )
             else:
                 # Preserve the small two-argument test/double contract while
                 # the production embed function receives the marker above.
                 embedded = embedder(request.message, settings)
             vector, model, provenance = _embedding_parts(embedded)
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
         search_provenance: ProviderProvenance = (
             "local_provider" if provenance == "local_fallback" else provenance
         )
