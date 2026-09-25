@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -70,10 +71,12 @@ class BankStatementImportServiceTest {
     }
 
     @Test
-    @DisplayName("A re-imported line is a counted duplicate, never a second match")
-    void reimportedRowsAreDuplicates() {
+    @DisplayName("A re-imported MATCHED line is a counted duplicate, never a second match")
+    void reimportedMatchedRowsAreDuplicates() {
         when(jdbcTemplate.update(contains("on conflict (row_hash) do nothing"), any(Object[].class)))
             .thenReturn(0);
+        when(jdbcTemplate.queryForObject(contains("select matched"), eq(Boolean.class), any(Object[].class)))
+            .thenReturn(true);
 
         BankStatementImportService.ImportResult result = service.importStatement(
             "statement.csv", "200000;HC 0001;FT-1\n150000;HC 0002\n", admin);
@@ -81,6 +84,26 @@ class BankStatementImportServiceTest {
         assertThat(result.duplicateRows()).isEqualTo(2);
         assertThat(result.matchedRows()).isZero();
         verify(paymentService, never()).confirmFromWebhook(any(), anyString());
+    }
+
+    @Test
+    @DisplayName("A re-imported UNMATCHED line is re-driven through the confirm gate")
+    void reimportedUnmatchedRowsAreRetried() {
+        // First import left both rows unmatched; re-importing must retry them
+        // instead of burning them as duplicates.
+        when(jdbcTemplate.update(contains("on conflict (row_hash) do nothing"), any(Object[].class)))
+            .thenReturn(0);
+        when(jdbcTemplate.queryForObject(contains("select matched"), eq(Boolean.class), any(Object[].class)))
+            .thenReturn(false);
+        when(paymentService.confirmFromWebhook(any(), anyString())).thenReturn(null);
+
+        BankStatementImportService.ImportResult result = service.importStatement(
+            "statement.csv", "200000;HC 0001;FT-1\n150000;HC 0002\n", admin);
+
+        assertThat(result.matchedRows()).isEqualTo(2);
+        assertThat(result.duplicateRows()).isZero();
+        assertThat(result.unmatched()).isEmpty();
+        verify(paymentService, times(2)).confirmFromWebhook(any(), anyString());
     }
 
     @Test
