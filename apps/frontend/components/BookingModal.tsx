@@ -537,8 +537,27 @@ function BookingExperience({
     }
     return result;
   }, [loadedDoctors, providedDoctors, fetchedDoctor, initialDoctorId]);
-  const specialties = providedSpecialties.length > 0 ? providedSpecialties : loadedSpecialties;
-  const branches = providedBranches.length > 0 ? providedBranches : loadedBranches;
+  // Catalog pages pass teaser lists as providedSpecialties/providedBranches
+  // (the homepage grid fetches page 0 size 12); the booking wizard always
+  // needs the complete catalog. Loaded (complete) data wins once present and
+  // teaser items missing from the load are appended so preselection targets
+  // can never disappear from the selects.
+  const specialties = useMemo(() => {
+    const base = loadedSpecialties.length > 0 ? loadedSpecialties : providedSpecialties;
+    const result = [...base];
+    for (const item of providedSpecialties) {
+      if (!result.some((entry) => entry.id === item.id)) result.push(item);
+    }
+    return result;
+  }, [loadedSpecialties, providedSpecialties]);
+  const branches = useMemo(() => {
+    const base = loadedBranches.length > 0 ? loadedBranches : providedBranches;
+    const result = [...base];
+    for (const item of providedBranches) {
+      if (!result.some((entry) => entry.id === item.id)) result.push(item);
+    }
+    return result;
+  }, [loadedBranches, providedBranches]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string>("");
   const [catalogRequest, setCatalogRequest] = useState<number>(0);
@@ -693,16 +712,18 @@ function BookingExperience({
   useEffect(() => {
     if (!active) return;
 
-    const needsSpecialties = providedSpecialties.length === 0;
-    const needsBranches = providedBranches.length === 0;
+    // Always fetch the complete lists on open: a non-empty teaser prop must
+    // not gate the load (homepage passes 12 of N specialties, and backend
+    // pagination without a stable sort makes that page arbitrary), otherwise
+    // the wizard's selects silently miss valid targets.
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
       if (cancelled) return;
       setCatalogLoading(true);
       setCatalogError("");
       const [specialtyResult, branchResult] = await Promise.allSettled([
-        needsSpecialties ? fetchSpecialties(0, 100) : Promise.resolve(null),
-        needsBranches ? fetchBranches(0, 100) : Promise.resolve(null),
+        fetchSpecialties(0, 100),
+        fetchBranches(0, 100),
       ]);
       if (cancelled) return;
 
@@ -710,35 +731,31 @@ function BookingExperience({
       let resolvedBranch = branchResult.status === "fulfilled" ? branchResult.value : null;
 
       // Resilient single-retry for transient cold starts before reporting an error
-      if (needsSpecialties && !resolvedSpecialty && !cancelled) {
+      if (!resolvedSpecialty && !cancelled) {
         resolvedSpecialty = await fetchSpecialties(0, 100).catch(() => null);
       }
-      if (needsBranches && !resolvedBranch && !cancelled) {
+      if (!resolvedBranch && !cancelled) {
         resolvedBranch = await fetchBranches(0, 100).catch(() => null);
       }
       if (cancelled) return;
 
       const missing: string[] = [];
-      if (needsSpecialties) {
-        if (resolvedSpecialty) {
-          setLoadedSpecialties(resolvedSpecialty.content);
-          // Prefill at load time: the syncSelection identity chain alone can
-          // miss this transition under slow-runner timing and leave the
-          // specialty select on its disabled placeholder.
-          setSelectedSpecialty((current) => current || initialSpecialtyId || resolvedSpecialty.content[0]?.id || "");
-          if (resolvedSpecialty.content.length === 0) missing.push("danh sách chuyên khoa");
-        } else {
-          missing.push("chuyên khoa");
-        }
+      if (resolvedSpecialty) {
+        setLoadedSpecialties(resolvedSpecialty.content);
+        // Prefill at load time: the syncSelection identity chain alone can
+        // miss this transition under slow-runner timing and leave the
+        // specialty select on its disabled placeholder.
+        setSelectedSpecialty((current) => current || initialSpecialtyId || resolvedSpecialty.content[0]?.id || "");
+        if (resolvedSpecialty.content.length === 0) missing.push("danh sách chuyên khoa");
+      } else {
+        missing.push("chuyên khoa");
       }
-      if (needsBranches) {
-        if (resolvedBranch) {
-          setLoadedBranches(resolvedBranch.content);
-          setSelectedBranch((current) => current || initialBranchId || resolvedBranch.content[0]?.id || "");
-          if (resolvedBranch.content.length === 0) missing.push("cơ sở khám");
-        } else {
-          missing.push("cơ sở khám");
-        }
+      if (resolvedBranch) {
+        setLoadedBranches(resolvedBranch.content);
+        setSelectedBranch((current) => current || initialBranchId || resolvedBranch.content[0]?.id || "");
+        if (resolvedBranch.content.length === 0) missing.push("cơ sở khám");
+      } else {
+        missing.push("cơ sở khám");
       }
 
       setCatalogError(missing.length > 0

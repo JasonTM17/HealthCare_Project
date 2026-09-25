@@ -487,11 +487,23 @@ async function bookAppointmentThroughPublicUi(page: Page, selection: BookableDem
   await page.goto(appUrl("/"));
   await expect(page.getByText(/\d+ cơ sở đang hiển thị/, { exact: true })).toBeVisible();
   await page.locator("button.button--nav").first().click();
-  const bookingDialog = page.getByRole("dialog", { name: "Đặt lịch trực tuyến nhanh chóng" });
+  // The dialog's accessible name follows the panel h2 through aria-labelledby,
+  // and a1b9cbe re-titles it to "Đặt lịch trực tuyến cùng <doctor>" once the
+  // wizard holds doctor context, so pinning the step-0 title made the locator
+  // die at the step-3→4 transition. The prefix is stable across every step,
+  // including the completion view, which keeps the header rendered.
+  const bookingDialog = page.getByRole("dialog", { name: /Đặt lịch trực tuyến/ });
   await expect(bookingDialog).toBeVisible();
   await expect(bookingDialog.getByRole("heading", { name: "Bạn muốn được hỗ trợ ở chuyên khoa nào?" })).toBeVisible();
 
-  await bookingDialog.getByLabel("Chuyên khoa").selectOption(selection.specialty.id);
+  // The wizard fetches the complete catalog on open; the homepage only seeds
+  // the selects with a teaser page, so the demo doctor's specialty option can
+  // land after the select itself renders. Wait for the exact option instead of
+  // racing the fetch.
+  const specialtySelect = bookingDialog.getByLabel("Chuyên khoa");
+  await expect(specialtySelect.locator(`option[value="${selection.specialty.id}"]`))
+    .toBeAttached({ timeout: 20_000 });
+  await specialtySelect.selectOption(selection.specialty.id);
   await bookingDialog.getByRole("button", { name: /Tiếp tục: Chọn cơ sở/ }).click();
   await bookingDialog.getByLabel("Cơ sở bệnh viện / phòng khám").selectOption(selection.branch.id);
   await bookingDialog.getByRole("button", { name: /Tiếp tục: Chọn bác sĩ/ }).click();
@@ -647,6 +659,14 @@ async function expectDemoAdminPaymentApprovalSucceeds(
     const approved = await reviewResponse;
     expect(approved.status()).toBe(200);
     await expect(approveDialog).toHaveCount(0);
+    // The list defaults to the PENDING_VERIFICATION status filter, so an
+    // approved payment correctly drops out of the visible rows; re-filter to
+    // the paid status before asserting the row's new state. No exact:true
+    // here: the select sits inside its wrapping label, and Playwright folds
+    // the embedded option texts into the label's element text, so the label's
+    // normalized text is "Trạng thái" plus every status option — exact can
+    // never resolve. Substring still matches only this control.
+    await page.getByLabel("Trạng thái").selectOption("PAID");
     await expect(paymentRow).toContainText("Đã thanh toán");
   } finally {
     await context.close();
@@ -709,7 +729,11 @@ async function expectAdminCanSeeAppointment(
     await page.getByRole("navigation", { name: "Điều hướng quản trị" }).getByRole("link", { name: "Lịch hẹn" }).click();
     await expect(page.getByRole("heading", { name: "Danh sách lịch hẹn" })).toBeVisible();
     await setAdminAppointmentDateFilter(page, date);
-    await page.getByRole("button", { name: "Lọc" }).click();
+    // The apply button is "Áp dụng"; "Lọc" must not be used here because
+    // getByRole name matching is a case-insensitive substring, so "Lọc" also
+    // hits the conditional "Xóa lọc" clear button — clicking it would wipe the
+    // draft filter and silently unfilter the list.
+    await page.getByRole("button", { name: "Áp dụng" }).click();
     const appointmentRow = page.getByRole("row").filter({ hasText: bookingCode });
     await expect(appointmentRow).toBeVisible();
     await expect(appointmentRow).toContainText("Đã xác nhận");
