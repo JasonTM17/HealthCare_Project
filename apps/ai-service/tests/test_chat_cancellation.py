@@ -271,7 +271,7 @@ def test_real_client_disconnect_closes_fastapi_embedding_socket(
     monkeypatch.setattr(main, "rag_service", rag)
 
     class TrackedClient(OpenAIEmbeddingClient):
-        def embed(self, text: str) -> object:
+        def embed(self, text: str) -> embeddings.EmbeddingResult:
             try:
                 return super().embed(text)
             finally:
