@@ -15,7 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -23,11 +24,8 @@ class ChatRequestCancellationReconciliationTest {
 
     @Test
     void missingActiveStateCancelsLocalProviderAndRejectsCommit() {
-        @SuppressWarnings("unchecked")
-        ValueOperations<String, String> values = mock(ValueOperations.class);
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
-        when(redis.opsForValue()).thenReturn(values);
-        when(values.multiGet(anyCollection())).thenReturn(Collections.singletonList(null));
+        when(redis.execute(any(), anyList(), any())).thenReturn("MISSING");
 
         ChatRequestCancellationRegistry registry = new ChatRequestCancellationRegistry(redis, 180);
         ChatRequestCancellation cancellation = seedActiveRequest(registry);
@@ -45,7 +43,7 @@ class ChatRequestCancellationReconciliationTest {
     @Test
     void redisReadFailureCancelsLocalProviderAndRejectsCommit() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
-        when(redis.opsForValue()).thenThrow(new RedisConnectionFailureException("synthetic outage"));
+        when(redis.execute(any(), anyList(), any())).thenThrow(new RedisConnectionFailureException("synthetic outage"));
 
         ChatRequestCancellationRegistry registry = new ChatRequestCancellationRegistry(redis, 180);
         ChatRequestCancellation cancellation = seedActiveRequest(registry);
@@ -62,11 +60,8 @@ class ChatRequestCancellationReconciliationTest {
 
     @Test
     void activeAndCommitWinningStatesDoNotCancelTheOwnerContext() {
-        @SuppressWarnings("unchecked")
-        ValueOperations<String, String> values = mock(ValueOperations.class);
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
-        when(redis.opsForValue()).thenReturn(values);
-        when(values.multiGet(anyCollection())).thenReturn(List.of("ACTIVE", "COMMITTING", "COMMITTED"));
+        when(redis.execute(any(), anyList(), any())).thenReturn("ACTIVE", "COMMITTING", "COMMITTED");
 
         ChatRequestCancellationRegistry registry = new ChatRequestCancellationRegistry(redis, 180);
         List<ChatRequestCancellation> contexts = List.of(

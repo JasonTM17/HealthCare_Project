@@ -132,7 +132,6 @@ public abstract class AbstractIntegrationTest {
         // Testcontainers databases and never populated from a real secret.
         registry.add("app.mail.outbox.encryption-key",
                 () -> "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
-        registry.add("ai.chat.cancellation.subscriber-enabled", () -> "false");
     }
 
     @Autowired

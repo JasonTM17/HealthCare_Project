@@ -18,6 +18,5 @@ public abstract class AbstractRedisIntegrationTest extends AbstractIntegrationTe
     static void configureRedis(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.url", () -> "redis://%s:%d".formatted(
             testRedis.getHost(), testRedis.getMappedPort(6379)));
-        registry.add("ai.chat.cancellation.subscriber-enabled", () -> "true");
     }
 }
