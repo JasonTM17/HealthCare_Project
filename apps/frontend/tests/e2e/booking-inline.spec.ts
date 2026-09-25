@@ -314,7 +314,12 @@ test("public booking modal settles catalog loading after its live catalog arrive
   await expect(page.getByText("1 cơ sở đang hiển thị", { exact: true })).toBeVisible();
   await page.locator("button.button--nav").first().click();
 
-  const bookingDialog = page.getByRole("dialog", { name: "Đặt lịch trực tuyến nhanh chóng" });
+  // Match the same convention as live-compose-demo.spec.ts: the dialog's
+  // accessible name follows the panel h2 through aria-labelledby, and a1b9cbe
+  // re-titles it to "Đặt lịch trực tuyến cùng <doctor>" once doctor context
+  // exists, so pinning the step-0 title makes this locator a latent break the
+  // moment this test (or the product's open path) crosses into that state.
+  const bookingDialog = page.getByRole("dialog", { name: /Đặt lịch trực tuyến/ });
   await expect(bookingDialog).toBeVisible();
   await expect(bookingDialog.getByText("Đang tải thông tin bác sĩ, chuyên khoa và cơ sở…")).toBeHidden();
   await expect(bookingDialog.getByLabel("Chuyên khoa")).toHaveValue(SPECIALTY.id);
