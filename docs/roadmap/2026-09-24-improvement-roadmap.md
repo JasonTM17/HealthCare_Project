@@ -29,6 +29,25 @@ liệu; phần dưới là những việc CẦN QUYẾT ĐÁNH HOẶC TÀI NGUY�
 - Đề xuất: pg_dump định kỳ (cron worker hoặc GitHub Actions hàng tuần) đẩy lên
   object storage ngoài, kèm 1 lần restore-drill có ghi evidence.
 
+### 1.4 Khởi tạo DB tươi từ chuỗi Flyway đang gãy (phát hiện 2026-09-25)
+- Bằng chứng: dựng volume Postgres hoàn toàn mới, chuỗi migration fail ở
+  `V86__seed_comprehensive_clinical_tables_and_empty_tables.sql` — seed branch
+  mà V86 tham chiếu chỉ được tạo ở `V95__seed_catalog_for_all_profiles.sql`.
+  CI/test vẫn pass nhờ `CatalogFixtureCallback` (chỉ đăng ký trong test) seed
+  catalog trước khi Flyway chạy; compose/local cũ chỉ sống sót vì volume được
+  tạo từ chuỗi migration trước đó.
+- Cách sửa: chuyển dữ liệu catalog mà V86 cần thành migration riêng chạy trước
+  V86 (hoặc đưa phần seed của V86 xuống sau V95), rồi xác thực bằng một job CI
+  "fresh volume boot" chạy `docker compose up` từ đầu.
+
+### 1.5 Compose drift theo code fail-closed (phát hiện 2026-09-25)
+- Bằng chứng: `infrastructure/docker-compose.yml` thiếu
+  `STORAGE_REQUIRE_PRIVATE_ENDPOINT=true` và credentials MinIO placeholder bị
+  code từ chối — backend không boot được trên stack dựng từ .env cũ.
+  (Đã vá compose trong phiên này; cần rà tiếp mọi biến mà
+  `FailClosedStorageSettings`/`StorageEndpointPolicy` đòi hỏi và thêm vào
+  `.env.example` + kiểm chứng bằng job CI runtime-compose chạy định kỳ.)
+
 ## 2. Ưu tiên trung (ứng dụng)
 
 ### 2.1 CSP bỏ `unsafe-inline`
