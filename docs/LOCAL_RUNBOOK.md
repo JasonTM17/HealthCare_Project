@@ -589,6 +589,25 @@ cd ..\ai-service
 Backend integration tests require PostgreSQL/Testcontainers and MinIO; run the
 Docker preflight above before starting them.
 
+### Playwright browsers keep disappearing (Windows)
+
+On this class of dev machine another tool's Playwright install (observed: a
+`qoder-desktop-mcp-host` shipping Playwright 1.64-alpha manifests) periodically
+prunes `C:\Users\Admin\AppData\Local\ms-playwright` down to its own manifests,
+deleting the `chromium-*` / `chromium_headless_shell-*` builds the compose E2E
+suite needs. Symptom: `browserType.launch: Executable doesn't exist` from a
+suite that ran fine minutes earlier. Two durable responses:
+
+```powershell
+cd apps\frontend
+npx playwright install chromium   # re-persist the bundled builds, or:
+$env:PLAYWRIGHT_BROWSER_CHANNEL = "chrome"   # system Chrome, no cache to prune
+npm run test:e2e:compose
+```
+
+Prefer the bundled chromium for CI-parity; the `chrome` channel is the
+prune-proof fallback for local live runs.
+
 ## Stop and diagnose
 
 ```powershell
