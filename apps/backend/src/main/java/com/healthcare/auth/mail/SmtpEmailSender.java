@@ -1,5 +1,7 @@
 package com.healthcare.auth.mail;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
@@ -11,6 +13,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConditionalOnProperty(prefix = "app.mail", name = "enabled", havingValue = "true")
 public class SmtpEmailSender implements EmailSender, RichEmailDelivery {
+
+    private static final Logger log = LoggerFactory.getLogger(SmtpEmailSender.class);
 
     private final JavaMailSender mailSender;
     private final String from;
@@ -31,6 +35,11 @@ public class SmtpEmailSender implements EmailSender, RichEmailDelivery {
         try {
             mailSender.send(message);
         } catch (MailException exception) {
+            // Surface the SMTP server reply so delivery failures (auth, TLS,
+            // sender policy) are diagnosable from production logs. The message
+            // carries the server response, never the configured credentials.
+            log.warn("SMTP plain send failed recipient={} subject={}: {}",
+                recipient, subject, exception.getMessage(), exception);
             throw new com.healthcare.exception.BusinessException(
                 503,
                 com.healthcare.exception.ErrorCodes.EMAIL_DELIVERY_UNAVAILABLE,
@@ -62,6 +71,8 @@ public class SmtpEmailSender implements EmailSender, RichEmailDelivery {
             }
             mailSender.send(message);
         } catch (MailException | jakarta.mail.MessagingException exception) {
+            log.warn("SMTP rich send failed recipient={} subject={}: {}",
+                recipient, subject, exception.getMessage(), exception);
             throw new com.healthcare.exception.BusinessException(
                 503,
                 com.healthcare.exception.ErrorCodes.EMAIL_DELIVERY_UNAVAILABLE,
