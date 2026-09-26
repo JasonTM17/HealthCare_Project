@@ -9,35 +9,32 @@ import java.time.Duration;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 /**
  * HTTPS email delivery through the Resend transactional API
- * ({@link https://api.resend.com/emails}). Render Free cannot reach outbound
- * SMTP (smtp.gmail.com:587 connection attempts time out even with a 20s
- * budget), while HTTPS egress works — so when an API key is configured the
- * send goes over HTTPS, and without a key this sender defers to the SMTP
- * implementation.
+ * ({@value #RESEND_ENDPOINT}). Render Free cannot reach outbound SMTP
+ * (smtp.gmail.com:587 connection attempts time out even with a 20s budget),
+ * while HTTPS egress works.
  *
- * <p>The API key is read from the environment ({@code RESEND_API_KEY} via
- * {@code app.mail.resend-api-key}) and is never logged. The recipient and the
- * provider response body are logged on failure for diagnosability.</p>
+ * <p>This sender deliberately does NOT implement {@link EmailSender}: it is
+ * routed as an optional preferred path by {@code AfterCommitEmailSender}, so
+ * it never competes with the outbox/SMTP delegates for the {@code EmailSender}
+ * injection slot. The API key is read from the environment
+ * ({@code RESEND_API_KEY} via {@code app.mail.resend-api-key}) and is never
+ * logged; failure logs carry the recipient and the provider response body.</p>
  */
 @Component
-@Primary
 @ConditionalOnProperty(prefix = "app.mail", name = "enabled", havingValue = "true")
-public class ApiEmailSender implements EmailSender, RichEmailDelivery {
+public class ApiEmailSender {
 
     private static final Logger log = LoggerFactory.getLogger(ApiEmailSender.class);
-    private static final String RESEND_ENDPOINT = "https://api.resend.com/emails";
+    static final String RESEND_ENDPOINT = "https://api.resend.com/emails";
 
     private final String apiKey;
     private final String from;
-    private final ObjectProvider<SmtpEmailSender> smtpFallback;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper =
         new com.fasterxml.jackson.databind.ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder()
@@ -45,35 +42,28 @@ public class ApiEmailSender implements EmailSender, RichEmailDelivery {
         .build();
 
     public ApiEmailSender(@Value("${app.mail.resend-api-key:}") String apiKey,
-                          @Value("${app.mail.from:no-reply@healthcare.local}") String from,
-                          ObjectProvider<SmtpEmailSender> smtpFallback) {
+                          @Value("${app.mail.from:no-reply@healthcare.local}") String from) {
         this.apiKey = apiKey == null ? "" : apiKey.strip();
         this.from = from;
-        this.smtpFallback = smtpFallback;
     }
 
-    @Override
+    /** True when the Resend API key is configured and HTTPS delivery is active. */
+    public boolean isConfigured() {
+        return !apiKey.isEmpty();
+    }
+
     public void send(String recipient, String subject, String body) {
-        if (apiKey.isEmpty()) {
-            smtpFallback.getObject().send(recipient, subject, body);
-            return;
-        }
         String escaped = body == null ? "" : body
             .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
         sendRich(recipient, subject, "<pre style=\"font-family:inherit;white-space:pre-wrap\">" + escaped + "</pre>", body);
     }
 
-    @Override
     public void sendRich(String recipient, String subject, String htmlBody, String plainTextBody) {
         sendRichWithMessageId(recipient, subject, htmlBody, plainTextBody, null);
     }
 
     public void sendRichWithMessageId(String recipient, String subject, String htmlBody,
                                       String plainTextBody, String messageId) {
-        if (apiKey.isEmpty()) {
-            smtpFallback.getObject().sendRichWithMessageId(recipient, subject, htmlBody, plainTextBody, messageId);
-            return;
-        }
         try {
             var payload = objectMapper.createObjectNode();
             payload.put("from", from);
