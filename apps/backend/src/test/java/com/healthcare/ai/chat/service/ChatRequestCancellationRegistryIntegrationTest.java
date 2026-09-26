@@ -188,7 +188,11 @@ class ChatRequestCancellationRegistryIntegrationTest extends AbstractRedisIntegr
         registration.cancellation().onCancel(stopped::countDown);
 
         try {
-            assertThat(stopped.await(4, java.util.concurrent.TimeUnit.SECONDS))
+            // The lease only expires after LEASE_TTL_MILLIS; the owner poll (50ms)
+            // must then observe it promptly. Bound scales with the TTL constant so
+            // the assertion stays correct if the lease budget is retuned.
+            assertThat(stopped.await(ChatRequestCancellationRegistry.LEASE_TTL_MILLIS + 3_000,
+                    java.util.concurrent.TimeUnit.MILLISECONDS))
                 .as("owner poll must observe Redis lease expiry promptly")
                 .isTrue();
             assertThat(redis.opsForValue().get(stateKey(requestId))).isEqualTo("CANCELLED");
