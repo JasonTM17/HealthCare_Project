@@ -1832,7 +1832,7 @@ test("uncertain lease renewal aborts patient prepare and prevents commit", async
   assert.equal(commitCalls, 0, "an uncertain lease cannot authorize a patient commit");
 });
 
-test("lease heartbeat keeps its one-second cadence anchored to permit issuance", async () => {
+test("lease heartbeat keeps its two-second cadence anchored to permit issuance", async () => {
   const bff = await loadBff();
   const browserController = new AbortController();
   let resolveRenewalStarted;
@@ -1889,7 +1889,7 @@ test("lease heartbeat keeps its one-second cadence anchored to permit issuance",
 
   assert.equal(response.status, 502);
   assert.ok(
-    renewalStartedAt - openStartedAt <= 1_200,
+    renewalStartedAt - openStartedAt <= 2_200,
     `first renewal arrived ${renewalStartedAt - openStartedAt}ms after lease open began`,
   );
   assert.equal(commitCalls, 0);
