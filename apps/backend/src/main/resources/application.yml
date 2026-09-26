@@ -46,6 +46,10 @@ spring:
       mail:
         smtp:
           auth: ${SPRING_MAIL_SMTP_AUTH:false}
+          # Port 465 speaks implicit SSL (set SPRING_MAIL_SSL_ENABLE=true +
+          # SPRING_MAIL_PORT=465); port 587 uses STARTTLS instead.
+          ssl:
+            enable: ${SPRING_MAIL_SSL_ENABLE:false}
           starttls:
             enable: ${SPRING_MAIL_STARTTLS_ENABLE:false}
             required: ${SPRING_MAIL_STARTTLS_REQUIRED:false}
