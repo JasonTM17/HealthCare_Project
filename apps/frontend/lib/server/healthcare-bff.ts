@@ -46,9 +46,17 @@ const INTERNAL_PATIENT_CHAT_PATH = "/api/v1/internal/ai/chat";
 const PRIVATE_PATIENT_CHAT_PATH = /^\/api\/v1\/ai\/conversations\/[^/]+\/messages\/(?:prepare|commit|lease)$/u;
 const PRIVATE_CHAT_DELIVERY_HEADER = "X-Healthcare-Chat-Delivery";
 const CHAT_CANCEL_NOTIFY_TIMEOUT_MS = 750;
-const CHAT_LEASE_OPEN_TIMEOUT_MS = 500;
-const CHAT_LEASE_RENEW_INTERVAL_MS = 1_000;
-const CHAT_LEASE_RENEW_TIMEOUT_MS = 500;
+// Liveness-lease control-plane budgets. The BFF runs on Vercel (US) and the
+// Spring backend on Render (Singapore), so a single lease round-trip is ~250ms
+// RTT before any server work — the original 500ms budgets were routinely
+// exceeded, aborting lease-open (public chat fell back to the canned answer)
+// and rejecting renewals (patient chat aborted mid-stream). These are sized to
+// the measured cross-region latency and must stay consistent with the backend's
+// LEASE_TTL_MILLIS / RENEWAL_PERMIT_FRESHNESS_MILLIS (ChatRequestCancellationRegistry):
+// renew interval < permit freshness < lease TTL, and each timeout < permit freshness.
+const CHAT_LEASE_OPEN_TIMEOUT_MS = 3_000;
+const CHAT_LEASE_RENEW_INTERVAL_MS = 2_000;
+const CHAT_LEASE_RENEW_TIMEOUT_MS = 2_500;
 const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 const EMERGENCY_FALLBACK_TERMS = [
   "dau nguc du doi",
