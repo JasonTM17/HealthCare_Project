@@ -1,0 +1,39 @@
+name: Render keep-warm (backend + AI)
+
+# Render Free idles a web service after ~15 minutes of no traffic; the first
+# request then pays a 26-42s cold start, which exceeds the chat lease budget and
+# makes the assistant fall back. This warmer pings both services well inside the
+# idle window so visitor traffic (and the chatbot) hits a warm instance.
+# The URLs are the public Render endpoints; no credentials are required.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-keep-warm
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    name: Ping Render services to prevent cold start
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      BACKEND_HEALTH_URL: https://healthcare-beta-backend-4wb7.onrender.com/actuator/health
+      AI_LIVEZ_URL: https://healthcare-beta-ai-9mip.onrender.com/livez
+    steps:
+      - name: Warm backend
+        run: |
+          code="$(curl -sS --connect-timeout 10 --max-time 90 -o /dev/null -w '%{http_code}' "$BACKEND_HEALTH_URL" || echo 000)"
+          echo "backend health HTTP $code"
+          # A cold instance can take ~40s to answer; 000/5xx here is non-fatal —
+          # the ping itself still wakes the service. Do not fail the run on it.
+      - name: Warm AI service
+        run: |
+          code="$(curl -sS --connect-timeout 10 --max-time 90 -o /dev/null -w '%{http_code}' "$AI_LIVEZ_URL" || echo 000)"
+          echo "ai livez HTTP $code"
