@@ -22,15 +22,53 @@ public class AfterCommitEmailSender {
 
     private final EmailSender delegate;
     private final EmailTemplateRenderer renderer;
+    private final org.springframework.beans.factory.ObjectProvider<ApiEmailSender> apiSender;
 
     @Autowired
-    public AfterCommitEmailSender(EmailSender delegate) {
-        this(delegate, new EmailTemplateRenderer());
+    public AfterCommitEmailSender(EmailSender delegate,
+                                  org.springframework.beans.factory.ObjectProvider<ApiEmailSender> apiSender) {
+        this(delegate, new EmailTemplateRenderer(), apiSender);
     }
 
     public AfterCommitEmailSender(EmailSender delegate, EmailTemplateRenderer renderer) {
+        this(delegate, renderer, null);
+    }
+
+    public AfterCommitEmailSender(EmailSender delegate, EmailTemplateRenderer renderer,
+                                  org.springframework.beans.factory.ObjectProvider<ApiEmailSender> apiSender) {
         this.delegate = delegate;
         this.renderer = renderer;
+        this.apiSender = apiSender;
+    }
+
+    /**
+     * True when the Resend HTTPS API is configured. Render Free cannot reach
+     * outbound SMTP (smtp.gmail.com:587 times out), so the API path takes
+     * precedence over the outbox/SMTP delegates whenever it is available.
+     */
+    private boolean apiPreferred() {
+        if (apiSender == null) {
+            return false;
+        }
+        ApiEmailSender sender = apiSender.getIfAvailable();
+        return sender != null && sender.isConfigured();
+    }
+
+    private void deliverViaApi(String recipient, RenderedEmail rendered, boolean bestEffort) {
+        ApiEmailSender sender = apiSender.getIfAvailable();
+        if (sender == null) {
+            return;
+        }
+        if (bestEffort) {
+            try {
+                sender.sendRich(recipient, rendered.subject(), rendered.htmlBody(), rendered.plainTextBody());
+            } catch (RuntimeException exception) {
+                log.warn("Best-effort API email delivery failed (template path, recipient={}) cause={}",
+                    recipient, exception.getClass().getSimpleName());
+            }
+            return;
+        }
+        sender.sendRich(recipient, rendered.subject(), rendered.htmlBody(), rendered.plainTextBody());
     }
 
     public boolean isDeliveryAvailable() {
@@ -72,6 +110,13 @@ public class AfterCommitEmailSender {
     public void sendTemplate(EmailTemplateKey templateKey,
                              String recipient,
                              Map<String, String> variables) {
+        if (apiPreferred()) {
+            // Resend HTTPS route: Render Free egress cannot reach SMTP, so the
+            // API path outranks both the outbox and the SMTP delegate.
+            RenderedEmail rendered = renderer.render(templateKey, variables);
+            runAfterCommit(() -> deliverViaApi(recipient, rendered, false));
+            return;
+        }
         if (delegate instanceof TransactionalEmailSender transactional) {
             transactional.enqueue(
                 templateKey,
@@ -97,6 +142,12 @@ public class AfterCommitEmailSender {
     public void sendTemplateBestEffort(EmailTemplateKey templateKey,
                                        String recipient,
                                        Map<String, String> variables) {
+        if (apiPreferred()) {
+            RenderedEmail rendered = renderer.render(templateKey, variables);
+            log.info("Email delivery using Resend API path (template={})", templateKey);
+            runAfterCommit(() -> deliverViaApi(recipient, rendered, true));
+            return;
+        }
         if (delegate instanceof TransactionalEmailSender transactional) {
             transactional.enqueue(
                 templateKey,
