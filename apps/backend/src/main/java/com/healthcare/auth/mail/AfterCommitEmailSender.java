@@ -30,6 +30,10 @@ public class AfterCommitEmailSender {
         this(delegate, new EmailTemplateRenderer(), apiSender);
     }
 
+    public AfterCommitEmailSender(EmailSender delegate) {
+        this(delegate, new EmailTemplateRenderer(), null);
+    }
+
     public AfterCommitEmailSender(EmailSender delegate, EmailTemplateRenderer renderer) {
         this(delegate, renderer, null);
     }
