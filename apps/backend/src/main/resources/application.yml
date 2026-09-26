@@ -95,6 +95,10 @@ app:
     enabled: ${APP_MAIL_ENABLED:false}
     from: ${APP_MAIL_FROM:no-reply@healthcare.local}
     portal-base-url: ${APP_MAIL_PORTAL_BASE_URL:}
+    # HTTPS delivery through the Resend API. When set it takes precedence over
+    # SMTP because Render Free cannot reach outbound smtp.gmail.com:587. The
+    # key is read from the environment / secret store only.
+    resend-api-key: ${RESEND_API_KEY:}
     outbox:
       enabled: ${APP_MAIL_OUTBOX_ENABLED:false}
       poll-ms: ${APP_MAIL_OUTBOX_POLL_MS:5000}
