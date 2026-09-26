@@ -234,6 +234,23 @@ public class AiConversationController {
             throw cancelledRequest(exception);
         } catch (IllegalStateException exception) {
             throw cancellationStateUnavailable(exception);
+        } catch (com.healthcare.exception.BusinessException exception) {
+            // This route can only produce SSE (produces=text/event-stream). Letting
+            // a BusinessException escape hands it to the JSON exception handler,
+            // whose ApiError cannot be negotiated against text/event-stream and
+            // turns the failure into an opaque 500. Answer with the structured
+            // error as JSON so the client's non-OK branch surfaces the real code.
+            com.healthcare.exception.ApiError error = new com.healthcare.exception.ApiError(
+                exception.getStatus(),
+                HttpStatus.valueOf(exception.getStatus()).getReasonPhrase(),
+                exception.getMessage(),
+                servletRequest.getRequestURI(),
+                java.util.List.of(),
+                exception.getCode()
+            );
+            return ResponseEntity.status(exception.getStatus())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(objectMapper.writeValueAsString(error));
         }
         String answer = exchange.assistantMessage().content() == null ? "" : exchange.assistantMessage().content();
         StringBuilder events = new StringBuilder();
