@@ -98,6 +98,7 @@ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
 # hide that production-only observability gap.
 _TRACE_LOGGER_NAME = "uvicorn.error.healthcare.ai.trace"
 _trace_logger = logging.getLogger(_TRACE_LOGGER_NAME)
+logger = logging.getLogger("uvicorn.error")
 _REQUEST_ID_HEADER = "X-Request-ID"
 _REQUEST_ID_PATTERN = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
@@ -346,7 +347,10 @@ async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse
     before they surface as generic 500 Internal Server Error with a stack trace.
     These are provider-side contract violations, not server bugs."""
 
-    del request, exc
+    # The message identifies which contract failed (embedding dims, egress gate,
+    # response parse) without leaking user content, so 422s are debuggable.
+    logger.warning("ValueError at %s %s: %s", request.method, request.url.path, exc)
+    del request
     return JSONResponse(
         status_code=422,
         content={"detail": "AI_RESPONSE_PARSE_ERROR", "status": "PROVIDER_CONTRACT_VIOLATION"},
