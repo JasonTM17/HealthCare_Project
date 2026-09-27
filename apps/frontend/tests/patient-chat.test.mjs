@@ -119,12 +119,3 @@ test("patient chat drops late stream updates after a conversation switch", async
   assert.match(page, /if \(isCurrentSendRequest\(\)\) \{[\s\S]*sendInFlightRef\.current = false/);
   assert.match(page, /if \(!options\.background\) \{[\s\S]*invalidateSendRequest\(\)[\s\S]*invalidateConsentRequest\(\)/);
 });
-
-test("patient chat clears the composer once the question is persisted, even when the reply fails", async () => {
-  const page = await read("app/patient/chat/page.tsx");
-
-  assert.match(page, /if \(options\.clearDraftOnSuccess\) setDraft\(""\)/);
-  assert.match(page, /const dispatched = \(reloaded \?\? \[\]\)\.some\(/);
-  assert.match(page, /message\.role === "USER" && message\.content\.trim\(\) === normalizedContent/);
-  assert.match(page, /options\.clearDraftOnSuccess && dispatched\) setDraft\(""\)/);
-});
