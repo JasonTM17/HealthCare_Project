@@ -111,7 +111,7 @@ export default function PatientCommunityPage() {
                 onClick={() => setSelectedSpecialty("all")}
                 type="button"
               >
-                Tất cả chuyên khoa ({articles.length})
+                Tất cả chuyên khoa ({loading ? "--" : articles.length})
               </button>
               {specialties.map((s) => {
                 const count = articles.filter((a) => a.relatedSpecialtySlug === s.slug).length;
@@ -126,7 +126,7 @@ export default function PatientCommunityPage() {
                     onClick={() => setSelectedSpecialty(s.slug)}
                     type="button"
                   >
-                    {s.name} ({count})
+                    {s.name} ({loading ? "--" : count})
                   </button>
                 );
               })}

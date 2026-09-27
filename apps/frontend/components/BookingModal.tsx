@@ -1642,6 +1642,7 @@ function BookingExperience({
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
                 <input id="booking-date" name="appointment-date" type="date" required min={minimumAppointmentDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <p className="mt-1 text-xs text-gray-500">Định dạng ngày/tháng/năm</p>
               </div>
               <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
                 <p><strong>Bác sĩ:</strong> {currentDoctor?.fullName ?? "Chưa chọn"}</p>

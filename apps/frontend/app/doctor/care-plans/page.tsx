@@ -287,6 +287,12 @@ export default function DoctorCarePlansPage() {
 
   const status = error instanceof ApiError ? error.status : undefined;
   const editHasBlankItem = editItems.some((item) => !item.goal.trim());
+  // Plans carry the source appointment only as a raw UUID; show the human
+  // label from the doctor's appointment list when it is loaded. Older
+  // appointments outside the fetched window fall back to a neutral label —
+  // never a UUID fragment patients or doctors cannot quote.
+  const appointmentLabelById = new Map(appointments.map((item) => [item.id, `${item.bookingCode} · ${item.appointmentDate} · ${item.patientName}`]));
+  const appointmentLabel = (id: string): string => appointmentLabelById.get(id) ?? "đã liên kết";
 
   return <PortalChrome role="DOCTOR" user={session.user}>
     <div className="section-inner portal-page">
@@ -355,7 +361,7 @@ export default function DoctorCarePlansPage() {
                 <div className="min-w-0">
                   <p className="section-note">{statusLabel(plan.status, PLAN_STATUS_LABELS)}</p>
                   <h2>{plan.title}</h2>
-                  <p className="mt-1 text-sm text-slate-600">Lịch hẹn {plan.appointmentId.slice(0, 8)}... - {plan.items.length} mục</p>
+                  <p className="mt-1 text-sm text-slate-600">Lịch hẹn: {appointmentLabel(plan.appointmentId)} - {plan.items.length} mục</p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <button className="outline-button outline-button--small min-h-11" disabled={!canEdit || Boolean(busy)} onClick={() => beginEdit(plan)} type="button">Sửa</button>
