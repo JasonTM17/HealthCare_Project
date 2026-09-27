@@ -245,6 +245,17 @@ storage:
     allowed-hosts: ${STORAGE_AV_ALLOWED_HOSTS:}
     mime-validation-required: ${STORAGE_MIME_VALIDATION_REQUIRED:true}
 
+# Media catalog uploads. Quotas apply in both storage modes; they bound the
+# inline-Postgres fallback (storage.upload-enabled=false) where every accepted
+# upload persists image bytes into the media_assets.data column (P7 H-01).
+media:
+  upload:
+    # Per-file ceiling in MB (HTTP 413 above this). Keep at or below the
+    # spring.servlet.multipart.max-file-size bound.
+    max-file-mb: ${MEDIA_UPLOAD_MAX_FILE_MB:5}
+    # Per-uploader uploads inside a rolling 24h window (HTTP 429 above this).
+    max-files-per-day: ${MEDIA_UPLOAD_MAX_FILES_PER_DAY:20}
+
 springdoc:
   api-docs:
     path: /v3/api-docs
