@@ -1,6 +1,7 @@
 package com.healthcare.media.service;
 
 import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.media.dto.MediaAssetResponse;
 import com.healthcare.media.entity.MediaAsset;
@@ -8,7 +9,10 @@ import com.healthcare.media.repository.MediaAssetRepository;
 import com.healthcare.storage.service.FileStorageService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.time.OffsetDateTime;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -25,7 +30,23 @@ import java.util.UUID;
 @Service
 public class MediaAssetService {
 
-    private static final long MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+    private static final Logger log = LoggerFactory.getLogger(MediaAssetService.class);
+
+    /**
+     * Safety-net per-file ceiling used when {@code media.upload.max-file-mb}
+     * is absent or misconfigured to a non-positive value.
+     */
+    private static final int DEFAULT_MAX_FILE_MB = 5;
+
+    /** Safety-net per-uploader daily quota, matching the configured default. */
+    private static final int DEFAULT_MAX_FILES_PER_DAY = 20;
+
+    /**
+     * Length of the rolling window the daily quota counts over. A rolling
+     * window (instead of a calendar day) keeps a burst straddling midnight
+     * from doubling the effective limit.
+     */
+    private static final java.time.Duration QUOTA_WINDOW = java.time.Duration.ofHours(24);
 
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
         "image/jpeg",
@@ -48,6 +69,19 @@ public class MediaAssetService {
     private final UserRepository userRepository;
     private final FileStorageService fileStorageService;
 
+    /**
+     * Per-file ceiling in megabytes. P7 (H-01): when the object store is
+     * disabled the image bytes land inline in Postgres, so the ceiling is
+     * enforced before the file is even read into memory — not only at the
+     * multipart resolver, whose 10 MB bound predates the quota policy.
+     */
+    @Value("${media.upload.max-file-mb:5}")
+    private int maxFileMb = DEFAULT_MAX_FILE_MB;
+
+    /** Per-uploader uploads allowed inside the rolling {@link #QUOTA_WINDOW}. */
+    @Value("${media.upload.max-files-per-day:20}")
+    private int maxFilesPerDay = DEFAULT_MAX_FILES_PER_DAY;
+
     public MediaAssetService(MediaAssetRepository mediaAssetRepository, UserRepository userRepository) {
         this(mediaAssetRepository, userRepository, null);
     }
@@ -68,8 +102,14 @@ public class MediaAssetService {
             throw new BusinessException(400, "Tệp hình ảnh tải lên không được để trống.");
         }
 
-        if (file.getSize() > MAX_IMAGE_SIZE_BYTES) {
-            throw new BusinessException(400, "Kích thước hình ảnh vượt quá giới hạn tối đa cho phép (10 MB).");
+        int effectiveMaxFileMb = maxFileMb > 0 ? maxFileMb : DEFAULT_MAX_FILE_MB;
+        long maxFileBytes = effectiveMaxFileMb * 1024L * 1024L;
+        if (file.getSize() > maxFileBytes) {
+            throw new BusinessException(
+                413,
+                ErrorCodes.MEDIA_FILE_TOO_LARGE,
+                "Kích thước hình ảnh vượt quá giới hạn tối đa cho phép (" + effectiveMaxFileMb + " MB)."
+            );
         }
 
         String normalizedPurpose = purpose != null && !purpose.isBlank()
@@ -83,11 +123,6 @@ public class MediaAssetService {
         String contentType = rawContentType != null ? rawContentType.toLowerCase(Locale.ROOT).trim() : "";
         if (!ALLOWED_IMAGE_TYPES.contains(contentType)) {
             throw new BusinessException(400, "Định dạng tệp không được hỗ trợ. Chỉ chấp nhận định dạng ảnh JPEG, PNG, WEBP hoặc GIF.");
-        }
-
-        byte[] bytes = file.getBytes();
-        if (!isValidImageMagicBytes(bytes, contentType)) {
-            throw new BusinessException(400, "Nội dung tệp không hợp lệ hoặc bị giả mạo định dạng hình ảnh.");
         }
 
         UUID uploaderId = null;
@@ -104,6 +139,31 @@ public class MediaAssetService {
                 .map(a -> a.substring(5))
                 .findFirst()
                 .orElse("USER");
+        }
+
+        // Quota runs before the bytes are buffered and before any row is
+        // written: with the object store disabled an accepted upload persists
+        // the image inline in Postgres, so an unbounded uploader could exhaust
+        // the database within the 20 requests/minute rate limit (P7 H-01).
+        if (uploaderId != null) {
+            int dailyLimit = maxFilesPerDay > 0 ? maxFilesPerDay : DEFAULT_MAX_FILES_PER_DAY;
+            long uploadedInWindow = mediaAssetRepository.countByUploaderIdAndCreatedAtAfter(
+                uploaderId, OffsetDateTime.now().minus(QUOTA_WINDOW));
+            if (uploadedInWindow >= dailyLimit) {
+                log.warn(
+                    "Media upload rejected by daily quota: uploaderId={} uploadsInWindow={} limit={} windowHours={}",
+                    uploaderId, uploadedInWindow, dailyLimit, QUOTA_WINDOW.toHours());
+                throw new BusinessException(
+                    429,
+                    ErrorCodes.MEDIA_UPLOAD_QUOTA_EXCEEDED,
+                    "Bạn đã tải lên tối đa " + dailyLimit + " tệp trong vòng 24 giờ. Vui lòng thử lại sau."
+                );
+            }
+        }
+
+        byte[] bytes = file.getBytes();
+        if (!isValidImageMagicBytes(bytes, contentType)) {
+            throw new BusinessException(400, "Nội dung tệp không hợp lệ hoặc bị giả mạo định dạng hình ảnh.");
         }
 
         String originalFilename = file.getOriginalFilename();

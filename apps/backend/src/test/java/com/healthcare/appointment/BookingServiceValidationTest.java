@@ -703,4 +703,123 @@ class BookingServiceValidationTest {
             .extracting(exception -> ((BusinessException) exception).getCode())
             .isEqualTo(ErrorCodes.IDEMPOTENCY_KEY_INVALID);
     }
+
+    /**
+     * Wires the mocks for a guest hold that reaches the patient-resolution
+     * stage: catalog and slot lookups pass, and the given patient profile is
+     * whatever {@code findByPhone} answers.
+     */
+    private void stubGuestHoldCatalog(HoldFixture fixture, UUID doctorId, UUID branchId, LocalDate date) {
+        when(fixture.doctors.findById(doctorId)).thenReturn(Optional.of(activeDoctor(doctorId)));
+        when(fixture.branches.findByIdAndActiveTrue(branchId)).thenReturn(Optional.of(activeBranch(branchId)));
+        when(fixture.doctorBranches.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
+        when(fixture.schedules.findBookableSlot(eq(doctorId), eq(branchId), eq(date), eq(LocalTime.of(9, 0))))
+            .thenReturn(Optional.of(new ScheduleService.BookableSlot(LocalTime.of(9, 0), LocalTime.of(9, 30))));
+        when(fixture.appointments.findExpiredPendingConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findActiveConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findDoctorOverlapsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.passwordEncoder.encode(anyString())).thenReturn("encoded-otp");
+        when(fixture.emailSender.isDeliveryAvailable()).thenReturn(true);
+        when(fixture.payments.isAvailable()).thenReturn(false);
+        when(fixture.claimService.claimedUserIds(any())).thenReturn(List.of());
+        doAnswer(invocation -> {
+            Appointment appointment = invocation.getArgument(0);
+            if (appointment.getId() == null) {
+                appointment.setId(UUID.randomUUID());
+            }
+            return appointment;
+        }).when(fixture.appointments).saveAndFlush(any());
+    }
+
+    private HoldSlotRequest guestHold(UUID doctorId, UUID branchId, String phone, String email) {
+        return new HoldSlotRequest(
+            doctorId, LocalDate.now().plusDays(1), LocalTime.of(9, 0),
+            "Khách Đặt Lịch", phone, email, null, null, branchId, null);
+    }
+
+    /**
+     * The same subscriber number must resolve to the same profile whether the
+     * client submits the +84 country-code form or the national 0-prefix form.
+     * Regression for the T3 inconsistency where the identical hold blocked on
+     * one attempt and passed on the next purely because of phone formatting.
+     */
+    @Test
+    void guestHoldResolvesTheSameProfileAcrossPhoneFormats() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        LocalDate date = LocalDate.now().plusDays(1);
+
+        com.healthcare.user.entity.User owner = new com.healthcare.user.entity.User();
+        owner.setId(ownerId);
+        owner.setEmail("owner@example.test");
+        owner.setStatus("ACTIVE");
+        owner.setEmailVerified(true);
+        PatientProfile stored = new PatientProfile();
+        stored.setId(UUID.randomUUID());
+        stored.setUserId(ownerId);
+        stored.setFullName("Chủ Hồ Sơ");
+        stored.setPhone("0905550300");
+        stored.setEmail("owner@example.test");
+        when(fixture.users.findById(ownerId)).thenReturn(Optional.of(owner));
+
+        stubGuestHoldCatalog(fixture, doctorId, branchId, date);
+        // The +84 request form must land on the canonical stored key.
+        when(fixture.patients.findByPhone("0905550300")).thenReturn(Optional.of(stored));
+
+        HoldSlotResponse response = fixture.service()
+            .holdSlot(guestHold(doctorId, branchId, "+84 905 550 300", "owner@example.test"), null, null);
+
+        verify(fixture.patients).findByPhone("0905550300");
+        verify(fixture.patients, never()).save(any());
+        org.assertj.core.api.Assertions.assertThat(response.message()).contains("giữ chỗ thành công");
+    }
+
+    /**
+     * A profile phone submitted in the +84 form with a non-owner email must be
+     * rejected as an identity mismatch. On the pre-fix code the +84 form missed
+     * the stored profile entirely, so the request silently created a fresh
+     * profile and returned 201 — the phone became an ownership bypass.
+     */
+    @Test
+    void guestHoldWithProfilePhoneInCountryCodeFormAndWrongEmailIsRejected() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        LocalDate date = LocalDate.now().plusDays(1);
+
+        com.healthcare.user.entity.User owner = new com.healthcare.user.entity.User();
+        owner.setId(ownerId);
+        owner.setEmail("owner@example.test");
+        owner.setStatus("ACTIVE");
+        owner.setEmailVerified(true);
+        PatientProfile stored = new PatientProfile();
+        stored.setId(UUID.randomUUID());
+        stored.setUserId(ownerId);
+        stored.setFullName("Chủ Hồ Sơ");
+        stored.setPhone("0905550300");
+        stored.setEmail("owner@example.test");
+        when(fixture.users.findById(ownerId)).thenReturn(Optional.of(owner));
+
+        stubGuestHoldCatalog(fixture, doctorId, branchId, date);
+        when(fixture.patients.findByPhone("0905550300")).thenReturn(Optional.of(stored));
+
+        assertThatThrownBy(() -> fixture.service()
+            .holdSlot(guestHold(doctorId, branchId, "+84905550300", "attacker@example.test"), null, null))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                assertEquals(403, exception.getStatusCode().value());
+                assertEquals(
+                    "Thông tin liên hệ không khớp với hồ sơ bệnh nhân. "
+                        + "Vui lòng kiểm tra lại số điện thoại/email đã dùng khi đặt.",
+                    exception.getReason());
+            });
+        // The rejected attempt must not create a shadow profile for the attacker.
+        verify(fixture.patients, never()).save(any());
+        verify(fixture.emailSender, never()).sendBookingOtp(anyString(), any(), anyString(), any(), any(), anyLong());
+    }
 }

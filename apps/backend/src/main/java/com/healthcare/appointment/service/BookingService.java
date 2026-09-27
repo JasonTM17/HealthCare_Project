@@ -28,6 +28,9 @@ import com.healthcare.payment.entity.PaymentStatus;
 import com.healthcare.payment.service.BankTransferPaymentService;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.observability.RequestTrace;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -56,6 +59,8 @@ import java.util.UUID;
 
 @Service
 public class BookingService {
+
+    private static final Logger log = LoggerFactory.getLogger(BookingService.class);
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int HOLD_DURATION_MINUTES = 10;
@@ -336,7 +341,7 @@ public class BookingService {
         }
 
         // 3. Find or Create Patient Profile (Hybrid Onboarding)
-        String cleanPhone = request.phone().replaceAll("[^0-9+]", "");
+        String cleanPhone = normalizePhone(request.phone());
         PatientResolution patientResolution = resolvePatient(request, cleanPhone, userDetails);
         PatientProfile patient = patientResolution.patient();
         String otpRecipient = patientResolution.otpRecipient();
@@ -635,20 +640,20 @@ public class BookingService {
         if (userDetails != null && hasRole(userDetails, "PATIENT")) {
             User authenticatedUser = userRepository.findByEmail(userDetails.getUsername())
                 .filter(user -> user.isEmailVerified() && "ACTIVE".equals(user.getStatus()))
-                .orElseThrow(this::patientIdentityMismatch);
+                .orElseThrow(() -> patientIdentityMismatch("authenticated-user-unverified", null));
             UUID userId = authenticatedUser.getId();
             String verifiedDestination = normalizeEmail(authenticatedUser.getEmail());
             PatientProfile linked = patientProfileRepository.findByUserId(userId).orElse(null);
             if (linked != null) {
                 if (!normalizePhone(linked.getPhone()).equals(cleanPhone)) {
-                    throw patientIdentityMismatch();
+                    throw patientIdentityMismatch("linked-profile-phone-mismatch", cleanPhone);
                 }
                 return new PatientResolution(linked, verifiedDestination);
             }
 
             PatientProfile byPhone = patientProfileRepository.findByPhone(cleanPhone).orElse(null);
             if (byPhone != null) {
-                throw patientIdentityMismatch();
+                throw patientIdentityMismatch("phone-owned-by-unlinked-profile", cleanPhone);
             }
 
             PatientProfile created = new PatientProfile();
@@ -664,14 +669,14 @@ public class BookingService {
 
         String requestedDestination = normalizeEmail(request.email());
         if (requestedDestination == null) {
-            throw patientIdentityMismatch();
+            throw patientIdentityMismatch("missing-contact-email", cleanPhone);
         }
 
         PatientProfile existing = patientProfileRepository.findByPhone(cleanPhone).orElse(null);
         if (existing != null) {
             String storedDestination = storedVerifiedDestination(existing);
             if (storedDestination == null || !storedDestination.equals(requestedDestination)) {
-                throw patientIdentityMismatch();
+                throw patientIdentityMismatch("verified-destination-mismatch", cleanPhone);
             }
             return new PatientResolution(existing, storedDestination);
         }
@@ -1117,8 +1122,32 @@ public class BookingService {
             .anyMatch(authority -> ("ROLE_" + role).equals(authority.getAuthority()));
     }
 
+    /**
+     * Canonical contact-phone form for every identity comparison and profile
+     * lookup. Besides stripping separators it folds Vietnamese country-code
+     * forms onto the national 0-prefix: "+84 905 550 300" and "84905550300"
+     * both become "0905550300". Without this fold the same subscriber could
+     * resolve to different profiles (or a fresh mismatch rejection) depending
+     * on which format the client happened to submit — the T3 first-block /
+     * second-pass inconsistency. New profiles are therefore stored in the
+     * canonical form; legacy rows written in a +84 form will not match and
+     * need a one-off data normalization if any exist.
+     */
     private String normalizePhone(String phone) {
-        return phone.replaceAll("[^0-9+]", "");
+        if (phone == null) {
+            return "";
+        }
+        String digits = phone.replaceAll("[^0-9+]", "");
+        if (digits.startsWith("+84") && digits.length() > 3) {
+            return "0" + digits.substring(3);
+        }
+        // Bare "84" without the plus is only unambiguous for the 9-digit
+        // subscriber block (11 digits total); longer numbers may be foreign or
+        // a full international landline and are left untouched.
+        if (digits.startsWith("84") && digits.length() == 11 && digits.charAt(2) != '0') {
+            return "0" + digits.substring(2);
+        }
+        return digits;
     }
 
     private boolean matchesOtp(String inputOtp, String storedOtp) {
@@ -1149,11 +1178,27 @@ public class BookingService {
         return email == null || email.isBlank() ? null : email.trim().toLowerCase();
     }
 
-    private ResponseStatusException patientIdentityMismatch() {
-        return new ResponseStatusException(
-            HttpStatus.FORBIDDEN,
-            "Không thể xác minh thông tin bệnh nhân"
+    /**
+     * Actionable 403 wording: the guest learns which contact fields to re-check
+     * instead of receiving the previous opaque "cannot verify patient" line.
+     * Deliberately does not disclose whether the phone or the email failed.
+     */
+    private static final String PATIENT_IDENTITY_MISMATCH_MESSAGE =
+        "Thông tin liên hệ không khớp với hồ sơ bệnh nhân. "
+            + "Vui lòng kiểm tra lại số điện thoại/email đã dùng khi đặt.";
+
+    private ResponseStatusException patientIdentityMismatch(String reason, String contactPhone) {
+        // requestId correlates the rejection with the access log; the phone is
+        // masked so the WARN never carries full PII, and the reason distinguishes
+        // the verification branches without disclosing which field mismatched to
+        // the caller.
+        log.warn(
+            "Booking hold rejected: patient identity mismatch requestId={} reason={} phone={}",
+            RequestTrace.currentId(),
+            reason,
+            contactPhone == null || contactPhone.isBlank() ? "-" : maskPhone(contactPhone)
         );
+        return new ResponseStatusException(HttpStatus.FORBIDDEN, PATIENT_IDENTITY_MISMATCH_MESSAGE);
     }
 
     private boolean useFixedTestOtp() {

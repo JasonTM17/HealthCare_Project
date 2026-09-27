@@ -1205,7 +1205,9 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(attack)))
             .andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.message").value("Không thể xác minh thông tin bệnh nhân"))
+            .andExpect(jsonPath("$.message").value(
+                "Thông tin liên hệ không khớp với hồ sơ bệnh nhân. "
+                    + "Vui lòng kiểm tra lại số điện thoại/email đã dùng khi đặt."))
             .andReturn();
 
         assertFalse(result.getResponse().getContentAsString().contains(victimProfile.getFullName()));
