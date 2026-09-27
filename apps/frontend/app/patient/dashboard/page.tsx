@@ -1819,7 +1819,7 @@ export default function PatientDashboardPage() {
           ) : null}
           {selectedAppointment ? (
             <form className="portal-lookup-form" onSubmit={handleReschedule}>
-              <div><label htmlFor="reschedule-date">Ngày mới</label><input id="reschedule-date" min={businessDate()} onChange={(event) => { setRescheduleDate(event.target.value); setSlots(null); setSelectedStartTime(""); }} required type="date" value={rescheduleDate} /></div>
+              <div><label htmlFor="reschedule-date">Ngày mới</label><input id="reschedule-date" min={businessDate()} onChange={(event) => { setRescheduleDate(event.target.value); setSlots(null); setSelectedStartTime(""); }} required type="date" value={rescheduleDate} /><small className="text-xs text-slate-500">Định dạng ngày/tháng/năm</small></div>
               <button className="outline-button outline-button--small" onClick={handleLoadSlots} type="button">Xem giờ trống</button>
               {slots?.status === "loading" ? <LoadingState label="Đang tải giờ trống…" /> : null}
               {slots?.status === "error" ? <ErrorState message={slots.message} status={slots.statusCode} /> : null}
@@ -2105,6 +2105,7 @@ export default function PatientDashboardPage() {
                           type="date"
                           value={profileForm.dateOfBirth}
                         />
+                        <span className="text-[11px] font-medium normal-case text-slate-500">Định dạng ngày/tháng/năm</span>
                       </label>
                       <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span className="text-slate-800">Giới tính</span>

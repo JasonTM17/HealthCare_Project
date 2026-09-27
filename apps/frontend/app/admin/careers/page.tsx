@@ -94,7 +94,7 @@ export default function AdminCareersPage() {
       </header>
       <div className="mt-6 flex flex-wrap items-end justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4">
         <label className="text-sm font-semibold">Trạng thái<select className="mt-1 block min-h-11 rounded-lg border border-slate-300 px-3" onChange={(event) => { setStatus(event.target.value); setPage(0); }} value={status}><option value="">Tất cả</option>{APPLICATION_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <div className="flex items-center gap-4"><span className="text-sm text-slate-600">Tổng cộng <strong>{total.toLocaleString("vi-VN")}</strong></span><button className="text-sm font-bold text-teal-800 underline" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
+        <div className="flex items-center gap-4"><span className="text-sm text-slate-600">Tổng cộng <strong>{loading ? "--" : total.toLocaleString("vi-VN")}</strong></span><button className="text-sm font-bold text-teal-800 underline" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
       </div>
       {error ? <div className="mt-4"><AdminState tone="error" title="Không thể xử lý hồ sơ" description={error} /></div> : null}
       {loading ? <div className="mt-4"><AdminState tone="loading" title="Đang tải hồ sơ ứng tuyển" description="Đang lấy danh sách hồ sơ mới nhất." /></div> : null}
