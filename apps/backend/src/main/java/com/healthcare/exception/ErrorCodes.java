@@ -64,6 +64,10 @@ public final class ErrorCodes {
     public static final String SCHEDULE_HAS_ACTIVE_BOOKINGS = "SCHEDULE_HAS_ACTIVE_BOOKINGS";
     /** The supplied Idempotency-Key is malformed. */
     public static final String IDEMPOTENCY_KEY_INVALID = "IDEMPOTENCY_KEY_INVALID";
+    /** A media upload exceeds the per-file size ceiling (media.upload.max-file-mb). */
+    public static final String MEDIA_FILE_TOO_LARGE = "MEDIA_FILE_TOO_LARGE";
+    /** The uploader hit the per-user rolling daily media quota (media.upload.max-files-per-day). */
+    public static final String MEDIA_UPLOAD_QUOTA_EXCEEDED = "MEDIA_UPLOAD_QUOTA_EXCEEDED";
     /** An administrator asked for a status move the appointment state machine forbids. */
     public static final String APPOINTMENT_STATUS_TRANSITION_INVALID = "APPOINTMENT_STATUS_TRANSITION_INVALID";
 

@@ -57,6 +57,13 @@ public class AiService {
     private static final int DEFAULT_MAX_INPUT_CHARS = 10_000;
     private static final int MIN_CHAT_INPUT_CHARS = 2;
     private static final int DEFAULT_MAX_RESPONSE_BYTES = 1_048_576;
+    /**
+     * Upstream error bodies are logged truncated to this many characters. The
+     * ai-service error payloads (validation detail, missing-route 404s, circuit
+     * breaker 503s) carry no secrets, but they can be large, so the snippet is
+     * bounded and flattened onto one log line.
+     */
+    private static final int UPSTREAM_ERROR_BODY_SNIPPET_CHARS = 500;
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
     /** Latch for the one-WARN-per-episode RAG fallback notice; see {@link #probeHealth}. */
@@ -316,7 +323,9 @@ public class AiService {
             outcome = "completed";
             return response;
         } catch (RestClientResponseException e) {
-            log.warn("AI upstream returned HTTP {} for {}", e.getStatusCode().value(), "/chat/generate/stream");
+            log.warn("AI upstream returned HTTP {} for {} body={}",
+                e.getStatusCode().value(), "/chat/generate/stream",
+                upstreamErrorBodySnippet(e.getResponseBodyAsString(StandardCharsets.UTF_8)));
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (RestClientException e) {
             log.warn("AI upstream stream request failed for {}: {}", "/chat/generate/stream", e.getClass().getSimpleName());
@@ -628,7 +637,8 @@ public class AiService {
                 HttpResponse<byte[]> response = future.get();
                 cancellation.throwIfCancelled();
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                    log.warn("AI upstream returned HTTP {} for {}", response.statusCode(), path);
+                    log.warn("AI upstream returned HTTP {} for {} body={}",
+                        response.statusCode(), path, upstreamErrorBodySnippet(response.body()));
                     throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable");
                 }
                 byte[] raw = response.body();
@@ -747,7 +757,8 @@ public class AiService {
             outcome = "completed";
             return decoded;
         } catch (RestClientResponseException e) {
-            log.warn("AI upstream returned HTTP {} for {}", e.getStatusCode().value(), uri.getPath());
+            log.warn("AI upstream returned HTTP {} for {} body={}",
+                e.getStatusCode().value(), uri.getPath(), upstreamErrorBodySnippet(e.getResponseBodyAsString(StandardCharsets.UTF_8)));
             throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", e);
         } catch (RestClientException e) {
             log.warn("AI upstream request failed for {}: {}", uri.getPath(), e.getClass().getSimpleName());
@@ -872,6 +883,34 @@ public class AiService {
                 "AI service authentication is not configured"
             );
         }
+    }
+
+    /**
+     * Flattens an upstream error body into a bounded, single-line log snippet:
+     * control characters and line breaks are collapsed so an attacker-shaped
+     * body cannot forge log lines, and the text is hard-truncated at
+     * {@link #UPSTREAM_ERROR_BODY_SNIPPET_CHARS}.
+     */
+    private static String upstreamErrorBodySnippet(byte[] body) {
+        if (body == null || body.length == 0) {
+            return "<empty>";
+        }
+        return upstreamErrorBodySnippet(new String(body, StandardCharsets.UTF_8));
+    }
+
+    private static String upstreamErrorBodySnippet(String body) {
+        if (body == null || body.isBlank()) {
+            return "<empty>";
+        }
+        String flattened = body
+            .replaceAll("\\s+", " ")
+            // Keep the snippet printable; drop anything outside common text.
+            .replaceAll("[^\\x20-\\x7E\\u00A0-\\uFFFF]", "?");
+        if (flattened.length() <= UPSTREAM_ERROR_BODY_SNIPPET_CHARS) {
+            return flattened;
+        }
+        return flattened.substring(0, UPSTREAM_ERROR_BODY_SNIPPET_CHARS)
+            + "...(truncated " + (flattened.length() - UPSTREAM_ERROR_BODY_SNIPPET_CHARS) + " chars)";
     }
 
     private HttpHeaders headers() {

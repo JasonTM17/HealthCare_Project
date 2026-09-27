@@ -1,6 +1,7 @@
 package com.healthcare.media;
 
 import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.media.dto.MediaAssetResponse;
 import com.healthcare.media.entity.MediaAsset;
@@ -18,6 +19,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -26,6 +28,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -189,5 +193,78 @@ class MediaAssetServiceTest {
         assertThatThrownBy(() -> mediaAssetService.getMedia(id))
             .isInstanceOf(ResourceNotFoundException.class)
             .hasMessageContaining("không tồn tại");
+    }
+
+    private com.healthcare.user.entity.User entityUser(String email) {
+        com.healthcare.user.entity.User entity = new com.healthcare.user.entity.User();
+        entity.setId(UUID.randomUUID());
+        entity.setEmail(email);
+        return entity;
+    }
+
+    private UserDetails principal(String email, String role) {
+        return new User(email, "secret", Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role)));
+    }
+
+    /** P7 H-01: the per-file ceiling is configurable and enforced before buffering. */
+    @Test
+    void uploadImage_rejectsFileAboveConfiguredLimitWith413() {
+        ReflectionTestUtils.setField(mediaAssetService, "maxFileMb", 1);
+        byte[] oversized = new byte[1024 * 1024 + 1];
+        MockMultipartFile file = new MockMultipartFile("file", "big.png", "image/png", oversized);
+
+        assertThatThrownBy(() -> mediaAssetService.uploadImage(file, "GENERAL", null))
+            .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                assertThat(exception.getStatus()).isEqualTo(413);
+                assertThat(exception.getCode()).isEqualTo(ErrorCodes.MEDIA_FILE_TOO_LARGE);
+            })
+            .hasMessageContaining("1 MB");
+        // The oversized bytes were rejected before any persistence work.
+        verify(mediaAssetRepository, never()).saveAndFlush(any());
+        verify(mediaAssetRepository, never()).countByUploaderIdAndCreatedAtAfter(any(), any());
+    }
+
+    /** P7 H-01: an uploader who exhausted the rolling daily quota is refused before any row is written. */
+    @Test
+    void uploadImage_blocksUploadWhenDailyQuotaIsExhausted() {
+        com.healthcare.user.entity.User entity = entityUser("patient@healthcare.local");
+        when(userRepository.findByEmail("patient@healthcare.local")).thenReturn(Optional.of(entity));
+        when(mediaAssetRepository.countByUploaderIdAndCreatedAtAfter(eq(entity.getId()), any()))
+            .thenReturn(20L);
+
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "avatar.png", "image/png",
+            new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0});
+
+        assertThatThrownBy(() -> mediaAssetService.uploadImage(file, "PATIENT_AVATAR", principal("patient@healthcare.local", "PATIENT")))
+            .isInstanceOfSatisfying(BusinessException.class, exception -> {
+                assertThat(exception.getStatus()).isEqualTo(429);
+                assertThat(exception.getCode()).isEqualTo(ErrorCodes.MEDIA_UPLOAD_QUOTA_EXCEEDED);
+            })
+            .hasMessageContaining("24 giờ");
+        verify(mediaAssetRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void uploadImage_allowsUploadBelowDailyQuota() throws Exception {
+        com.healthcare.user.entity.User entity = entityUser("patient@healthcare.local");
+        when(userRepository.findByEmail("patient@healthcare.local")).thenReturn(Optional.of(entity));
+        when(mediaAssetRepository.countByUploaderIdAndCreatedAtAfter(eq(entity.getId()), any()))
+            .thenReturn(19L);
+        UUID assetId = UUID.randomUUID();
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
+            MediaAsset asset = invocation.getArgument(0);
+            asset.setId(assetId);
+            return asset;
+        });
+
+        byte[] pngBytes = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", pngBytes);
+
+        MediaAssetResponse response =
+            mediaAssetService.uploadImage(file, "PATIENT_AVATAR", principal("patient@healthcare.local", "PATIENT"));
+
+        assertThat(response.id()).isEqualTo(assetId);
+        verify(mediaAssetRepository).saveAndFlush(any(MediaAsset.class));
     }
 }

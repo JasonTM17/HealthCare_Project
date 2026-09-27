@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
@@ -309,5 +310,74 @@ class AiServiceTest {
         ReflectionTestUtils.setField(aiService, "ragIngestEnabled", true);
         ReflectionTestUtils.setField(aiService, "ragIngestToken", "");
         assertThat(aiService.isRagIngestConfigured()).isFalse();
+    }
+
+    /**
+     * A 4xx/5xx upstream answer must be diagnosable from the Spring log alone:
+     * the WARN carries the status, the path and a body snippet, which is what
+     * distinguishes a /rag/index route miss from a /chat circuit rejection.
+     */
+    @Test
+    void upstreamErrorBodyIsLoggedTruncatedForDiagnosis() {
+        ch.qos.logback.classic.Logger logger =
+            (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AiService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+            new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            server.expect(requestTo("http://ai.test/search"))
+                .andRespond(withStatus(NOT_FOUND)
+                    .body("{\"detail\":\"RAG index route missing\"}")
+                    .contentType(MediaType.APPLICATION_JSON));
+
+            assertThatThrownBy(() -> aiService.search("headache", 2))
+                .isInstanceOfSatisfying(ResponseStatusException.class, exception ->
+                    assertThat(exception.getStatusCode()).isEqualTo(BAD_GATEWAY));
+
+            assertThat(appender.list).anySatisfy(event -> {
+                assertThat(event.getLevel()).isEqualTo(ch.qos.logback.classic.Level.WARN);
+                String formatted = event.getFormattedMessage();
+                assertThat(formatted).contains("404");
+                assertThat(formatted).contains("/search");
+                assertThat(formatted).contains("RAG index route missing");
+            });
+            server.verify();
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    /** The snippet is bounded (500 chars) and flattened onto a single log line. */
+    @Test
+    void upstreamErrorBodySnippetIsTruncatedAndLogSafe() {
+        ch.qos.logback.classic.Logger logger =
+            (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AiService.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender =
+            new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            String body = "{\"detail\":\"" + "A".repeat(600) + "TAIL_MARK\\nFAKE-ERROR-LINE\"}";
+            server.expect(requestTo("http://ai.test/search"))
+                .andRespond(withStatus(BAD_GATEWAY)
+                    .body(body)
+                    .contentType(MediaType.APPLICATION_JSON));
+
+            assertThatThrownBy(() -> aiService.search("headache", 2))
+                .isInstanceOf(ResponseStatusException.class);
+
+            assertThat(appender.list).anySatisfy(event -> {
+                String formatted = event.getFormattedMessage();
+                assertThat(formatted).contains("truncated");
+                // Hard limit keeps the snippet bounded; the tail never leaks.
+                assertThat(formatted).doesNotContain("TAIL_MARK");
+                // Control characters are flattened: no forged second log line.
+                assertThat(formatted).doesNotContain("\n");
+            });
+            server.verify();
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }
