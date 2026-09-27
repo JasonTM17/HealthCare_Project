@@ -796,6 +796,7 @@ export default function DoctorDashboardPage() {
             <div>
               <label htmlFor="daily-appointment-date">Ngày xem lịch</label>
               <input id="daily-appointment-date" onChange={(event) => changeScheduleAnchor(() => setDailyDate(event.target.value))} required type="date" value={dailyDate} />
+              <small className="text-xs text-slate-500">Định dạng ngày/tháng/năm</small>
             </div>
             <div>
               <label htmlFor="daily-appointment-status">Trạng thái</label>
@@ -905,7 +906,7 @@ export default function DoctorDashboardPage() {
                 <label>Kế hoạch điều trị<textarea maxLength={3000} onChange={(event) => updateClinicalForm("treatmentPlan", event.target.value)} value={clinicalForm.treatmentPlan} /></label>
                 <label>Ghi chú bác sĩ<textarea maxLength={2000} onChange={(event) => updateClinicalForm("doctorNotes", event.target.value)} value={clinicalForm.doctorNotes} /></label>
               </div>
-              <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} placeholder="dd/mm/yyyy" type="date" value={clinicalForm.followUpDate} /></label>
+              <label>Ngày tái khám<input onChange={(event) => updateClinicalForm("followUpDate", event.target.value)} placeholder="dd/mm/yyyy" type="date" value={clinicalForm.followUpDate} /><small className="text-xs text-slate-500">Định dạng ngày/tháng/năm</small></label>
               <fieldset className="portal-clinical-form__fieldset">
                 <legend>Kê đơn thuốc (tuỳ chọn, nhiều dòng)</legend>
                 {clinicalForm.prescriptionItems.map((item, itemIndex) => (
@@ -1042,12 +1043,18 @@ export default function DoctorDashboardPage() {
                 <p className="portal-panel__intro"><strong>Bước 2 — Công bố kết quả:</strong> chọn một chỉ định đang mở ở trên.</p>
                 <div className="portal-clinical-form__grid">
                   <label>Tên xét nghiệm *<input maxLength={200} onChange={(event) => setDiagnosticName(event.target.value)} required value={diagnosticName} /></label>
-                  <label>Ngày thực hiện<input max={getTodayIsoDate()} onChange={(event) => setDiagnosticDate(event.target.value)} required type="date" value={diagnosticDate} /></label>
+                  <label>Ngày thực hiện<input max={getTodayIsoDate()} onChange={(event) => setDiagnosticDate(event.target.value)} required type="date" value={diagnosticDate} /><small className="text-xs text-slate-500">Định dạng ngày/tháng/năm</small></label>
                   <label>Giờ thực hiện<input onChange={(event) => setDiagnosticTime(event.target.value)} type="time" value={diagnosticTime} /></label>
                 </div>
                 <p className="portal-handoff-note">Chỉ có thể công bố kết quả cho bệnh nhân đang có lịch khám hôm nay với bạn (đã xác nhận, đã tiếp nhận hoặc đang khám) và phải chọn một chỉ định đang mở.</p>
                 <label>Kết quả<textarea maxLength={4000} onChange={(event) => setDiagnosticValue(event.target.value)} value={diagnosticValue} /></label>
-                <label>Tệp đính kèm (tuỳ chọn)<input accept="application/pdf,image/jpeg,image/png" onChange={(event) => setDiagnosticFile(event.target.files?.[0] ?? null)} type="file" /></label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="outline-button outline-button--small inline-flex min-h-11 cursor-pointer items-center justify-center" htmlFor="diagnostic-attachment">
+                    Chọn tệp đính kèm (PDF/JPG/PNG, tuỳ chọn)
+                    <input id="diagnostic-attachment" accept="application/pdf,image/jpeg,image/png" className="sr-only" onChange={(event) => setDiagnosticFile(event.target.files?.[0] ?? null)} type="file" />
+                  </label>
+                  <span className="text-sm text-slate-600">{diagnosticFile ? diagnosticFile.name : "Chưa chọn tệp"}</span>
+                </div>
                 {diagnosticNotice ? <p aria-live="polite" className="portal-inline-success" role="status">{diagnosticNotice}</p> : null}
                 <button className="button button--primary" disabled={diagnosticOperation === "saving" || !selectedOrderId} type="submit" title={selectedOrderId ? undefined : "Hãy chọn một chỉ định đang mở"}>{diagnosticOperation === "saving" ? "Đang công bố…" : "Công bố kết quả"}</button>
               </form>

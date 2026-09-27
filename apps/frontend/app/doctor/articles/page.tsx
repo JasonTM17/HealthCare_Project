@@ -454,7 +454,7 @@ export default function DoctorArticlesPage() {
                 <UiIcon name="book-open" size={15} />
                 <span>Bảng tin Y khoa Bệnh viện</span>
                 <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
-                  {communityArticles.length}
+                  {loading ? "--" : communityArticles.length}
                 </span>
               </button>
 
@@ -470,7 +470,7 @@ export default function DoctorArticlesPage() {
                 <UiIcon name="stethoscope" size={15} />
                 <span>Bài viết của tôi</span>
                 <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
-                  {myArticles.length}
+                  {loading ? "--" : myArticles.length}
                 </span>
               </button>
             </div>

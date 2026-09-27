@@ -123,7 +123,7 @@ export default function AdminAppointmentsPage() {
       </header>
 
       <form aria-busy={loading} className="mt-6 grid gap-3 border-b border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_auto]" onSubmit={applyFilters}>
-        <label className="text-sm font-semibold">Ngày khám<input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} type="date" value={draftFilters.date} /></label>
+        <label className="text-sm font-semibold">Ngày khám<input className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} type="date" value={draftFilters.date} /><span className="mt-1 block text-xs font-normal text-slate-500">Định dạng ngày/tháng/năm</span></label>
         <label className="text-sm font-semibold">Trạng thái<select className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))} value={draftFilters.status}><option value="">Tất cả trạng thái</option>{STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <div className="flex flex-wrap items-end gap-2">
           <button className="rounded-lg bg-teal-700 px-5 text-sm font-bold text-white disabled:opacity-50" disabled={loading} type="submit">Áp dụng</button>
@@ -131,7 +131,7 @@ export default function AdminAppointmentsPage() {
         </div>
       </form>
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">Tổng cộng <strong>{total.toLocaleString("vi-VN")}</strong> lịch hẹn</p><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">Tổng cộng <strong>{loading ? "--" : total.toLocaleString("vi-VN")}</strong> lịch hẹn</p><button className="text-sm font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={loading} onClick={() => void load()} type="button">Làm mới</button></div>
       {cancelNotice ? <div className="mt-4"><AdminState description={cancelNotice} title="Đã hủy lịch hẹn" tone="success" /></div> : null}
       {loading ? <div className="mt-4"><AdminState tone="loading" title="Đang tải lịch hẹn" description="Danh sách vận hành đang được cập nhật." /></div> : null}
       {!loading && error ? <div className="mt-4"><AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} tone="error" title="Không thể tải lịch hẹn" description={error} /></div> : null}
