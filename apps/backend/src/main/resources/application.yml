@@ -119,6 +119,15 @@ app:
       enabled: ${APP_NOTIFICATION_EMAIL_ENABLED:false}
       poll-ms: ${APP_NOTIFICATION_EMAIL_POLL_MS:60000}
       batch-size: ${APP_NOTIFICATION_EMAIL_BATCH_SIZE:100}
+  self-warmer:
+    # Render Free evicts an idle instance; the external GitHub Actions cron
+    # proved unreliable (observed 2-6 h gaps), so cold starts of 26-42 s kept
+    # hitting the first request of every burst. SelfWarmer pings this
+    # instance's /actuator/health and the ai-service's /livez instead. Disable
+    # where the platform already guarantees warmth (local dev, paid plans):
+    # APP_SELF_WARMER_ENABLED=false.
+    enabled: ${APP_SELF_WARMER_ENABLED:true}
+    interval-ms: ${APP_SELF_WARMER_INTERVAL_MS:240000}
   security:
     bff:
       # Shared only between the Next.js server and Spring. Leave blank for
