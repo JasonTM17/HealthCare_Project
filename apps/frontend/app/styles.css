@@ -5321,6 +5321,14 @@ main {
   .portal-grid > .portal-panel { margin-bottom: 0; }
   .portal-grid > .portal-panel--span-7 { grid-column: span 7; }
   .portal-grid > .portal-panel--span-5 { grid-column: span 5; }
+
+  /* --main is the two-equal-columns content grid. Without this re-assert the
+     12-column rule above (same specificity, later in the sheet) wins and each
+     child without an explicit span collapses into a single 1/12 track, which
+     stacked list panels vertically one character per line. */
+  .portal-grid--main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .portal-panel--secondary {
@@ -5335,6 +5343,12 @@ main {
   margin-bottom: var(--sp-4);
   padding-bottom: var(--sp-4);
   border-bottom: 1px solid var(--portal-line);
+}
+
+/* Long, unbreakable titles must shrink inside the heading flex row instead of
+   forcing the panel wider than its grid column. */
+.portal-panel__heading > div {
+  min-width: 0;
 }
 
 .portal-panel__heading h2 {
