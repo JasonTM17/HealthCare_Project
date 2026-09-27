@@ -2,6 +2,7 @@ package com.healthcare.infrastructure;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -38,6 +39,9 @@ public class SelfWarmer {
     private final String aiServiceUrl;
     private final RestTemplate restTemplate;
 
+    // Multiple constructors exist (the package-private one is for tests), so
+    // the injection target must be marked explicitly.
+    @Autowired
     public SelfWarmer(
             @Value("${server.port:10000}") int serverPort,
             @Value("${ai.service.url:http://localhost:8000}") String aiServiceUrl) {
