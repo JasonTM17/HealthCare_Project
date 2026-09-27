@@ -359,7 +359,7 @@ function PatientChatPageContent() {
   const loadThread = useCallback(async (
     conversationId: string,
     options: { background?: boolean } = {},
-  ): Promise<void> => {
+  ): Promise<AiChatMessage[] | undefined> => {
     const requestId = ++threadRequestRef.current;
     const controller = new AbortController();
     if (!options.background) {
@@ -397,12 +397,14 @@ function PatientChatPageContent() {
       setNextCursor(page.nextCursor ?? null);
       setHasMoreMessages(page.hasMore);
       setConversations((current) => current.map((item) => item.id === conversation.id ? conversation : item));
+      return page.content;
     } catch (error) {
-      if (isAbortError(error)) return;
-      if (requestId !== threadRequestRef.current || activeIdRef.current !== conversationId) return;
+      if (isAbortError(error)) return undefined;
+      if (requestId !== threadRequestRef.current || activeIdRef.current !== conversationId) return undefined;
       const failure = toFailure(error);
       handleUnauthorized(failure);
       setThreadFailure(failure);
+      return undefined;
     } finally {
       if (requestId === threadRequestRef.current) setThreadLoading(false);
       if (requestControllerRef.current === controller) requestControllerRef.current = null;
@@ -756,11 +758,21 @@ function PatientChatPageContent() {
       const failure = toFailure(error);
       handleUnauthorized(failure);
       setSendFailure(failure);
-      await Promise.allSettled([
+      const outcomes = await Promise.allSettled([
         loadThread(conversationId, { background: true }),
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
         refreshCredit(),
       ]);
+      // The backend persists the user message before the assistant stage runs.
+      // When the stream dies mid-exchange the question is already on the
+      // server (and visible after the reload above), so keeping it in the
+      // composer only invites a duplicate send. If nothing was persisted the
+      // dispatch failed and the draft stays for the user to retry.
+      const reloaded = outcomes[0].status === "fulfilled" ? outcomes[0].value : undefined;
+      const dispatched = (reloaded ?? []).some(
+        (message) => message.role === "USER" && message.content.trim() === normalizedContent,
+      );
+      if (options.clearDraftOnSuccess && dispatched) setDraft("");
     } finally {
       if (isCurrentSendRequest()) {
         sendInFlightRef.current = false;

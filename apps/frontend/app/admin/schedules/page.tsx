@@ -491,8 +491,8 @@ export default function AdminSchedulesPage() {
                 <label className="text-sm font-semibold">Phút mỗi lượt<input className={inputClass} disabled={busy} min="1" onChange={(event) => setForm({ ...form, slotDurationMinutes: event.target.value })} required type="number" value={form.slotDurationMinutes} /></label>
                 <label className="text-sm font-semibold">Bắt đầu<input className={inputClass} disabled={busy} onChange={(event) => setForm({ ...form, startTime: event.target.value })} required type="time" value={form.startTime} /></label>
                 <label className="text-sm font-semibold">Kết thúc<input className={inputClass} disabled={busy} onChange={(event) => setForm({ ...form, endTime: event.target.value })} required type="time" value={form.endTime} /></label>
-                <label className="text-sm font-semibold">Hiệu lực từ<input className={inputClass} disabled={busy} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} required type="date" value={form.effectiveFrom} /></label>
-                <label className="text-sm font-semibold">Hiệu lực đến<input className={inputClass} disabled={busy} min={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveTo: event.target.value })} type="date" value={form.effectiveTo} /></label>
+                <label className="text-sm font-semibold">Hiệu lực từ<input className={inputClass} disabled={busy} onChange={(event) => setForm({ ...form, effectiveFrom: event.target.value })} required type="date" value={form.effectiveFrom} /><span className="mt-1 block text-xs font-normal text-slate-500">Định dạng ngày/tháng/năm</span></label>
+                <label className="text-sm font-semibold">Hiệu lực đến<input className={inputClass} disabled={busy} min={form.effectiveFrom} onChange={(event) => setForm({ ...form, effectiveTo: event.target.value })} type="date" value={form.effectiveTo} /><span className="mt-1 block text-xs font-normal text-slate-500">Định dạng ngày/tháng/năm</span></label>
                 <label className="flex items-center gap-2 text-sm font-semibold sm:col-span-2">
                   <input checked={form.active} disabled={busy} onChange={(event) => setForm({ ...form, active: event.target.checked })} type="checkbox" />
                   Đang mở lịch đặt khám
@@ -573,6 +573,7 @@ export default function AdminSchedulesPage() {
                     <label className="text-sm font-semibold">
                       Tuần từ ngày
                       <input className={inputClass} onChange={(event) => setWeekStart(event.target.value || businessDate())} type="date" value={weekStart} />
+                      <span className="mt-1 block text-xs font-normal text-slate-500">Định dạng ngày/tháng/năm</span>
                     </label>
                     <button className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => setWeekStart((current) => addDays(current, -7))} type="button">Tuần trước</button>
                     <button className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold" onClick={() => setWeekStart((current) => addDays(current, 7))} type="button">Tuần sau</button>
@@ -729,7 +730,7 @@ export default function AdminSchedulesPage() {
                     </p>
                   ) : null}
                 </div>
-                <label className="text-sm font-semibold">Ngày<input className={inputClass} disabled={busy} onChange={(event) => setExceptionForm({ ...exceptionForm, exceptionDate: event.target.value })} required type="date" value={exceptionForm.exceptionDate} /></label>
+                <label className="text-sm font-semibold">Ngày<input className={inputClass} disabled={busy} onChange={(event) => setExceptionForm({ ...exceptionForm, exceptionDate: event.target.value })} required type="date" value={exceptionForm.exceptionDate} /><span className="mt-1 block text-xs font-normal text-slate-500">Định dạng ngày/tháng/năm</span></label>
                 <label className="text-sm font-semibold">
                   Loại
                   <select className={inputClass} disabled={busy} onChange={(event) => setExceptionForm({ ...exceptionForm, type: event.target.value as typeof exceptionForm.type })} value={exceptionForm.type}>
