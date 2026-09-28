@@ -400,7 +400,10 @@ _REMOTE_OUTPUT_FORBIDDEN_PATTERN = re.compile(
     r"\b(?:chan\s+doan\s+la|diagnosed\s+as|i\s+diagnose|ke\s+don|ke\s+toa|boc\s+thuoc|prescribe|"
     r"prescription|lieu\s+thuoc|dosage|ngung\s+thuoc|stop\s+medication|"
     r"change\s+your\s+medication)\b|"
-    r"\b(?:(?:ban\s+nen|hay)\s+(?:uong|dung|su\s+dung)|you\s+should\s+(?:take|use))\b|"
+    r"\b(?:ban\s+nen|hay|nen)\s+(?:uong|dung|su\s+dung)\s+"
+r"(?:thuoc\b|aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|"
+r"antibiotic|khang\s+sinh)|"
+r"\byou\s+should\s+(?:take|use)\b|"
     r"\b(?:uong|dung|su\s+dung|take|use)\s+(?:thuoc\s+)?(?:aspirin|paracetamol|"
     r"acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b|"
     # A bare named drug followed by a strength is a prescription even when no
