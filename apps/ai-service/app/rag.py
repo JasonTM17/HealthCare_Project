@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import logging
 import math
 import re
 from dataclasses import dataclass, field
@@ -17,6 +18,8 @@ from threading import RLock
 from typing import Callable, Collection, List, Mapping, Optional, Protocol
 
 from app.schemas import MAX_EMBEDDING_DIMENSION, ProviderProvenance, SOURCE_TYPES
+
+log = logging.getLogger(__name__)
 
 
 MAX_DOCUMENT_CHARS = 20_000
@@ -541,9 +544,24 @@ class RagService:
                     ):
                         authoritative_state = ("TOMBSTONE", projection)
                     if authoritative_state != incoming_state:
-                        raise ValueError(
-                            "equal-revision projection update must be idempotent"
-                        )
+                        if projection == "OPERATIONAL":
+                            # Branch catalog sync replays the same sync revision
+                            # when volatile metadata changed between the stored
+                            # snapshot and the replay (flag flips, scheduling
+                            # fields). The stored authoritative document wins —
+                            # the replay is a no-op, never a blocked scheduler.
+                            log.warning(
+                                "equal-revision OPERATIONAL drift source=%s/%s "
+                                "stored=%s incoming=%s — keeping stored",
+                                source_type,
+                                source_id,
+                                authoritative_state,
+                                incoming_state,
+                            )
+                        else:
+                            raise ValueError(
+                                "equal-revision projection update must be idempotent"
+                            )
                     if existing is not None:
                         return existing
                     # An exact replay of an inactive projection stays
