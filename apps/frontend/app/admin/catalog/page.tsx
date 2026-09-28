@@ -414,6 +414,8 @@ export default function AdminCatalogPage() {
   const [faqs, setFaqs] = useState<Faq[]>([]);
   const [articles, setArticles] = useState<AdminArticle[]>([]);
   const [articleSearchQuery, setArticleSearchQuery] = useState("");
+  const [articlePage, setArticlePage] = useState(0);
+  const ARTICLE_PAGE_SIZE = 25;
   const [packageForm, setPackageForm] = useState<PackageForm>(emptyPackageForm);
   const [faqForm, setFaqForm] = useState<FaqForm>(emptyFaqForm);
   const [articleForm, setArticleForm] = useState<ArticleForm>(emptyArticleForm);
@@ -905,6 +907,23 @@ export default function AdminCatalogPage() {
       setEditingArticle(null);
     }
   };
+
+  const filteredArticles = articles.filter((item) => {
+    if (!articleSearchQuery.trim()) return true;
+    const q = articleSearchQuery.toLowerCase();
+    return (
+      item.title.toLowerCase().includes(q) ||
+      (item.category && item.category.toLowerCase().includes(q)) ||
+      item.slug.toLowerCase().includes(q) ||
+      (item.authorName && item.authorName.toLowerCase().includes(q))
+    );
+  });
+  const articlePageCount = Math.max(1, Math.ceil(filteredArticles.length / ARTICLE_PAGE_SIZE));
+  const safeArticlePage = Math.min(articlePage, articlePageCount - 1);
+  const pagedArticles = filteredArticles.slice(
+    safeArticlePage * ARTICLE_PAGE_SIZE,
+    (safeArticlePage + 1) * ARTICLE_PAGE_SIZE,
+  );
 
   return (
     <div>
@@ -1646,16 +1665,7 @@ export default function AdminCatalogPage() {
                     Danh sách bài viết y khoa ({articles.length})
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Hiển thị {articles.filter((item) => {
-                      if (!articleSearchQuery.trim()) return true;
-                      const q = articleSearchQuery.toLowerCase();
-                      return (
-                        item.title.toLowerCase().includes(q) ||
-                        (item.category && item.category.toLowerCase().includes(q)) ||
-                        item.slug.toLowerCase().includes(q) ||
-                        (item.authorName && item.authorName.toLowerCase().includes(q))
-                      );
-                    }).length} / {articles.length} bài viết
+                    Hiển thị {filteredArticles.length} / {articles.length} bài viết
                   </p>
                 </div>
                 <div className="w-full sm:w-72">
@@ -1663,40 +1673,24 @@ export default function AdminCatalogPage() {
                     className={inputClass}
                     placeholder="Tìm theo tiêu đề, danh mục, tác giả..."
                     value={articleSearchQuery}
-                    onChange={(e) => setArticleSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setArticleSearchQuery(e.target.value);
+                      setArticlePage(0);
+                    }}
                   />
                 </div>
               </div>
             </div>
 
             <div className="mt-2 space-y-2">
-              {articles.filter((item) => {
-                if (!articleSearchQuery.trim()) return true;
-                const q = articleSearchQuery.toLowerCase();
-                return (
-                  item.title.toLowerCase().includes(q) ||
-                  (item.category && item.category.toLowerCase().includes(q)) ||
-                  item.slug.toLowerCase().includes(q) ||
-                  (item.authorName && item.authorName.toLowerCase().includes(q))
-                );
-              }).length === 0 ? (
+              {filteredArticles.length === 0 ? (
                 <AdminState
                   description={articleSearchQuery ? "Không có bài viết nào khớp với từ khóa tìm kiếm." : "Tạo bài viết đầu tiên để bắt đầu thư viện nội dung."}
                   title={articleSearchQuery ? "Không tìm thấy bài viết" : "Chưa có bài viết"}
                   tone="empty"
                 />
               ) : null}
-              {articles
-                .filter((item) => {
-                  if (!articleSearchQuery.trim()) return true;
-                  const q = articleSearchQuery.toLowerCase();
-                  return (
-                    item.title.toLowerCase().includes(q) ||
-                    (item.category && item.category.toLowerCase().includes(q)) ||
-                    item.slug.toLowerCase().includes(q) ||
-                    (item.authorName && item.authorName.toLowerCase().includes(q))
-                  );
-                })
+              {pagedArticles
                 .map((item) => {
                 const active = item.active ?? Boolean(item.publishedAt);
                 const isDoctorSubmission = Boolean(item.authorDoctorId);
@@ -1828,6 +1822,31 @@ export default function AdminCatalogPage() {
                   </div>
                 );
               })}
+              {articlePageCount > 1 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                  <p className="text-xs text-slate-500">
+                    Trang {safeArticlePage + 1} / {articlePageCount} · {ARTICLE_PAGE_SIZE} bài mỗi trang
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      className="rounded-sm border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40"
+                      disabled={safeArticlePage === 0 || busy}
+                      onClick={() => setArticlePage(safeArticlePage - 1)}
+                      type="button"
+                    >
+                      ← Trang trước
+                    </button>
+                    <button
+                      className="rounded-sm border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-40"
+                      disabled={safeArticlePage >= articlePageCount - 1 || busy}
+                      onClick={() => setArticlePage(safeArticlePage + 1)}
+                      type="button"
+                    >
+                      Trang sau →
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </Panel>
           </div>
