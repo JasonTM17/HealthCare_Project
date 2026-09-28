@@ -189,6 +189,11 @@ public class PublicAiChatController {
                 if (fallback != null) return ResponseEntity.ok(fallback);
                 fallback = publicAiUnavailableFallback(userMessage, publicMode);
                 if (fallback != null) return ResponseEntity.ok(fallback);
+                // A provider outage must not dead-end a safe hospital-support
+                // question: server-owned navigation copy keeps the assistant
+                // responsive without trusting any unverified model output.
+                fallback = publicNavigationCopy(userMessage, publicMode, "public_ai_degraded_navigation");
+                if (fallback != null) return ResponseEntity.ok(fallback);
             }
             throw ex;
         }
