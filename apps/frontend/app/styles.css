@@ -6114,9 +6114,22 @@ main {
   margin: 0;
   color: var(--color-teal-950);
   font-family: var(--font-display);
-  font-size: 2.5rem;
+  font-size: 2.6rem;
   letter-spacing: 0;
   line-height: 1.08;
+}
+
+.auth-card .section-note {
+  display: inline-block;
+  margin-bottom: var(--sp-2);
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: rgba(7, 95, 94, 0.08);
+  color: var(--color-teal-700);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .auth-card__intro,
@@ -6138,7 +6151,7 @@ main {
 
 .auth-form {
   display: grid;
-  gap: var(--sp-4);
+  gap: var(--sp-5);
 }
 
 .auth-form__field {
@@ -6146,18 +6159,61 @@ main {
   gap: var(--sp-2);
 }
 
+/* Taller, clearer inputs across all auth forms: the previous 44px height and
+   thin borders made fields hard to discover on the registration and login
+   pages. 56px with a stronger border and a visible focus ring reads
+   immediately as "fill me in". */
+.auth-form input[type="text"],
+.auth-form input[type="email"],
+.auth-form input[type="password"],
+.auth-form input[type="tel"] {
+  min-height: 56px;
+  padding: 0 var(--sp-4);
+  border: 2px solid #cbd5d1;
+  border-radius: 4px;
+  font-size: 1rem;
+  background: #fafcfc;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.auth-form input[type="text"]:focus,
+.auth-form input[type="email"]:focus,
+.auth-form input[type="password"]:focus,
+.auth-form input[type="tel"]:focus {
+  border-color: var(--color-teal-700);
+  box-shadow: 0 0 0 4px rgba(7, 95, 94, 0.12);
+  outline: none;
+  background: #ffffff;
+}
+
+.auth-form input::placeholder {
+  color: #94a3a8;
+}
+
+.auth-form label {
+  color: var(--color-teal-950);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .auth-form__error {
   margin: 0;
   padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--radius-sm);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 4px;
   background: oklch(96% 0.04 25);
   color: var(--color-red);
-  font-size: 0.875rem;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .auth-form__submit {
   width: 100%;
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-3);
+  min-height: 56px;
+  border-radius: 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
 }
 
 /* Keep identity and account controls together, then give navigation a calm,
