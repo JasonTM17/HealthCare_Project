@@ -56,7 +56,7 @@ test("booking progress remains named and keyboard reachable when it scrolls", as
   const source = await read("components/BookingModal.tsx");
 
   assert.match(source, /aria-label="Tiến trình đặt lịch, có thể cuộn ngang"/);
-  assert.match(source, /className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900"/);
+  assert.match(source, /className="flex items-center gap-3 overflow-x-auto text-sm font-semibold text-brand-900"/);
   assert.match(source, /role="region" tabIndex=\{0\}/);
 });
 
