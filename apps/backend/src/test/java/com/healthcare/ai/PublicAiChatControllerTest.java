@@ -175,7 +175,7 @@ class PublicAiChatControllerTest {
         ));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null))
             .getBody();
 
         // The unverified model text never reaches the browser, but a safe
@@ -296,7 +296,7 @@ class PublicAiChatControllerTest {
         ));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null))
             .getBody();
 
         assertThat(body)
@@ -873,7 +873,7 @@ class PublicAiChatControllerTest {
         ));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null))
             .getBody();
 
         assertThat(body)
@@ -1035,7 +1035,7 @@ class PublicAiChatControllerTest {
         ));
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -1123,7 +1123,7 @@ class PublicAiChatControllerTest {
         ));
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -1141,7 +1141,7 @@ class PublicAiChatControllerTest {
         ));
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -1160,7 +1160,7 @@ class PublicAiChatControllerTest {
         ));
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
