@@ -83,7 +83,7 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     assert "uvicorn app.main:app" in ai["startCommand"]
     ai_env = _env(ai)
     assert ai_env["AI_PROVIDER"]["value"] == "deepseek"
-    assert ai_env["AI_CHAT_MODEL"]["value"] == "deepseek-v4-flash"
+    assert ai_env["AI_CHAT_MODEL"]["value"] == "deepseek-flash"
     assert ai_env["AI_BASE_URL"]["value"] == "https://api.deepseek.com"
     assert ai_env["EMBEDDING_PROVIDER"]["value"] == "local"
     assert ai_env["RAG_STORAGE_BACKEND"]["value"] == "supabase"
