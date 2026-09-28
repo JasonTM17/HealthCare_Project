@@ -1307,9 +1307,13 @@ def public_chat_mode_for_query(query: str) -> ChatMode:
 def public_no_context_query_allowed(query: str) -> bool:
     """Return whether a public query is safe to answer without catalog facts.
 
-    Greetings and generic navigation guidance do not require a hospital-owned
-    fact.  Specific catalog questions do: if the RAG index is empty after a
-    restart, fail closed instead of allowing the provider to invent an answer.
+    General wellness guidance (nutrition, sleep, hygiene, prevention, safe
+    self-care) is general knowledge the constrained provider may answer; the
+    system prompt and the output grounding gates keep it free of hospital
+    operational facts.  Two classes stay denied: clinical education (which
+    requires the Spring two-step approved-source contract) and treatment,
+    diagnosis or medication asks that must never be answered from general
+    knowledge.
     """
 
     normalized = _normalize_sensitive_text(query).strip(" .,!?:;-")
@@ -1320,72 +1324,26 @@ def public_no_context_query_allowed(query: str) -> bool:
     # present in the question.
     if public_chat_mode_for_query(normalized) is ChatMode.HEALTH_EDUCATION:
         return False
-    if _PUBLIC_GREETING_PATTERN.fullmatch(normalized):
-        return True
+    # Treatment, diagnosis and medication asks belong behind the approved
+    # clinical source contract; general knowledge must not answer them.
     if re.search(
-        r"\bchuan\s+bi(?:\s+[a-z0-9]+){0,4}\s+truoc\s+khi\s+(?:di\s+)?kham\b",
+        r"\b(?:"
+        r"dieu\s+tri"
+        r"|chua\s+(?:benh|ung\s+thu|hoi)"
+        r"|benh\s+(?:gi|ly\s+gi|nao)"
+        r"|hoi\s+benh"
+        r"|mac\s+benh\s+gi"
+        r"|co\s+benh\s+khong"
+        r"|chan\s+doan"
+        r"|ke\s+don"
+        r"|lieu\s+thuoc"
+        r"|uong\s+thuoc\s+gi"
+        r"|thuoc\s+(?:gi|nao|loai\s+nao)"
+        r")\b",
         normalized,
     ):
-        return True
-    if re.search(
-        r"\b(?:ban|em|may|tro\s+ly|bot)\s+(?:la\s+ai|la\s+gi|ten\s+gi|co\s+the\s+lam\s+gi|giup\s+duoc\s+gi)\b",
-        normalized,
-    ):
-        return True
-    if re.search(
-        r"\b(?:la\s+ai|gioi\s+thieu(?:\s+ban\s+than)?|chuc\s+nang(?:\s+cua\s+ban)?|ai\s+do|tro\s+ly\s+la\s+ai)\b",
-        normalized,
-    ):
-        return True
-    return any(
-        phrase in normalized
-        for phrase in (
-            "ban la ai",
-            "em la ai",
-            "la ai",
-            "gioi thieu",
-            "chuc nang",
-            "giup gi",
-            "lam duoc gi",
-            "co the lam gi",
-            "can ho tro",
-            "chuan bi truoc khi di kham",
-            "dat lich",
-            "quy trinh dat lich",
-            "tim chuyen khoa",
-            "chuyen khoa nao",
-            "kham khoa nao",
-            "nen kham khoa nao",
-            "kham o dau",
-            "o dau",
-            "dia chi",
-            "gio lam viec",
-            "huong dan",
-            "lien he",
-            "dau dau",
-            "chong mat",
-            "dau bung",
-            "sot cao",
-            "bi sot",
-            "sot",
-            "met moi",
-            "trieu chung",
-            "tu van",
-            "kham benh",
-            "kham suc khoe",
-            "dich vu",
-            "bang gia",
-            "gia dich vu",
-            "goi kham",
-            "goi suc khoe",
-            "kham tong quat",
-            "cho toi hoi",
-            "toi muon hoi",
-            "can giup",
-            "giup toi",
-            "bac si",
-        )
-    )
+        return False
+    return True
 
 
 def _injection_detected(normalized: str) -> bool:
@@ -2698,18 +2656,22 @@ def resolve_chat(
     prompt = "\n".join([*conversation, f"user: {message}"])
     try:
         system_prompt = (
-            "Bạn là trợ lý thông tin sức khỏe, không phải bác sĩ. Không chẩn đoán, "
-            "không kê đơn, không khẳng định tình trạng bệnh. Trả JSON chỉ với khóa "
-            "answer, trong đó answer là câu trả lời tiếng Việt ngắn gọn. Không tạo URL, "
-            "mã bác sĩ, source_id hoặc citation; các nguồn tham khảo do hệ thống cung cấp."
+            "Bạn là trợ lý thông tin sức khỏe của bệnh viện, thân thiện và thận trọng, "
+            "không phải bác sĩ. Không chẩn đoán, không kê đơn, không khẳng định tình trạng "
+            "bệnh, không bình chọn bác sĩ hay cơ sở nào. Trả JSON chỉ với khóa answer. "
+            "Answer bằng tiếng Việt, tự nhiên, 3-6 câu ngắn (có thể dùng gạch đầu dòng), "
+            "theo cấu trúc: ghi nhận đúng câu hỏi → hướng dẫn chung an toàn → dấu hiệu "
+            "cảnh báo cần gặp bác sĩ → gợi ý bước tiếp theo phù hợp (theo dõi hoặc đặt "
+            "lịch khám khi cần). Không bịa URL, mã bác sĩ, source_id hay citation."
         )
         if public_support_chat and not context:
             system_prompt += (
-                " Không có nguồn catalog khớp với câu hỏi này. Chỉ đưa hướng dẫn "
-                "sức khỏe chung; tuyệt đối không nêu số điện thoại, giờ mở cửa, "
-                "địa chỉ, mức giá hay mã đặt lịch của HealthCare — đó là thông tin "
-                "bạn không có nguồn để xác nhận. Nếu người dùng cần thông tin cụ "
-                "thể đó, hãy mời họ xem các mục tương ứng trên website chính thức."
+                " Chưa có nguồn catalog khớp với câu hỏi này: chỉ đưa hướng dẫn sức khỏe "
+                "chung (sinh hoạt, dinh dưỡng, phòng ngừa, dấu hiệu cần thăm khám); tuyệt "
+                "đối không nêu số điện thoại, giờ mở cửa, địa chỉ, mức giá, tên bác sĩ hay "
+                "mã đặt lịch của HealthCare — đó là thông tin bạn không có nguồn để xác "
+                "nhận. Nếu người dùng cần thông tin cụ thể đó, mời họ xem các mục tương "
+                "ứng trên website chính thức của bệnh viện."
             )
         if cancellation is not None:
             cancellation.raise_if_cancelled()

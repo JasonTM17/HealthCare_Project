@@ -1038,6 +1038,14 @@ def test_public_specific_question_without_context_returns_guidance_fallback() ->
     assert public_no_context_query_allowed("Bạn là ai")
     assert public_no_context_query_allowed("Bạn có thể giúp gì cho tôi?")
     assert not public_no_context_query_allowed("Huyết học điều trị những bệnh gì?")
+    # General wellness and lifestyle guidance is safe general knowledge.
+    assert public_no_context_query_allowed("Uống nước chanh mỗi sáng có tốt không?")
+    assert public_no_context_query_allowed("Cảm cúm nên ăn gì cho nhanh khỏi?")
+    assert public_no_context_query_allowed("Ngủ bao nhiêu giờ mỗi ngày là đủ?")
+    # Treatment, diagnosis and medication asks stay behind the approved contract.
+    assert not public_no_context_query_allowed("Viêm họng uống thuốc gì?")
+    assert not public_no_context_query_allowed("Bệnh tiểu đường điều trị thế nào?")
+    assert not public_no_context_query_allowed("Cho hỏi thuốc nào tốt cho ho?")
 
     result = resolve_chat(
         "Huyết học điều trị những bệnh gì?",
