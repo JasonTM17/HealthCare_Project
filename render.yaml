@@ -97,7 +97,7 @@ services:
     region: singapore
     autoDeployTrigger: "off"
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:e897762b6bc5986b8198297b6bbf43a77d662b94574111941fa2b68638c13a2c
+      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:6fb7b71e3868287d2f7998856cf5c2772da65cca5d2f7c93bca71971fd22d09b
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
