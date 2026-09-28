@@ -460,19 +460,30 @@ public class PublicAiChatController {
                     ? "EMERGENCY" : "HUMAN_HANDOFF";
                 return publicSafetyFallback(userMessage, fallbackAction, publicMode);
             }
-            Map<String, Object> navigationFallback = publicNavigationFallback(
-                userMessage, publicMode, provenance);
-            if (navigationFallback != null) return navigationFallback;
-            Map<String, Object> sourceFallback = publicMissingVerifiedSourceFallback(userMessage, publicMode);
-            if (sourceFallback != null) return sourceFallback;
-            // A remote ANSWER with no verifiable citation must never reach the
-            // browser, but the request should still be answered: safe
-            // hospital-support intents get server-owned navigation copy, and
-            // only source-dependent intents fail closed.
-            Map<String, Object> uncitedFallback = publicNavigationCopy(
-                userMessage, publicMode, "public_uncited_remote_answer");
-            if (uncitedFallback != null) return uncitedFallback;
-            throw badGateway("AI answer is missing a verified public catalog source");
+            // A remote generic-guidance answer claims no catalog source. The
+            // provider-side gates already rejected prescribing, PII, injection
+            // and invented operational facts (phones, prices, hours, dates),
+            // and this method re-derived mode/provenance above — the citation
+            // requirement exists to verify catalog facts, and an answer that
+            // cites nothing makes none. Pass it through with the citation list
+            // empty instead of masking a real answer with navigation copy.
+            boolean uncitedRemoteGuidance = publicMode == ChatMode.HOSPITAL_SUPPORT
+                && "remote_provider".equals(provenance);
+            if (!uncitedRemoteGuidance) {
+                Map<String, Object> navigationFallback = publicNavigationFallback(
+                    userMessage, publicMode, provenance);
+                if (navigationFallback != null) return navigationFallback;
+                Map<String, Object> sourceFallback = publicMissingVerifiedSourceFallback(userMessage, publicMode);
+                if (sourceFallback != null) return sourceFallback;
+                // A remote ANSWER with no verifiable citation must never reach the
+                // browser, but the request should still be answered: safe
+                // hospital-support intents get server-owned navigation copy, and
+                // only source-dependent intents fail closed.
+                Map<String, Object> uncitedFallback = publicNavigationCopy(
+                    userMessage, publicMode, "public_uncited_remote_answer");
+                if (uncitedFallback != null) return uncitedFallback;
+                throw badGateway("AI answer is missing a verified public catalog source");
+            }
         }
         if ("INSUFFICIENT_EVIDENCE".equals(safetyAction)) {
             if (publicMode == ChatMode.HEALTH_EDUCATION) {

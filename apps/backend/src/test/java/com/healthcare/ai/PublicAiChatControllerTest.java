@@ -823,6 +823,33 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void passesUncitedRemoteGuidanceThroughInsteadOfMaskingIt() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Uống đủ nước, nghỉ ngơi và theo dõi triệu chứng; nếu sốt cao kéo dài hãy đi khám.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "remote_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cảm cúm nên ăn gì cho nhanh khỏi?", null))
+            .getBody();
+
+        // The provider answer claims no catalog source; every content gate
+        // has run, so masking it with navigation copy would discard a real
+        // answer the visitor asked for.
+        assertThat(body)
+            .containsEntry("provenance", "remote_provider")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("citations", List.of());
+        assertThat((String) body.get("answer")).contains("nghỉ ngơi");
+    }
+
+    @Test
     void answersGreetingInstantlyWithoutTheProvider() {
         AiService aiService = mock(AiService.class);
 

@@ -855,12 +855,19 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             routing_reason="high_similarity_internal_kb",
         )
     else:
+        # A public low-similarity escalation is the provider's general
+        # knowledge, not content from the retrieved rows. Citing those rows
+        # misattributes the answer, and Spring re-validates every public
+        # citation against its live catalog — rows that fail that check turn
+        # the whole answer into a 502. Public escalations therefore carry no
+        # citations; Spring's uncited-answer contract owns the response.
+        escalation_citations = citations if not request.public_support_chat else []
         response = resolve_chat(
             message,
             settings,
             recent_turns=turns,
             context=context,
-            citations=citations,
+            citations=escalation_citations,
             synthetic_beta=request.synthetic_beta,
             allow_public_operational=allow_public_op,
             public_support_chat=request.public_support_chat,
@@ -871,6 +878,7 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             response = response.model_copy(update={
                 "cost_tier": "remote_llm",
                 "routing_reason": routing_reason,
+                "citations": [] if request.public_support_chat else response.citations,
             })
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
     if final_provenance == "local_fallback":
