@@ -206,7 +206,7 @@ function publicAiChatFallbackResponse(message = ""): Response {
     {
       answer: emergency
         ? "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
-        : "Trợ lý chưa thể trả lời lúc này. Dưới đây là hướng dẫn tạm thời: bạn có thể thử lại sau hoặc tra cứu chuyên khoa, bác sĩ, gói khám và đặt lịch trực tiếp trên website.",
+        : "Tôi chưa có đủ thông tin đã xác thực để trả lời chính xác câu này. Bạn có thể thử: • Xem Chuyên khoa để chọn hướng khám • Đặt lịch khám trực tiếp • Gọi tổng đài 028 1800 0001 nếu cần hỗ trợ ngay.",
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
       provenance: "local_fallback",
@@ -218,6 +218,7 @@ function publicAiChatFallbackResponse(message = ""): Response {
             { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
             { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
             { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+            { kind: "CALL_HOTLINE", label: "Gọi 028 1800 0001", href: "tel:02818000001" },
           ],
     },
     {
@@ -1200,6 +1201,10 @@ export async function proxyHealthcareRequest(
       const prepareTarget = new URL(preparePath, `${runtime.backendOrigin}/`);
       const prepareHeaders = new Headers(headers);
       if (isStream) prepareHeaders.set(PRIVATE_CHAT_DELIVERY_HEADER, "chunked");
+      // Prepare returns JSON even when the browser asked for an SSE stream:
+      // forwarding the browser's Accept: text/event-stream made Spring's
+      // content negotiation reject the JSON body with 406.
+      prepareHeaders.set("Accept", "application/json");
       const prepareResponse = await (options.fetchImpl ?? fetch)(prepareTarget, {
         method: "POST",
         headers: prepareHeaders,
@@ -1264,6 +1269,8 @@ export async function proxyHealthcareRequest(
         }
         const commitHeaders = new Headers(headers);
         commitHeaders.set("Content-Type", "application/json");
+        // Commit also answers JSON; strip the browser's SSE Accept.
+        commitHeaders.set("Accept", "application/json");
         let commitResponse: Response;
         try {
           commitResponse = await (options.fetchImpl ?? fetch)(new URL(commitPath, `${runtime.backendOrigin}/`), {
