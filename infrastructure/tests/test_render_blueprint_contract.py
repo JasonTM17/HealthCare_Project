@@ -12,10 +12,10 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 861cc50345d4b4108d46eb2b7ae421edadca27ed. Update
+# release line, built from 8cb3fb48bc673e6e2e8d7edb8f650563e5b8dde8. Update
 # together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:e897762b6bc5986b8198297b6bbf43a77d662b94574111941fa2b68638c13a2c"
+    "sha256:6fb7b71e3868287d2f7998856cf5c2772da65cca5d2f7c93bca71971fd22d09b"
 )
 
 
