@@ -1336,19 +1336,19 @@ function BookingExperience({
 
         {/* Wizard Step Progress */}
         {!confirmedAppointment && (
-          <div className="booking-panel__progress border-b border-brand-100/60 bg-brand-50/70 px-6 py-3" aria-label="Tiến trình đặt lịch" role="group">
-            <div aria-label="Tiến trình đặt lịch, có thể cuộn ngang" className="flex items-center gap-2 overflow-x-auto text-xs font-semibold text-brand-900" role="region" tabIndex={0}>
+          <div className="booking-panel__progress border-b border-brand-100/60 bg-brand-50/70 px-6 py-4" aria-label="Tiến trình đặt lịch" role="group">
+            <div aria-label="Tiến trình đặt lịch, có thể cuộn ngang" className="flex items-center gap-3 overflow-x-auto text-sm font-semibold text-brand-900" role="region" tabIndex={0}>
               {BOOKING_STAGES.map((stage, index) => {
                 const current = stage.ids.includes(step);
                 const complete = stage.ids[stage.ids.length - 1] < step;
                 return (
                 <React.Fragment key={stage.title}>
-                  {index > 0 ? <span aria-hidden="true" className="text-brand-300">→</span> : null}
+                  {index > 0 ? <span aria-hidden="true" className="text-lg text-brand-300">→</span> : null}
                   <div
-                    className={`flex min-w-max items-center gap-1.5 ${current ? "font-bold text-brand-700" : complete ? "text-brand-500" : "text-gray-600"}`}
+                    className={`flex min-w-max items-center gap-2 px-2 py-1 ${current ? "bg-brand-700/10 font-bold text-brand-700" : complete ? "text-brand-500" : "text-gray-500"}`}
                     aria-current={current ? "step" : undefined}
                   >
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full ${current || complete ? "bg-brand-700 text-white" : "bg-gray-200 text-gray-500"}`}>
+                    <span className={`flex h-11 w-11 items-center justify-center rounded-full text-base font-bold ${current ? "bg-brand-700 text-white shadow-sm ring-4 ring-brand-700/20" : complete ? "bg-brand-500 text-white" : "bg-gray-200 text-gray-500"}`}>
                       {complete ? "✓" : index + 1}
                     </span>
                     <span>{stage.title}</span>
@@ -1405,7 +1405,7 @@ function BookingExperience({
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">01 · Nhu cầu khám</p>
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">01 · Nhu cầu khám</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {currentPackage
                     ? `Đặt lịch theo gói: ${currentPackage.name}`
@@ -1499,7 +1499,7 @@ function BookingExperience({
                   value={selectedSpecialty}
                   onChange={(e) => handleSpecialtyChange(e.target.value)}
                   disabled={isSubmitting}
-                  className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  className="w-full rounded-sm border-2 border-gray-300 bg-white py-3.5 px-4 text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10"
                 >
                   <option value="" disabled={!currentPackage}>{catalogLoading ? "Đang tải chuyên khoa…" : currentPackage ? "Tự động phân bổ theo gói khám" : "Chọn chuyên khoa cần khám"}</option>
                   {specialties.map((sp) => <option key={sp.id} value={sp.id}>{sp.name}</option>)}
@@ -1531,7 +1531,7 @@ function BookingExperience({
           {step === 2 && (
             <div className="space-y-5">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">02 · Cơ sở</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {isDesignatedDoctor && currentDoctor
                     ? `Chọn cơ sở khám cùng ${currentDoctor.fullName}`
@@ -1545,7 +1545,7 @@ function BookingExperience({
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-branch">Cơ sở bệnh viện / phòng khám</label>
-                <select id="booking-branch" name="branch" required value={selectedBranch} onChange={(e) => handleBranchChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600">
+                <select id="booking-branch" name="branch" required value={selectedBranch} onChange={(e) => handleBranchChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-sm border-2 border-gray-300 bg-white py-3.5 px-4 text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10">
                   {availableBranches.map((br) => <option key={br.id} value={br.id}>{br.name}</option>)}
                 </select>
               </div>
@@ -1567,7 +1567,7 @@ function BookingExperience({
           {step === 3 && (
             <div className="space-y-5">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">03 · Chuyên gia</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {isDesignatedDoctor && currentDoctor
                     ? `Xác nhận bác sĩ tiếp nhận: ${currentDoctor.fullName}`
@@ -1627,7 +1627,7 @@ function BookingExperience({
           {step === 4 && (
             <div className="space-y-5">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">04 · Ngày khám</p>
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">04 · Ngày khám</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {currentDoctor
                     ? `Chọn ngày khám cùng ${currentDoctor.fullName}`
@@ -1641,7 +1641,7 @@ function BookingExperience({
               </div>
               <div>
                 <label className="mb-1 block text-sm font-semibold text-gray-700" htmlFor="booking-date">Ngày khám mong muốn</label>
-                <input id="booking-date" name="appointment-date" type="date" required min={minimumAppointmentDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-600" />
+                <input id="booking-date" name="appointment-date" type="date" required min={minimumAppointmentDate} value={selectedDate} onChange={(e) => handleDateChange(e.target.value)} disabled={isSubmitting} className="w-full rounded-sm border-2 border-gray-300 bg-white py-3.5 px-4 text-sm text-gray-900 focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10" />
                 <p className="mt-1 text-xs text-gray-500">Định dạng ngày/tháng/năm</p>
               </div>
               <div className="rounded-sm border border-brand-100 bg-brand-50/60 p-4 text-xs text-brand-900">
@@ -1661,7 +1661,7 @@ function BookingExperience({
           {step === 5 && (
             <div className="space-y-5">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">05 · Khung giờ</p>
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">05 · Khung giờ</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>
                   {currentDoctor
                     ? `Chọn khung giờ khám cùng ${currentDoctor.fullName}`
@@ -1725,7 +1725,7 @@ function BookingExperience({
           {step === 6 && (
             <form onSubmit={handleHoldSlot} className="space-y-4">
               <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">06 · Thông tin bệnh nhân</p>
+                <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">06 · Thông tin bệnh nhân</p>
                 <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Thông tin người đến thăm khám</h3>
                 <p className="mt-1 text-sm leading-6 text-gray-600">Thông tin được mã hóa bảo mật chuẩn y tế, phục vụ công tác lập hồ sơ và chuẩn bị tiếp đón.</p>
               </div>
@@ -1900,7 +1900,7 @@ function BookingExperience({
               {!confirmedAppointment ? (
                 <form onSubmit={handleConfirmOtp} className="space-y-4 text-center py-2">
                   <div>
-                    <p className="mb-1 text-xs font-bold uppercase tracking-wider text-brand-700">07 · Xác nhận</p>
+                    <p className="mb-1 text-sm font-bold uppercase tracking-wider text-brand-700">07 · Xác nhận</p>
                     <h3 className="text-xl font-bold text-gray-900 focus-visible:outline-none" ref={stepHeadingRef} tabIndex={-1}>Xác nhận lịch hẹn bằng OTP</h3>
                   </div>
                   <div className="flex flex-wrap justify-center items-center gap-2 text-xs font-semibold">

@@ -2581,6 +2581,15 @@ def _public_fallback_requires_source(message: str) -> bool:
     )
 
 
+_PUBLIC_UNGROUNDED_GUIDANCE_ANSWER = (
+    "Cảm ơn bạn đã chia sẻ. Tôi chưa có thông tin đã xác thực về câu hỏi này "
+    "từ danh mục của bệnh viện, nên không thể trả lời chính xác ngay bây giờ. "
+    "Bạn có thể: (1) xem mục Chuyên khoa để chọn hướng khám phù hợp; "
+    "(2) chọn Đặt lịch khám để gặp bác sĩ trực tiếp; "
+    "(3) gọi hotline 028 1800 0001 nếu cần hỗ trợ gấp."
+)
+
+
 def resolve_chat(
     message: str,
     settings: Any,
@@ -2623,8 +2632,19 @@ def resolve_chat(
     if public_support_chat and public_remote_enabled and not context and not public_no_context_query_allowed(message):
         # A specific public question without an authorized source is not safe
         # to answer from the model's general knowledge.  This commonly occurs
-        # for a short period after the in-memory RAG service restarts.
-        raise ProviderUnavailable()
+        # for a short period after the in-memory RAG service restarts.  Fail
+        # safe instead of failing the request: return a canned guidance card
+        # that invents no hospital fact.  The hotline below is an approved
+        # public number that passes the egress gate (see
+        # _GATE_PUBLIC_HOSPITAL_HOTLINES_MUST_PASS).
+        return ChatResponse(
+            answer=_PUBLIC_UNGROUNDED_GUIDANCE_ANSWER,
+            provenance="local_fallback",
+            used_sources=list(used_sources),
+            safety_action=ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            cost_tier="local_free",
+            routing_reason="no_context_guidance_fallback",
+        )
     if public_support_chat and not public_remote_enabled:
         return ChatResponse(
             answer=fallback,
