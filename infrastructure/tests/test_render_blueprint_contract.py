@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # release line, built from 861cc50345d4b4108d46eb2b7ae421edadca27ed. Update
 # together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:f91269f3e60ff8fdcfa9efaa0f851dc383bd080b1992af291cbbf3cf7c9a61ea"
+    "sha256:e897762b6bc5986b8198297b6bbf43a77d662b94574111941fa2b68638c13a2c"
 )
 
 
