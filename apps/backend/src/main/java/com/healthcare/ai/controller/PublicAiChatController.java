@@ -168,7 +168,7 @@ public class PublicAiChatController {
                 return ResponseEntity.ok(runCancellableChat(servletRequest, cancellation ->
                     publicEducationChat(userMessage, recentTurns, cancellation)));
             } catch (CancellationException exception) {
-                throw cancelledRequest(exception);
+                throw cancelledRequest(servletRequest, exception);
             }
         }
         Map<String, Object> upstream;
