@@ -312,11 +312,27 @@ public class PublicAiChatController {
     }
 
     private ResponseStatusException cancellationStateUnavailable(IllegalStateException exception) {
+        // The wrapper message is constant, so the escaped cause's own message
+        // is what tells an operator which registry invariant rejected the
+        // request. Bounded and content-free (request ids only).
+        log.warn(
+            "Chat cancellation state rejected requestId={} detail={}",
+            RequestTrace.currentId(),
+            shortDetail(
+                exception.getCause() != null
+                    ? String.valueOf(exception.getCause())
+                    : exception.getMessage()));
         return new ResponseStatusException(
             SERVICE_UNAVAILABLE,
             "Shared chat cancellation state is unavailable",
             exception
         );
+    }
+
+    private static String shortDetail(String text) {
+        if (text == null) return "-";
+        String flat = text.replaceAll("\\s+", " ").trim();
+        return flat.length() > 200 ? flat.substring(0, 200) : flat;
     }
 
     /** Unauthenticated public chat with no authorized sources; see the four-argument overload. */

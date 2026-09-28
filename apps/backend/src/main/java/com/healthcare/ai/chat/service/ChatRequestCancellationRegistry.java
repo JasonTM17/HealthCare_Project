@@ -543,8 +543,9 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             active.remove(requestId, cancellation);
             throw exception;
         } catch (RuntimeException exception) {
-            active.remove(requestId, cancellation);
-            throw unavailable(exception);
+            // The shared store degraded after the registration itself; the
+            // request keeps its instance-local cancellation instead of dying.
+            logSharedStoreDegradation(exception);
         }
         return new Registration(cancellation, () -> active.remove(requestId, cancellation));
     }
