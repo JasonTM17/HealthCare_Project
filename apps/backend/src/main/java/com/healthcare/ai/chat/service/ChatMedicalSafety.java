@@ -17,9 +17,10 @@ public final class ChatMedicalSafety {
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
     private static final Pattern PROTECTED_INPUT_CUE = Pattern.compile(
-        "(?<![a-z0-9])(?:dau|dau\\s+(?:nguc|bung|dau)|kho\\s+tho|"
+        "(?<![a-z0-9])(?:(?<!o )(?:dau)|dau\\s+(?:nguc|bung)|kho\\s+tho|"
             + "sot|ngat|co\\s+giat|chay\\s+mau|tu\\s+tu|chan\\s+doan|ke\\s+don|"
-            + "thuoc|lieu\\s+thuoc|trieu\\s+chung|non|tieu\\s+chay|chong\\s+mat|"
+            + "thuoc(?!\\s+(?:khoa|co\\s+so|benh\\s+vien|thanh\\s+pho|he\\s+thong|bo\\s+phan|nhom))|"
+            + "lieu\\s+thuoc|trieu\\s+chung|non|tieu\\s+chay|chong\\s+mat|"
             + "mat\\s+ngu|bi\\s+ho|ho\\s+keo\\s+dai|cap\\s+cuu|"
             + "dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|"
             + "dotquy|taibien|capcuu|"
