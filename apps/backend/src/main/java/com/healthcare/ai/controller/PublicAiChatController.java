@@ -467,8 +467,12 @@ public class PublicAiChatController {
             // requirement exists to verify catalog facts, and an answer that
             // cites nothing makes none. Pass it through with the citation list
             // empty instead of masking a real answer with navigation copy.
+            // Only general wellness intent qualifies: preparation, package,
+            // service and navigation intents are source-dependent by nature
+            // and keep their server-owned fallbacks.
             boolean uncitedRemoteGuidance = publicMode == ChatMode.HOSPITAL_SUPPORT
-                && "remote_provider".equals(provenance);
+                && "remote_provider".equals(provenance)
+                && intent == ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL;
             if (!uncitedRemoteGuidance) {
                 Map<String, Object> navigationFallback = publicNavigationFallback(
                     userMessage, publicMode, provenance);
