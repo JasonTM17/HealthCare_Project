@@ -17,7 +17,7 @@ import java.util.regex.Pattern;
 public final class ChatSuggestedActionResolver {
 
     private static final Pattern GREETING_PATTERN = Pattern.compile(
-        "(?:(?:xin\\s+)?chao(?:\\s+(?:ban|bac\\s+si|em|tro\\s+ly|ad|admin|ban\\s+oi|moi\\s+nguoi|nha))?"
+        "(?:(?:xin\\s+)?chao(?:\\s+(?:ban|bac\\s+si|em|tro\\s+ly|ad|admin|ban\\s+oi|moi\\s+nguoi|nha|nhe|ban\\s+nhe|em\\s+nhe))*"
             + "|hello(?:\\s+(?:ban|bot|there|all|oi))?|hi(?:\\s+(?:ban|all|there|bot))?|hey"
             + "|alo(?: ban(?: oi)?| toi can ho tro)?)"
             + "\\s*[.!?,;:…]*\\s*"
