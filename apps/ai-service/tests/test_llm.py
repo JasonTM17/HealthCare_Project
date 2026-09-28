@@ -142,7 +142,7 @@ def test_deepseek_client_uses_v4_flash_default_and_clamps_timeout() -> None:
     client = build_llm_client(settings)
 
     assert isinstance(client, OpenAIChatClient)
-    assert client.model == "deepseek-v4-flash"
+    assert client.model == "deepseek-flash"
     assert client.base_url == "https://api.deepseek.com"
     assert client.timeout_seconds == 60.0
 
@@ -151,8 +151,8 @@ def test_deepseek_client_uses_default_base_url_when_legacy_value_is_empty() -> N
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
-        ai_chat_model="deepseek-v4-flash",
-        deepseek_model="deepseek-v4-flash",
+        ai_chat_model="deepseek-flash",
+        deepseek_model="deepseek-flash",
         ai_base_url="",
         deepseek_base_url="",
         ai_timeout_seconds=10,
@@ -168,8 +168,8 @@ def test_build_llm_client_refuses_base_url_outside_the_https_host_allowlist() ->
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
-        ai_chat_model="deepseek-v4-flash",
-        deepseek_model="deepseek-v4-flash",
+        ai_chat_model="deepseek-flash",
+        deepseek_model="deepseek-flash",
         ai_base_url="https://evil.example.com/v1",
         deepseek_base_url="",
         ai_timeout_seconds=10,
@@ -201,8 +201,8 @@ def test_build_llm_client_allows_allowlisted_host() -> None:
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
-        ai_chat_model="deepseek-v4-flash",
-        deepseek_model="deepseek-v4-flash",
+        ai_chat_model="deepseek-flash",
+        deepseek_model="deepseek-flash",
         ai_base_url="https://api.deepseek.com",
         deepseek_base_url="",
         ai_timeout_seconds=10,
@@ -217,8 +217,8 @@ def test_missing_deepseek_secret_returns_no_client_and_fails_closed() -> None:
         ai_provider="deepseek",
         ai_api_key="",
         deepseek_api_key="",
-        ai_chat_model="deepseek-v4-flash",
-        deepseek_model="deepseek-v4-flash",
+        ai_chat_model="deepseek-flash",
+        deepseek_model="deepseek-flash",
         ai_base_url="https://api.deepseek.com",
         ai_service_runtime="staging",
     )
@@ -290,7 +290,7 @@ def test_malformed_remote_json_falls_back_without_exposing_provider_error() -> N
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
-        deepseek_model="deepseek-v4-flash",
+        deepseek_model="deepseek-flash",
         deepseek_base_url="https://api.deepseek.com",
         ai_service_runtime="local",
     )
@@ -309,7 +309,7 @@ def test_fenced_json_remote_response_is_decoded() -> None:
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
         ai_base_url="https://api.deepseek.com",
-        deepseek_model="deepseek-v4-flash",
+        deepseek_model="deepseek-flash",
         deepseek_base_url="https://api.deepseek.com",
         ai_service_runtime="synthetic-beta",
         ai_patient_chat_remote_enabled=True,
@@ -354,7 +354,7 @@ def test_timeout_failure_fails_closed_without_secret_in_exception_or_log(
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=secret,
-        deepseek_model="deepseek-v4-flash",
+        deepseek_model="deepseek-flash",
         deepseek_base_url="https://api.deepseek.com",
         ai_service_runtime="staging",
     )
@@ -371,7 +371,7 @@ def test_triage_safety_keeps_pii_injection_and_emergency_local() -> None:
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
-        deepseek_model="deepseek-v4-flash",
+        deepseek_model="deepseek-flash",
         deepseek_base_url="https://api.deepseek.com",
         ai_service_runtime="staging",
     )
@@ -390,7 +390,7 @@ def test_triage_prompt_injection_in_context_never_reaches_remote_provider() -> N
     settings = SimpleNamespace(
         ai_provider="deepseek",
         ai_api_key=_TEST_PROVIDER_KEY,
-        ai_chat_model="deepseek-v4-flash",
+        ai_chat_model="deepseek-flash",
         ai_base_url="https://api.deepseek.com",
         ai_service_runtime="synthetic-beta",
         ai_patient_chat_remote_enabled=True,
