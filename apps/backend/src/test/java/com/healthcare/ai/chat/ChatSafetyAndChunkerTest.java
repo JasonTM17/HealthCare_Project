@@ -30,4 +30,36 @@ class ChatSafetyAndChunkerTest {
         assertThat(String.join("", ChatAnswerChunker.slices(answer, 7))).isEqualTo(answer);
         assertThat(ChatAnswerChunker.slices("")).isEmpty();
     }
+
+    @Test
+    void protectedInputCueDoesNotConfuseWhereQuestionsWithPain() {
+        // "ở đâu" (where) normalizes to the same token as "đau" (pain); only
+        // the pain reading may trip the clinical handoff.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Bệnh viện có cơ sở 2 ở đâu?"))
+            .as("location questions are not clinical concerns")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Cho hỏi bệnh viện ở đâu?"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau ở đâu"))
+            .as("pain phrasing stays protected")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Tôi đau đầu kéo dài 3 ngày"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau bụng"))
+            .isTrue();
+    }
+
+    @Test
+    void protectedInputCueDoesNotConfuseBelongingWithMedicine() {
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Bệnh viện thuộc khoa nào?"))
+            .as("belonging phrasing is not a medication concern")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Khoa này thuộc cơ sở nào"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Tôi đang uống thuốc, có ổn không"))
+            .as("medication mentions stay protected")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("nhà thuốc gần đây"))
+            .isTrue();
+    }
 }

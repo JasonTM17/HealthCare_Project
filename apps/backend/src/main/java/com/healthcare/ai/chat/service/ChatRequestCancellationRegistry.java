@@ -226,6 +226,15 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     private final StringRedisTemplate redis;
     private final Duration stateTtl;
     private final ConcurrentMap<String, ChatRequestCancellation> active = new ConcurrentHashMap<>();
+    // Managed Key Value instances can reject EVALSHA while plain reads/writes
+    // keep working, and the shared store can be unreachable entirely. A chat
+    // must not die with 503 because of it: requests whose state already lives
+    // in this map stay instance-local, and a failed first Redis touch degrades
+    // the request to the same local mirror. The deployment is single-instance
+    // on Render Free, so the mirror preserves the cancellation, lease and
+    // commit-claim semantics for every live request.
+    private final ConcurrentMap<String, LocalRequestState> localStates = new ConcurrentHashMap<>();
+    private volatile long sharedStoreFailureLoggedAt;
 
     public ChatRequestCancellationRegistry(StringRedisTemplate redis, long stateTtlSeconds) {
         this(redis, stateTtlSeconds, 50);
@@ -249,18 +258,24 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     public String openLease(String rawRequestId, LeaseBinding binding) {
         String requestId = canonicalRequestId(rawRequestId);
         String token = newPermitToken();
-        String result = executeLease(
-            OPEN_LEASE,
-            requestId,
-            binding.scope().name(),
-            binding.patientIdOrEmpty(),
-            binding.conversationIdOrEmpty(),
-            binding.idempotencyDigest(),
-            String.valueOf(LEASE_TTL_MILLIS),
-            sha256(token),
-            token,
-            String.valueOf(stateTtl.toMillis())
-        );
+        String result;
+        try {
+            result = executeLease(
+                OPEN_LEASE,
+                requestId,
+                binding.scope().name(),
+                binding.patientIdOrEmpty(),
+                binding.conversationIdOrEmpty(),
+                binding.idempotencyDigest(),
+                String.valueOf(LEASE_TTL_MILLIS),
+                sha256(token),
+                token,
+                String.valueOf(stateTtl.toMillis())
+            );
+        } catch (RuntimeException unavailable) {
+            logSharedStoreDegradation(unavailable);
+            return openLocalLease(requestId, binding, token);
+        }
         if (token.equals(result)) return token;
         if ("!COLLISION".equals(result)) {
             throw new CancellationException("Chat request already has cancellation state");
@@ -289,6 +304,9 @@ public class ChatRequestCancellationRegistry implements MessageListener {
                 String.valueOf(stateTtl.toMillis())
             );
         } catch (RuntimeException exception) {
+            if (localStates.containsKey(requestId)) {
+                return renewLocalLease(requestId, scope, rawPermit, nextToken);
+            }
             cancelLocal(requestId);
             throw exception;
         }
@@ -301,15 +319,21 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     /** Registers a trusted-BFF provider request against its open lease and exact scope binding. */
     public Registration registerBffLease(String rawRequestId, LeaseBinding binding) {
         String requestId = canonicalRequestId(rawRequestId);
-        String state = executeLease(
-            REGISTER_LEASE,
-            requestId,
-            binding.scope().name(),
-            binding.patientIdOrEmpty(),
-            binding.conversationIdOrEmpty(),
-            binding.idempotencyDigest(),
-            String.valueOf(stateTtl.toMillis())
-        );
+        String state;
+        try {
+            state = executeLease(
+                REGISTER_LEASE,
+                requestId,
+                binding.scope().name(),
+                binding.patientIdOrEmpty(),
+                binding.conversationIdOrEmpty(),
+                binding.idempotencyDigest(),
+                String.valueOf(stateTtl.toMillis())
+            );
+        } catch (RuntimeException unavailable) {
+            logSharedStoreDegradation(unavailable);
+            return registerBffLeaseLocal(requestId, binding);
+        }
         if (!"REGISTERED".equals(state)) {
             if ("CANCELLED".equals(state) || "LEASE_OPEN".equals(state) || "ACTIVE".equals(state)) {
                 throw new CancellationException("Chat request lease expired or was already used");
@@ -322,7 +346,13 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     /** Legacy direct route registration; trusted BFF routes must use {@link #registerBffLease}. */
     public Registration register(String rawRequestId) {
         String requestId = canonicalRequestId(rawRequestId);
-        String state = execute(REGISTER, requestId, stateTtl.toMillis());
+        String state;
+        try {
+            state = execute(REGISTER, requestId, stateTtl.toMillis());
+        } catch (RuntimeException unavailable) {
+            logSharedStoreDegradation(unavailable);
+            return registerOwnerLocal(requestId);
+        }
         if (!"REGISTERED".equals(state)) {
             if ("CANCELLED".equals(state)) {
                 throw new CancellationException("Chat request was cancelled before registration");
@@ -335,7 +365,18 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     /** Idempotently records cancellation, including a tombstone before registration. */
     public void cancel(String rawRequestId) {
         String requestId = canonicalRequestId(rawRequestId);
-        String state = execute(CANCEL, requestId, stateTtl.toMillis());
+        if (localStates.containsKey(requestId)) {
+            cancelLocalState(requestId);
+            return;
+        }
+        String state;
+        try {
+            state = execute(CANCEL, requestId, stateTtl.toMillis());
+        } catch (RuntimeException unavailable) {
+            logSharedStoreDegradation(unavailable);
+            cancelLocalState(requestId);
+            return;
+        }
         if ("CANCELLED".equals(state)) {
             cancelLocal(requestId);
             publishCancellation(requestId);
@@ -352,7 +393,18 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     /** Legacy claim for direct non-BFF callers. */
     public void claimCommit(String rawRequestId) {
         String requestId = canonicalRequestId(rawRequestId);
-        Long claimed = executeCommitClaim(requestId, "LEGACY", null);
+        if (localStates.containsKey(requestId)) {
+            claimLocalCommit(requestId, "LEGACY", null);
+            return;
+        }
+        Long claimed;
+        try {
+            claimed = executeCommitClaim(requestId, "LEGACY", null);
+        } catch (RuntimeException unavailable) {
+            logSharedStoreDegradation(unavailable);
+            claimLocalCommit(requestId, "LEGACY", null);
+            return;
+        }
         if (!Long.valueOf(1).equals(claimed)) {
             throw new CancellationException("Chat cancellation won before persistence");
         }
@@ -364,7 +416,18 @@ public class ChatRequestCancellationRegistry implements MessageListener {
         if (binding.scope() != LeaseScope.PATIENT) {
             throw new IllegalArgumentException("Only a patient chat lease can commit an exchange");
         }
-        Long claimed = executeCommitClaim(requestId, "LEASE", binding);
+        if (localStates.containsKey(requestId)) {
+            claimLocalCommit(requestId, "LEASE", binding);
+            return;
+        }
+        Long claimed;
+        try {
+            claimed = executeCommitClaim(requestId, "LEASE", binding);
+        } catch (RuntimeException unavailable) {
+            logSharedStoreDegradation(unavailable);
+            claimLocalCommit(requestId, "LEASE", binding);
+            return;
+        }
         if (!Long.valueOf(1).equals(claimed)) {
             throw new CancellationException("Chat cancellation or lease expiry won before persistence");
         }
@@ -378,6 +441,10 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     /** Records a committed guest exchange or prepared patient replay. */
     public void complete(String rawRequestId) {
         String requestId = canonicalRequestId(rawRequestId);
+        if (localStates.containsKey(requestId)) {
+            completeLocalState(requestId);
+            return;
+        }
         try {
             Long completed = redis.execute(COMPLETE, List.of(key(requestId)), String.valueOf(stateTtl.toMillis()));
             if (!Long.valueOf(1).equals(completed)) {
@@ -390,8 +457,13 @@ public class ChatRequestCancellationRegistry implements MessageListener {
 
     /** Marks provider or persistence failures without overwriting a cancellation tombstone. */
     public void fail(String rawRequestId) {
+        String requestId = canonicalRequestId(rawRequestId);
+        if (localStates.containsKey(requestId)) {
+            failLocalState(requestId);
+            return;
+        }
         try {
-            execute(FAIL, canonicalRequestId(rawRequestId), stateTtl.toMillis());
+            execute(FAIL, requestId, stateTtl.toMillis());
         } catch (RuntimeException exception) {
             log.warn("AI chat cancellation failure state update failed");
         }
@@ -416,8 +488,19 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             .toList();
         if (pending.isEmpty()) return;
 
+        List<ChatRequestCancellation> sharedOwned = new java.util.ArrayList<>();
+        for (ChatRequestCancellation cancellation : pending) {
+            LocalRequestState local = localStates.get(cancellation.requestId());
+            if (local == null) {
+                sharedOwned.add(cancellation);
+            } else if (local.expired(System.currentTimeMillis())) {
+                cancelLocalState(cancellation.requestId());
+                cancellation.cancel();
+            }
+        }
+        if (sharedOwned.isEmpty()) return;
         try {
-            for (ChatRequestCancellation cancellation : pending) {
+            for (ChatRequestCancellation cancellation : sharedOwned) {
                 String state = redis.execute(
                     RECONCILE,
                     List.of(key(cancellation.requestId())),
@@ -428,10 +511,10 @@ public class ChatRequestCancellationRegistry implements MessageListener {
                 }
             }
         } catch (RuntimeException exception) {
-            pending.forEach(ChatRequestCancellation::cancel);
+            sharedOwned.forEach(ChatRequestCancellation::cancel);
             log.warn(
                 "AI chat cancellation state unavailable; stopped active provider requests count={} errorType={}",
-                pending.size(), exception.getClass().getSimpleName()
+                sharedOwned.size(), exception.getClass().getSimpleName()
             );
         }
     }
@@ -562,6 +645,115 @@ public class ChatRequestCancellationRegistry implements MessageListener {
         }
     }
 
+    /** Logs at most one degradation line per minute; the cause type identifies the store fault. */
+    private void logSharedStoreDegradation(RuntimeException cause) {
+        long now = System.currentTimeMillis();
+        if (now - sharedStoreFailureLoggedAt < 60_000) return;
+        sharedStoreFailureLoggedAt = now;
+        log.warn(
+            "Shared chat cancellation store degraded; instance-local state takes over for new requests"
+                + " errorType={} detail={}",
+            cause.getClass().getSimpleName(),
+            boundedDetail(cause));
+    }
+
+    private static String boundedDetail(Throwable cause) {
+        String message = cause.getMessage();
+        if (message == null) return "";
+        String flat = message.replaceAll("\\s+", " ").trim();
+        return flat.length() > 160 ? flat.substring(0, 160) : flat;
+    }
+
+    private String openLocalLease(String requestId, LeaseBinding binding, String token) {
+        long now = System.currentTimeMillis();
+        LocalRequestState state = new LocalRequestState(
+            binding, "LEASE_OPEN", now + LEASE_TTL_MILLIS, sha256(token), now);
+        if (localStates.putIfAbsent(requestId, state) != null) {
+            throw new CancellationException("Chat request already has cancellation state");
+        }
+        return token;
+    }
+
+    private String renewLocalLease(String requestId, LeaseScope scope, String rawPermit, String nextToken) {
+        LocalRequestState state = localStates.get(requestId);
+        long now = System.currentTimeMillis();
+        if (state == null
+                || !state.matchesBinding(scope, null, null, null)
+                || state.expired(now)
+                || state.notRenewableAt(now)
+                || !state.matchesPermit(rawPermit)) {
+            cancelLocal(requestId);
+            cancelLocalState(requestId);
+            throw new CancellationException("Chat lease renewal was rejected");
+        }
+        state.rotatePermit(sha256(nextToken), now, LEASE_TTL_MILLIS);
+        return nextToken;
+    }
+
+    private Registration registerBffLeaseLocal(String requestId, LeaseBinding binding) {
+        LocalRequestState state = localStates.get(requestId);
+        if (state == null) {
+            // The BFF lease-open degraded too, so there is no mirror yet.
+            // Accepting here keeps the chat available while the request is
+            // still tracked (cancellation, reconcile and commit claim).
+            state = new LocalRequestState(binding, "ACTIVE", 0L, null, 0L);
+            if (localStates.putIfAbsent(requestId, state) != null) {
+                state = localStates.get(requestId);
+            }
+        }
+        long now = System.currentTimeMillis();
+        if (state.expired(now) || "CANCELLED".equals(state.state())) {
+            throw new CancellationException("Chat request lease expired or was already used");
+        }
+        if (!state.matchesBinding(binding)) {
+            throw new CancellationException("Chat request lease binding is unavailable");
+        }
+        state.activate();
+        return registerOwnerLocal(requestId);
+    }
+
+    private Registration registerOwnerLocal(String requestId) {
+        ChatRequestCancellation cancellation = new ChatRequestCancellation(requestId);
+        if (active.putIfAbsent(requestId, cancellation) != null) {
+            throw new IllegalStateException("Chat request id is already active on this instance");
+        }
+        return new Registration(cancellation, () -> active.remove(requestId, cancellation));
+    }
+
+    private void claimLocalCommit(String requestId, String mode, LeaseBinding binding) {
+        LocalRequestState state = localStates.get(requestId);
+        long now = System.currentTimeMillis();
+        boolean claimable;
+        if (state == null) {
+            claimable = false;
+        } else if ("LEGACY".equals(mode)) {
+            claimable = state.transitionIfActive(now);
+        } else {
+            claimable = binding != null
+                && state.matchesBinding(binding)
+                && state.transitionIfActive(now);
+        }
+        if (!claimable) {
+            throw new CancellationException("Chat cancellation or lease expiry won before persistence");
+        }
+    }
+
+    private void cancelLocalState(String requestId) {
+        LocalRequestState state = localStates.remove(requestId);
+        if (state != null) state.markCancelled();
+        cancelLocal(requestId);
+    }
+
+    private void completeLocalState(String requestId) {
+        LocalRequestState state = localStates.remove(requestId);
+        if (state != null) state.markCommitted();
+    }
+
+    private void failLocalState(String requestId) {
+        LocalRequestState state = localStates.remove(requestId);
+        if (state != null) state.markFailed();
+    }
+
     private IllegalStateException unavailable(RuntimeException cause) {
         if (cause instanceof IllegalStateException stateException
                 && "Shared chat cancellation state is unavailable".equals(stateException.getMessage())) {
@@ -573,6 +765,118 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     public enum LeaseScope {
         PUBLIC_CHAT,
         PATIENT
+    }
+
+    /**
+     * Instance-local mirror of one request's shared-store record. It carries
+     * the same states (LEASE_OPEN, ACTIVE, COMMITTING and the terminal ones)
+     * so cancellation, lease renewal and the pre-persistence commit claim keep
+     * their semantics while the shared store is unreachable. All mutating
+     * transitions synchronize on the instance.
+     */
+    private static final class LocalRequestState {
+        private final LeaseBinding binding;
+        private String state;
+        private long leaseExpiresAtMs;
+        private String renewalPermitDigest;
+        private long renewalPermitIssuedAtMs;
+
+        LocalRequestState(
+                LeaseBinding binding, String state, long leaseExpiresAtMs,
+                String renewalPermitDigest, long renewalPermitIssuedAtMs) {
+            this.binding = binding;
+            this.state = state;
+            this.leaseExpiresAtMs = leaseExpiresAtMs;
+            this.renewalPermitDigest = renewalPermitDigest;
+            this.renewalPermitIssuedAtMs = renewalPermitIssuedAtMs;
+        }
+
+        String state() {
+            synchronized (this) { return state; }
+        }
+
+        boolean expired(long nowMillis) {
+            synchronized (this) {
+                return leaseExpiresAtMs > 0 && nowMillis >= leaseExpiresAtMs;
+            }
+        }
+
+        /** Renewal requires a live permit issued within the freshness window. */
+        boolean notRenewableAt(long nowMillis) {
+            synchronized (this) {
+                return renewalPermitIssuedAtMs > nowMillis
+                    || nowMillis - renewalPermitIssuedAtMs > RENEWAL_PERMIT_FRESHNESS_MILLIS;
+            }
+        }
+
+        boolean matchesPermit(String rawPermit) {
+            synchronized (this) {
+                return renewalPermitDigest != null
+                    && renewalPermitDigest.equals(sha256(rawPermit));
+            }
+        }
+
+        void rotatePermit(String nextDigest, long nowMillis, long leaseTtlMillis) {
+            synchronized (this) {
+                leaseExpiresAtMs = nowMillis + leaseTtlMillis;
+                renewalPermitDigest = nextDigest;
+                renewalPermitIssuedAtMs = nowMillis;
+            }
+        }
+
+        boolean matchesBinding(LeaseBinding candidate) {
+            return candidate != null && matchesBinding(
+                candidate.scope(), candidate.patientIdOrEmpty(),
+                candidate.conversationIdOrEmpty(), candidate.idempotencyDigest());
+        }
+
+        boolean matchesBinding(LeaseScope scope, String patientId, String conversationId, String digest) {
+            synchronized (this) {
+                if (binding == null || scope == null) return false;
+                return binding.scope() == scope
+                    && binding.patientIdOrEmpty().equals(patientId == null ? "" : patientId)
+                    && binding.conversationIdOrEmpty().equals(conversationId == null ? "" : conversationId)
+                    && binding.idempotencyDigest().equals(digest == null ? "" : digest);
+            }
+        }
+
+        /** LEASE_OPEN advances to ACTIVE exactly once; ACTIVE stays ACTIVE. */
+        void activate() {
+            synchronized (this) {
+                if ("LEASE_OPEN".equals(state)) state = "ACTIVE";
+            }
+        }
+
+        /** ACTIVE becomes COMMITTING exactly once; every other state refuses. */
+        boolean transitionIfActive(long nowMillis) {
+            synchronized (this) {
+                if (!"ACTIVE".equals(state)) return false;
+                if (leaseExpiresAtMs > 0 && nowMillis >= leaseExpiresAtMs) {
+                    state = "CANCELLED";
+                    return false;
+                }
+                state = "COMMITTING";
+                return true;
+            }
+        }
+
+        void markCancelled() {
+            synchronized (this) {
+                if (!"COMMITTED".equals(state)) state = "CANCELLED";
+            }
+        }
+
+        void markCommitted() {
+            synchronized (this) {
+                if ("ACTIVE".equals(state) || "COMMITTING".equals(state)) state = "COMMITTED";
+            }
+        }
+
+        void markFailed() {
+            synchronized (this) {
+                if ("ACTIVE".equals(state) || "COMMITTING".equals(state)) state = "FAILED";
+            }
+        }
     }
 
     public record LeaseBinding(

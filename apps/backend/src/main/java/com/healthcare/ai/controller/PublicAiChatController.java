@@ -416,6 +416,13 @@ public class PublicAiChatController {
             if (navigationFallback != null) return navigationFallback;
             Map<String, Object> sourceFallback = publicMissingVerifiedSourceFallback(userMessage, publicMode);
             if (sourceFallback != null) return sourceFallback;
+            // A remote ANSWER with no verifiable citation must never reach the
+            // browser, but the request should still be answered: safe
+            // hospital-support intents get server-owned navigation copy, and
+            // only source-dependent intents fail closed.
+            Map<String, Object> uncitedFallback = publicNavigationCopy(
+                userMessage, publicMode, "public_uncited_remote_answer");
+            if (uncitedFallback != null) return uncitedFallback;
             throw badGateway("AI answer is missing a verified public catalog source");
         }
         if ("INSUFFICIENT_EVIDENCE".equals(safetyAction)) {
@@ -506,6 +513,23 @@ public class PublicAiChatController {
         if (publicMode != ChatMode.HOSPITAL_SUPPORT || !"local_fallback".equals(provenance)) {
             return null;
         }
+        return publicNavigationCopy(userMessage, publicMode, "public_navigation_fallback");
+    }
+
+    /**
+     * Server-owned per-intent navigation answer. Used for degraded upstream
+     * responses and for a safe remote ANSWER that carries no verifiable
+     * citation: rather than failing the request with 502, the browser gets a
+     * deterministic hospital-support reply whose text never depends on the
+     * model's unverified output.
+     */
+    private Map<String, Object> publicNavigationCopy(
+            String userMessage,
+            ChatMode publicMode,
+            String routingReason) {
+        if (publicMode != ChatMode.HOSPITAL_SUPPORT) {
+            return null;
+        }
         ChatSuggestedActionResolver.HospitalSupportIntent intent =
             ChatSuggestedActionResolver.classify(userMessage);
         String answer = switch (intent) {
@@ -547,7 +571,7 @@ public class PublicAiChatController {
         result.put("safety_action", "ANSWER");
         result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
         result.put("costTier", "local_free");
-        result.put("routingReason", "public_navigation_fallback");
+        result.put("routingReason", routingReason);
         return result;
     }
 
@@ -607,7 +631,9 @@ public class PublicAiChatController {
             case "REFUSE" ->
                 "Tôi không thể chẩn đoán hoặc kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.";
             case "HUMAN_HANDOFF" ->
-                "Tôi chưa thể xử lý an toàn yêu cầu này. Bạn có thể trao đổi với nhân viên y tế.";
+                "Câu này cần người có chuyên môn nhé. Mình không đưa chẩn đoán hay hướng xử lý "
+                    + "tình trạng sức khỏe, nhưng bạn có thể đặt lịch khám để được bác sĩ xem trực tiếp; "
+                    + "nếu đang khó chịu nhiều, hãy gọi tổng đài 028 1800 0001 để được hỗ trợ ngay.";
             default -> "Mình chưa tìm thấy nguồn thông tin phù hợp để trả lời chắc chắn.";
         };
         Map<String, Object> result = new LinkedHashMap<>();
@@ -620,11 +646,20 @@ public class PublicAiChatController {
         result.put("provenance", "local_fallback");
         result.put("mode", publicMode.name());
         result.put("safety_action", safetyAction);
-        result.put(
-            "suggested_actions",
-            "EMERGENCY".equals(safetyAction)
-                ? List.of(Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115"))
-                : List.of());
+        if ("EMERGENCY".equals(safetyAction)) {
+            result.put("suggested_actions",
+                List.of(Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+        } else if ("HUMAN_HANDOFF".equals(safetyAction)) {
+            // A handoff must still lead somewhere: booking and hotline actions
+            // move the visitor toward care without giving any clinical
+            // guidance the server cannot verify.
+            result.put("suggested_actions", List.of(
+                Map.of("kind", "START_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"),
+                Map.of("kind", "CALL_HOTLINE", "label", "Gọi 028 1800 0001", "href", "tel:02818000001"),
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Chuyên khoa", "href", "/specialties")));
+        } else {
+            result.put("suggested_actions", List.of());
+        }
         result.put("costTier", "local_free");
         result.put("routingReason", "public_safety_guardrail");
         return result;

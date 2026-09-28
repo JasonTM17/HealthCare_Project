@@ -173,10 +173,19 @@ class PublicAiChatControllerTest {
             "citations", List.of()
         ));
 
-        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
-            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
-            .hasMessageContaining("502 BAD_GATEWAY");
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null))
+            .getBody();
+
+        // The unverified model text never reaches the browser, but a safe
+        // hospital-support intent still gets server-owned navigation copy
+        // instead of a 502 dead end.
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("mode", "HOSPITAL_SUPPORT")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_uncited_remote_answer");
+        assertThat((String) body.get("answer")).doesNotContain("Được.");
     }
 
     @Test
@@ -745,7 +754,10 @@ class PublicAiChatControllerTest {
         assertThat(body)
             .containsEntry("mode", "HOSPITAL_SUPPORT")
             .containsEntry("safety_action", "HUMAN_HANDOFF")
-            .containsEntry("suggested_actions", List.of());
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "START_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"),
+                Map.of("kind", "CALL_HOTLINE", "label", "Gọi 028 1800 0001", "href", "tel:02818000001"),
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Chuyên khoa", "href", "/specialties")));
     }
 
     @Test
@@ -767,7 +779,10 @@ class PublicAiChatControllerTest {
 
         assertThat(body)
             .containsEntry("safety_action", "HUMAN_HANDOFF")
-            .containsEntry("suggested_actions", List.of());
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "START_BOOKING", "label", "Đặt lịch khám", "href", "/dat-lich"),
+                Map.of("kind", "CALL_HOTLINE", "label", "Gọi 028 1800 0001", "href", "tel:02818000001"),
+                Map.of("kind", "VIEW_SOURCE", "label", "Xem Chuyên khoa", "href", "/specialties")));
         assertThat((String) body.get("answer")).doesNotContain("12 giờ");
     }
 
