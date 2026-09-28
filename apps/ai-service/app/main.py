@@ -92,6 +92,43 @@ from app.schemas import (
 
 settings = Settings()
 app = FastAPI(title="HealthCare AI Service", version="0.1.0")
+
+
+@app.on_event("startup")
+async def start_backend_cross_warmer() -> None:
+    """Keep the backend Render Free instance awake with cross-instance traffic.
+
+    The backend SelfWarmer pings itself over loopback, which Render does not
+    count as inbound activity, and the shared GitHub Actions warm cron was
+    measured firing hours apart — so the backend still spun down during idle
+    gaps and the first user burst of each gap answered from the BFF's canned
+    fallback for the length of a cold boot. A GET from THIS instance to the
+    backend's public URL is real inbound HTTPS, so it both keeps the instance
+    warm and wakes it after an eviction. The backend's SelfWarmer pings this
+    service's /livez the same way, so the pair keeps each other warm and
+    self-heals: whichever side wakes first revives the other. Best-effort by
+    design — every failure is swallowed and the loop never blocks startup.
+    """
+
+    warm_url = (getattr(settings, "backend_warm_url", "") or "").strip()
+    if not warm_url:
+        return
+    interval = max(60.0, float(getattr(settings, "backend_warm_interval_seconds", 240.0)))
+
+    async def warm_loop() -> None:
+        import httpx
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            while True:
+                try:
+                    await client.get(warm_url)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logger.debug("backend warm ping failed url=%s", warm_url)
+                await asyncio.sleep(interval)
+
+    app.state.backend_warm_task = asyncio.create_task(warm_loop())
 # Keep chat telemetry on Uvicorn's configured logger tree. A standalone named
 # logger is silent in the container because Uvicorn does not configure the
 # process root logger; tests that install a capture handler would otherwise

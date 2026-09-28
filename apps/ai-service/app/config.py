@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # observed tail and still leaves 10-15 s of the BFF's 25-35 s deadline for
     # the round trip.
     ai_timeout_seconds: float = Field(default=20.0, gt=0, le=60)
+    # Cross-instance keep-warm target. Set to the backend public health URL in
+    # hosted runtimes; empty disables the warmer (local development).
+    backend_warm_url: str = ""
+    backend_warm_interval_seconds: float = Field(default=240.0, gt=30, le=900)
     # Provider credentials do not authorize exporting patient chat. This
     # separate opt-in keeps sensitive conversations local by default.
     ai_patient_chat_remote_enabled: bool = False
