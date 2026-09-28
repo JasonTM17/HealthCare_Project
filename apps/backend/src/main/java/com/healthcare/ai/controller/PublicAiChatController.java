@@ -159,6 +159,15 @@ public class PublicAiChatController {
             Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
             if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
         }
+        if (!protectedInput
+                && ChatSuggestedActionResolver.classify(userMessage)
+                    == ChatSuggestedActionResolver.HospitalSupportIntent.GREETING) {
+            // A greeting needs no provider round-trip: the server-owned
+            // welcome answers instantly and cannot hallucinate.
+            Map<String, Object> greeting = publicNavigationCopy(
+                userMessage, publicMode, "public_greeting_shortcut");
+            if (greeting != null) return ResponseEntity.ok(greeting);
+        }
         if (publicMode == ChatMode.HEALTH_EDUCATION) {
             if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
                 return ResponseEntity.ok(publicSafetyFallback(
@@ -733,10 +742,14 @@ public class PublicAiChatController {
     private Map<String, Object> publicCatalogFallback(String userMessage) {
         ChatSuggestedActionResolver.HospitalSupportIntent intent =
             ChatSuggestedActionResolver.classify(userMessage);
-        if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
-            return publicBranchFallback(userMessage);
+        if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH
+                && publicBranchFallback(userMessage) instanceof Map<String, Object> branchAnswer) {
+            return branchAnswer;
         }
-        if (intent != ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG) return null;
+        // A generic branch-count/location question has no single branch to
+        // resolve; the same live, citation-verified overview answers it.
+        if (intent != ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG
+                && intent != ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) return null;
 
         AiChatSourceResolver.CatalogOverview overview;
         try {
