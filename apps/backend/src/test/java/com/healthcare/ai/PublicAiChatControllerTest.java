@@ -21,6 +21,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
+import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 class PublicAiChatControllerTest {
 
@@ -822,15 +823,24 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void propagatesAiServiceUnavailableAsBadGateway() {
+    void answersSafeIntentWithOwnedNavigationWhenAiServiceIsUnavailable() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
-            BAD_GATEWAY, "AI service is unavailable"));
+            SERVICE_UNAVAILABLE, "AI provider unavailable"));
 
-        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
-            .chat(new PublicAiChatController.PublicChatRequest("Xin chào", null)))
-            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
-            .hasMessageContaining("502 BAD_GATEWAY");
+        // Every hospital-support intent now has a server-owned degraded
+        // response (navigation copy, catalog overview, or honest
+        // source-unavailable guidance), so a provider outage no longer
+        // dead-ends the assistant with a bare 502/503.
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Đặt lịch khám như thế nào?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_ai_degraded_navigation");
+        assertThat((String) body.get("answer")).contains("Đặt lịch khám");
     }
 
     @Test

@@ -63,6 +63,11 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 public class PublicAiChatController {
 
     private static final Logger log = LoggerFactory.getLogger(PublicAiChatController.class);
+    // Marks a 503 that the cancellation/lease state machinery raised itself.
+    // A lease-protocol rejection is infrastructure, not an AI outage: the
+    // AI-failure fallbacks must not convert it into a friendly answer.
+    private static final String CANCELLATION_STATE_REJECTION =
+        PublicAiChatController.class.getName() + ".cancellationStateRejection";
     private static final Set<String> ALLOWED_CITATION_SOURCE_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package", "article", "faq"
     );
@@ -172,13 +177,13 @@ public class PublicAiChatController {
                 ? aiService.chat(payload)
                 : aiService.chat(payload, cancellation));
         } catch (CancellationException exception) {
-            throw cancelledRequest(exception);
+            throw cancelledRequest(servletRequest, exception);
         } catch (ResponseStatusException ex) {
             // Broad catalog navigation can be answered from the same live
             // Spring catalog even while the semantic/RAG service is cold or
             // unavailable. Source-dependent questions get a server-owned
             // outage response; an upstream error cannot prove source absence.
-            if (isAiFailure(ex)) {
+            if (isAiFailure(ex) && !isCancellationStateRejection(servletRequest)) {
                 if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
                     return ResponseEntity.ok(publicSafetyFallback(userMessage, "EMERGENCY", publicMode));
                 }
@@ -292,7 +297,10 @@ public class PublicAiChatController {
                 registration = cancellations.register(RequestTrace.currentId());
             }
         } catch (IllegalStateException exception) {
-            throw cancellationStateUnavailable(exception);
+            // CancellationException extends IllegalStateException, so a lease
+            // rejection and a genuine store failure both land here; both are
+            // marked so the AI-failure fallbacks leave them alone.
+            throw cancellationStateUnavailable(request, exception);
         }
         try (registration) {
             ChatRequestCancellation cancellation = registration.cancellation();
@@ -308,7 +316,10 @@ public class PublicAiChatController {
         }
     }
 
-    private ResponseStatusException cancelledRequest(CancellationException exception) {
+    private ResponseStatusException cancelledRequest(
+            HttpServletRequest request,
+            CancellationException exception) {
+        if (request != null) request.setAttribute(CANCELLATION_STATE_REJECTION, Boolean.TRUE);
         return new ResponseStatusException(
             SERVICE_UNAVAILABLE,
             "AI chat request was cancelled",
@@ -316,7 +327,9 @@ public class PublicAiChatController {
         );
     }
 
-    private ResponseStatusException cancellationStateUnavailable(IllegalStateException exception) {
+    private ResponseStatusException cancellationStateUnavailable(
+            HttpServletRequest request,
+            IllegalStateException exception) {
         // The wrapper message is constant, so the escaped cause's own message
         // is what tells an operator which registry invariant rejected the
         // request. Bounded and content-free (request ids only).
@@ -327,11 +340,17 @@ public class PublicAiChatController {
                 exception.getCause() != null
                     ? String.valueOf(exception.getCause())
                     : exception.getMessage()));
+        if (request != null) request.setAttribute(CANCELLATION_STATE_REJECTION, Boolean.TRUE);
         return new ResponseStatusException(
             SERVICE_UNAVAILABLE,
             "Shared chat cancellation state is unavailable",
             exception
         );
+    }
+
+    private boolean isCancellationStateRejection(HttpServletRequest request) {
+        return request != null
+            && Boolean.TRUE.equals(request.getAttribute(CANCELLATION_STATE_REJECTION));
     }
 
     private static String shortDetail(String text) {
