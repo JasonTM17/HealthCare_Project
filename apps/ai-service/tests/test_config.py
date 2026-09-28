@@ -215,7 +215,7 @@ def test_remote_base_url_accepts_documented_deepseek_base_paths() -> None:
     assert remote_base_url_allowed("https://api.deepseek.com/v1", {"api.deepseek.com"})
 
 
-def test_deepseek_defaults_to_v4_flash_when_no_model_is_configured(
+def test_deepseek_defaults_to_v4_1_flash_when_no_model_is_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for name in (
@@ -230,7 +230,7 @@ def test_deepseek_defaults_to_v4_flash_when_no_model_is_configured(
 
     settings = Settings()
 
-    assert settings.ai_chat_model == "deepseek-v4-flash"
+    assert settings.ai_chat_model == "deepseek-flash"
 
 
 def test_legacy_deepseek_values_fill_empty_provider_neutral_values(
