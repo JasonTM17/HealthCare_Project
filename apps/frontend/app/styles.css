@@ -9990,6 +9990,12 @@ main {
   box-shadow: none;
 }
 
+/* The doctor-detail avatar is forced to 12rem (see .resource-avatar--doctor-detail),
+   so this track must grow to fit it or the avatar overflows onto the body copy. */
+.site-shell--public-route .resource-hero-card--doctor {
+  grid-template-columns: minmax(5rem, 12rem) minmax(0, 1fr);
+}
+
 .site-shell--public-route .resource-hero-card--teal::after {
   display: none;
 }
