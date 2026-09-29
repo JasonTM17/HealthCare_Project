@@ -103,6 +103,7 @@ class SyntheticPdfRendererTest {
                             + "tăng liều. ").repeat(120),
                         "Theo dõi nhiệt độ hai lần mỗi ngày; quay lại nếu sốt trên 39 độ.",
                         LocalDate.parse("2026-03-08")),
+                null,
                 null);
 
         byte[] pdf = renderer.renderVisitSummary(snapshot, "fixedhash");
@@ -138,6 +139,7 @@ class SyntheticPdfRendererTest {
                         "Nghỉ ngơi, uống nước ấm, thuốc theo đơn",
                         "Tái khám nếu sốt kéo dài quá ba ngày",
                         LocalDate.parse("2026-03-08")),
+                null,
                 null);
     }
 
@@ -162,6 +164,7 @@ class SyntheticPdfRendererTest {
                                 "Mỗi 8 giờ", 5, 15, "Uống sau ăn"),
                                 new DocumentSnapshot.PrescriptionItemSnapshot(
                                 "Vitamin C", "Ascorbic acid", "100", "mg",
-                                "Mỗi ngày một lần", 7, 7, null))));
+                                "Mỗi ngày một lần", 7, 7, null))),
+                null);
     }
 }
