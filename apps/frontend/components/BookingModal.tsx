@@ -1159,7 +1159,7 @@ function BookingExperience({
       setErrorMessage("Vui lòng nhập đầy đủ họ tên và số điện thoại.");
       return;
     }
-    if (!/^[+0-9() .-]{7,20}$/.test(phone.trim())) {
+    if (!/^[0-9]{8,12}$/.test(phone.trim())) {
       setErrorMessage("Số điện thoại chưa đúng định dạng. Vui lòng kiểm tra lại.");
       return;
     }
