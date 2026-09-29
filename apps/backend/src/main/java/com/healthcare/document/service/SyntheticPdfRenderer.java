@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
-/**
- * Offline deterministic renderer for the two approved synthetic document
- * classes (ADR-005). Output bytes are a pure function of the snapshot: fonts
+    /**
+     * Offline deterministic renderer for the approved synthetic document
+     * classes (ADR-005). Output bytes are a pure function of the snapshot: fonts
  * are embedded from the classpath (no network), the document-info dates come
  * from the source record, and every displayed timestamp equals the source
  * finalization time. Rendering is integrity provenance, never a signature.
@@ -120,6 +120,29 @@ public class SyntheticPdfRenderer {
         }
     }
 
+    public byte[] renderAppointmentReminder(DocumentSnapshot snapshot, String snapshotHash) throws IOException {
+        Canvas canvas = new Canvas(snapshot);
+        try {
+            canvas.title("GIẤY NHẮC LỊCH HẸN KHÁM (BẢN TỔNG HỢP DEMO)");
+            canvas.disclaimerBox(DISCLAIMER_LINE);
+            canvas.metaBlock(snapshot);
+            DocumentSnapshot.AppointmentReminderPayload reminder = snapshot.appointmentReminder();
+            canvas.section("Thông tin lịch hẹn");
+            canvas.labelValue("Mã lịch hẹn", reminder.bookingCode());
+            canvas.labelValue("Ngày khám", formatDate(reminder.appointmentDate()));
+            canvas.labelValue("Giờ khám", formatTimeRange(reminder.startTime(), reminder.endTime()));
+            canvas.labelValue("Cơ sở khám", reminder.branchName());
+            canvas.labelValue("Chuyên khoa", reminder.specialtyName());
+            canvas.section("Nội dung cần chuẩn bị");
+            canvas.labelValue("Lý do khám", reminder.reasonForVisit());
+            canvas.paragraph("Vui lòng đến trước giờ hẹn 15 phút và mang theo giấy tờ tùy thân cùng "
+                + "thông tin bảo hiểm y tế (nếu có).");
+            return canvas.finish(snapshot, snapshotHash);
+        } finally {
+            canvas.closeQuietly();
+        }
+    }
+
     String issuerLine() {
         // The visible label already carries "Đơn vị phát hành: ", so the value
         // must not repeat it (round-10 screenshot showed the doubled prefix).
@@ -139,6 +162,13 @@ public class SyntheticPdfRenderer {
     private String formatTimestamp(OffsetDateTime value) {
         return value == null ? null
             : value.toInstant().toString().replace("T", " ").replace("Z", " UTC");
+    }
+
+    private String formatTimeRange(java.time.LocalTime start, java.time.LocalTime end) {
+        if (start == null && end == null) return null;
+        if (start == null) return end.toString();
+        if (end == null) return start.toString();
+        return start + " – " + end;
     }
 
     private String joinCode(String code, String name) {
