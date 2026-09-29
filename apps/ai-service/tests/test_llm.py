@@ -682,3 +682,42 @@ def test_reject_unsafe_egress_text_allows_hotline_and_rejects_mobile() -> None:
         _reject_unsafe_egress_text("0912345678")
     assert getattr(exc_info.value, "status_code", None) == 422
 
+
+
+def test_resolve_chat_applies_tone_register_to_system_prompt() -> None:
+    """Tone only rewrites the register block; safety clauses stay for all."""
+    from types import SimpleNamespace
+
+    from app.llm import resolve_chat
+
+    settings = SimpleNamespace(
+        remote_ai_release_hold=True,
+        ai_patient_chat_remote_enabled=True,
+        ai_public_hospital_support_remote_enabled=True,
+        ai_chat_circuit_failure_threshold=3,
+        ai_chat_circuit_reset_seconds=30,
+        remote_ai_synthetic_only=False,
+    )
+
+    captured: dict[str, str] = {}
+
+    class RecordingClient:
+        def complete_json(self, *, system_prompt: str, user_prompt: str, context=()):
+            captured["prompt"] = system_prompt
+            return {"answer": "Mình khuyên bạn nghỉ ngơi và uống đủ nước."}
+
+    for tone, expected_fragment in (
+        ("ngan_gon", "tối đa 2-3 câu"),
+        ("chuyen_nghiep", "quý khách"),
+        ("than_thien", "thân thiện, ấm áp"),
+    ):
+        captured.clear()
+        resolve_chat(
+            "Uống nước chanh mỗi sáng có tốt không?",
+            settings,
+            client=RecordingClient(),
+            public_support_chat=True,
+            tone=tone,
+        )
+        assert expected_fragment in captured["prompt"], tone
+        assert "không chẩn đoán, không kê đơn" in captured["prompt"].lower(), tone
