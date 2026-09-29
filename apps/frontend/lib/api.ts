@@ -5,7 +5,6 @@ import type {
   ConfirmAppointmentPayload,
   AppointmentDetails,
 } from "../types/hospital";
-import { randomId } from "./secure-random";
 
 // Keep booking traffic on the same-origin Next.js rewrite.  A public runtime
 // API-base override would bypass the Vercel proxy and create a second CORS
@@ -115,26 +114,61 @@ export async function fetchDoctorSlots(
 }
 
 /**
- * The hold endpoint accepts 8–128 characters of `[A-Za-z0-9._:-]`; a UUID fits.
- * A missing key only loses replay protection, so Web Crypto being unavailable
- * must not block a booking.
+ * Thrown when the slot is already held or booked. Carrying the status lets the
+ * wizard attribute the conflict to the patient's own previous hold instead of
+ * blaming another patient unconditionally.
  */
-function holdIdempotencyKey(): string | undefined {
-  try {
-    const key = randomId();
-    return /^[A-Za-z0-9._:-]{8,128}$/.test(key) ? key : undefined;
-  } catch {
-    return undefined;
+export class HoldSlotConflictError extends Error {
+  readonly status = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = "HoldSlotConflictError";
   }
+}
+
+/**
+ * A hold intent is one patient attempting the identical hold again (same
+ * doctor, branch, date, slot, package, and contact identity). The key must be
+ * deterministic per intent: when an abandoned attempt left a live hold behind,
+ * re-holding the same slot replays one key instead of minting a second live
+ * hold. Two independent 32-bit hash lanes give 64 bits synchronously, so no
+ * Web Crypto and no server round trip is needed to mint it.
+ */
+function holdIdempotencyKey(payload: HoldSlotPayload): string {
+  const identity = [
+    payload.doctorId,
+    payload.branchId,
+    payload.appointmentDate,
+    payload.startTime,
+    payload.specialtyId ?? "",
+    payload.packageId ?? "",
+    String(payload.phone ?? "").trim().toLowerCase(),
+    String(payload.email ?? "").trim().toLowerCase(),
+  ].join("\u0000");
+
+  let laneA = 0x811c9dc5;
+  let laneB = 0x811c9dc5;
+  for (let index = 0; index < identity.length; index += 1) {
+    const code = identity.charCodeAt(index);
+    laneA = Math.imul(laneA ^ code, 0x01000193) >>> 0;
+    laneB = Math.imul(laneB + code, 0x85ebca6b) >>> 0;
+  }
+  // The endpoint accepts 8–128 characters of `[A-Za-z0-9._:-]`; the guard keeps
+  // that contract explicit. An empty key only drops replay protection.
+  const key = `hold.${laneA.toString(16).padStart(8, "0")}${laneB.toString(16).padStart(8, "0")}`;
+  return /^[A-Za-z0-9._:-]{8,128}$/.test(key) ? key : "";
 }
 
 export async function holdAppointmentSlot(
   payload: HoldSlotPayload
 ): Promise<HoldSlotResult> {
   const requestUrl = `${API_BASE_URL}/appointments/hold`;
-  // One key per user-initiated hold, reused by the retry below: a lost 502/504
-  // response must replay the original hold instead of creating a second one.
-  const idempotencyKey = holdIdempotencyKey();
+  // One key per hold intent (stable across calls for the same payload), reused
+  // by the retry below: a lost 502/504 response must replay the original hold
+  // instead of creating a second one, and a re-held abandoned attempt must not
+  // mint a second live hold behind the same intent.
+  const idempotencyKey = holdIdempotencyKey(payload);
   const requestInit: RequestInit = {
     method: "POST",
     headers: {
@@ -175,12 +209,14 @@ export async function holdAppointmentSlot(
   }
 
   if (!res.ok) {
-    throw new Error(await bookingErrorMessage(
+    const message = await bookingErrorMessage(
       res,
       res.status === 409
-        ? "Khung giờ này vừa được người khác chọn. Vui lòng chọn khung giờ khác."
+        ? "Khung giờ này vừa được giữ hoặc đã có người đặt. Vui lòng chọn khung giờ khác."
         : "Chưa thể giữ khung giờ này. Vui lòng kiểm tra thông tin và thử lại.",
-    ));
+    );
+    if (res.status === 409) throw new HoldSlotConflictError(message);
+    throw new Error(message);
   }
 
   return parseBookingResponse<HoldSlotResult>(

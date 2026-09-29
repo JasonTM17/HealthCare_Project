@@ -95,6 +95,8 @@ public class AiConversationService {
         "Không tính credit: câu trả lời thiếu nguồn đủ tin cậy";
     private static final String PATIENT_SAFETY_CHAT_WAIVED_DESCRIPTION =
         "Không tính credit: câu trả lời an toàn cố định của hệ thống";
+    private static final String PATIENT_LOCAL_CHAT_WAIVED_DESCRIPTION =
+        "Không tính credit: câu trả lời tra cứu danh mục cục bộ của hệ thống";
     /** Ledger marker that attributes charge/refund/waiver rows to one attempt. */
     private static final String CHAT_ATTEMPT_MARKER_PREFIX = "[chat:";
 
@@ -946,28 +948,42 @@ public class AiConversationService {
         }
 
         // Credit gate. Rule, in one sentence: a chat answer costs one credit,
-        // except the static safety answers and the degraded
-        // INSUFFICIENT_EVIDENCE answer the platform can produce without
-        // contacting any provider, which are free to everyone including a
-        // patient who is out of credits.
+        // except the answers the platform can produce without contacting any
+        // provider — the static safety answers, the degraded
+        // INSUFFICIENT_EVIDENCE reply, and the deterministic local catalog
+        // lookups (catalog overview / branch details) — which are free to
+        // everyone including a patient who is out of credits.
         //
         // Rationale: these answers are system outcomes, not products the
         // patient is buying — an insufficient-evidence answer cites no source
-        // and exists to say "I stopped rather than guess", and an emergency
-        // answer is the fixed call-115 guidance. Gating them behind a paid
-        // balance (the old unconditional 402 here) meant the patients they
-        // protect most could never see them, and the waiver path that records
-        // them could only ever run for someone who already had a credit to
-        // spare.
+        // and exists to say "I stopped rather than guess", an emergency
+        // answer is the fixed call-115 guidance, and a catalog overview is a
+        // plain SQL read of the live specialty/branch tables that carries
+        // provenance local_fallback and costTier local_free. Gating them
+        // behind a paid balance (the old unconditional 402 here) meant the
+        // patients they protect most could never see them, and the waiver
+        // path that records them could only ever run for someone who already
+        // had a credit to spare. Billing them was worse than refusing them:
+        // the ledger said "purchased answer" while the payload the client saw
+        // said local_free.
         //
         // Boundary: the exemption is only available when the free answer is
         // already in hand before the gate releases, so an unpaid request can
-        // never spend provider work (see localInsufficientEvidenceAnswer). A
+        // never spend provider work (see localProviderFreeAnswer). A
         // zero-credit patient whose question needs the provider still gets the
         // 402 INSUFFICIENT_AI_CREDITS here, before generation, exactly as
         // before. Ordinary paid use is unchanged, and the free exchange is
         // audited by complete() writing a zero-amount AI_CHAT_WAIVED ledger row
         // instead of a charge.
+        //
+        // Fail-closed on the missing profile (credit-leak audit): an account
+        // with no PatientProfile at all — what AuthService leaves behind after
+        // a no-phone registration — is gated exactly like the zero-credit
+        // patient, because its charge path (deductPatientCredit) can only
+        // silently no-op and the old permissive branch answered every such
+        // turn on the platform's provider budget with no ledger row. The
+        // provider-free safety outcomes above remain reachable; only the paid
+        // pipeline is closed behind the 402.
         //
         // Crisis bypass (audit A4): the emergency guidance must never be
         // paywalled, so a message carrying an acute term is evaluated before
@@ -982,7 +998,7 @@ public class AiConversationService {
         if (ChatMedicalSafety.containsEmergencyInputCue(content)) {
             freeAnswer = safetyResponse(conversation.getMode(), "EMERGENCY", content);
         } else if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
-            freeAnswer = localInsufficientEvidenceAnswer(conversation.getMode(), content);
+            freeAnswer = localProviderFreeAnswer(conversation.getMode(), content);
             if (freeAnswer == null) {
                 aiCreditService.requirePatientCredits(userId);
             }
@@ -1010,28 +1026,55 @@ public class AiConversationService {
     }
 
     /**
+     * Whether a completed answer was produced entirely from the platform's own
+     * state, so there is no purchased provider work behind it to bill.
+     *
+     * <p>The deterministic local catalog fallbacks — the broad catalog
+     * overview, the exact branch answer and its ambiguous-variant disambiguation —
+     * carry provenance {@code local_fallback} and cost tier {@code local_free}
+     * with a plain {@code ANSWER} action, and the degraded branch-unavailable
+     * reply carries the same provenance and tier with
+     * {@code INSUFFICIENT_EVIDENCE}. The provenance+tier conjunction is what
+     * separates them from provider answers: a provider reply is always
+     * {@code local_provider} or {@code remote_provider} (and the tier it
+     * reports is not ours to second-guess), so it can never match even when it
+     * reports a provider-side {@code cost_tier} of {@code local_free}.
+     */
+    private static boolean isProviderFreeLocalAnswer(SanitizedAiResponse response) {
+        if (!"local_fallback".equals(response.provenance())
+                || !"local_free".equals(response.costTier())) {
+            return false;
+        }
+        return response.safetyAction() == ChatSafetyAction.ANSWER
+            || (response.safetyAction() == ChatSafetyAction.INSUFFICIENT_EVIDENCE
+                && response.citations().isEmpty());
+    }
+
+    /**
      * The answer a zero-credit patient may receive for free, or {@code null}
      * when nothing can be answered without paying.
      *
-     * <p>Two conditions, both required: the reply is produced by the local
-     * deterministic catalog path — so no retrieval or generation call is made
-     * on the platform's meter — and it is the degraded
-     * {@code INSUFFICIENT_EVIDENCE} outcome, which carries no citations and no
-     * curated content. A local path that <em>can</em> name a source is a real
-     * answer, and real answers stay behind the credit gate.
+     * <p>Two conditions, both required: the reply is produced by a local
+     * deterministic path — so no retrieval or generation call is made on the
+     * platform's meter — and it is one of the provider-free outcomes, the
+     * degraded {@code INSUFFICIENT_EVIDENCE} reply (which carries no citations
+     * and no curated content) or a local catalog {@code ANSWER}. A local path
+     * that would still need retrieval or generation stays behind the credit
+     * gate.
      *
      * <p>Resolved once, here, and carried with the prepared exchange so the
      * patient is shown exactly the answer that was checked at the gate instead
      * of a second lookup that could disagree with the first.
      */
-    private SanitizedAiResponse localInsufficientEvidenceAnswer(ChatMode mode, String content) {
+    private SanitizedAiResponse localProviderFreeAnswer(ChatMode mode, String content) {
         SanitizedAiResponse local = deterministicBranchResponse(mode, content);
         if (local == null
-                || local.safetyAction() != ChatSafetyAction.INSUFFICIENT_EVIDENCE
-                || !local.citations().isEmpty()) {
-            return null;
+                && mode == ChatMode.HOSPITAL_SUPPORT
+                && ChatSuggestedActionResolver.classify(content)
+                    == ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG) {
+            local = catalogOverviewResponse(content);
         }
-        return local;
+        return local != null && isProviderFreeLocalAnswer(local) ? local : null;
     }
 
     private void chargeAcceptedPatientExchange(UUID userId, UUID requestMessageId) {
@@ -1117,9 +1160,10 @@ public class AiConversationService {
      * answer exists, never before. A grounded answer charges one patient
      * credit; a safety-system outcome — the static {@code EMERGENCY},
      * {@code REFUSE} or {@code HUMAN_HANDOFF} text, or an answer degraded to
-     * {@code INSUFFICIENT_EVIDENCE} — charges nothing and instead records a
-     * zero-amount {@code AI_CHAT_WAIVED} ledger row so the audit trail shows
-     * why no charge happened.
+     * {@code INSUFFICIENT_EVIDENCE} — and a deterministic local catalog
+     * lookup (provenance {@code local_fallback}, cost tier {@code local_free})
+     * charge nothing and instead record a zero-amount {@code AI_CHAT_WAIVED}
+     * ledger row so the audit trail shows why no charge happened.
      */
     private ChatExchangeResponse complete(
             UUID userId,
@@ -1214,6 +1258,12 @@ public class AiConversationService {
         if (isUnbilledSafetyOutcome(response.safetyAction())) {
             waiveUnbilledPatientExchange(
                 userId, request.getId(), waiverDescriptionFor(response.safetyAction()));
+        } else if (isProviderFreeLocalAnswer(response)) {
+            // The deterministic local catalog lookups bought no provider work,
+            // so the ledger must agree with the local_free payload the client
+            // sees instead of recording a purchased answer.
+            waiveUnbilledPatientExchange(
+                userId, request.getId(), PATIENT_LOCAL_CHAT_WAIVED_DESCRIPTION);
         } else {
             chargeAcceptedPatientExchange(userId, request.getId());
         }

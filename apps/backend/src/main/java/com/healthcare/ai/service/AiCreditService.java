@@ -35,7 +35,10 @@ import java.util.UUID;
  * {@link #hasPatientCreditBalance} for the rule and
  * {@code AiConversationService#prepare} for the gate itself, so a patient at
  * zero credits still receives the safe "no reliable source found" answer for
- * free (with its audit row) instead of being locked out by a 402. A failed
+ * free (with its audit row) instead of being locked out by a 402. A missing
+ * profile is gated exactly like a zero balance — the gate fails closed, so an
+ * account that never received a {@code PatientProfile} (a no-phone
+ * registration) cannot run the paid pipeline unmetered. A failed
  * exchange whose charge somehow outlived its answer is compensated by
  * {@link #refundPatientCredit}, which is idempotent per exchange attempt: the
  * attempt marker in the description keys both the charge lookup and the
@@ -117,8 +120,18 @@ public class AiCreditService {
     /**
      * Whether this patient may open a <em>paid</em> chat exchange, mirroring the
      * exact condition {@link #requirePatientCredits} enforces: a profile with a
-     * zero (or negative) balance is out of paid credits; a missing profile is
-     * not metered at all and keeps the historical permissive behaviour.
+     * zero (or negative) balance is out of paid credits, and — fail closed — a
+     * missing profile is out of paid credits too.
+     *
+     * <p>The missing-profile branch used to return {@code true} ("not metered
+     * at all"), which let an account without a {@code PatientProfile} — the
+     * state AuthService leaves behind after a no-phone registration — run the
+     * paid pipeline on every turn while {@link #deductPatientCredit} silently
+     * no-op'd its charge and no ledger row was ever written. The gate now
+     * refuses those accounts the same way it refuses a zero balance: the only
+     * answers they can still reach are the provider-free safety outcomes (the
+     * crisis text and the degraded {@code INSUFFICIENT_EVIDENCE} answer), and a
+     * provider-consuming turn answers with 402 {@code INSUFFICIENT_AI_CREDITS}.
      *
      * <p>Exposed as a predicate rather than only as a throwing check because the
      * chat gate has to branch: a zero-credit patient is still allowed to start
@@ -130,15 +143,23 @@ public class AiCreditService {
     @Transactional(readOnly = true)
     public boolean hasPatientCreditBalance(UUID userId) {
         PatientProfile profile = patientProfileRepository.findByUserId(userId).orElse(null);
-        return profile == null
-            || profile.getAiCredits() == null
-            || profile.getAiCredits() > 0;
+        return profile != null
+            && (profile.getAiCredits() == null
+                || profile.getAiCredits() > 0);
     }
 
     @Transactional(readOnly = true)
     public void requirePatientCredits(UUID userId) {
         PatientProfile profile = patientProfileRepository.findByUserId(userId).orElse(null);
-        if (profile != null && profile.getAiCredits() != null && profile.getAiCredits() <= 0) {
+        if (profile == null) {
+            throw new BusinessException(
+                402,
+                "INSUFFICIENT_AI_CREDITS",
+                "Tài khoản của bạn chưa có hồ sơ bệnh nhân nên chưa được cấp lượt hỏi AI."
+                    + " Vui lòng liên hệ quản trị viên để được cấp credit."
+            );
+        }
+        if (profile.getAiCredits() != null && profile.getAiCredits() <= 0) {
             throw new BusinessException(
                 402,
                 "INSUFFICIENT_AI_CREDITS",
