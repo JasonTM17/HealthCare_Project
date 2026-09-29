@@ -749,7 +749,7 @@ export const AI_CHAT_MODES = CHAT_MODES;
 export const AI_CHAT_SAFETY_ACTIONS = CHAT_SAFETY_ACTIONS;
 export const AI_CHAT_FEEDBACK_RATINGS = CHAT_FEEDBACK_RATINGS;
 
-function isChatMode(value: unknown): value is ChatMode {
+export function isChatMode(value: unknown): value is ChatMode {
   return (CHAT_MODES as readonly unknown[]).includes(value);
 }
 
@@ -2346,6 +2346,51 @@ export async function fetchAiChatPolicy(options: { signal?: AbortSignal } = {}):
   const path = "/ai/chat-policy";
   const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
   return parseAiChatPolicy(response, path);
+}
+
+export interface AssistantAccountSettings {
+  chatDefaultMode: ChatMode;
+  chatTone: "than_thien" | "chuyen_nghiep" | "ngan_gon";
+  chatPersonalized: boolean;
+}
+
+const ASSISTANT_TONES: AssistantAccountSettings["chatTone"][] = [
+  "than_thien",
+  "chuyen_nghiep",
+  "ngan_gon",
+];
+
+function parseAssistantAccountSettings(raw: unknown, path: string): AssistantAccountSettings {
+  if (!isRecord(raw)) throw new ApiError("Cài đặt trợ lý không hợp lệ.", 502, path);
+  const mode = typeof raw.chatDefaultMode === "string" ? raw.chatDefaultMode : "";
+  const tone = typeof raw.chatTone === "string" ? raw.chatTone : "";
+  return {
+    chatDefaultMode: isChatMode(mode) ? mode : "HOSPITAL_SUPPORT",
+    chatTone: (ASSISTANT_TONES as string[]).includes(tone)
+      ? (tone as AssistantAccountSettings["chatTone"])
+      : "than_thien",
+    chatPersonalized: raw.chatPersonalized === true,
+  };
+}
+
+/** Per-account assistant defaults backed by `user_preferences` server-side. */
+export async function fetchAssistantAccountSettings(
+  options: { signal?: AbortSignal } = {},
+): Promise<AssistantAccountSettings> {
+  const path = "/me/preferences";
+  const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
+  return parseAssistantAccountSettings(response, path);
+}
+
+export async function patchAssistantAccountSettings(
+  patch: Partial<Omit<AssistantAccountSettings, "chatDefaultMode">> & { chatDefaultMode?: ChatMode },
+): Promise<AssistantAccountSettings> {
+  const path = "/me/preferences";
+  const response = await getAuthenticatedJson<unknown>(path, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return parseAssistantAccountSettings(response, path);
 }
 
 export async function createAiConversation(

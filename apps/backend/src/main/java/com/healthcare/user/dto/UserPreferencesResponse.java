@@ -8,6 +8,9 @@ public record UserPreferencesResponse(
     boolean marketingEmails,
     String locale,
     String timezone,
+    String chatDefaultMode,
+    String chatTone,
+    boolean chatPersonalized,
     OffsetDateTime updatedAt
 ) {
 }

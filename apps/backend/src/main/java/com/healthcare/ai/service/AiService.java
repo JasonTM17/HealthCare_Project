@@ -40,6 +40,7 @@ import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
@@ -397,6 +398,27 @@ public class AiService {
             Object sources = request.get("authorized_sources");
             if (sources == null) sources = request.get("authorizedSources");
             payload.put("authorized_sources", sources == null ? List.of() : sources);
+            // Per-account tuning, both server-built (patient context comes
+            // from this user's own records, never the request body). The tone
+            // is re-validated against the same allowlist the Python contract
+            // enforces; unknown values fall back instead of failing the chat.
+            Object tone = request.get("tone");
+            if (tone instanceof String toneText
+                && Set.of("than_thien", "chuyen_nghiep", "ngan_gon").contains(toneText)) {
+                payload.put("tone", toneText);
+            }
+            Object patientContext = request.get("patient_context");
+            if (patientContext instanceof List<?> lines && !lines.isEmpty()) {
+                List<String> bounded = lines.stream()
+                    .filter(line -> line instanceof String text && !text.isBlank())
+                    .map(line -> {
+                        String flat = ((String) line).replaceAll("\\s+", " ").strip();
+                        return flat.length() > 200 ? flat.substring(0, 200) : flat;
+                    })
+                    .limit(5)
+                    .toList();
+                if (!bounded.isEmpty()) payload.put("patient_context", bounded);
+            }
         }
         return payload;
     }

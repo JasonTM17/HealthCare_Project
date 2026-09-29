@@ -267,8 +267,10 @@ function FloatingHealthAssistantPanel({
   const latestMessage = messages[messages.length - 1];
   const isInsufficientEvidence = latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE";
   const assistantStatus = failure?.kind === "unavailable"
-    ? "Tạm thời gián đoạn"
-    : null;
+    ? "Gián đoạn"
+    : failure?.kind === "credits"
+      ? "Hết hạn mức"
+      : null;
 
   const syncConversation = useCallback((next: AiConversation | null): void => {
     conversationIdRef.current = next?.id ?? null;

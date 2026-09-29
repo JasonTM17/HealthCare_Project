@@ -1065,6 +1065,35 @@ def test_public_specific_question_without_context_returns_guidance_fallback() ->
     provider.complete_json.assert_not_called()
 
 
+def test_generate_request_accepts_server_tone_and_bounds_patient_context() -> None:
+    from app.schemas import ChatGenerateRequest
+
+    request = ChatGenerateRequest(
+        message="Tôi nên chuẩn bị gì cho buổi khám?",
+        mode="HOSPITAL_SUPPORT",
+        authorized_sources=[],
+        tone="chuyen_nghiep",
+        patient_context=[
+            "Hồ sơ người dùng do hệ thống cung cấp: tên Minh.",
+            "  " + "dài quá 200 ký tự " * 30,
+            123,
+        ],
+    )
+    assert request.tone == "chuyen_nghiep"
+    assert len(request.patient_context) == 2
+    assert all(len(line) <= 200 for line in request.patient_context)
+
+    import pytest
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        ChatGenerateRequest(message="ok rồi nhé", tone="giau_mat")
+    # The before-validator truncates an oversized set instead of rejecting it:
+    # Spring is the trusted builder, so graceful bounding beats a hard error.
+    assert len(ChatGenerateRequest(
+        message="ok rồi nhé", patient_context=["a"] * 6).patient_context) == 5
+
+
 def test_public_emergency_question_without_context_still_returns_emergency_protocol() -> None:
     """The ungrounded guidance fallback must not swallow the crisis gate."""
 

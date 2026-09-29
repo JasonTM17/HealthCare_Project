@@ -41,6 +41,19 @@ public class UserPreferences {
     @Column(name = "timezone", nullable = false, length = 64)
     private String timezone = "Asia/Ho_Chi_Minh";
 
+    // Patient-assistant configuration. Values are server-validated enums, not
+    // free text: chatDefaultMode seeds new conversations, chatTone selects the
+    // reply register, and chatPersonalized opts the account into server-built
+    // patient context injection (never sent by the browser).
+    @Column(name = "chat_default_mode", nullable = false, length = 32)
+    private String chatDefaultMode = "HOSPITAL_SUPPORT";
+
+    @Column(name = "chat_tone", nullable = false, length = 16)
+    private String chatTone = "than_thien";
+
+    @Column(name = "chat_personalized", nullable = false)
+    private boolean chatPersonalized = false;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -61,6 +74,12 @@ public class UserPreferences {
     public void setLocale(String value) { locale = value; }
     public String getTimezone() { return timezone; }
     public void setTimezone(String value) { timezone = value; }
+    public String getChatDefaultMode() { return chatDefaultMode; }
+    public void setChatDefaultMode(String value) { chatDefaultMode = value; }
+    public String getChatTone() { return chatTone; }
+    public void setChatTone(String value) { chatTone = value; }
+    public boolean isChatPersonalized() { return chatPersonalized; }
+    public void setChatPersonalized(boolean value) { chatPersonalized = value; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
