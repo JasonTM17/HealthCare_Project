@@ -112,20 +112,37 @@ async def start_backend_cross_warmer() -> None:
 
     warm_url = (getattr(settings, "backend_warm_url", "") or "").strip()
     if not warm_url:
+        logger.info("backend keep-warm disabled: no backend_warm_url configured")
         return
     interval = max(60.0, float(getattr(settings, "backend_warm_interval_seconds", 240.0)))
+    app.state.backend_warm_last_ok_at = None
+    app.state.backend_warm_last_error = "never run"
 
     async def warm_loop() -> None:
         import httpx
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        logger.info("backend keep-warm started url=%s intervalS=%d", warm_url, int(interval))
+        last_ok = False
+        async with httpx.AsyncClient(timeout=30.0) as client:
             while True:
                 try:
-                    await client.get(warm_url)
+                    response = await client.get(warm_url)
+                    ok = response.status_code < 500
+                    app.state.backend_warm_last_ok_at = time.time()
+                    app.state.backend_warm_last_error = None if ok else f"http {response.status_code}"
+                    if ok != last_ok:
+                        logger.info(
+                            "backend keep-warm ping status changed ok=%s http=%d",
+                            ok, response.status_code,
+                        )
+                    last_ok = ok
                 except asyncio.CancelledError:
                     raise
-                except Exception:
-                    logger.debug("backend warm ping failed url=%s", warm_url)
+                except Exception as error:
+                    app.state.backend_warm_last_error = type(error).__name__
+                    if last_ok:
+                        logger.warning("backend keep-warm ping started failing: %s", type(error).__name__)
+                    last_ok = False
                 await asyncio.sleep(interval)
 
     app.state.backend_warm_task = asyncio.create_task(warm_loop())
@@ -460,6 +477,20 @@ def require_service_auth(
         raise HTTPException(status_code=503, detail="AI service authentication is not configured")
     if not x_ai_service_token or not secrets.compare_digest(x_ai_service_token, configured_token):
         raise HTTPException(status_code=401, detail="AI service authentication required")
+
+
+@app.get("/warm-status", dependencies=[Depends(require_service_auth)])
+async def warm_status() -> dict[str, Any]:
+    """Content-free keep-warm diagnostics: whether pings run and last result."""
+
+    state = app.state
+    last_ok_at = getattr(state, "backend_warm_last_ok_at", None)
+    return {
+        "configured": bool((getattr(settings, "backend_warm_url", "") or "").strip()),
+        "last_ok_at_epoch": last_ok_at,
+        "seconds_since_last_ok": None if last_ok_at is None else round(time.time() - last_ok_at, 1),
+        "last_error": getattr(state, "backend_warm_last_error", "startup pending"),
+    }
 
 
 def _require_llm_capacity() -> Generator[None, None, None]:
