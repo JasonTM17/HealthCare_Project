@@ -2105,7 +2105,7 @@ export default function PatientDashboardPage() {
                           type="date"
                           value={profileForm.dateOfBirth}
                         />
-                        <span className="text-[11px] font-medium normal-case text-slate-500">Định dạng ngày/tháng/năm</span>
+                        <span className="text-xs font-medium normal-case text-slate-500">Định dạng ngày/tháng/năm</span>
                       </label>
                       <label className="flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
                         <span className="text-slate-800">Giới tính</span>
@@ -2216,7 +2216,7 @@ export default function PatientDashboardPage() {
                           <option value="O+">Nhóm O+ (O Rh dương)</option>
                           <option value="O-">Nhóm O- (O Rh âm)</option>
                         </select>
-                        <span className="text-[11px] font-normal normal-case text-slate-500">Cần thiết khi cấp cứu & truyền máu</span>
+                        <span className="text-xs font-normal normal-case text-slate-500">Cần thiết khi cấp cứu & truyền máu</span>
                       </label>
 
                       <label className="md:col-span-2 flex flex-col gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -2228,7 +2228,7 @@ export default function PatientDashboardPage() {
                           value={profileForm.medicalHistory}
                           onChange={(e) => setProfileForm((v) => ({ ...v, medicalHistory: e.target.value }))}
                         />
-                        <span className="text-[11px] font-normal normal-case text-slate-500">Bệnh nền mạn tính, phẫu thuật trước đây hoặc yếu tố di truyền trong gia đình</span>
+                        <span className="text-xs font-normal normal-case text-slate-500">Bệnh nền mạn tính, phẫu thuật trước đây hoặc yếu tố di truyền trong gia đình</span>
                       </label>
                     </div>
 

@@ -127,7 +127,7 @@ export default function DoctorDetailPage() {
                   {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
                   {doctor.experienceYears ? <span className="resource-chip resource-chip--warm">{doctor.experienceYears} năm kinh nghiệm</span> : null}
                 </div>
-                <h2>{doctor.fullName}</h2>
+                <h2>Hồ sơ chuyên môn</h2>
                 <p className="resource-lead">{doctor.title ?? "Bác sĩ chuyên khoa"}</p>
                 <p>{doctor.bio || "Hồ sơ chưa có phần giới thiệu chi tiết."}</p>
                 {isDemoDoctor ? (

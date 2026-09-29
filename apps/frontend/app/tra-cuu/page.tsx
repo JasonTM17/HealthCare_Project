@@ -280,7 +280,7 @@ export default function TraCuuPage() {
             {/* Header Status Bar */}
             <div className="bg-teal-900 text-white p-6 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-[10px] text-teal-200 font-bold uppercase tracking-wider block">
+                <span className="text-xs text-teal-200 font-bold uppercase tracking-wider block">
                   PHIẾU KHÁM BỆNH ĐIỆN TỬ
                 </span>
                 <h3 className="text-xl font-extrabold text-white">
@@ -371,9 +371,9 @@ export default function TraCuuPage() {
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-ink-muted text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
+                    className="min-h-[2.75rem] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-ink-muted text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
                   >
-                    <Icon name="printer" size={15} /> Tải phiếu PDF
+                    <Icon name="printer" size={15} /> In phiếu khám
                   </button>
 
                   {appointment.status === "CONFIRMED" && (
@@ -392,7 +392,7 @@ export default function TraCuuPage() {
                         })}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
+                        className="min-h-[2.75rem] px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
                         data-testid="tra-cuu-google-calendar"
                       >
                         <Icon name="calendar" size={15} /> Thêm vào Google Calendar
@@ -412,7 +412,7 @@ export default function TraCuuPage() {
                             branchName: appointment.branchName,
                           })
                         }
-                        className="px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
+                        className="min-h-[2.75rem] px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
                         data-testid="tra-cuu-download-ics"
                       >
                         <Icon name="download" size={15} /> Tải file nhắc hẹn (.ics)
@@ -425,7 +425,7 @@ export default function TraCuuPage() {
                   <button
                     type="button"
                     onClick={() => { setCancelError(""); setShowCancelDialog(true); }}
-                    className="px-4 py-2 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
+                    className="min-h-[2.75rem] px-4 py-2 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
                   >
                     Hủy lịch hẹn này
                   </button>
@@ -476,7 +476,7 @@ export default function TraCuuPage() {
                   type="button"
                   disabled={loading}
                   onClick={() => setShowCancelDialog(false)}
-                  className="px-4 py-2 text-xs font-bold text-ink-muted hover:bg-slate-100 rounded-[4px]"
+                  className="min-h-[2.75rem] px-4 py-2 text-xs font-bold text-ink-muted hover:bg-slate-100 rounded-[4px]"
                 >
                   Không, giữ lịch
                 </button>
@@ -484,7 +484,7 @@ export default function TraCuuPage() {
                   type="button"
                   disabled={loading}
                   onClick={handleCancelAppointment}
-                  className="px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-[4px] shadow-xs"
+                  className="min-h-[2.75rem] px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-[4px] shadow-xs"
                 >
                   Đồng ý hủy lịch
                 </button>
