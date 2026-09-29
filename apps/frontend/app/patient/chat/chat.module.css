@@ -9,7 +9,7 @@
   --chat-danger-surface: color-mix(in oklch, var(--color-red) 9%, var(--color-paper-bright));
   --chat-warning-surface: color-mix(in oklch, var(--color-amber) 13%, var(--color-paper-bright));
   /* A small service-interface radius keeps the chat calm and clinical. */
-  --chat-radius: 0.375rem;
+  --chat-radius: var(--radius-sm);
   --chat-touch-size: 2.75rem;
   --chat-rail-width: 19rem;
   --chat-transition: var(--duration-fast) var(--ease-out);
@@ -198,7 +198,7 @@
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
   background: var(--chat-surface);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
 }
 
 .conversationRail {
@@ -875,7 +875,7 @@
 
 .modePickerHeading span {
   color: var(--color-ink-muted);
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
 }
 
 .modeOptions {
@@ -1059,7 +1059,7 @@
 
 .composerLabelRow span {
   color: var(--color-ink-muted);
-  font-size: 0.71875rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
 

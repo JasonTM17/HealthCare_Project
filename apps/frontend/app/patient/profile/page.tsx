@@ -366,7 +366,7 @@ export default function PatientProfilePage() {
                   style={{ width: `${creditPercent}%` }}
                 />
               </div>
-              <p className="text-[11px] text-white/70 mt-1 m-0">
+              <p className="text-xs text-white/70 mt-1 m-0">
                 {tierInfo.quotaDescription}
               </p>
             </div>

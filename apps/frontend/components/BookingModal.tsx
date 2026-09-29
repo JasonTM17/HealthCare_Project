@@ -2045,7 +2045,7 @@ function BookingExperience({
                   <div className="p-5 bg-brand-900 text-white rounded-sm text-left shadow-xl relative overflow-hidden">
                     <div className="flex justify-between items-start border-b border-brand-700/60 pb-3 mb-3">
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider text-brand-300 font-bold">PHIẾU KHÁM BỆNH ĐIỆN TỬ</span>
+                        <span className="text-xs uppercase tracking-wider text-brand-300 font-bold">PHIẾU KHÁM BỆNH ĐIỆN TỬ</span>
                         <h4 className="text-lg font-extrabold text-white">HealthCare Vietnam</h4>
                       </div>
                       <div className="text-right">
@@ -2085,7 +2085,7 @@ function BookingExperience({
                       </div>
                     </div>
 
-                    <div className="mt-3 rounded-sm border border-brand-700/70 bg-brand-800/70 p-3 text-[11px] leading-5 text-brand-100">
+                    <div className="mt-3 rounded-sm border border-brand-700/70 bg-brand-800/70 p-3 text-xs leading-5 text-brand-100">
                       <p className="font-bold text-white">Lưu ý khi đến khám</p>
                       <p>Vui lòng đến trước giờ hẹn khoảng 30 phút và mang CCCD/hộ chiếu cùng mã lịch hẹn.</p>
                       {confirmedAppointment.hasInsurance ? (
@@ -2095,7 +2095,7 @@ function BookingExperience({
                       )}
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-brand-700/60 flex items-center justify-between text-[11px] text-brand-200">
+                    <div className="mt-3 pt-3 border-t border-brand-700/60 flex items-center justify-between text-xs text-brand-200">
                       <span className="flex items-center gap-1"><Icon name="building" size={14} /> {confirmedAppointment.branchName || "Cơ sở đang cập nhật"}</span>
                       <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded font-semibold">
                         ĐÃ XÁC NHẬN

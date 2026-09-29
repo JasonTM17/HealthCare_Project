@@ -880,7 +880,7 @@ main {
   border-radius: 0;
   background: transparent;
   color: var(--color-teal-950);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   line-height: 1.4;
@@ -893,7 +893,7 @@ main {
 
 /* Marks seeded illustrative profiles so demo doctors never read as real staff. */
 .resource-chip--muted {
-  color: var(--color-slate-500, #64748b);
+  color: var(--color-ink-soft);
 }
 
 .resource-hero-card--teal .resource-chip {
@@ -1992,7 +1992,7 @@ main {
 .brand-copy small {
   margin-top: 0.25rem;
   color: var(--color-teal-700);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -5571,7 +5571,7 @@ main {
 
 .portal-appointment__details dt {
   color: var(--color-ink-soft);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
 }
