@@ -105,12 +105,19 @@ public class AiPatientContextService {
 
     private String nearestAppointmentLine(UUID patientId) {
         LocalDate today = LocalDate.now();
+        // The repository sorts newest first and requires a Pageable; a small
+        // page is enough to find the earliest still-upcoming visit.
         Optional<Appointment> soonest = appointmentRepository
-            .findByPatientIdOrderByAppointmentDateDescStartTimeDesc(patientId).stream()
+            .findByPatientIdOrderByAppointmentDateDescStartTimeDesc(
+                patientId, org.springframework.data.domain.PageRequest.of(0, 30)).stream()
             .filter(visit -> visit.getAppointmentDate() != null
                 && !visit.getAppointmentDate().isBefore(today))
             .filter(visit -> UPCOMING_STATUSES.contains(visit.getStatus()))
-            .findFirst();
+            .min(java.util.Comparator
+                .comparing(Appointment::getAppointmentDate)
+                .thenComparing(visit -> visit.getStartTime() == null
+                    ? java.time.LocalTime.MAX
+                    : visit.getStartTime()));
         if (soonest.isEmpty()) return null;
         Appointment visit = soonest.get();
         String time = visit.getStartTime() == null
