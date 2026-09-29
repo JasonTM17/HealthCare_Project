@@ -897,15 +897,17 @@ export default function PatientDashboardPage() {
     setCancelError(null);
     try {
       const reason = values.reason?.trim() || null;
-      await cancelPatientAppointment(cancelTarget.bookingCode, reason ?? undefined);
+      const response = await cancelPatientAppointment(cancelTarget.bookingCode, reason ?? undefined);
       applyCancellation(cancelTarget.bookingCode, reason);
+      syncAppointmentPaymentStatus(response.id, response.paymentStatus as PaymentStatus);
       setCancelTarget(null);
+      setReloadKey((value) => value + 1);
     } catch (error) {
       setCancelError(getErrorMessage(error));
     } finally {
       setCancelSubmitting(false);
     }
-  }, [cancelTarget, cancelSubmitting, applyCancellation]);
+  }, [cancelTarget, cancelSubmitting, applyCancellation, syncAppointmentPaymentStatus]);
 
   const handleSubmitPayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1641,7 +1643,9 @@ export default function PatientDashboardPage() {
           <ConfirmActionDialog
             confirmLabel="Xác nhận hủy lịch"
             confirmingLabel="Đang hủy…"
-            description="Lịch hẹn sau khi hủy không thể khôi phục. Bạn có thể đặt lịch mới bất cứ lúc nào."
+            description={cancelTarget?.paymentStatus === "PAID"
+              ? "Lịch hẹn sau khi hủy không thể khôi phục. Bạn có thể đặt lịch mới bất cứ lúc nào. Lịch này đã thanh toán — bộ phận thu ngân sẽ đối soát và xử lý hoàn tiền; trạng thái thanh toán sẽ chuyển thành “Đang chờ hoàn tiền”."
+              : "Lịch hẹn sau khi hủy không thể khôi phục. Bạn có thể đặt lịch mới bất cứ lúc nào."}
             destructive
             entity={cancelTarget}
             error={cancelError}

@@ -2,6 +2,7 @@ package com.healthcare.ai;
 
 import com.healthcare.ai.controller.AdminAiCreditController;
 import com.healthcare.ai.controller.AdminAiCreditController.GrantCreditRequest;
+import com.healthcare.ai.controller.AdminAiCreditController.UpdateTierRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -78,6 +79,23 @@ class AdminAiCreditControllerTest {
         assertThat(validator.validate(
             new GrantCreditRequest(UUID.randomUUID(), "PATIENT", 50, "Cấp thêm lượt hỏi AI")))
             .isEmpty();
+    }
+
+    @Test
+    @DisplayName("STANDARD tier is accepted so admins can demote a patient back to the default tier")
+    void standardTierRequestIsAccepted() {
+        assertThat(validator.validate(
+            new UpdateTierRequest(UUID.randomUUID(), "STANDARD", null)))
+            .isEmpty();
+    }
+
+    @Test
+    @DisplayName("An unknown tier name is still rejected at the controller boundary")
+    void unknownTierRequestIsRejected() {
+        assertThat(validator.validate(
+            new UpdateTierRequest(UUID.randomUUID(), "DIAMOND", null)))
+            .extracting(violation -> violation.getPropertyPath().toString())
+            .containsExactly("tier");
     }
 
     @Test

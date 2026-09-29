@@ -522,3 +522,68 @@ test("email verification creates a browser session grant without bearer material
   assert.deepEqual(Object.keys(session).sort(), ["absoluteExpiresAt", "idleExpiresAt", "user"]);
   assert.doesNotMatch(JSON.stringify(session), /accessToken|refreshToken|tokenType|Bearer/i);
 });
+
+function adminCreditRow(page, index) {
+  return {
+    patientId: `profile-${page}-${index}`,
+    userId: `user-${page}-${index}`,
+    fullName: `Bệnh nhân ${page}-${index}`,
+    email: `patient${page}-${index}@example.test`,
+    phone: "0900000000",
+    tier: "STANDARD",
+    credits: 1,
+  };
+}
+
+test("admin AI credit inventory walks every backend window until a short page", async () => {
+  const requests = [];
+  const { api } = await loadApiClient(async (input) => {
+    const url = new URL(String(input), "https://bff.test");
+    requests.push({ path: url.pathname, page: url.searchParams.get("page"), size: url.searchParams.get("size") });
+    const page = Number(url.searchParams.get("page") ?? 0);
+    // Backend windows sized like the live contract (cap 100): 100 + 100 + 20.
+    const count = page === 0 ? 100 : page === 1 ? 100 : page === 2 ? 20 : 0;
+    return jsonResponse(Array.from({ length: count }, (_, index) => adminCreditRow(page, index)));
+  });
+  api.storeAuthSession(browserSession("admin-credits"));
+
+  const patients = await api.adminListPatientAiCredits();
+  // A single unpaginated fetch (the old behavior) would leave only one request
+  // and 100 rows, silently hiding patients 101+ from the admin screen.
+  assert.equal(requests.length, 3);
+  assert.deepEqual(
+    requests.map((request) => [request.page, request.size]),
+    [["0", "100"], ["1", "100"], ["2", "100"]],
+  );
+  assert.equal(patients.length, 220);
+  assert.equal(new Set(patients.map((patient) => patient.patientId)).size, 220);
+});
+
+test("admin AI credit inventory stops after one short window for small hospitals", async () => {
+  const requestedSizes = [];
+  const { api } = await loadApiClient(async (input) => {
+    const url = new URL(String(input), "https://bff.test");
+    requestedSizes.push(url.searchParams.get("size"));
+    return jsonResponse([adminCreditRow(0, 0)]);
+  });
+  api.storeAuthSession(browserSession("admin-credits"));
+
+  const patients = await api.adminListPatientAiCredits();
+  assert.equal(requestedSizes.length, 1);
+  assert.equal(requestedSizes[0], "100");
+  assert.equal(patients.length, 1);
+});
+
+test("admin AI credit inventory caps window walking against a server that never shortens", async () => {
+  let calls = 0;
+  const { api } = await loadApiClient(async () => {
+    calls += 1;
+    return jsonResponse(Array.from({ length: 100 }, (_, index) => adminCreditRow(0, index)));
+  });
+  api.storeAuthSession(browserSession("admin-credits"));
+
+  await api.adminListPatientAiCredits();
+  // 50 full windows is the hard stop: without it a full-page loop would run
+  // until the browser or backend kills the tab.
+  assert.equal(calls, 50);
+});
