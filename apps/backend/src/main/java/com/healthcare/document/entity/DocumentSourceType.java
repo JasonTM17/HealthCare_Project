@@ -7,5 +7,6 @@ package com.healthcare.document.entity;
  */
 public enum DocumentSourceType {
     VISIT_SUMMARY,
-    PRESCRIPTION
+    PRESCRIPTION,
+    APPOINTMENT_REMINDER
 }

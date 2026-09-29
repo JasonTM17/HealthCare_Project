@@ -99,6 +99,31 @@ public class DocumentController {
         }
     }
 
+    @Operation(summary = "Tải xuống giấy nhắc hẹn PDF theo mã lịch hẹn",
+            description = "Tra cứu giấy nhắc hẹn (APPOINTMENT_REMINDER) đã xuất theo bookingCode và trả về luồng PDF")
+    @GetMapping("/by-booking/{bookingCode}/download")
+    public ResponseEntity<InputStreamResource> downloadAppointmentReminderByBookingCode(
+            @PathVariable UUID patientId,
+            @PathVariable String bookingCode,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        DocumentService.DocumentDownload download =
+                documentService.downloadAppointmentReminderByBookingCode(patientId, bookingCode, userDetails);
+        InputStream stream = download.stream();
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.set(HttpHeaders.CACHE_CONTROL, "no-store");
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(download));
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentLength(download.document().getByteSize() == null ? 0L : download.document().getByteSize())
+                    .body(new InputStreamResource(stream));
+        } catch (RuntimeException exception) {
+            closeQuietly(stream);
+            throw exception;
+        }
+    }
+
     private String contentDisposition(DocumentService.DocumentDownload download) {
         String documentId = download.document().getId().toString();
         String filename = "tai-lieu-tong-hop-demo-"
