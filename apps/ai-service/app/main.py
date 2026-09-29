@@ -598,6 +598,18 @@ def health(response: Response) -> HealthResponse:
     )
 
 
+@app.api_route("/", methods=["GET", "HEAD"])
+def root_probe() -> dict[str, str]:
+    """Process root probe for monitors querying the root domain or without subpath."""
+    return {"status": "ok", "service": settings.service_name}
+
+
+@app.api_route("/actuator/health", methods=["GET", "HEAD"])
+def actuator_health_probe() -> dict[str, str]:
+    """Compatibility probe for monitors configured with the Spring Boot actuator path."""
+    return {"status": "UP", "service": settings.service_name}
+
+
 @app.api_route("/livez", methods=["GET", "HEAD"])
 def livez() -> dict[str, str]:
     """Process liveness probe; it intentionally does not call providers."""
