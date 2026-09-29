@@ -190,7 +190,9 @@ test("booking catalog loads independently and offers a clear retry", async () =>
 test("booking input and OTP validation match the backend contract", async () => {
   const source = await readFile(modalPath, "utf8");
 
-  assert.match(source, /\^\[\+0-9\(\) \.\-\]\{7,20\}\$/);
+  // Aligned to the backend's post-normalize rule: VN 0-prefix, 8-12 digits
+  // (separator-only strings are rejected server-side with a 400).
+  assert.match(source, /\^\[0-9\]\{8,12\}\$/);
   assert.match(source, /Mã OTP phải gồm đúng 6 chữ số/);
   assert.match(source, /autoComplete="one-time-code"/);
   assert.match(source, /secondsRemaining <= 0/);
