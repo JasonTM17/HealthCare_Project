@@ -60,7 +60,7 @@ public class AdminAiCreditController {
 
     public record UpdateTierRequest(
             @NotNull UUID patientProfileId,
-            @NotBlank @Pattern(regexp = "^(SILVER|GOLD|VIP)$") String tier,
+            @NotBlank @Pattern(regexp = "^(STANDARD|SILVER|GOLD|VIP)$") String tier,
             @Min(0) @Max(MAX_GRANT_AMOUNT) Integer credits
     ) {}
 
