@@ -421,7 +421,7 @@ test("provider unavailable state offers a real retry without storing the draft",
   await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill(question);
   await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
   await expect(dialog.getByText("Trợ lý tạm thời gián đoạn", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Tạm thời gián đoạn", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Gián đoạn", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Thử lại" })).toBeVisible();
   await dialog.getByRole("button", { name: "Thử lại" }).click();
   await expect(dialog.getByTestId("floating-chat-streaming-reply")).toBeHidden();

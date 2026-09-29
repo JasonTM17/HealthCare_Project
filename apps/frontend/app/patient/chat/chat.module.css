@@ -952,7 +952,7 @@
 }
 
 .assistantSettingField select {
-  min-height: 2.4rem;
+  min-height: 2.75rem;
   padding: 0.3rem 0.55rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-xs);
@@ -977,7 +977,7 @@
 }
 
 .assistantSettingSave {
-  min-height: 2.4rem;
+  min-height: 2.75rem;
   padding: 0.35rem 0.85rem;
   border: 1px solid var(--chat-accent);
   border-radius: var(--radius-xs);
