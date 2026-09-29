@@ -23,10 +23,14 @@ import {
   fetchAiConversation,
   fetchAiConversationMessages,
   fetchAiConversations,
+  fetchAssistantAccountSettings,
   hasRole,
+  isChatMode,
+  patchAssistantAccountSettings,
   updateAiMessageFeedback,
   fetchPatientAiCreditStatus,
   type AiCreditStatus,
+  type AssistantAccountSettings,
 } from "../../../lib/api-client";
 import type {
   AiChatCitation,
@@ -286,6 +290,13 @@ function PatientChatPageContent() {
   const [deleteFailure, setDeleteFailure] = useState<ChatFailure | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selectedMode, setSelectedMode] = useState<ChatMode>(DEFAULT_CHAT_MODE);
+  // Per-account assistant defaults live server-side; the user's manual mode
+  // pick always wins over the seeded default.
+  const [accountSettings, setAccountSettings] = useState<AssistantAccountSettings | null>(null);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const modeTouchedRef = useRef(false);
   const [chatPolicy, setChatPolicy] = useState<AiChatPolicy | null>(null);
   const [consentBusy, setConsentBusy] = useState(false);
   const [consentFailure, setConsentFailure] = useState<string | null>(null);
@@ -303,6 +314,23 @@ function PatientChatPageContent() {
     const task = Promise.resolve().then(refreshCredit);
     return () => void task;
   }, [refreshCredit]);
+  // Load the account's assistant defaults once; seed the mode picker only
+  // when the user has not already chosen one during this visit.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const settings = await fetchAssistantAccountSettings();
+        if (!cancelled) {
+          setAccountSettings(settings);
+          if (!modeTouchedRef.current && isChatMode(settings.chatDefaultMode)) {
+            setSelectedMode(settings.chatDefaultMode);
+          }
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
   const workspaceRef = useRef<HTMLElement | null>(null);
   const activeIdRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
@@ -577,6 +605,7 @@ function PatientChatPageContent() {
   };
 
   const handleModeSelect = async (nextMode: ChatMode): Promise<void> => {
+    modeTouchedRef.current = true;
     if (modeCreateInFlightRef.current || nextMode === selectedMode) return;
     if (activeConversation || selectedConversationId) {
       modeCreateInFlightRef.current = true;
@@ -603,6 +632,31 @@ function PatientChatPageContent() {
       return;
     }
     setSelectedMode(nextMode);
+  };
+
+  const handleSaveAssistantSettings = async (
+    patch: Partial<Pick<AssistantAccountSettings, "chatTone" | "chatPersonalized" | "chatDefaultMode">>,
+  ): Promise<void> => {
+    if (settingsBusy) return;
+    setSettingsBusy(true);
+    setSettingsSaved(false);
+    setSettingsError(null);
+    try {
+      const saved = await patchAssistantAccountSettings(patch);
+      setAccountSettings(saved);
+      setSettingsSaved(true);
+      window.setTimeout(() => setSettingsSaved(false), 2500);
+    } catch (error) {
+      if (!isAbortError(error)) {
+        setSettingsError(
+          error instanceof ApiError && error.code
+            ? assistantErrorMessage(error.code)
+            : "Chưa lưu được cài đặt trợ lý.",
+        );
+      }
+    } finally {
+      setSettingsBusy(false);
+    }
   };
 
   const handleConsent = async (): Promise<void> => {
@@ -965,6 +1019,54 @@ function PatientChatPageContent() {
                 <span>{option.description}</span>
               </button>
             ))}
+          </div>
+          <div aria-label="Cấu hình trợ lý theo tài khoản" className={styles.assistantSettings}>
+            <div className={styles.assistantSettingsRow}>
+              <label className={styles.assistantSettingField}>
+                <span>Giọng trả lời</span>
+                <select
+                  disabled={settingsBusy}
+                  onChange={(event) => void handleSaveAssistantSettings({
+                    chatTone: event.target.value as AssistantAccountSettings["chatTone"],
+                  })}
+                  value={accountSettings?.chatTone ?? "than_thien"}
+                >
+                  <option value="than_thien">Thân thiện</option>
+                  <option value="chuyen_nghiep">Chuyên nghiệp</option>
+                  <option value="ngan_gon">Ngắn gọn</option>
+                </select>
+              </label>
+              <label className={styles.assistantSettingToggle}>
+                <input
+                  checked={accountSettings?.chatPersonalized ?? false}
+                  disabled={settingsBusy}
+                  onChange={(event) => void handleSaveAssistantSettings({
+                    chatPersonalized: event.target.checked,
+                  })}
+                  type="checkbox"
+                />
+                <span>Gợi ý cá nhân hóa (tên, lịch hẹn sắp tới của bạn)</span>
+              </label>
+              <button
+                className={styles.assistantSettingSave}
+                disabled={settingsBusy || !accountSettings}
+                onClick={() => accountSettings
+                  ? void handleSaveAssistantSettings({
+                    chatDefaultMode: selectedMode,
+                    chatTone: accountSettings.chatTone,
+                    chatPersonalized: accountSettings.chatPersonalized,
+                  })
+                  : undefined}
+                type="button"
+              >
+                Lưu mục đích làm mặc định
+              </button>
+            </div>
+            <p aria-live="polite" className={styles.assistantSettingHint} role="status">
+              {settingsSaved
+                ? "Đã lưu cài đặt trợ lý của bạn."
+                : settingsError ?? "Cài đặt áp dụng cho các lượt trả lời mới của trợ lý theo tài khoản của bạn."}
+            </p>
           </div>
         </section>
 

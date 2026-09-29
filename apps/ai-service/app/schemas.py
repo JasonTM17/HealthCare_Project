@@ -230,8 +230,28 @@ class ChatGenerateRequest(BaseModel):
     recent_turns: list[ChatTurn] = Field(default_factory=list, max_length=6)
     authorized_sources: list[AuthorizedSource] = Field(default_factory=list, max_length=MAX_RETRIEVED_CHUNKS)
     synthetic_beta: bool = False
+    # Per-account tuning, built by Spring from the user's stored preferences —
+    # never from the request body of a browser. tone selects the reply
+    # register; patient_context lines are server-derived identity/visit facts
+    # that join the prompt context pipeline (same safety + grounding gates).
+    tone: Literal["than_thien", "chuyen_nghiep", "ngan_gon"] = "than_thien"
+    patient_context: list[str] = Field(default_factory=list, max_length=5)
 
     _trim_message = field_validator("message", mode="before")(_trim_text)
+
+    @field_validator("patient_context", mode="before")
+    @classmethod
+    def _bound_context_lines(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return []
+        bounded = []
+        for item in value[:5]:
+            if not isinstance(item, str):
+                continue
+            flat = " ".join(item.split()).strip()
+            if flat:
+                bounded.append(flat[:200])
+        return bounded
 
 
 class ChatResponse(BaseModel):

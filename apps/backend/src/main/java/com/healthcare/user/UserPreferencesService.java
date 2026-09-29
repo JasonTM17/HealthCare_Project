@@ -58,6 +58,24 @@ public class UserPreferencesService {
             }
             preferences.setTimezone(request.timezone().trim());
         }
+        // Bean Validation already pins the chat enums to the supported sets;
+        // the blank re-check keeps a bare whitespace patch from storing an
+        // unusable default the way locale/timezone are guarded above.
+        if (request.chatDefaultMode() != null) {
+            if (request.chatDefaultMode().isBlank()) {
+                throw new BusinessException(400, ErrorCodes.PREFERENCES_INVALID, "Chat default mode must not be blank");
+            }
+            preferences.setChatDefaultMode(request.chatDefaultMode().trim());
+        }
+        if (request.chatTone() != null) {
+            if (request.chatTone().isBlank()) {
+                throw new BusinessException(400, ErrorCodes.PREFERENCES_INVALID, "Chat tone must not be blank");
+            }
+            preferences.setChatTone(request.chatTone().trim());
+        }
+        if (request.chatPersonalized() != null) {
+            preferences.setChatPersonalized(request.chatPersonalized());
+        }
         preferences.setUpdatedAt(OffsetDateTime.now());
         return toResponse(preferencesRepository.save(preferences));
     }
@@ -84,6 +102,9 @@ public class UserPreferencesService {
             preferences.isMarketingEmails(),
             preferences.getLocale(),
             preferences.getTimezone(),
+            preferences.getChatDefaultMode(),
+            preferences.getChatTone(),
+            preferences.isChatPersonalized(),
             preferences.getUpdatedAt()
         );
     }
