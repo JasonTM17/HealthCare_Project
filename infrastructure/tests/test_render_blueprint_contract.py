@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from c033495 (refusal-aware unsafe-claim filter +
-# per-account assistant configuration + cross-instance keep-warm). Update
+# release line, built from 0b7a3fb (refusal-aware unsafe-claim filter +
+# punctuation-segment guard + per-account assistant configuration). Update
 # together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:528a073be9614047831b61a088853fc7059083256bf7cc8d61a608252866da47"
+    "sha256:538dbed16ad32e9eb8ed9e03ff5d8b6b269f217058f13d651f3c5bf5e922582e"
 )
 
 
