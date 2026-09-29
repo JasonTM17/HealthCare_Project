@@ -81,6 +81,19 @@ public class BookingService {
     /** Safe, bounded client key: same shape the AI chat surface accepts. */
     private static final java.util.regex.Pattern IDEMPOTENCY_KEY_PATTERN =
         java.util.regex.Pattern.compile("^[A-Za-z0-9._:-]{8,128}$");
+    /**
+     * Contact-phone floor applied AFTER {@link #normalizePhone}. The DTO
+     * pattern {@code ^[+0-9() .-]+$} lets separator-only input such as
+     * "-------" through, and the normalizer then collapses it to "" — which
+     * would otherwise become the shared empty identity every garbage number
+     * resolves to through {@code findByPhone} and the key minted onto fresh
+     * PatientProfiles. A plausible canonical number is the 0-prefixed
+     * national form with at least eight digits; the +84 and bare-84 folds of
+     * {@link #normalizePhone} land here, foreign formats do not.
+     */
+    private static final java.util.regex.Pattern VALID_CLEAN_PHONE_PATTERN =
+        java.util.regex.Pattern.compile("^0\\d{7,14}$");
+    private static final String INVALID_CONTACT_PHONE_MESSAGE = "Số điện thoại không hợp lệ";
 
     private final AppointmentRepository appointmentRepository;
     private final PatientProfileRepository patientProfileRepository;
@@ -221,6 +234,11 @@ public class BookingService {
                 "Vui lòng chọn cơ sở khám trước khi giữ chỗ."
             );
         }
+        // The phone is the guest identity key, so its normalized form must be
+        // a real number before any lookup runs. This rejects separator-only
+        // input ('-------' passes the DTO pattern but normalizes to '') early
+        // instead of minting the shared empty-phone profile in resolvePatient.
+        String cleanPhone = requireValidContactPhone(request.phone());
         String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
         if (idempotencyKey != null) {
             HoldSlotResponse replayed = replayHold(request, idempotencyKey);
@@ -341,7 +359,6 @@ public class BookingService {
         }
 
         // 3. Find or Create Patient Profile (Hybrid Onboarding)
-        String cleanPhone = normalizePhone(request.phone());
         PatientResolution patientResolution = resolvePatient(request, cleanPhone, userDetails);
         PatientProfile patient = patientResolution.patient();
         String otpRecipient = patientResolution.otpRecipient();
@@ -469,6 +486,13 @@ public class BookingService {
         String normalizedBookingCode = bookingCode == null ? "" : bookingCode.trim();
         if (normalizedBookingCode.isBlank()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy mã đặt lịch");
+        }
+        if (principal == null) {
+            // Guest ownership rests on the contact phone. Its normalized form
+            // must be a real number before any existence probe runs, so a
+            // punctuation-only input answers 400 without disclosing whether
+            // the booking code lives.
+            requireValidContactPhone(phone == null ? "" : phone);
         }
 
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(normalizedBookingCode)
@@ -637,6 +661,14 @@ public class BookingService {
             HoldSlotRequest request,
             String cleanPhone,
             UserDetails userDetails) {
+        // Defense in depth: no PatientProfile may ever be minted onto — or
+        // resolved against — an unparseable phone. An empty-phone profile
+        // becomes the identity every separator-only input resolves to through
+        // findByPhone, and the (bookingCode, empty-phone) pair turns into a
+        // reusable "proof of contact".
+        if (!isValidContactPhone(cleanPhone)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_CONTACT_PHONE_MESSAGE);
+        }
         if (userDetails != null && hasRole(userDetails, "PATIENT")) {
             User authenticatedUser = userRepository.findByEmail(userDetails.getUsername())
                 .filter(user -> user.isEmailVerified() && "ACTIVE".equals(user.getStatus()))
@@ -933,6 +965,23 @@ public class BookingService {
                 "Chỉ có thể đổi lịch khám đang ở trạng thái đã xác nhận"
             );
         }
+        // A slot that has already started cannot be self-rescheduled either:
+        // self-cancelling it is refused for the same reason, and a move would
+        // overwrite the appointmentTime, reset the reminder and graft the old
+        // payment state onto a fresh future slot — erasing the clinic's
+        // no-show evidence. Keyed on the scheduled start of the OLD slot,
+        // before any mutation.
+        OffsetDateTime rescheduleCheckNow = OffsetDateTime.now(BUSINESS_ZONE);
+        OffsetDateTime currentSlotStart = OffsetDateTime.of(
+            appointment.getAppointmentDate(),
+            appointment.getStartTime(),
+            BUSINESS_ZONE.getRules().getOffset(rescheduleCheckNow.toInstant()));
+        if (!rescheduleCheckNow.isBefore(currentSlotStart)) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Không thể đổi lịch khám đã qua giờ hẹn. Vui lòng liên hệ bệnh viện."
+            );
+        }
         doctorRepository.findActiveByIdForUpdate(appointment.getDoctor().getId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám"));
 
@@ -1148,6 +1197,24 @@ public class BookingService {
             return "0" + digits.substring(2);
         }
         return digits;
+    }
+
+    /**
+     * Normalizes then enforces the {@link #VALID_CLEAN_PHONE_PATTERN} floor.
+     * Call this wherever a client-supplied phone first becomes an identity
+     * input (holdSlot entry, guest resend) so invalid input is a 400 at the
+     * boundary instead of an empty identifier deeper in the flow.
+     */
+    private String requireValidContactPhone(String rawPhone) {
+        String cleanPhone = normalizePhone(rawPhone);
+        if (!isValidContactPhone(cleanPhone)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, INVALID_CONTACT_PHONE_MESSAGE);
+        }
+        return cleanPhone;
+    }
+
+    private static boolean isValidContactPhone(String cleanPhone) {
+        return cleanPhone != null && VALID_CLEAN_PHONE_PATTERN.matcher(cleanPhone).matches();
     }
 
     private boolean matchesOtp(String inputOtp, String storedOtp) {

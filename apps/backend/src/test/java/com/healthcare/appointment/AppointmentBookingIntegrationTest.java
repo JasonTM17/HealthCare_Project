@@ -728,6 +728,46 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void patientRescheduleIsRefusedOnceTheSlotHasPassed() throws Exception {
+        String phone = "0907000226";
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.MONDAY), LocalTime.of(9, 0), phone);
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        markPaymentPaid(appointment.getId());
+        // The visit window closed yesterday. Self-cancelling a past slot is
+        // already refused ("liên hệ bệnh viện"), so self-rescheduling must not
+        // become the loophole that resurrects a no-show into a fresh future
+        // slot while overwriting its appointmentTime and payment state.
+        jdbcTemplate.update(
+            "update appointments set appointment_date = CURRENT_DATE - 1 where booking_code = ?", bookingCode);
+        LocalDate pastDate = appointmentRepository
+            .findByBookingCode(bookingCode).orElseThrow().getAppointmentDate();
+
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            nextDate(DayOfWeek.TUESDAY),
+            LocalTime.of(10, 0),
+            defaultBranch.getId(),
+            phone
+        );
+
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message")
+                .value(org.hamcrest.Matchers.containsString("đã qua giờ hẹn")));
+
+        // The refused move must leave the row exactly as the clinic recorded
+        // it: same past date and time, still CONFIRMED, payment untouched.
+        Appointment unchanged = appointmentRepository.findByBookingCode(bookingCode).orElseThrow();
+        assertEquals(AppointmentStatus.CONFIRMED, unchanged.getStatus());
+        assertEquals(pastDate, unchanged.getAppointmentDate());
+        assertEquals(LocalTime.of(9, 0), unchanged.getStartTime());
+        assertEquals(PaymentStatus.PAID,
+            bankTransferPaymentRepository.findByAppointmentId(unchanged.getId()).orElseThrow().getStatus());
+    }
+
+    @Test
     void lookupRejectsWrongPhoneProof() throws Exception {
         HoldSlotRequest holdRequest = new HoldSlotRequest(
             doctor.getId(),

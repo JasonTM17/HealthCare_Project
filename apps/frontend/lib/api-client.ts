@@ -2154,20 +2154,29 @@ export async function adminCancelAppointment(
 }
 
 /**
- * The signed-in patient cancels one of their own appointments. The backend
- * only accepts PENDING_CONFIRMATION and CONFIRMED rows (a 400 otherwise) and
- * stores the optional reason, which the patient later sees on the cancelled
- * appointment card.
+ * Cancels one appointment: the signed-in owner, or an anonymous holder who
+ * presents the phone the hold was created with (the backend route is public
+ * and `BookingService.authorizeAppointment` accepts that phone match for
+ * guests). The backend only accepts PENDING_CONFIRMATION and CONFIRMED rows
+ * (a 400 otherwise) and stores the optional reason, which the patient later
+ * sees on the cancelled appointment card.
  */
-export async function cancelPatientAppointment(bookingCode: string, reason?: string): Promise<AppointmentDetails> {
+export async function cancelPatientAppointment(
+  bookingCode: string,
+  reason?: string,
+  options?: { phone?: string },
+): Promise<AppointmentDetails> {
   const trimmedReason = reason?.trim();
-  return getAuthenticatedJson<AppointmentDetails>(
-    `/appointments/${encodeURIComponent(bookingCode)}/cancel`,
-    {
-      method: "POST",
-      body: JSON.stringify({ reason: trimmedReason || undefined }),
-    },
-  );
+  const normalizedPhone = options?.phone?.trim() || undefined;
+  const path = `/appointments/${encodeURIComponent(bookingCode)}/cancel`;
+  const body = JSON.stringify({ reason: trimmedReason || undefined, phone: normalizedPhone });
+  if (readAuthSession()) {
+    return withAuthenticatedSession<AppointmentDetails>(
+      path,
+      () => getJson<AppointmentDetails>(path, { method: "POST", body }),
+    );
+  }
+  return getJson<AppointmentDetails>(path, { method: "POST", body });
 }
 
 export async function fetchPatientProfile(): Promise<PatientProfile> {

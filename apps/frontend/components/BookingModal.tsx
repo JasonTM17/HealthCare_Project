@@ -16,6 +16,7 @@ import {
   fetchDoctorSlots,
   holdAppointmentSlot,
   confirmAppointment,
+  HoldSlotConflictError,
 } from "../lib/api";
 import {
   fetchBranches,
@@ -24,6 +25,7 @@ import {
   fetchSpecialties,
   getAuthSessionSnapshot,
   ApiError,
+  cancelPatientAppointment,
   resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
@@ -469,6 +471,20 @@ interface BookingExperienceProps extends BookingCatalogProps {
   onClose?: () => void;
 }
 
+/**
+ * The live hold the wizard currently owns. Kept in a ref so abandoning the
+ * flow (close, back navigation, wizard reset) can release the slot on the
+ * backend even from event handlers outside the hold/confirm handlers.
+ */
+interface HeldSlotIntent {
+  bookingCode: string;
+  phone: string;
+  doctorId: string;
+  branchId: string;
+  date: string;
+  startTime: string;
+}
+
 function BookingExperience({
   active,
   presentation,
@@ -651,6 +667,7 @@ function BookingExperience({
     errorBannerRef.current?.scrollIntoView({ block: "nearest" });
   }, [errorMessage]);
   const bookingSessionRef = useRef(0);
+  const heldSlotRef = useRef<HeldSlotIntent | null>(null);
   const otpResendAttemptRef = useRef(0);
   const otpResendControllerRef = useRef<AbortController | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -658,21 +675,50 @@ function BookingExperience({
     onClose?.();
   }, [onClose]);
 
+  /**
+   * Releases a live hold when the patient abandons the flow before confirming:
+   * the backend cancel transitions PENDING_CONFIRMATION to CANCELLED, which
+   * frees the slot and lowers the per-patient live-hold cap immediately.
+   * Fire-and-forget — the 10-minute hold expiry is the backstop when the
+   * release cannot be delivered. The intent only leaves the ref once the
+   * backend confirmed the release, so a failed release is retried on the next
+   * abandon and a 409 re-hold can be attributed to this own ghost hold.
+   */
+  const releaseHeldSlot = useCallback(() => {
+    const held = heldSlotRef.current;
+    if (!held) return;
+    void cancelPatientAppointment(
+      held.bookingCode,
+      "Bệnh nhân rời luồng đặt lịch trước khi xác nhận",
+      { phone: held.phone },
+    )
+      .then(() => {
+        if (heldSlotRef.current?.bookingCode === held.bookingCode) {
+          heldSlotRef.current = null;
+        }
+      })
+      .catch(() => {
+        // Nothing to surface on an abandon path; the hold expires on its own.
+      });
+  }, []);
+
   const invalidateBookingSession = useCallback(() => {
+    releaseHeldSlot();
     bookingSessionRef.current += 1;
     otpResendAttemptRef.current += 1;
     otpResendControllerRef.current?.abort();
     otpResendControllerRef.current = null;
     setIsResendingOtp(false);
-  }, []);
+  }, [releaseHeldSlot]);
 
   useDialogFocus(dialogRef, active && isModal, closePresentation);
 
   useEffect(() => () => {
+    releaseHeldSlot();
     otpResendAttemptRef.current += 1;
     otpResendControllerRef.current?.abort();
     otpResendControllerRef.current = null;
-  }, []);
+  }, [releaseHeldSlot]);
 
   const resetBookingState = useCallback(() => {
     setStep(1);
@@ -1151,6 +1197,17 @@ function BookingExperience({
       if (bookingSession !== bookingSessionRef.current) return;
 
       setBookingCode(result.bookingCode);
+      // Record the live hold so abandoning later (close, back, reset) releases
+      // it, and so a 409 on the next attempt can be attributed to this own
+      // ghost hold instead of another patient.
+      heldSlotRef.current = {
+        bookingCode: result.bookingCode,
+        phone: phone.trim(),
+        doctorId: selectedDoctor,
+        branchId: selectedBranch,
+        date: selectedDate,
+        startTime: chosenSlot.startTime,
+      };
       setHoldExpiresAt(result.holdExpiresAt);
       setOtpExpiresAt(result.otpExpiresAt);
       setOtpDeliveryStatus(result.otpDeliveryStatus ?? "QUEUED");
@@ -1162,11 +1219,18 @@ function BookingExperience({
       setStep(7);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {
-        setErrorMessage(
-          error instanceof Error && error.message
+        const held = heldSlotRef.current;
+        const isOwnGhostHold = error instanceof HoldSlotConflictError
+          && held !== null
+          && held.doctorId === selectedDoctor
+          && held.branchId === selectedBranch
+          && held.date === selectedDate
+          && held.startTime === chosenSlot.startTime;
+        setErrorMessage(isOwnGhostHold
+          ? "Khung giờ này vẫn đang được giữ bởi chính lượt thử trước của bạn và hệ thống đang nhả chỗ. Vui lòng chờ giây lát rồi thử lại, hoặc chọn khung giờ khác."
+          : error instanceof Error && error.message
             ? error.message
-            : "Không thể giữ chỗ khung giờ này. Vui lòng tải lại lịch và thử lại.",
-        );
+            : "Không thể giữ chỗ khung giờ này. Vui lòng tải lại lịch và thử lại.");
       }
     } finally {
       if (bookingSession === bookingSessionRef.current) setIsSubmitting(false);
@@ -1263,6 +1327,9 @@ function BookingExperience({
         otpCode: otpCode.trim(),
       });
       if (bookingSession !== bookingSessionRef.current) return;
+      // The hold became a real appointment: drop the intent so closing the
+      // success card or starting a new booking can never cancel this booking.
+      heldSlotRef.current = null;
       setConfirmedAppointment(details);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {

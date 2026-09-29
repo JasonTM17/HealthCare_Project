@@ -822,4 +822,46 @@ class BookingServiceValidationTest {
         verify(fixture.patients, never()).save(any());
         verify(fixture.emailSender, never()).sendBookingOtp(anyString(), any(), anyString(), any(), any(), anyLong());
     }
+
+    /**
+     * '-------' passes the DTO pattern (^[+0-9() .-]+$) yet collapses to "" in
+     * normalizePhone. Before the fix it minted a PatientProfile with
+     * phone="" — the shared identity every later separator-only number
+     * resolved to through findByPhone — so any (bookingCode, empty-phone)
+     * pair could view or cancel the hold and honest guests got a permanent
+     * 403. The hold must answer 400 "Số điện thoại không hợp lệ" and never
+     * reach the patient lookup at all.
+     */
+    @Test
+    void holdSlotRejectsSeparatorOnlyPhoneWith400BeforeAnyProfileExists() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        stubGuestHoldCatalog(fixture, doctorId, branchId, LocalDate.now().plusDays(1));
+
+        assertThatThrownBy(() -> fixture.service()
+            .holdSlot(guestHold(doctorId, branchId, "-------", "guest@example.test"), null, null))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                assertEquals(400, exception.getStatusCode().value());
+                assertEquals("Số điện thoại không hợp lệ", exception.getReason());
+            });
+        // No PatientProfile — least of all one with phone="" — may be created,
+        // and the rejected input must not even touch the patient lookup.
+        verifyNoInteractions(fixture.patients);
+        verify(fixture.appointments, never()).saveAndFlush(any());
+        verifyNoInteractions(fixture.emailSender);
+    }
+
+    /** Guest resend must reject the phone form before any booking-code lookup. */
+    @Test
+    void guestResendRejectsSeparatorOnlyPhoneWith400BeforeAnyLookup() {
+        HoldFixture fixture = new HoldFixture();
+
+        assertThatThrownBy(() -> fixture.service().resendBookingOtp("APT-ANY", "-------", null))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                assertEquals(400, exception.getStatusCode().value());
+                assertEquals("Số điện thoại không hợp lệ", exception.getReason());
+            });
+        verify(fixture.appointments, never()).findByBookingCodeWithDetailsForUpdate(anyString());
+    }
 }

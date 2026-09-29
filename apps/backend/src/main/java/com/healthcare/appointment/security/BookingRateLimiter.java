@@ -1,7 +1,9 @@
 package com.healthcare.appointment.security;
 
+import com.healthcare.auth.security.BffRequestVerifier;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.StandardEnvironment;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.core.env.Environment;
@@ -14,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -21,6 +24,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * supplied booking subject. Redis makes the limit useful across Compose
  * replicas; the bounded in-memory fallback keeps integration tests explicit
  * when no Redis server is available.
+ *
+ * <p>The IP bucket keys on the canonical client literal the authenticated BFF
+ * reports ({@link BffRequestVerifier#trustedClientIpLiteral}), exactly like
+ * {@code AuthRateLimiter} and {@code RequestRateLimitFilter}: the frontend
+ * proxies every booking call through one same-origin BFF, so keying on the
+ * socket address would collapse all patients into one shared
+ * 100-per-10-minute bucket. Only an authenticated BFF can supply that header;
+ * a forged value falls back to the socket address.
  */
 @Component
 public class BookingRateLimiter {
@@ -31,28 +42,37 @@ public class BookingRateLimiter {
     private static final Map<String, Window> FALLBACK = new ConcurrentHashMap<>();
 
     private final StringRedisTemplate redisTemplate;
+    private final BffRequestVerifier bffRequestVerifier;
     private final boolean enabled;
     private final boolean redisRequired;
 
     @Autowired
-    public BookingRateLimiter(StringRedisTemplate redisTemplate, Environment environment) {
+    public BookingRateLimiter(StringRedisTemplate redisTemplate, Environment environment,
+                              BffRequestVerifier bffRequestVerifier) {
         this(
             redisTemplate,
+            bffRequestVerifier,
             environment.getProperty("app.security.rate-limit.enabled", Boolean.class, true),
             environment.getProperty("app.security.rate-limit.redis-required", Boolean.class, false)
         );
     }
 
     public BookingRateLimiter(StringRedisTemplate redisTemplate) {
-        this(redisTemplate, true, false);
+        this(redisTemplate, verifierWithoutTrustedBff(), true, false);
     }
 
     BookingRateLimiter(StringRedisTemplate redisTemplate, boolean enabled) {
-        this(redisTemplate, enabled, false);
+        this(redisTemplate, verifierWithoutTrustedBff(), enabled, false);
     }
 
     BookingRateLimiter(StringRedisTemplate redisTemplate, boolean enabled, boolean redisRequired) {
+        this(redisTemplate, verifierWithoutTrustedBff(), enabled, redisRequired);
+    }
+
+    BookingRateLimiter(StringRedisTemplate redisTemplate, BffRequestVerifier bffRequestVerifier,
+                       boolean enabled, boolean redisRequired) {
         this.redisTemplate = redisTemplate;
+        this.bffRequestVerifier = bffRequestVerifier;
         this.enabled = enabled;
         this.redisRequired = redisRequired;
     }
@@ -61,13 +81,28 @@ public class BookingRateLimiter {
         if (!enabled) {
             return;
         }
-        String client = request != null && request.getRemoteAddr() != null
-            ? request.getRemoteAddr()
-            : "unknown-client";
-        enforce(operation + ":ip", client, 100);
+        enforce(operation + ":ip", clientKey(request), 100);
         if (subject != null && !subject.isBlank()) {
             enforce(operation + ":subject", subject.trim().toLowerCase(), 10);
         }
+    }
+
+    /**
+     * Mirrors {@code AuthRateLimiter#clientKey}: trust the authenticated BFF's
+     * canonical client literal first, then the socket address.
+     */
+    private String clientKey(HttpServletRequest request) {
+        if (request == null) {
+            return "unknown-client";
+        }
+        return bffRequestVerifier.trustedClientIpLiteral(request)
+            .or(() -> Optional.ofNullable(request.getRemoteAddr()))
+            .orElse("unknown-client");
+    }
+
+    /** A verifier with no accepted credential never trusts the IP header. */
+    private static BffRequestVerifier verifierWithoutTrustedBff() {
+        return new BffRequestVerifier(new StandardEnvironment());
     }
 
     private void enforce(String operation, String value, int limit) {

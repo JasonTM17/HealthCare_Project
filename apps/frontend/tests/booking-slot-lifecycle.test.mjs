@@ -9,6 +9,7 @@ const requireFromTest = createRequire(import.meta.url);
 const ts = requireFromTest("typescript");
 const modalPath = new URL("../components/BookingModal.tsx", import.meta.url);
 const apiPath = new URL("../lib/api.ts", import.meta.url);
+const clientPath = new URL("../lib/api-client.ts", import.meta.url);
 const secureRandomPath = new URL("../lib/secure-random.ts", import.meta.url);
 
 let cachedSecureRandom;
@@ -63,10 +64,15 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     }
     if (specifier === "next/link" || specifier === "next/image") return () => null;
     if (specifier === "../lib/api") {
-      return { confirmAppointment() {}, fetchDoctorSlots() {}, holdAppointmentSlot() {} };
+      return {
+        HoldSlotConflictError: class HoldSlotConflictError extends Error {},
+        confirmAppointment() {},
+        fetchDoctorSlots() {},
+        holdAppointmentSlot() {},
+      };
     }
     if (specifier === "../lib/api-client") {
-      return { fetchBranches() {}, fetchDoctors() {}, fetchSpecialties() {} };
+      return { cancelPatientAppointment() {}, fetchBranches() {}, fetchDoctors() {}, fetchSpecialties() {} };
     }
     if (specifier === "../lib/business-time") return { businessDate: () => "2026-08-26" };
     if (specifier === "../lib/present-api-error") return { presentApiError: () => "Chưa thể hoàn tất yêu cầu. Vui lòng thử lại." };
@@ -357,7 +363,7 @@ test("a current retry error preserves authoritative slots and selection until su
   assert.equal(selectedAfterAuthoritativeEmpty.startTime, "");
 });
 
-test("a lost 502 hold is retried under the same idempotency key, a new hold gets a new one", async () => {
+test("the same hold intent replays one idempotency key; a different intent mints another", async () => {
   const apiSource = await readFile(apiPath, "utf8");
   const requests = [];
   const api = transpileModule(apiSource, "api.ts", {}, {
@@ -395,9 +401,127 @@ test("a lost 502 hold is retried under the same idempotency key, a new hold gets
   assert.match(requests[0].key, /^[A-Za-z0-9._:-]{8,128}$/);
   assert.equal(requests[1].key, requests[0].key, "the retry must replay the same hold");
 
+  // The same wizard intent re-held after an abandoned attempt must reuse the
+  // key, so a lost first response cannot silently create a second live hold.
   const second = await api.holdAppointmentSlot(payload);
   assert.equal(second.bookingCode, "HC-3");
   assert.equal(requests.length, 3);
   assert.match(requests[2].key, /^[A-Za-z0-9._:-]{8,128}$/);
-  assert.notEqual(requests[2].key, requests[0].key, "a new user action needs a new key");
+  assert.equal(requests[2].key, requests[0].key, "the same hold intent must replay the same key");
+
+  const otherSlot = await api.holdAppointmentSlot({ ...payload, startTime: "09:00:00" });
+  assert.equal(otherSlot.bookingCode, "HC-4");
+  assert.match(requests[3].key, /^[A-Za-z0-9._:-]{8,128}$/);
+  assert.notEqual(requests[3].key, requests[0].key, "a different slot is a different intent");
+  const otherPatient = await api.holdAppointmentSlot({ ...payload, phone: "0907654321", email: "binh@example.com" });
+  assert.equal(otherPatient.bookingCode, "HC-5");
+  assert.notEqual(requests[4].key, requests[0].key, "a different patient is a different intent");
+});
+
+test("a 409 hold conflict surfaces as HoldSlotConflictError carrying the status", async () => {
+  const apiSource = await readFile(apiPath, "utf8");
+
+  const unusableBody = transpileModule(apiSource, "api.ts", {}, {
+    fetch: () => Promise.resolve({ ok: false, status: 409, json: async () => ({ message: "" }) }),
+  });
+  await assert.rejects(
+    unusableBody.holdAppointmentSlot({
+      appointmentDate: "2026-08-27",
+      branchId: "branch-a",
+      doctorId: "doctor-a",
+      email: "an@example.com",
+      fullName: "Nguyễn Văn An",
+      phone: "0901234567",
+      privacyConsent: true,
+      startTime: "08:00:00",
+    }),
+    (error) => (
+      error instanceof unusableBody.HoldSlotConflictError
+      && error.status === 409
+      && error.name === "HoldSlotConflictError"
+      && /Khung giờ/.test(error.message)
+      && !/người khác/.test(error.message)
+    ),
+    "a 409 must be typed and its fallback must not blame other patients",
+  );
+
+  const serverMessage = transpileModule(apiSource, "api.ts", {}, {
+    fetch: () => Promise.resolve({
+      ok: false,
+      status: 409,
+      json: async () => ({ message: "Khung giờ khám này vừa có người đặt hoặc đang được giữ chỗ. Vui lòng chọn khung giờ khác." }),
+    }),
+  });
+  await assert.rejects(
+    serverMessage.holdAppointmentSlot({
+      appointmentDate: "2026-08-27",
+      branchId: "branch-a",
+      doctorId: "doctor-a",
+      email: "an@example.com",
+      fullName: "Nguyễn Văn An",
+      phone: "0901234567",
+      privacyConsent: true,
+      startTime: "08:00:00",
+    }),
+    (error) => (
+      error instanceof serverMessage.HoldSlotConflictError
+      && error.status === 409
+      && error.message.includes("đang được giữ chỗ")
+    ),
+    "the server's Vietnamese conflict message must be preserved on the typed error",
+  );
+});
+
+test("abandoned holds release the slot, confirmed bookings never get cancelled", async () => {
+  const { source } = await loadModalModule();
+
+  const sliceBetween = (startMarker, endMarker) => {
+    const start = source.indexOf(startMarker);
+    const end = start >= 0 ? source.indexOf(endMarker, start) : -1;
+    assert.ok(start >= 0 && end > start, `missing slice ${startMarker}`);
+    return source.slice(start, end);
+  };
+
+  // releaseHeldSlot must exist and call the patient cancel with the hold's phone.
+  const releaseSlice = sliceBetween("const releaseHeldSlot = useCallback", "const invalidateBookingSession =");
+  assert.match(releaseSlice, /cancelPatientAppointment\(/);
+  assert.match(releaseSlice, /phone:\s*held\.phone/);
+  assert.match(releaseSlice, /heldSlotRef\.current = null/);
+
+  // Every abandon path routes through the release via invalidateBookingSession.
+  const invalidateSlice = sliceBetween("const invalidateBookingSession = useCallback", "useDialogFocus(");
+  assert.match(invalidateSlice, /releaseHeldSlot\(\)/);
+  const closeSlice = sliceBetween("const closeBooking = useCallback", "useEffect(");
+  assert.match(closeSlice, /invalidateBookingSession\(\)/);
+  const restartSlice = sliceBetween("const restartSlotSelection =", "const handleSpecialtyChange =");
+  assert.match(restartSlice, /invalidateBookingSession\(\)/);
+  // The step-7 back button navigates through navigateToStep, which invalidates.
+  assert.match(source, /holdExpired \? restartSlotSelection : \(\) => navigateToStep\(6\)/);
+
+  // A successful hold records the intent so a later 409 can be attributed to
+  // the patient's own ghost hold instead of another patient.
+  const holdSlice = sliceBetween("const handleHoldSlot = async", "const handleResendOtp =");
+  assert.match(holdSlice, /heldSlotRef\.current = \{/);
+  assert.match(holdSlice, /HoldSlotConflictError/);
+  assert.match(holdSlice, /lượt thử trước/);
+
+  // A confirmed appointment is a real booking: the held intent must be dropped
+  // before the success state lands, so closing the E-Card can never cancel it.
+  const confirmSlice = sliceBetween("const handleConfirmOtp = async", "const formatTimer =");
+  assert.match(confirmSlice, /heldSlotRef\.current = null/);
+});
+
+test("cancelPatientAppointment releases holds by phone when no session exists", async () => {
+  const clientSource = await readFile(clientPath, "utf8");
+  const start = clientSource.indexOf("export async function cancelPatientAppointment");
+  const end = clientSource.indexOf("export async function fetchPatientProfile", start);
+  assert.ok(start >= 0 && end > start, "missing cancelPatientAppointment");
+  const slice = clientSource.slice(start, end);
+  // The wizard holds appointments without signing in, so the release must be
+  // sendable anonymously and must present the hold's own phone to the backend
+  // (BookingService.authorizeAppointment accepts the phone match for guests).
+  assert.match(slice, /options\?:\s*\{\s*phone\?:\s*string\s*\}/);
+  assert.match(slice, /phone:\s*normalizedPhone/);
+  assert.match(slice, /readAuthSession\(\)/);
+  assert.doesNotMatch(slice, /getAuthenticatedJson/);
 });

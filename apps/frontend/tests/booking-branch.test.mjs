@@ -301,8 +301,11 @@ test("booking modal keeps its header reachable on phones", async () => {
 test("hold requests carry one idempotency key across their single retry", async () => {
   const source = await readFile(apiPath, "utf8");
 
-  assert.match(source, /import \{ randomId \} from "\.\/secure-random"/);
-  assert.match(source, /const idempotencyKey = holdIdempotencyKey\(\)/);
+  // The key is deterministic per hold intent (same payload → same key), so an
+  // abandoned attempt re-held under the same slot replays one key instead of
+  // minting a second live hold.
+  assert.match(source, /function holdIdempotencyKey\(payload: HoldSlotPayload\): string/);
+  assert.match(source, /const idempotencyKey = holdIdempotencyKey\(payload\)/);
   assert.match(source, /\.\.\.\(idempotencyKey \? \{ "Idempotency-Key": idempotencyKey \} : \{\}\)/);
   assert.match(source, /\^\[A-Za-z0-9\._:-\]\{8,128\}\$/);
   // The retry loop reuses requestInit, so both attempts share the same key.
