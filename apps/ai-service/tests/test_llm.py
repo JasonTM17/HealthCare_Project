@@ -687,6 +687,7 @@ def test_reject_unsafe_egress_text_allows_hotline_and_rejects_mobile() -> None:
 def test_resolve_chat_applies_tone_register_to_system_prompt() -> None:
     """Tone only rewrites the register block; safety clauses stay for all."""
     from types import SimpleNamespace
+    from typing import Any, Sequence
 
     from app.llm import resolve_chat
 
