@@ -6541,6 +6541,19 @@ main {
   color: var(--hospital-muted);
 }
 
+/* The two right-side utility links are the patient's path to look up an
+   appointment code — weight and navy keep them scannable at 13px on white. */
+.site-shell .utility-bar__right > a {
+  color: var(--hospital-navy, #003336);
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
+
+.site-shell .utility-bar__right > a:hover {
+  color: var(--hospital-teal-dark, #004b50);
+  text-decoration: underline;
+}
+
 .site-shell .utility-hotline {
   color: var(--hospital-navy, #003336);
   gap: 0.35rem;
