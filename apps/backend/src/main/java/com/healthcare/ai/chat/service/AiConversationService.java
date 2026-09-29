@@ -98,6 +98,13 @@ public class AiConversationService {
     /** Ledger marker that attributes charge/refund/waiver rows to one attempt. */
     private static final String CHAT_ATTEMPT_MARKER_PREFIX = "[chat:";
 
+    // Field injection on purpose: this service has four constructor overloads
+    // (three are test-compat shims), and personalization must degrade to the
+    // default tuning — not break construction — when a test builds the service
+    // by hand without the collaborator.
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AiPatientContextService patientContextService;
+
     private final AiConversationRepository conversationRepository;
     private final AiMessageRepository messageRepository;
     private final AiMessageFeedbackRepository feedbackRepository;
@@ -762,6 +769,17 @@ public class AiConversationService {
         generation.put("recent_turns", turns);
         generation.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
         generation.put("authorized_sources", sourceResolver.authorizedPayload(authorized));
+        // Per-account tuning is read from this user's preferences on the
+        // server: tone is a validated register, and the opt-in patient context
+        // lines are built from the user's own records — never from the
+        // request body, so a browser cannot widen or spoof them.
+        AiPatientContextService.AssistantTuning tuning = patientContextService != null
+            ? patientContextService.tuningFor(userId)
+            : AiPatientContextService.AssistantTuning.DEFAULT;
+        generation.put("tone", tuning.tone());
+        if (!tuning.patientContext().isEmpty()) {
+            generation.put("patient_context", tuning.patientContext());
+        }
         // The upstream transport may deliver the answer incrementally, but the
         // FastAPI side only streams slices of a fully generated, fully
         // validated answer (D-02): these deltas are a consistency log used to

@@ -913,7 +913,7 @@
 .modeOption span,
 .modeOptionActive span {
   color: var(--color-ink-muted);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.25;
 }
 
@@ -921,6 +921,82 @@
 .modeOptionActive:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* Per-account assistant configuration. Kept inside the mode picker so every
+ * personalization control lives in one scannable row. */
+.assistantSettings {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+  padding: 0.7rem 0.75rem;
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--chat-surface-muted, #f6fbfa);
+}
+
+.assistantSettingsRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.assistantSettingField {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.assistantSettingField select {
+  min-height: 2.4rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-xs);
+  background: #ffffff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.assistantSettingToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.8125rem;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.assistantSettingToggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--chat-accent);
+}
+
+.assistantSettingSave {
+  min-height: 2.4rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--chat-accent);
+  border-radius: var(--radius-xs);
+  background: #ffffff;
+  color: var(--chat-accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.assistantSettingSave:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.assistantSettingHint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
 }
 
 .consentPanel {

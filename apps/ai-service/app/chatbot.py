@@ -1269,6 +1269,11 @@ def generate_chat_response(
                 f"{_clean_patient_source_content(meta.document.content)[:MAX_CONTEXT_CHARS]}"
                 for meta in metas
             ]
+            # Server-built per-account context lines join the same pipeline as
+            # catalog excerpts: every content-safety and grounding gate below
+            # already applies to this list. Schemas bound each line to 200
+            # chars and the whole set to five.
+            context.extend(request.patient_context)
             citations = [
                 Citation(
                     source_type=meta.document.source_type,
@@ -1291,6 +1296,7 @@ def generate_chat_response(
                 allow_public_generic_guidance=(
                     request.mode is ChatMode.HOSPITAL_SUPPORT
                 ),
+                tone=request.tone,
             )
             if response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE:
                 return _insufficient_response(request.mode)

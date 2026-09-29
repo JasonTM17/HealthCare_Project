@@ -2564,6 +2564,7 @@ def resolve_chat(
     allow_public_operational: bool = False,
     public_support_chat: bool = False,
     allow_public_generic_guidance: bool = False,
+    tone: str = "than_thien",
     cancellation: ChatCancellation | None = None,
 ) -> ChatResponse:
     """Resolve a bounded chat request without accepting model-created citations."""
@@ -2676,6 +2677,19 @@ def resolve_chat(
                 "nhận. Nếu người dùng cần thông tin cụ thể đó, mời họ xem các mục tương "
                 "ứng trên website chính thức của bệnh viện."
             )
+        # Per-account register, chosen from a closed server-side allowlist.
+        # Tone changes how sentences are written, never what may be said: all
+        # safety clauses above stay in force for every register.
+        system_prompt += {
+            "chuyen_nghiep": (
+                " Giọng điệu chuyên nghiệp, lịch sự; xưng 'tôi' và gọi người dùng là "
+                "'quý khách'; câu văn mạch lạc, không dùng từ ngữ suồng sã."
+            ),
+            "ngan_gon": (
+                " Trả lời cực kỳ ngắn gọn: tối đa 2-3 câu, không dùng gạch đầu dòng, "
+                "đi thẳng vào hướng dẫn chính."
+            ),
+        }.get(tone, " Giọng điệu thân thiện, ấm áp; xưng 'mình' và gọi người dùng là 'bạn'.")
         if cancellation is not None:
             cancellation.raise_if_cancelled()
         data = client.complete_json(
