@@ -8,7 +8,16 @@ import { hasRole, resendVerificationEmail, verifyEmail } from "../../../lib/api-
 import { useRouter } from "next/navigation";
 import { authErrorMessage, authFieldErrors, type AuthFieldErrors } from "../../../lib/auth-flow";
 
-const RESEND_COOLDOWN_SECONDS = 30;
+// BE (AuthOtpService) nuốt im lặng yêu cầu gửi lại trong cửa sổ cooldown (mặc định 60s)
+// mà vẫn trả 2xx, nên FE phải tự khóa nút trong cùng cửa sổ đó.
+const RESEND_COOLDOWN_SECONDS = 60;
+const MAX_SEEDED_COOLDOWN_SECONDS = 900;
+
+function seededResendCooldown(raw: string | null): number {
+  const parsed = Number.parseInt(raw ?? "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.min(parsed, MAX_SEEDED_COOLDOWN_SECONDS);
+}
 
 function VerifyEmailForm() {
   const searchParams = useSearchParams();
@@ -17,7 +26,8 @@ function VerifyEmailForm() {
   const [code, setCode] = useState(searchParams.get("code") ?? searchParams.get("token") ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  // Seed từ resendAfterSeconds mà BE trả ở bước đăng ký (đăng ký chuyển kèm trên link).
+  const [cooldown, setCooldown] = useState(() => seededResendCooldown(searchParams.get("resendAfterSeconds")));
   const [verified, setVerified] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);

@@ -186,6 +186,61 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
         assertThat(linked.getFullName()).isEqualTo("Registered Name");
     }
 
+    /**
+     * Hermetic throwaway password for disposable Testcontainers accounts.
+     * Generated per call so no credential literal is added to source.
+     */
+    private static String fixturePassword() {
+        return "Fixture!" + UUID.randomUUID().toString().replace("-", "").substring(0, 8) + "A1";
+    }
+
+    @Test
+    void registerRejectsSeparatorOnlyPhoneWith400BeforeAnyProfileExists() throws Exception {
+        long profilesBefore = patientProfileRepository.count();
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "separator.phone@example.com",
+                      "password": "%s",
+                      "displayName": "Separator Phone",
+                      "phone": "-----"
+                    }
+                    """.formatted(fixturePassword())))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.message").value("Số điện thoại không hợp lệ"));
+
+        // Nothing persisted: no user, and least of all a PatientProfile —
+        // one without a phone would leave the account in a state the
+        // portal profile page can never repair.
+        assertThat(userRepository.findByEmail("separator.phone@example.com")).isEmpty();
+        assertThat(patientProfileRepository.count()).isEqualTo(profilesBefore);
+    }
+
+    @Test
+    void registerWithoutPhoneKeepsCurrentPhonelessAccountBehavior() throws Exception {
+        long profilesBefore = patientProfileRepository.count();
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "no.phone@example.com",
+                      "password": "%s",
+                      "displayName": "No Phone",
+                      "phone": ""
+                    }
+                    """.formatted(fixturePassword())))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.verificationRequired").value(true));
+
+        var user = userRepository.findByEmail("no.phone@example.com").orElseThrow();
+        assertThat(patientProfileRepository.findByUserId(user.getId())).isEmpty();
+        assertThat(patientProfileRepository.count()).isEqualTo(profilesBefore);
+    }
+
     @Test
     void duplicateEmailReturnsConflict() throws Exception {
         String body = """

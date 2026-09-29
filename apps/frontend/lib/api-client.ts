@@ -3460,8 +3460,28 @@ export interface AiCreditStatus {
   }>;
 }
 
+/**
+ * Backend HC-11 caps this inventory at 100 rows per window
+ * (AiCreditService.ADMIN_LISTING_MAX_SIZE) and serves the body as a bare
+ * array with the totals in X-Total-Count / X-Total-Pages headers, so the
+ * Page-shaped fetchAllContent cannot consume it. Walk consecutive windows
+ * (sorted by immutable id, hence stable and gap-free) until one comes back
+ * short of the requested size, with a page cap so a misbehaving server
+ * cannot keep a full-page loop alive forever.
+ */
+const AI_CREDIT_PATIENTS_PAGE_SIZE = 100;
+const AI_CREDIT_PATIENTS_MAX_PAGES = 50;
+
 export async function adminListPatientAiCredits(): Promise<PatientCreditDto[]> {
-  return getAuthenticatedJson<PatientCreditDto[]>("/admin/ai-credits/patients");
+  const patients: PatientCreditDto[] = [];
+  for (let page = 0; page < AI_CREDIT_PATIENTS_MAX_PAGES; page += 1) {
+    const content = await getAuthenticatedJson<PatientCreditDto[]>(
+      `/admin/ai-credits/patients${toQuery({ page, size: AI_CREDIT_PATIENTS_PAGE_SIZE })}`,
+    );
+    patients.push(...content);
+    if (content.length < AI_CREDIT_PATIENTS_PAGE_SIZE) break;
+  }
+  return patients;
 }
 
 /**

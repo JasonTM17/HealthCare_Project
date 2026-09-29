@@ -11,6 +11,7 @@ import {
   doctorDeleteArticle,
   doctorListArticles,
   doctorUpdateArticle,
+  fetchAllContent,
   fetchArticleBySlug,
   fetchArticleComments,
   fetchArticles,
@@ -118,6 +119,7 @@ export default function DoctorArticlesPage() {
   // Data states
   const [myArticles, setMyArticles] = useState<Article[]>([]);
   const [communityArticles, setCommunityArticles] = useState<Article[]>([]);
+  const [communityTotal, setCommunityTotal] = useState(0);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>("all");
   const [loading, setLoading] = useState(true);
@@ -158,12 +160,16 @@ export default function DoctorArticlesPage() {
     setError(null);
     try {
       const [myArticleList, communityPage, specList] = await Promise.all([
-        doctorListArticles(),
+        // Server pages are recombined (same pattern as the admin catalog): a
+        // doctor with more articles than one page holds must still find, edit
+        // and delete their oldest submissions through this UI.
+        fetchAllContent(doctorListArticles, 100),
         fetchArticles(0, 50),
         fetchSpecialties(),
       ]);
-      setMyArticles(myArticleList.content);
+      setMyArticles(myArticleList);
       setCommunityArticles(communityPage.content);
+      setCommunityTotal(communityPage.totalElements);
       setSpecialties(specList.content);
       return communityPage.content;
     } catch {
@@ -454,7 +460,7 @@ export default function DoctorArticlesPage() {
                 <UiIcon name="book-open" size={15} />
                 <span>Bảng tin Y khoa Bệnh viện</span>
                 <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
-                  {loading ? "--" : communityArticles.length}
+                  {loading ? "--" : communityTotal}
                 </span>
               </button>
 
@@ -492,7 +498,13 @@ export default function DoctorArticlesPage() {
         {/* ── TAB 1: Bảng tin Y khoa Bệnh viện (Cẩm nang sức khỏe catalog) ── */}
         {activeTab === "community_feed" && (
           <div className="space-y-6">
-            {/* Specialty Filter Chips */}
+            {/* Specialty Filter Chips. The public catalog endpoint has no
+                specialty filter, so a true per-specialty total is unreachable
+                without paginating the whole catalog client-side; a count taken
+                from the 50-row first page would present as a catalog total and
+                suggest the missing articles were lost. The chips therefore act
+                as pure filters — only the "Tất cả" chip carries the real
+                totalElements of the catalog. */}
             <div className="flex flex-wrap gap-2">
               <button
                 className={`rounded-[4px] px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
@@ -503,25 +515,22 @@ export default function DoctorArticlesPage() {
                 onClick={() => setSelectedSpecialty("all")}
                 type="button"
               >
-                Tất cả chuyên khoa ({communityArticles.length})
+                Tất cả chuyên khoa ({communityTotal})
               </button>
-              {specialties.map((s) => {
-                const count = communityArticles.filter((a) => a.relatedSpecialtySlug === s.slug).length;
-                return (
-                  <button
-                    className={`rounded-[4px] px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                      selectedSpecialty === s.slug
-                        ? "bg-teal-900 text-white shadow-sm"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                    key={s.id}
-                    onClick={() => setSelectedSpecialty(s.slug)}
-                    type="button"
-                  >
-                    {specialtyLabel(s.name)} ({count})
-                  </button>
-                );
-              })}
+              {specialties.map((s) => (
+                <button
+                  className={`rounded-[4px] px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    selectedSpecialty === s.slug
+                      ? "bg-teal-900 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                  key={s.id}
+                  onClick={() => setSelectedSpecialty(s.slug)}
+                  type="button"
+                >
+                  {specialtyLabel(s.name)}
+                </button>
+              ))}
             </div>
 
             {loading ? (

@@ -63,7 +63,9 @@ export default function AdminAiCreditsPage() {
     try {
       // Patient balances are the only AI credit listing the backend still
       // exposes; clinical (doctor) credits were retired along with the doctor
-      // deduction path, so nothing here fetches them.
+      // deduction path, so nothing here fetches them. The client function
+      // walks every backend window (default 20, cap 100) itself, so the list,
+      // the stat cards and the table below all compute on the full inventory.
       const patientList = await adminListPatientAiCredits();
       setPatients(patientList);
     } catch (err) {

@@ -90,10 +90,15 @@ public class BookingService {
      * PatientProfiles. A plausible canonical number is the 0-prefixed
      * national form with at least eight digits; the +84 and bare-84 folds of
      * {@link #normalizePhone} land here, foreign formats do not.
+     *
+     * <p>{@link com.healthcare.auth.AuthService#register} enforces the same
+     * floor on the account phone through the shared
+     * {@link #isValidContactPhone} / {@link #canonicalContactPhone} helpers,
+     * so there is exactly one definition of the canonical form.
      */
     private static final java.util.regex.Pattern VALID_CLEAN_PHONE_PATTERN =
         java.util.regex.Pattern.compile("^0\\d{7,14}$");
-    private static final String INVALID_CONTACT_PHONE_MESSAGE = "Số điện thoại không hợp lệ";
+    public static final String INVALID_CONTACT_PHONE_MESSAGE = "Số điện thoại không hợp lệ";
 
     private final AppointmentRepository appointmentRepository;
     private final PatientProfileRepository patientProfileRepository;
@@ -1188,7 +1193,7 @@ public class BookingService {
      * canonical form; legacy rows written in a +84 form will not match and
      * need a one-off data normalization if any exist.
      */
-    private String normalizePhone(String phone) {
+    public static String canonicalContactPhone(String phone) {
         if (phone == null) {
             return "";
         }
@@ -1205,6 +1210,10 @@ public class BookingService {
         return digits;
     }
 
+    private String normalizePhone(String phone) {
+        return canonicalContactPhone(phone);
+    }
+
     /**
      * Normalizes then enforces the {@link #VALID_CLEAN_PHONE_PATTERN} floor.
      * Call this wherever a client-supplied phone first becomes an identity
@@ -1219,7 +1228,7 @@ public class BookingService {
         return cleanPhone;
     }
 
-    private static boolean isValidContactPhone(String cleanPhone) {
+    public static boolean isValidContactPhone(String cleanPhone) {
         return cleanPhone != null && VALID_CLEAN_PHONE_PATTERN.matcher(cleanPhone).matches();
     }
 

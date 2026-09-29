@@ -971,8 +971,11 @@ function FloatingHealthAssistantPanel({
 
               {/* Suggestions are an empty-state affordance only: once the first
                   question is in flight or answered, they must not crowd the
-                  thread (the pending bubble is not yet in `messages`). */}
-              {messages.length === 0 && !loading && !sending && !pendingUserMessage ? (
+                  thread (the pending bubble is not yet in `messages`). While
+                  consent is blocked they are hidden entirely so the consent
+                  panel stays the single CTA — a visible chip would only bounce
+                  into the duplicate consent error above. */}
+              {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked ? (
                 <div className={styles.suggestions}>
                   {getSuggestedQuestions(pathname, mode).map((question) => (
                     <button disabled={sending} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>

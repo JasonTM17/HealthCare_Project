@@ -27,6 +27,7 @@ import com.healthcare.user.repository.UserRepository;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.appointment.service.AppointmentClaimService;
+import com.healthcare.appointment.service.BookingService;
 import com.healthcare.auth.security.AuthRateLimiter;
 import com.healthcare.auth.dto.BrowserSessionCreateRequest;
 import com.healthcare.auth.service.BrowserSessionService;
@@ -116,7 +117,24 @@ public class AuthService {
                 "Email already registered"
             );
         }
-        String normalizedPhone = normalizePhone(request.phone());
+        String providedPhone = request.phone();
+        String normalizedPhone = providedPhone == null || providedPhone.isBlank()
+            ? null
+            : BookingService.canonicalContactPhone(providedPhone);
+        // Same contact-phone floor as the booking flow
+        // (BookingService.requireValidContactPhone): the RegisterRequest DTO
+        // pattern lets separator-only input such as "-----" through and the
+        // normalizer collapses it to "", which would strand the account with
+        // no PatientProfile and no UI path to repair it. A phone the client
+        // actually sent must normalize to a plausible canonical number or
+        // registration fails with 400 before anything is persisted.
+        if (normalizedPhone != null && !BookingService.isValidContactPhone(normalizedPhone)) {
+            throw new BusinessException(
+                400,
+                ErrorCodes.VALIDATION_ERROR,
+                BookingService.INVALID_CONTACT_PHONE_MESSAGE
+            );
+        }
         PatientProfile reusableProfile = normalizedPhone == null
             ? null
             : patientProfileRepository.findByPhone(normalizedPhone).orElse(null);
@@ -479,12 +497,5 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 algorithm not available", e);
         }
-    }
-
-    private String normalizePhone(String phone) {
-        if (phone == null || phone.isBlank()) {
-            return null;
-        }
-        return phone.trim().replaceAll("[\\s().-]", "");
     }
 }

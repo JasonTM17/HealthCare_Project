@@ -94,7 +94,7 @@ export default function RegisterPage() {
               {resendMessage ? <p className="auth-status__notice">{resendMessage}</p> : null}
               {resendError ? <p className="auth-status__error" role="alert">{resendError}</p> : null}
               <div className="auth-status__actions">
-                <Link className="button button--primary" href={`/auth/verify-email?email=${encodeURIComponent(pendingEmail)}`}>Nhập mã xác minh</Link>
+                <Link className="button button--primary" href={`/auth/verify-email?email=${encodeURIComponent(pendingEmail)}&resendAfterSeconds=${Math.max(resendCooldown, 0)}`}>Nhập mã xác minh</Link>
                 <button className="outline-button" disabled={resending || resendCooldown > 0} onClick={() => void handleResend()} type="button">
                   {resending ? "Đang gửi..." : resendCooldown > 0 ? `Gửi lại sau ${resendCooldown}s` : "Gửi lại mã"}
                 </button>
@@ -116,7 +116,7 @@ export default function RegisterPage() {
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-phone">Số điện thoại</label>
-              <input aria-describedby={fieldErrors.phone ? "register-phone-error" : undefined} aria-invalid={Boolean(fieldErrors.phone)} autoComplete="tel" id="register-phone" maxLength={20} onChange={(event) => setPhone(event.target.value)} pattern="[+0-9() .-]+" required type="tel" value={phone} />
+              <input aria-describedby={fieldErrors.phone ? "register-phone-error" : undefined} aria-invalid={Boolean(fieldErrors.phone)} autoComplete="tel" id="register-phone" maxLength={20} onChange={(event) => setPhone(event.target.value)} pattern="[\\+0-9\\(\\) .\\-]*[0-9][\\+0-9\\(\\) .\\-]*" required type="tel" value={phone} />
               {fieldErrors.phone ? <small className="auth-form__field-error" id="register-phone-error">{fieldErrors.phone}</small> : null}
             </div>
             <div className="auth-form__field">
