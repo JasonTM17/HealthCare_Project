@@ -51,6 +51,9 @@ class ChatSafetyAndChunkerTest {
             "Tôi không, nhưng tôi vẫn chẩn đoán là cúm")).isTrue();
         assertThat(ChatMedicalSafety.containsUnsafeClaim(
             "Tôi không kê đơn; chẩn đoán là cúm mùa")).isTrue();
+        // Punctuation-only segments must not crash the sentence loop.
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "!!! ... ??? --- Nói lại đi")).isFalse();
     }
 
     @Test

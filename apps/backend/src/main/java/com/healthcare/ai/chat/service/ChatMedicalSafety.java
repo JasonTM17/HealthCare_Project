@@ -87,6 +87,7 @@ public final class ChatMedicalSafety {
         // ("không kê đơn, nhưng…") puts the claim back in force.
         for (String rawSentence : answer.split("[.!?\n;]")) {
             String normalized = normalizeInput(rawSentence);
+            if (normalized == null) continue;
             java.util.regex.Matcher matcher = UNSAFE_CLAIM.matcher(normalized);
             while (matcher.find()) {
                 String prefix = normalized.substring(0, matcher.start());
