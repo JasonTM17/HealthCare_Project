@@ -702,7 +702,13 @@ def test_resolve_chat_applies_tone_register_to_system_prompt() -> None:
     captured: dict[str, str] = {}
 
     class RecordingClient:
-        def complete_json(self, *, system_prompt: str, user_prompt: str, context=()):
+        def complete_json(
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            context: Sequence[str] = (),
+        ) -> Any:
             captured["prompt"] = system_prompt
             return {"answer": "Mình khuyên bạn nghỉ ngơi và uống đủ nước."}
 
