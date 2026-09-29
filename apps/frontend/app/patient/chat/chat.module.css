@@ -49,7 +49,6 @@
 
 .hero h1 {
   max-width: 28ch;
-  font-size: 1.5rem;
   letter-spacing: 0;
   margin-bottom: 2px;
 }
@@ -1117,9 +1116,6 @@
 }
 
 @media (max-width: 900px) {
-  .hero h1 {
-    font-size: 2.75rem;
-  }
 
   .workspace {
     height: auto;

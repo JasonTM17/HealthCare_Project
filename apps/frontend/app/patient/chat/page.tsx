@@ -1099,7 +1099,7 @@ function PatientChatPageContent() {
               {currentConsentRequired ? (
                 <section aria-describedby="patient-chat-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận sử dụng trợ lý</strong>
-                  <p id="patient-chat-consent-copy">Cuộc trò chuyện được lưu tối đa 90 ngày rồi tự động xóa. Trợ lý chỉ cung cấp thông tin tham khảo, không chẩn đoán hoặc kê đơn. Remote AI đang tắt trong môi trường này.</p>
+                  <p id="patient-chat-consent-copy">Cuộc trò chuyện được lưu tối đa 90 ngày rồi tự động xóa. Trợ lý chỉ cung cấp thông tin tham khảo, không chẩn đoán hoặc kê đơn. Kênh trả lời từ trợ lý thông tin được kiểm duyệt của bệnh viện.</p>
                   <button className={styles.primaryConsentButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
                     {consentBusy ? "Đang xác nhận…" : "Tôi đồng ý với chính sách"}
                   </button>
@@ -1131,11 +1131,11 @@ function PatientChatPageContent() {
                 <div className={styles.composerLabelRow}>
                   <div className="flex items-center gap-2">
                     <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
-                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200">
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200">
                       -1 lượt / câu hỏi
                     </span>
                     {creditStatus ? (
-                      <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[4px] border border-teal-200">
+                      <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[4px] border border-teal-200">
                         Số dư: {creditStatus.credits} / {creditStatus.maxCredits}
                       </span>
                     ) : null}

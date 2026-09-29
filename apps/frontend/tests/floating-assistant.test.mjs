@@ -110,7 +110,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   assert.match(styles, /\.suggestions button::after/);
   assert.match(styles, /border-left: 3px solid var\(--assistant-assistant-accent\)/);
   assert.match(styles, /\.feedback button \{\r?\n  min-height: 2\.75rem;[\s\S]*?touch-action: manipulation;[\s\S]*?transition: background-color var\(--duration-fast\) ease, border-color var\(--duration-fast\) ease, color var\(--duration-fast\) ease;/);
-  assert.match(styles, /\.modeOption,\s*\.modeOptionActive \{[\s\S]*font-size: 0\.74rem/);
+  assert.match(styles, /\.modeOption,\s*\.modeOptionActive \{[\s\S]*font-size: 0\.75rem/);
   assert.match(styles, /max\(0\.75rem, env\(safe-area-inset-bottom\)\)/);
   assert.match(styles, /z-index: 80/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
