@@ -4,6 +4,7 @@ import com.healthcare.document.entity.DocumentSourceType;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,7 +25,8 @@ public record DocumentSnapshot(
         String doctorName,
         OffsetDateTime sourceFinalizedAt,
         VisitSummaryPayload visitSummary,
-        PrescriptionPayload prescription
+        PrescriptionPayload prescription,
+        AppointmentReminderPayload appointmentReminder
 ) {
 
     /** Fields for the synthetic visit summary (bản tổng kết lần khám). */
@@ -54,6 +56,18 @@ public record DocumentSnapshot(
             String generalAdvice,
             String status,
             List<PrescriptionItemSnapshot> items
+    ) {
+    }
+
+    /** Fields for the synthetic appointment reminder (giấy nhắc hẹn). */
+    public record AppointmentReminderPayload(
+            String bookingCode,
+            LocalDate appointmentDate,
+            LocalTime startTime,
+            LocalTime endTime,
+            String branchName,
+            String specialtyName,
+            String reasonForVisit
     ) {
     }
 

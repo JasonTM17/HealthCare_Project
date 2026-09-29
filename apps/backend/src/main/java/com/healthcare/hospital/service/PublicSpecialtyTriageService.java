@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -157,49 +158,118 @@ public class PublicSpecialtyTriageService {
         return body;
     }
 
+    /**
+     * After accent folding (NFD mark strip) a monosyllabic identity phrase is
+     * homophone-ambiguous in Vietnamese — "mất" (of "mất ngủ") and "mắt" both
+     * fold to "mat" — so a single word shorter than this length never counts
+     * as specialty identity evidence. Multi-word names and symptom phrases
+     * keep their evidence value.
+     */
+    private static final int MIN_SINGLE_WORD_IDENTITY = 4;
+
     private Specialty bestMatch(String symptoms, List<Specialty> active) {
         String haystack = normalize(symptoms);
+        // How many active specialties carry each normalized symptom needle, so
+        // the unshared-evidence tie-break below only credits needles unique to
+        // one specialty.
+        Map<String, Integer> needleCarriers = new HashMap<>();
+        for (Specialty specialty : active) {
+            for (String symptom : jsonStrings(specialty.getCommonSymptoms())) {
+                String needle = normalize(symptom);
+                if (!needle.isBlank()) {
+                    needleCarriers.merge(needle, 1, Integer::sum);
+                }
+            }
+        }
         Specialty winner = null;
         int best = 0;
-        int ties = 0;
+        int bestUnshared = 0;
+        String winnerSlug = null;
         for (Specialty specialty : active) {
             int score = score(haystack, specialty);
             if (score <= 0) {
                 continue;
             }
-            if (score > best) {
+            int unshared = unsharedSymptomHits(haystack, specialty, needleCarriers);
+            boolean wins = winner == null
+                || score > best
+                || (score == best && unshared > bestUnshared)
+                || (score == best && unshared == bestUnshared
+                    && specialty.getSlug().compareTo(winnerSlug) < 0);
+            if (wins) {
                 best = score;
+                bestUnshared = unshared;
+                winnerSlug = specialty.getSlug();
                 winner = specialty;
-                ties = 0;
-            } else if (score == best) {
-                ties += 1;
             }
         }
-        return ties == 0 ? winner : null;
+        // Ties resolve deterministically (unshared symptom evidence first, then
+        // smallest slug) instead of returning null: a symptom shared by several
+        // specialties — "Mệt mỏi kéo dài" is carried by three — used to
+        // dead-end in UNRESOLVED, which kept the frontend booking CTA hidden.
+        return winner;
+    }
+
+    private int unsharedSymptomHits(
+            String haystack, Specialty specialty, Map<String, Integer> needleCarriers) {
+        int hits = 0;
+        for (String symptom : jsonStrings(specialty.getCommonSymptoms())) {
+            String needle = normalize(symptom);
+            if (!needle.isBlank()
+                    && Integer.valueOf(1).equals(needleCarriers.get(needle))
+                    && matchesPhrase(haystack, needle)) {
+                hits += 1;
+            }
+        }
+        return hits;
     }
 
     private int score(String haystack, Specialty specialty) {
         int score = 0;
         String name = normalize(specialty.getName());
         String slug = normalize(specialty.getSlug().replace('-', ' '));
-        if (!name.isBlank() && haystack.contains(name)) {
+        if (matchesIdentity(haystack, name)) {
             score += 5;
         }
-        if (!slug.isBlank() && haystack.contains(slug)) {
+        if (!slug.equals(name) && matchesIdentity(haystack, slug)) {
             score += 3;
         }
         for (String token : name.split(" ")) {
-            if (token.length() >= 3 && haystack.contains(token)) {
+            if (!token.equals(name) && matchesIdentity(haystack, token)) {
                 score += 2;
             }
         }
         for (String symptom : jsonStrings(specialty.getCommonSymptoms())) {
             String needle = normalize(symptom);
-            if (!needle.isBlank() && haystack.contains(needle)) {
+            if (!needle.isBlank() && matchesPhrase(haystack, needle)) {
                 score += 4;
             }
         }
         return score;
+    }
+
+    /** Word-boundary match on the already-normalized haystack. */
+    private boolean matchesPhrase(String haystack, String needle) {
+        if (needle.isBlank()) {
+            return false;
+        }
+        return Pattern.compile("\\b" + Pattern.quote(needle) + "\\b").matcher(haystack).find();
+    }
+
+    /**
+     * Identity evidence (specialty name, slug, or name token) counts only at a
+     * word boundary and never from a single short word: after folding,
+     * "đau đầu … mất ngủ" contains the same "mat" token as the "Mắt" name, and
+     * the old contains() matching triple-counted that one three-letter word
+     * into 10 points (name + slug + token), outscoring a real 4-point symptom
+     * phrase such as "đau đầu kéo dài".
+     */
+    private boolean matchesIdentity(String haystack, String needle) {
+        if (needle.isBlank()
+                || (!needle.contains(" ") && needle.length() < MIN_SINGLE_WORD_IDENTITY)) {
+            return false;
+        }
+        return matchesPhrase(haystack, needle);
     }
 
     private List<String> jsonStrings(JsonNode node) {

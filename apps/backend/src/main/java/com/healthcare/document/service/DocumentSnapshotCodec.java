@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -32,6 +33,7 @@ public class DocumentSnapshotCodec {
         root.put("sourceFinalizedAt", time(snapshot.sourceFinalizedAt()));
         root.put("visitSummary", visitSummary(snapshot.visitSummary()));
         root.put("prescription", prescription(snapshot.prescription()));
+        root.put("appointmentReminder", appointmentReminder(snapshot.appointmentReminder()));
         return toJson(root);
     }
 
@@ -88,6 +90,21 @@ public class DocumentSnapshotCodec {
         map.put("items", payload.items() == null
             ? null
             : payload.items().stream().map(this::prescriptionItem).toList());
+        return map;
+    }
+
+    private Map<String, Object> appointmentReminder(DocumentSnapshot.AppointmentReminderPayload payload) {
+        if (payload == null) {
+            return null;
+        }
+        LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+        map.put("bookingCode", text(payload.bookingCode()));
+        map.put("appointmentDate", date(payload.appointmentDate()));
+        map.put("startTime", time(payload.startTime()));
+        map.put("endTime", time(payload.endTime()));
+        map.put("branchName", text(payload.branchName()));
+        map.put("specialtyName", text(payload.specialtyName()));
+        map.put("reasonForVisit", text(payload.reasonForVisit()));
         return map;
     }
 
@@ -186,6 +203,10 @@ public class DocumentSnapshotCodec {
     }
 
     private String time(OffsetDateTime value) {
+        return value == null ? null : value.toString();
+    }
+
+    private String time(LocalTime value) {
         return value == null ? null : value.toString();
     }
 

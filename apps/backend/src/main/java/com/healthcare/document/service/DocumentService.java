@@ -1,5 +1,6 @@
 package com.healthcare.document.service;
 
+import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
@@ -41,9 +42,9 @@ import java.util.UUID;
 
 /**
  * Synthetic clinical document generation, listing and authorized download
- * (ADR-005 / D-03). Only VISIT_SUMMARY and PRESCRIPTION classes exist; every
- * artifact is a demo export. Ownership model: the owning patient, the doctor
- * who issued the source record, or an administrator.
+ * (ADR-005 / D-03). Approved classes: VISIT_SUMMARY, PRESCRIPTION and
+ * APPOINTMENT_REMINDER; every artifact is a demo export. Ownership model: the
+ * owning patient, the doctor who issued the source record, or an administrator.
  */
 @Service
 public class DocumentService {
@@ -109,6 +110,7 @@ public class DocumentService {
         DocumentSnapshot snapshot = switch (request.sourceType()) {
             case VISIT_SUMMARY -> snapshotFromMedicalRecord(patientId, request.sourceRecordId(), principal);
             case PRESCRIPTION -> snapshotFromPrescription(patientId, request.sourceRecordId(), principal);
+            case APPOINTMENT_REMINDER -> snapshotFromAppointment(patientId, request.sourceRecordId(), principal);
         };
 
         String idempotencyKey = buildIdempotencyKey(snapshot);
@@ -322,6 +324,36 @@ public class DocumentService {
         }
     }
 
+    /**
+     * Resolves an appointment by its booking code and returns the already
+     * generated APPOINTMENT_REMINDER document through the standard download
+     * path (same authorization and status checks). A booking code owned by a
+     * different patient or a document not generated yet yields the same
+     * not-found response, so existence never leaks across patients.
+     */
+    @Transactional(readOnly = true)
+    public DocumentDownload downloadAppointmentReminderByBookingCode(
+            UUID patientId, String bookingCode, UserDetails principal) {
+        Appointment appointment = appointmentRepository.findByBookingCode(bookingCode)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No appointment found for booking code: " + bookingCode));
+        if (!appointment.getPatient().getId().equals(patientId)) {
+            throw new ResourceNotFoundException(
+                    "No appointment found for booking code: " + bookingCode);
+        }
+        PatientDocument document = documentRepository
+                .findByPatientIdAndSourceTypeAndSourceRecordIdAndStatusIn(
+                        patientId,
+                        DocumentSourceType.APPOINTMENT_REMINDER,
+                        appointment.getId(),
+                        List.of(DocumentStatus.AVAILABLE))
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Giấy nhắc hẹn chưa được tạo cho lịch hẹn này; hãy xuất tài liệu trước khi tải"));
+        return downloadDocument(patientId, document.getId(), principal);
+    }
+
     @Transactional
     public DocumentResponse revokeDocument(UUID patientId, UUID documentId, UserDetails principal) {
         try {
@@ -384,6 +416,7 @@ public class DocumentService {
                 record.getDoctor().getFullName(),
                 record.getCreatedAt(),
                 visit,
+                null,
                 null);
     }
 
@@ -425,7 +458,57 @@ public class DocumentService {
                 prescription.getDoctor().getFullName(),
                 prescription.getCreatedAt(),
                 null,
+                payload,
+                null);
+    }
+
+    private DocumentSnapshot snapshotFromAppointment(UUID patientId, UUID appointmentId, UserDetails principal) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Appointment not found with ID: " + appointmentId));
+        requireSourceAccess(appointment.getPatient().getId().equals(patientId), principal);
+        authorizeAppointmentSource(appointment, principal);
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED
+                || appointment.getStatus() == AppointmentStatus.NO_SHOW) {
+            throw new BusinessException(409, "Chỉ lịch hẹn còn hiệu lực mới có thể kết xuất giấy nhắc hẹn");
+        }
+        DocumentSnapshot.AppointmentReminderPayload payload =
+                new DocumentSnapshot.AppointmentReminderPayload(
+                        appointment.getBookingCode(),
+                        appointment.getAppointmentDate(),
+                        appointment.getStartTime(),
+                        appointment.getEndTime(),
+                        appointment.getBranch() != null ? appointment.getBranch().getName() : null,
+                        appointment.getSpecialty() != null ? appointment.getSpecialty().getName() : null,
+                        appointment.getReasonForVisit());
+        return new DocumentSnapshot(
+                DocumentSourceType.APPOINTMENT_REMINDER,
+                appointment.getId(),
+                sourceVersion(appointment.getCreatedAt()),
+                SyntheticPdfRenderer.TEMPLATE_VERSION,
+                appointment.getPatient().getFullName(),
+                appointment.getPatient().getPhone(),
+                appointment.getDoctor().getFullName(),
+                appointment.getCreatedAt(),
+                null,
+                null,
                 payload);
+    }
+
+    private void authorizeAppointmentSource(Appointment appointment, UserDetails principal) {
+        if (hasRole(principal, "ADMIN")) {
+            return;
+        }
+        if (hasRole(principal, "PATIENT")) {
+            return;
+        }
+        if (hasRole(principal, "DOCTOR")) {
+            if (!requireLinkedDoctor(principal).getId().equals(appointment.getDoctor().getId())) {
+                throw new AccessDeniedException("The authenticated doctor is not assigned to this appointment");
+            }
+            return;
+        }
+        throw new AccessDeniedException("Document generation denied");
     }
 
     private void authorizeMedicalRecordSource(MedicalRecord record, UserDetails principal) {
@@ -603,6 +686,7 @@ public class DocumentService {
             return switch (snapshot.sourceType()) {
                 case VISIT_SUMMARY -> renderer.renderVisitSummary(snapshot, snapshotHash);
                 case PRESCRIPTION -> renderer.renderPrescription(snapshot, snapshotHash);
+                case APPOINTMENT_REMINDER -> renderer.renderAppointmentReminder(snapshot, snapshotHash);
             };
         } catch (IOException exception) {
             throw new BusinessException(500, "Không thể kết xuất tài liệu tổng hợp");
