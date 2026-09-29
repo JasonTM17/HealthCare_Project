@@ -534,7 +534,7 @@ def _rag_ready() -> bool:
         return False
 
 
-@app.get("/health", response_model=HealthResponse, dependencies=[Depends(require_service_auth)])
+@app.api_route("/health", methods=["GET", "HEAD"], response_model=HealthResponse, dependencies=[Depends(require_service_auth)])
 def health(response: Response) -> HealthResponse:
     chat_provider = settings.ai_provider.strip().casefold()
     api_key_configured = _configured_secret(provider_secret(settings, chat_provider))
@@ -598,14 +598,14 @@ def health(response: Response) -> HealthResponse:
     )
 
 
-@app.get("/livez")
+@app.api_route("/livez", methods=["GET", "HEAD"])
 def livez() -> dict[str, str]:
     """Process liveness probe; it intentionally does not call providers."""
 
     return {"status": "ok", "service": settings.service_name}
 
 
-@app.get("/readyz", response_model=HealthResponse)
+@app.api_route("/readyz", methods=["GET", "HEAD"], response_model=HealthResponse)
 def readyz(
     response: Response,
     _service_auth: None = Depends(require_service_auth),
