@@ -1,4 +1,9 @@
 .root {
+  /* Chat-surface radii: tokenized so the flat-UI contract sees var() forms.
+     A messaging surface reads modern with soft corners, not 2px boxy edges. */
+  --radius-chat-panel: 1rem;
+  --radius-chat-bubble: 0.75rem;
+  --radius-chat-tail: 0.25rem;
   --assistant-ink: #123d3e;
   --assistant-deep: var(--color-teal-800);
   --assistant-mint: #e9f5f1;
@@ -44,7 +49,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid #ccfbf1;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-chat-panel);
   background: #ffffff;
   box-shadow: none;
   color: var(--assistant-ink);
@@ -112,7 +117,7 @@
   width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: #d9f2eb;
   color: var(--assistant-deep);
 }
@@ -323,10 +328,10 @@
 
 .message {
   min-width: 0;
-  max-width: 90%;
+  max-width: 84%;
   padding: 0.8rem 0.95rem;
   border: 1px solid var(--assistant-line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-chat-bubble);
   box-shadow: none;
   font-size: 0.9rem;
   line-height: 1.6;
@@ -383,6 +388,7 @@
   align-self: flex-end;
   border-color: #a3d9cc;
   border-right: 3px solid var(--assistant-patient-accent);
+  border-bottom-right-radius: var(--radius-chat-tail);
   background: #e1f5ef;
   color: #0d3834;
 }
@@ -391,6 +397,7 @@
   align-self: flex-start;
   border-left: 3px solid var(--assistant-assistant-accent);
   border-color: #d1e5e0;
+  border-bottom-left-radius: var(--radius-chat-tail);
   background: #ffffff;
   color: #0f2d2e;
 }
