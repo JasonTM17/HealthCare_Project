@@ -14,7 +14,9 @@ import com.healthcare.ai.service.AiService;
 import com.healthcare.appointment.entity.PatientProfile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.exception.BusinessException;
+import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.MedicalService;
+import com.healthcare.hospital.entity.Specialty;
 import com.healthcare.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
@@ -164,7 +166,8 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @Test
     @WithMockUser(username = "patient.chat@example.com", roles = "PATIENT")
     void createsConversationAndReplaysTheSameIdempotentExchange() throws Exception {
-        createUser("patient.chat@example.com");
+        User chatPatient = createUser("patient.chat@example.com");
+        createPatientProfile(chatPatient, "0901002070", 3);
         when(aiService.retrieveChat(any())).thenReturn(Map.of("safety_action", "REFUSE"));
 
         String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
@@ -425,7 +428,8 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @Test
     @WithMockUser(username = "patient.chat-retrieval-outage@example.com", roles = "PATIENT")
     void retrievalOutagePersistsAndReloadsInsufficientEvidenceInsteadOfAnUncitedAnswer() throws Exception {
-        createUser("patient.chat-retrieval-outage@example.com");
+        User outagePatient = createUser("patient.chat-retrieval-outage@example.com");
+        createPatientProfile(outagePatient, "0901002071", 3);
         when(aiService.retrieveChat(any())).thenReturn(null);
 
         String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
@@ -729,6 +733,120 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "patient.catalog-fallback-free@example.com", roles = "PATIENT")
+    void localCatalogFallbackAnswerWaivesInsteadOfChargingTheProviderFreeLookup() throws Exception {
+        // Retrieval is down and the reply is the deterministic catalog
+        // overview assembled from live Spring catalog rows: the payload the
+        // client sees carries provenance local_fallback and costTier
+        // local_free, yet the ledger used to record a purchased credit for the
+        // same exchange. Charging a pure local lookup (and 402-ing a
+        // zero-credit patient for it) contradicts that payload — the balance
+        // must not move and a zero-amount waiver must explain why.
+        User patient = createUser("patient.catalog-fallback-free@example.com");
+        createPatientProfile(patient, "0901002018", 3);
+        seedActiveCatalog();
+        when(aiService.retrieveChat(any())).thenThrow(new IllegalStateException("retrieval down"));
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "catalog-fallback-free-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Cho mình xem danh sách chuyên khoa của bệnh viện\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("ANSWER"))
+            .andExpect(jsonPath("$.assistantMessage.provenance").value("local_fallback"))
+            .andExpect(jsonPath("$.assistantMessage.costTier").value("local_free"))
+            .andExpect(jsonPath("$.assistantMessage.citations").isNotEmpty());
+
+        // No generation was bought: the answer came from the local catalog.
+        verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).generateChatStream(any(), any());
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+        assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(3);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.zero-credit-catalog@example.com", roles = "PATIENT")
+    void zeroCreditPatientReceivesTheLocalCatalogFallbackAnswerInsteadOf402() throws Exception {
+        // The same provider-free catalog lookup must also pass the credit gate
+        // for a patient at zero credits: the answer is deterministically in
+        // hand before the gate releases, so no provider work can be spent.
+        User patient = createUser("patient.zero-credit-catalog@example.com");
+        createPatientProfile(patient, "0901002019", 0);
+        seedActiveCatalog();
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String endpoint = "/api/v1/ai/conversations/" + conversationId + "/messages";
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "zero-credit-catalog-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Cho mình xem danh sách chuyên khoa của bệnh viện\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.replayed").value(false))
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("ANSWER"))
+            .andExpect(jsonPath("$.assistantMessage.provenance").value("local_fallback"))
+            .andExpect(jsonPath("$.assistantMessage.citations").isNotEmpty());
+
+        // The whole exchange never touched a provider stage.
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+        assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_WAIVED")).isZero();
+
+        // The exemption stays narrow: a question that needs the paid pipeline
+        // still hits 402 at prepare, before any provider is called.
+        mockMvc.perform(post(endpoint)
+                .header("Idempotency-Key", "zero-credit-paid-0002")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi bac si\"}"))
+            .andExpect(status().isPaymentRequired())
+            .andExpect(jsonPath("$.code").value("INSUFFICIENT_AI_CREDITS"));
+
+        // The rejected paid attempt wrote nothing: one waiver row and the two
+        // messages of the free exchange.
+        assertThat(creditTransactionCount(patient.getId())).isEqualTo(1);
+        assertThat(aiMessageRepository.findAll()).hasSize(2);
+    }
+
+    private void seedActiveCatalog() {
+        Specialty specialty = new Specialty();
+        specialty.setName("Tim Mạch & Can Thiệp Mạch Máu");
+        specialty.setSlug("tim-mach-catalog-" + UUID.randomUUID());
+        specialty.setActive(true);
+        specialtyRepository.save(specialty);
+
+        Branch branch = new Branch();
+        branch.setName("Cơ sở 1");
+        branch.setSlug("co-so-1-catalog-" + UUID.randomUUID());
+        branch.setAddress("12 Đường số 1, Quận 1, TP. Hồ Chí Minh");
+        branch.setActive(true);
+        branchRepository.save(branch);
+    }
+
+    @Test
     void staleLeaseRecoveryRefundsAChargedAttemptOnceAndNeverRefundsUnchargedOnes() {
         // Attempt A: charged but the answer never persisted (the crash window
         // the sweep exists for). Attempt B: failed without ever being charged.
@@ -810,6 +928,7 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @WithMockUser(username = "patient.stream-enabled@example.com", roles = "PATIENT")
     void enabledStreamReturnsPersistedDeltaAndDoneEvents() throws Exception {
         User patient = createUser("patient.stream-enabled@example.com");
+        createPatientProfile(patient, "0901002072", 3);
         AiConversation conversation = createConversation(
             patient,
             false,
@@ -952,6 +1071,7 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @WithMockUser(username = "patient.stale@example.com", roles = "PATIENT")
     void recoversAStaleProcessingLeaseBeforeAcceptingANewMessage() throws Exception {
         User patient = createUser("patient.stale@example.com");
+        createPatientProfile(patient, "0901002073", 3);
         AiConversation conversation = createConversation(patient, true, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
         conversation.setInFlightStartedAt(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(3));
         aiConversationRepository.saveAndFlush(conversation);
@@ -1057,6 +1177,44 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
         verify(aiService, never()).retrieveChat(any());
         verify(aiService, never()).generateChat(any());
         assertThat(aiMessageRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.no-profile@example.com", roles = "PATIENT")
+    void registeredPatientWithoutProfileIsRefusedAtPrepareAndLeavesNoLedgerRow() throws Exception {
+        // AuthService materializes a PatientProfile only when the registration
+        // carries a phone number, so a no-phone registration reaches chat with
+        // no metered balance behind it. The credit gate must fail closed: every
+        // pipeline turn costs the platform a provider call, and the old
+        // permissive branch answered all of them while the charge silently
+        // no-op'd, leaving the ai_credit_transactions reconciliation ledger
+        // permanently empty for these accounts.
+        User patient = createUser("patient.no-profile@example.com");
+        assertThat(aiCreditService.hasPatientCreditBalance(patient.getId())).isFalse();
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "no-profile-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi bac si\"}"))
+            .andExpect(status().isPaymentRequired())
+            .andExpect(jsonPath("$.code").value("INSUFFICIENT_AI_CREDITS"));
+
+        // Refused before any provider work and before any row: no messages and
+        // no ledger entry — the same controlled outcome a zero-credit patient
+        // already gets.
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(aiMessageRepository.findAll()).isEmpty();
+        assertThat(creditTransactionCount(patient.getId())).isZero();
     }
 
     @Test
@@ -1166,6 +1324,7 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @Test
     void rejectsAnExpiredResponseBeforeAReplacementCompletes() throws Exception {
         User patient = createUser("patient.expired-lease@example.com");
+        createPatientProfile(patient, "0901002074", 3);
         AiConversation conversation = createConversation(
             patient,
             false,
@@ -1231,6 +1390,7 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @Test
     void rejectsALateResponseAfterItsLeaseWasReplaced() throws Exception {
         User patient = createUser("patient.fencing@example.com");
+        createPatientProfile(patient, "0901002075", 3);
         AiConversation conversation = createConversation(
             patient,
             false,
@@ -1299,6 +1459,7 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     @Test
     void deletesConversationWhileProviderCallIsOutstandingWithoutResurrection() throws Exception {
         User patient = createUser("patient.delete-in-flight@example.com");
+        createPatientProfile(patient, "0901002076", 3);
         AiConversation conversation = createConversation(
             patient,
             false,

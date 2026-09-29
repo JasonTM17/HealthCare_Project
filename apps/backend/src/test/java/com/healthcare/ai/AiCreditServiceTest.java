@@ -345,7 +345,7 @@ class AiCreditServiceTest {
     // ---- A1: the gate the chat service branches on ----
 
     @Test
-    @DisplayName("Zero credits reports no paid balance while a missing profile stays unmetered")
+    @DisplayName("Zero credits and a missing profile both report no paid balance")
     void hasPatientCreditBalanceMirrorsThe402Gate() {
         UUID broke = UUID.randomUUID();
         PatientProfile zeroProfile = new PatientProfile();
@@ -369,10 +369,18 @@ class AiCreditServiceTest {
         assertTrue(creditService.hasPatientCreditBalance(solvent));
         creditService.requirePatientCredits(solvent);
 
+        // Fail closed (credit-leak audit): an account with no PatientProfile —
+        // the state AuthService leaves after a no-phone registration — has no
+        // metered balance to spend, so it is refused exactly like the
+        // zero-credit patient. The old permissive branch answered every such
+        // turn while the charge silently no-op'd and the ledger stayed empty.
         UUID unmetered = UUID.randomUUID();
         when(patientProfileRepository.findByUserId(unmetered)).thenReturn(Optional.empty());
-        assertTrue(creditService.hasPatientCreditBalance(unmetered));
-        creditService.requirePatientCredits(unmetered);
+        assertFalse(creditService.hasPatientCreditBalance(unmetered));
+        BusinessException missing = assertThrows(BusinessException.class,
+            () -> creditService.requirePatientCredits(unmetered));
+        assertEquals(402, missing.getStatus());
+        assertEquals("INSUFFICIENT_AI_CREDITS", missing.getCode());
     }
 
     @Test
