@@ -1449,7 +1449,7 @@ function BookingExperience({
                         <div className="flex flex-wrap items-center gap-1.5">
                           <p className="text-xs font-bold uppercase tracking-wider text-teal-700">Bác sĩ tiếp nhận</p>
                           {currentDoctor.title ? (
-                            <span className="rounded bg-teal-100 px-1.5 py-0.5 text-[11px] font-semibold text-teal-800">
+                            <span className="rounded bg-teal-100 px-1.5 py-0.5 text-xs font-semibold text-teal-800">
                               {currentDoctor.title}
                             </span>
                           ) : null}
@@ -1706,7 +1706,7 @@ function BookingExperience({
                         className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border p-2.5 text-xs font-semibold transition-colors ${isSelected ? "border-brand-700 bg-brand-700 text-white shadow-md ring-2 ring-brand-500" : slot.available ? "border-brand-200 bg-white text-gray-800 hover:border-brand-500 hover:bg-brand-50" : "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-500"}`}
                       >
                         <span className="text-sm font-bold">{slot.startTime.slice(0, 5)}</span>
-                        <span className="text-[10px] opacity-80">{slot.available ? "Còn trống" : "Đã kín"}</span>
+                        <span className="text-xs font-semibold opacity-90">{slot.available ? "Còn trống" : "Đã kín"}</span>
                         {isSelected ? <span className="sr-only">Đã chọn</span> : null}
                       </button>
                     );
@@ -1965,7 +1965,7 @@ function BookingExperience({
                               ? `Gửi lại sau ${formatTimer(resendCooldownSeconds)}`
                               : "Gửi lại mã OTP"}
                         </button>
-                        <span className="text-[11px] text-gray-500">
+                        <span className="text-xs text-gray-600">
                           {resendCooldownSeconds > 0
                             ? "Mã mới chỉ có thể yêu cầu lại sau khi hết thời gian chờ."
                             : "Không tạo thêm lịch hẹn; mã mới sẽ thay thế mã cũ."}
@@ -2049,38 +2049,38 @@ function BookingExperience({
                         <h4 className="text-lg font-extrabold text-white">HealthCare Vietnam</h4>
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-brand-300">MÃ LỊCH HẸN</span>
+                        <span className="text-xs text-brand-400">MÃ LỊCH HẸN</span>
                         <p className="font-mono font-bold text-amber-400 text-base">{confirmedAppointment.bookingCode}</p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5 text-xs">
                       <div>
-                        <span className="text-brand-300 text-[11px]">Bệnh nhân:</span>
+                        <span className="text-brand-400 text-xs">Bệnh nhân:</span>
                         <p className="font-bold text-white text-sm">{confirmedAppointment.patientName}</p>
                       </div>
                       <div>
-                        <span className="text-brand-300 text-[11px]">Số điện thoại:</span>
+                        <span className="text-brand-400 text-xs">Số điện thoại:</span>
                         <p className="font-bold text-white">{confirmedAppointment.patientPhone}</p>
                       </div>
                       <div>
-                        <span className="text-brand-300 text-[11px]">Bác sĩ khám:</span>
+                        <span className="text-brand-400 text-xs">Bác sĩ khám:</span>
                         <p data-testid="booking-confirmed-doctor" className="font-semibold text-white">{confirmedAppointment.doctorName || currentDoctor?.fullName || "Bác sĩ chuyên khoa"}</p>
                       </div>
                       <div>
-                        <span className="text-brand-300 text-[11px]">Chuyên khoa:</span>
+                        <span className="text-brand-400 text-xs">Chuyên khoa:</span>
                         <p className="font-semibold text-white">{confirmedAppointment.specialtyName}</p>
                       </div>
                       <div>
-                        <span className="text-brand-300 text-[11px]">Ngày khám:</span>
+                        <span className="text-brand-400 text-xs">Ngày khám:</span>
                         <p className="font-bold text-amber-300 text-sm">{formatBusinessDate(confirmedAppointment.appointmentDate)}</p>
                       </div>
                       <div>
-                        <span className="text-brand-300 text-[11px]">Giờ khám:</span>
+                        <span className="text-brand-400 text-xs">Giờ khám:</span>
                         <p className="font-bold text-amber-300 text-sm">{confirmedAppointment.startTime.slice(0, 5)} - {confirmedAppointment.endTime.slice(0, 5)}</p>
                       </div>
                       <div>
-                        <span className="text-brand-300 text-[11px]">BHYT:</span>
+                        <span className="text-brand-400 text-xs">BHYT:</span>
                         <p className="font-semibold text-white">{confirmedAppointment.hasInsurance ? "Có hỗ trợ" : "Không đăng ký"}</p>
                       </div>
                     </div>
