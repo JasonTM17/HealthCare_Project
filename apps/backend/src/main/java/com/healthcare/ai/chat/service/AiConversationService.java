@@ -1037,7 +1037,7 @@ public class AiConversationService {
      * {@code INSUFFICIENT_EVIDENCE}. The provenance+tier conjunction is what
      * separates them from provider answers: a provider reply is always
      * {@code local_provider} or {@code remote_provider} (and the tier it
-     * reports is not ours to second-guess), so it can never match even when it
+     * reports is not ours to second-guess), so a provider reply normally cannot match; the deliberate exception is the ai-service's own canned fallbacks (provenance local_fallback + cost local_free + ANSWER), which this predicate waives by policy — a canned card is not provider work and must not bill a credit even when it
      * reports a provider-side {@code cost_tier} of {@code local_free}.
      */
     private static boolean isProviderFreeLocalAnswer(SanitizedAiResponse response) {

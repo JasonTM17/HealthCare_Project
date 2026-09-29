@@ -575,8 +575,13 @@ public class BookingService {
      * Replays the hold created by an earlier request that carried this key.
      *
      * @return the original hold response, or {@code null} when the key has never
-     *         been used. A key reused for a different slot, or one whose hold is
-     *         no longer live, is a conflict rather than a silent replay.
+     *         been used for a live hold. The frontend derives the key from the
+     *         booking intent (doctor/branch/date/slot), so a patient who
+     *         abandons a hold — the abandon path cancels it — and retries the
+     *         same intent reuses the key by design: a dead hold (cancelled,
+     *         expired, confirmed) must let the new request proceed instead of
+     *         answering 409 forever. A key reused for a different slot remains
+     *         a conflict, as does retrying a hold that is still live.
      */
     private HoldSlotResponse replayHold(HoldSlotRequest request, String idempotencyKey) {
         Appointment existing = appointmentRepository.findByHoldIdempotencyKey(idempotencyKey).orElse(null);
@@ -600,11 +605,12 @@ public class BookingService {
             && existing.getHoldExpiresAt() != null
             && now.isBefore(existing.getHoldExpiresAt());
         if (!live) {
-            throw new BusinessException(
-                409,
-                ErrorCodes.CONFLICT,
-                "Yêu cầu giữ chỗ trước đó đã hết hiệu lực. Vui lòng đặt lại với khoá Idempotency-Key mới."
-            );
+            // Deterministic keys make dead holds expected: the abandon path
+            // cancels its own hold, then the retry reuses the same key. Clear
+            // the key so the fresh hold below can claim it atomically.
+            existing.setHoldIdempotencyKey(null);
+            appointmentRepository.save(existing);
+            return null;
         }
         return new HoldSlotResponse(
             existing.getBookingCode(),
