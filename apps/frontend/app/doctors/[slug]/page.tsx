@@ -103,7 +103,7 @@ export default function DoctorDetailPage() {
 
         {doctor ? (
           <>
-            <article className="resource-hero-card resource-hero-card--teal">
+            <article className="resource-hero-card resource-hero-card--teal resource-hero-card--doctor">
               <div className="resource-avatar resource-avatar--doctor-detail">
                 {getDoctorPhoto(doctor) ? (
                   <Image

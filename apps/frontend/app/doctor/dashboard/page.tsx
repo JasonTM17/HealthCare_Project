@@ -37,6 +37,7 @@ import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredStat
 import PortalAppointments from "../../../components/PortalAppointments";
 import { useAuthSession } from "../../../components/useAuthSession";
 import { businessDate, businessDateTimeIso, businessTimeNow, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
+import { downloadIcsCalendarManyFile, type CalendarAppointmentInput } from "../../../lib/appointment-calendar";
 import UiIcon from "../../../components/UiIcon";
 
 type LookupState<T> =
@@ -731,6 +732,35 @@ export default function DoctorDashboardPage() {
     ? dailyAppointments.status === "loading"
     : rangeAppointments.status === "loading";
 
+  // Issue 5: doctors had no way to take their schedule into a calendar app. The
+  // export covers exactly the rows the doctor just filtered (single day or the
+  // 7-day range); the shared helper keeps every event generic on purpose, so no
+  // patient detail lands inside the .ics file itself.
+  const currentAppointments = appointmentView === "day"
+    ? (dailyAppointments.status === "success" ? dailyAppointments.data.content : [])
+    : (rangeAppointments.status === "success" ? rangeAppointments.data : []);
+
+  const exportCurrentSchedule = () => {
+    if (currentAppointments.length === 0) return;
+    const doctorName = doctorProfile.status === "success" && doctorProfile.data.fullName
+      ? doctorProfile.data.fullName
+      : user?.displayName;
+    downloadIcsCalendarManyFile(
+      currentAppointments.map((appointment): CalendarAppointmentInput => ({
+        appointmentId: appointment.id,
+        bookingCode: appointment.bookingCode,
+        patientName: appointment.patientName,
+        doctorName,
+        specialtyName: appointment.specialtyName,
+        appointmentDate: appointment.appointmentDate,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+        branchName: appointment.branchName,
+      })),
+      `lich-kham-${dailyDate}.ics`,
+    );
+  };
+
   // The topbar chip must carry the doctor's clinical identity: the auth session
   // displayName comes from the account seed (e.g. "Bác sĩ Local"), while the
   // doctor profile owns the real professional name. Prefer the profile name
@@ -805,6 +835,15 @@ export default function DoctorDashboardPage() {
               </select>
             </div>
             <button className="outline-button" disabled={appointmentsLoading} type="submit">Làm mới lịch</button>
+            <button
+              className="outline-button"
+              disabled={appointmentsLoading || currentAppointments.length === 0}
+              onClick={exportCurrentSchedule}
+              title="Tải toàn bộ lịch hẹn đang xem ra tệp lịch (.ics)"
+              type="button"
+            >
+              Xuất lịch (.ics)
+            </button>
           </form>
           {appointmentAction ? <p aria-live="polite" className="portal-handoff-note">Đang cập nhật trạng thái lịch hẹn…</p> : null}
           {appointmentError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{appointmentError}</p> : null}

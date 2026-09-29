@@ -76,8 +76,7 @@ export function buildGoogleCalendarUrl(appt: CalendarAppointmentInput): string {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-/** The downloadable event may later be imported into a cloud calendar. */
-export function buildIcsCalendar(appt: CalendarAppointmentInput): string {
+function buildVevent(appt: CalendarAppointmentInput): string[] {
   const datePart = cleanIsoDate(appt.appointmentDate);
   const startPart = cleanIsoTime(appt.startTime);
   const endPart = cleanIsoTime(appt.endTime);
@@ -85,12 +84,7 @@ export function buildIcsCalendar(appt: CalendarAppointmentInput): string {
   const now = new Date();
   const dtStamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
-  const icsLines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Personal Appointment Reminder//VI",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
+  return [
     "BEGIN:VEVENT",
     `UID:${calendarUid(appt.appointmentId)}@calendar.local`,
     `DTSTAMP:${dtStamp}`,
@@ -105,24 +99,61 @@ export function buildIcsCalendar(appt: CalendarAppointmentInput): string {
     "DESCRIPTION:Nhắc bạn về lịch hẹn sau 2 giờ nữa",
     "END:VALARM",
     "END:VEVENT",
+  ];
+}
+
+/** The downloadable event may later be imported into a cloud calendar. */
+export function buildIcsCalendar(appt: CalendarAppointmentInput): string {
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Personal Appointment Reminder//VI",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...buildVevent(appt),
     "END:VCALENDAR",
   ];
 
   return icsLines.join("\r\n");
 }
 
-/** Generates a private iCalendar (.ics) reminder and triggers a browser download. */
-export function downloadIcsFile(appt: CalendarAppointmentInput): void {
+/** One file, many events: a doctor exports a whole day or 7-day range in a single click. */
+export function buildIcsCalendarMany(appointments: CalendarAppointmentInput[]): string {
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Personal Appointment Reminder//VI",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    ...appointments.flatMap(buildVevent),
+    "END:VCALENDAR",
+  ];
+
+  return icsLines.join("\r\n");
+}
+
+function triggerIcsDownload(icsContent: string, filename: string): void {
   if (typeof window === "undefined") return;
 
-  const icsBlob = new Blob([buildIcsCalendar(appt)], { type: "text/calendar;charset=utf-8" });
+  const icsBlob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
   const downloadUrl = URL.createObjectURL(icsBlob);
 
   const link = document.createElement("a");
   link.href = downloadUrl;
-  link.download = "lich-hen.ics";
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(downloadUrl);
+}
+
+/** Generates a private iCalendar (.ics) reminder and triggers a browser download. */
+export function downloadIcsFile(appt: CalendarAppointmentInput): void {
+  triggerIcsDownload(buildIcsCalendar(appt), "lich-hen.ics");
+}
+
+/** Exports several appointments (a doctor's day or 7-day range) as one .ics file. */
+export function downloadIcsCalendarManyFile(appointments: CalendarAppointmentInput[], filename = "lich-kham-bac-si.ics"): void {
+  if (appointments.length === 0) return;
+  triggerIcsDownload(buildIcsCalendarMany(appointments), filename);
 }
