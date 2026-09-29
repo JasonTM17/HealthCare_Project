@@ -19,9 +19,38 @@ class ChatSafetyAndChunkerTest {
             .isEqualTo("CHAT_CONTENT_BLOCKED");
         assertThatThrownBy(() -> ChatMedicalSafety.rejectDiagnoseOrPrescribe("You should take 500 mg"))
             .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> ChatMedicalSafety.rejectDiagnoseOrPrescribe("Kê đơn thuốc giảm đau cho bạn"))
+            .isInstanceOf(BusinessException.class);
         assertThatCode(() -> ChatMedicalSafety.rejectDiagnoseOrPrescribe(
             "Ban co the xem chuyen khoa Than kinh va dat lich."))
             .doesNotThrowAnyException();
+    }
+
+    @Test
+    void unsafeClaimDetectionAcceptsRefusalsAndRejectsBareClaims() {
+        // Identity/self-intro answers always carry the refusal vocabulary; a
+        // refusal frame before the claim ("không thể chẩn đoán", "không kê
+        // đơn") must not count as a diagnosis or prescription.
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "Tôi là trợ lý thông tin sức khỏe, không thể chẩn đoán hoặc kê đơn.")).isFalse();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "Bạn là ai vậy? Tôi là trợ lý, không đưa ra chẩn đoán là gì cả.")).isFalse();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "Tôi không kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.")).isFalse();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "Không nên tự ý ngừng thuốc; hãy hỏi bác sĩ.")).isFalse();
+        // Bare claims in force.
+        assertThat(ChatMedicalSafety.containsUnsafeClaim("Chẩn đoán là viêm phổi")).isTrue();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "bạn bị viêm phổi, chẩn đoán là nhiễm trùng")).isTrue();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim("Kê đơn thuốc giảm đau cho bạn")).isTrue();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim("You should take 500 mg")).isTrue();
+        // A contrastive word after the refusal frame puts the claim in force,
+        // and a new sentence after ';' starts clean.
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "Tôi không, nhưng tôi vẫn chẩn đoán là cúm")).isTrue();
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(
+            "Tôi không kê đơn; chẩn đoán là cúm mùa")).isTrue();
     }
 
     @Test

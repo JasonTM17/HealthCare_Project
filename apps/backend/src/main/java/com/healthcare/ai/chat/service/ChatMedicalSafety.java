@@ -11,10 +11,20 @@ import java.util.regex.Pattern;
 public final class ChatMedicalSafety {
 
     private static final Pattern UNSAFE_CLAIM = Pattern.compile(
-        "(chẩn\\s*đoán\\s*(là|tôi)|diagnosed as|i diagnose|kê\\s*đơn|prescribe|prescription|"
-            + "liều\\s*thuốc|uống\\s+\\d+(?:[.,]\\d+)?\\s*(?:mg|ml|viên)|"
-            + "you\\s+should\\s+(?:take|use)|ngừng\\s+thuốc|stop medication)",
-        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+        "(chan\\s*doan\\s*(la|toi)|diagnosed as|i diagnose|ke\\s*don|prescribe|prescription|"
+            + "lieu\\s*thuoc|uong\\s+\\d+(?:[.,]\\d+)?\\s*(?:mg|ml|vien)|"
+            + "you\\s+should\\s+(?:take|use)|ngung\\s+thuoc|stop medication)",
+        Pattern.CASE_INSENSITIVE
+    );
+    /** A refusal frame before a claim ("không thể chẩn đoán") makes the claim safe. */
+    private static final Pattern NEGATION_FRAME = Pattern.compile(
+        "\\b(?:khong|ko|not)\\b(?:\\s+(?:the|duoc))*",
+        Pattern.CASE_INSENSITIVE
+    );
+    /** "không kê đơn, NHƯNG hãy uống thuốc này" — contrast after the negation un-safes nothing. */
+    private static final Pattern CONTRASTIVE_WORD = Pattern.compile(
+        "\\b(?:nhung|tuy nhien|however|but|ngoai ra)\\b",
+        Pattern.CASE_INSENSITIVE
     );
     private static final Pattern PROTECTED_INPUT_CUE = Pattern.compile(
         "(?<![a-z0-9])(?:(?<!o )(?:dau)|dau\\s+(?:nguc|bung)|kho\\s+tho|"
@@ -69,7 +79,27 @@ public final class ChatMedicalSafety {
 
     /** Shared non-throwing predicate for stateless/public response boundaries. */
     public static boolean containsUnsafeClaim(String answer) {
-        return answer != null && UNSAFE_CLAIM.matcher(answer).find();
+        if (answer == null) return false;
+        // Sentences split on the RAW text so boundaries survive: normalizeInput
+        // collapses punctuation, and a negation must never reach across one.
+        // Inside a sentence, a refusal frame before the claim ("không thể chẩn
+        // đoán") keeps it safe, and a contrastive word after the frame
+        // ("không kê đơn, nhưng…") puts the claim back in force.
+        for (String rawSentence : answer.split("[.!?\n;]")) {
+            String normalized = normalizeInput(rawSentence);
+            java.util.regex.Matcher matcher = UNSAFE_CLAIM.matcher(normalized);
+            while (matcher.find()) {
+                String prefix = normalized.substring(0, matcher.start());
+                java.util.regex.Matcher negation = NEGATION_FRAME.matcher(prefix);
+                int lastNegationEnd = -1;
+                while (negation.find()) lastNegationEnd = negation.end();
+                if (lastNegationEnd < 0) return true;
+                if (CONTRASTIVE_WORD.matcher(prefix.substring(lastNegationEnd)).find()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
