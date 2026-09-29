@@ -998,6 +998,10 @@ def test_health_livez_and_readyz_are_exposed(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(settings, "ai_service_runtime", "local")
     monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)
     client = TestClient(app)
+    assert client.get("/").status_code == 200
+    assert client.head("/").status_code == 200
+    assert client.get("/actuator/health").status_code == 200
+    assert client.head("/actuator/health").status_code == 200
     assert client.get("/livez").status_code == 200
     assert client.head("/livez").status_code == 200
     assert client.get("/readyz").status_code == 200
