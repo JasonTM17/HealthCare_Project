@@ -1057,6 +1057,10 @@ export async function proxyHealthcareRequest(
       ? null
       : apiPath === PUBLIC_AI_CHAT_PATH ? "PUBLIC_CHAT" as const : "PATIENT" as const;
     let renewalPermit: string | undefined;
+    // True once the commit request has been dispatched: past this point the
+    // backend owns the turn (it settles the lease into COMMITTING), so a
+    // renewal miss must never abort the response the client is about to get.
+    let commitDispatched = false;
     let renewalTimer: ReturnType<typeof setTimeout> | undefined;
     let renewalController: AbortController | undefined;
     let leaseHeartbeatStopped = false;
@@ -1130,14 +1134,27 @@ export async function proxyHealthcareRequest(
         scheduleLeaseRenewal(Math.max(50, CHAT_LEASE_RENEW_INTERVAL_MS - renewElapsed));
       } catch (renewalError) {
         // A failed renewal aborts the whole turn, so the cause must be
-        // observable: "renewal-timeout" (the 2.5s controller budget) versus
+        // observable: "renewal-timeout" (the controller budget) versus
         // a rejected/invalid response point at completely different fixes.
         console.warn("healthcare_chat_lease_renewal_failed", {
           requestId,
           renewElapsedMs: Date.now() - renewStartedAt,
           abortReason: String(controller.signal.reason || ""),
+          commitDispatched,
           error: renewalError instanceof Error ? renewalError.message : String(renewalError),
         });
+        if (commitDispatched) {
+          // The backend already moved this lease into COMMITTING (renewals
+          // are refused there by design): the exchange is settling or has
+          // settled server-side, and aborting now would turn a successful
+          // charge into a client-facing 502. Stop the heartbeat and let the
+          // commit response — the authoritative outcome — reach the client.
+          leaseHeartbeatStopped = true;
+          if (renewalTimer !== undefined) clearTimeout(renewalTimer);
+          renewalTimer = undefined;
+          renewalController?.abort("chat-lease-heartbeat-stopped");
+          return;
+        }
         failLeaseHeartbeat();
       } finally {
         clearTimeout(renewalTimeoutId);
@@ -1286,6 +1303,10 @@ export async function proxyHealthcareRequest(
           notifyBackendCancellation();
           return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
         }
+        // From here the backend moves the lease into COMMITTING: renewals are
+        // rejected by design while the exchange settles. A heartbeat miss in
+        // this window is expected, not uncertain — see renewChatLease.
+        commitDispatched = true;
         const commitHeaders = new Headers(headers);
         commitHeaders.set("Content-Type", "application/json");
         // Commit also answers JSON; strip the browser's SSE Accept.

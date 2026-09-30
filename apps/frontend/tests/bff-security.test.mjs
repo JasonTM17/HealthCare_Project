@@ -1833,6 +1833,89 @@ test("uncertain lease renewal aborts patient prepare and prevents commit", async
   assert.equal(commitCalls, 0, "an uncertain lease cannot authorize a patient commit");
 });
 
+test("a lease renewal rejected during COMMITTING never aborts the settled turn", async () => {
+  // The backend flips the lease into COMMITTING when the commit lands, and
+  // renewals are refused (409) from that moment by design. The heartbeat
+  // miss in this window is expected: aborting here would return a 502 to
+  // the browser for a turn that has already been charged and persisted.
+  const bff = await loadBff();
+  let renewalCalls = 0;
+  let resolveCommitReleased;
+  const commitReleased = new Promise((resolve) => { resolveCommitReleased = resolve; });
+  let commitCalls = 0;
+  let cancellationAttempts = 0;
+  const exchange = {
+    replayed: false,
+    userMessage: { id: "um-1", role: "user", content: "hello" },
+    assistantMessage: { id: "am-1", role: "assistant", content: "Chi nhánh Tim mạch ở cơ sở 2." },
+    safetyAction: "ANSWER",
+    provenance: "remote_provider",
+  };
+  const responsePromise = bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/ai/conversations/c-1/messages", {
+      method: "POST",
+      headers: {
+        Origin: "https://beta.healthcare.test",
+        "Content-Type": "application/json",
+        "Idempotency-Key": "chat-lease-committing-0001",
+        Cookie: "__Host-healthcare_session=opaque-patient-session",
+      },
+      body: JSON.stringify({ content: "hello" }),
+    }),
+    ["ai", "conversations", "c-1", "messages"],
+    {
+      runtimeConfig: { ...runtimeConfig, requestTimeoutMs: 8_000 },
+      useRealChatLeaseControl: true,
+      fetchImpl: async (target, init = {}) => {
+        const path = new URL(target).pathname;
+        if (path.endsWith("/open")) {
+          return Response.json({ renewalPermit: "committing-open-permit-012345678901234567890123456789" });
+        }
+        if (path.endsWith("/renew")) {
+          renewalCalls += 1;
+          // Mirror the backend: once COMMITTING, renewals answer 409.
+          if (commitCalls > 0) return new Response(null, { status: 409 });
+          return Response.json({ renewalPermit: `renewed-permit-${renewalCalls}-012345678901234567890123456789` });
+        }
+        if (path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+          cancellationAttempts += 1;
+          return new Response(null, { status: 503 });
+        }
+        if (path.endsWith("/messages/prepare")) {
+          return Response.json({
+            replayed: false,
+            preparedPayload: "prepared-payload-committing-0001",
+            commitPermit: "commit-permit-012345678901234567890123456789",
+          });
+        }
+        if (path.endsWith("/messages/commit")) {
+          commitCalls += 1;
+          // Hold the commit response until at least one renewal has hit the
+          // COMMITTING refusal, reproducing the production interleaving.
+          await commitReleased;
+          return Response.json(exchange);
+        }
+        throw new Error(`Unexpected patient lease target ${path}`);
+      },
+    },
+  );
+
+  // Release the held commit only after a renewal hit the 409 (the heartbeat
+  // timer fires ~2s after open; poll briefly instead of sleeping a fixed 2s).
+  for (let i = 0; i < 40 && renewalCalls === 0; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.ok(renewalCalls >= 1, "a renewal must have been attempted during the commit window");
+  resolveCommitReleased();
+  const response = await responsePromise;
+  const body = await response.json();
+
+  assert.equal(response.status, 200, `settled turn failed: ${JSON.stringify(body).slice(0, 300)}`);
+  assert.equal(body.safetyAction, "ANSWER");
+  assert.equal(commitCalls, 1);
+  assert.equal(cancellationAttempts, 0, "no cancellation is dispatched for a settling exchange");
+});
+
 test("lease heartbeat keeps its two-second cadence anchored to permit issuance", async () => {
   const bff = await loadBff();
   const browserController = new AbortController();
