@@ -15,6 +15,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -401,6 +403,68 @@ class AiCreditServiceTest {
         assertEquals(300, profile.getAiCredits());
         verify(patientProfileRepository).save(profile);
         verify(transactionRepository).save(any(AiCreditTransaction.class));
+    }
+
+    // ---- V108 weekly refill: W1 best-effort contract pins ----
+
+    @Test
+    @DisplayName("The weekly refill runs in its own physical transaction (REQUIRES_NEW)")
+    void refillRunsInItsOwnTransaction() throws NoSuchMethodException {
+        // The best-effort guarantee is structural, not textual: a Java catch
+        // cannot rescue an aborted PostgreSQL transaction, so the refill must
+        // never join the caller's. Pinning the propagation on the method the
+        // proxy actually applies (it is invoked through the injected bean).
+        Transactional refill = AiCreditService.class
+            .getMethod("refillPatientCreditsWeekly", java.util.UUID.class)
+            .getAnnotation(Transactional.class);
+        assertNotNull(refill);
+        assertEquals(Propagation.REQUIRES_NEW, refill.propagation());
+    }
+
+    @Test
+    @DisplayName("Inconsistent history: a current-period ledger row short-circuits the refill before any update or insert")
+    void refillShortCircuitsWhenPeriodLedgerRowExists() {
+        UUID userId = UUID.randomUUID();
+        String period = AiCreditService.currentRefillPeriod();
+        when(patientProfileRepository.findPatientTierByUserId(userId))
+            .thenReturn(Optional.of("SILVER"));
+        when(transactionRepository.existsPatientRefillInPeriod(userId, period))
+            .thenReturn(true);
+
+        assertFalse(creditService.refillPatientCreditsWeekly(userId));
+
+        // The pre-check must gate BOTH the balance update and the ledger
+        // insert: the update would win against a stale stamp and the insert
+        // would collide with ux_ai_credit_refill_patient_week.
+        verify(patientProfileRepository, Mockito.never())
+            .refillAiCreditsByUserId(Mockito.eq(userId), Mockito.anyInt(), Mockito.eq(period));
+        verify(transactionRepository, Mockito.never()).save(any(AiCreditTransaction.class));
+    }
+
+    @Test
+    @DisplayName("Tier upgrades upper with Locale.ROOT so a Turkish host locale cannot mint an unmappable tier name")
+    void updatePatientTierIsLocaleInvariant() {
+        java.util.Locale previous = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.of("tr", "TR"));
+            UUID profileId = UUID.randomUUID();
+            PatientProfile profile = new PatientProfile();
+            profile.setId(profileId);
+            profile.setUserId(UUID.randomUUID());
+            profile.setPatientTier("STANDARD");
+            profile.setAiCredits(1);
+            when(patientProfileRepository.findById(profileId)).thenReturn(Optional.of(profile));
+
+            creditService.updatePatientTier(profileId, "silver", null);
+
+            // Without Locale.ROOT this writes "SİLVER" (dotted capital),
+            // which tierMaxCredits can no longer map back to SILVER — the
+            // patient silently drops to the STANDARD weekly allowance.
+            assertEquals("SILVER", profile.getPatientTier());
+            assertEquals(50, profile.getAiCredits());
+        } finally {
+            java.util.Locale.setDefault(previous);
+        }
     }
 
     // ---- HC-11: bounded admin inventories ----

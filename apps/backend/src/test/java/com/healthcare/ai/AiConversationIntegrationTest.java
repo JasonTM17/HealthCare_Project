@@ -1180,6 +1180,61 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "patient.inconsistent-refill-prepare@example.com", roles = "PATIENT")
+    void inconsistentWeeklyRefillHistoryDoesNotKillTheChatTurn() throws Exception {
+        // W1 regression. Simulated DB surgery leaves the ledger already
+        // carrying THIS ISO week's refill row while the profile stamp points
+        // at an old week. prepare() runs the refill right before the credit
+        // gate, so the old code let the conditional update "win" (rows=1) and
+        // then died on the ux_ai_credit_refill_patient_week index at the
+        // ledger insert — rolling back the whole prepare transaction and
+        // answering every turn this patient sent with a 500 until the week
+        // rolled over. The refill is a best-effort topping: it must no-op
+        // here, and this credited patient must still reach the paid pipeline.
+        User patient = createUser("patient.inconsistent-refill-prepare@example.com");
+        createPatientProfile(patient, "0901002021", 3);
+        String period = AiCreditService.currentRefillPeriod();
+        jdbcTemplate.update(
+            "update patient_profiles set last_credit_refill_period = '2020-W01' where user_id = ?",
+            patient.getId());
+        jdbcTemplate.update(
+            "insert into ai_credit_transactions"
+                + " (user_id, target_role, amount, balance_after, transaction_type,"
+                + "  description, refill_period)"
+                + " values (?, 'PATIENT', 17, 20, 'AI_CHAT_REFILL',"
+                + "  'Hồi credit AI hằng tuần (kỳ " + period + ", hạng STANDARD)', ?)",
+            patient.getId(), period);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        // The turn answers normally (the @BeforeEach stub classifies it as a
+        // REFUSE safety outcome, waived): the refill no-op'd, the gate saw the
+        // seeded balance, and the message pipeline ran untouched. A 500 here
+        // means the refill poisoned the prepare transaction again.
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "inconsistent-refill-prepare-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Toi muon hoi bac si\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("REFUSE"));
+
+        // The inconsistent history was neither repaired nor extended: one
+        // refill row, the stale stamp, and the seeded balance all intact.
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_REFILL")).isEqualTo(1);
+        assertThat(patientProfileRepository.findByUserId(patient.getId())
+            .orElseThrow().getLastCreditRefillPeriod()).isEqualTo("2020-W01");
+        assertThat(patientProfileRepository.findByUserId(patient.getId())
+            .orElseThrow().getAiCredits()).isEqualTo(3);
+    }
+
+    @Test
     @WithMockUser(username = "patient.no-profile@example.com", roles = "PATIENT")
     void registeredPatientWithoutProfileIsRefusedAtPrepareAndLeavesNoLedgerRow() throws Exception {
         // AuthService materializes a PatientProfile only when the registration
@@ -1545,30 +1600,47 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
         assertThat(aiConversationRepository.findAll()).isEmpty();
     }
 
+    /**
+     * Regression for the retention/consent mismatch: the periodic stale-chat
+     * sweep used to delete conversations idle for only 14 days
+     * (ai.chat.two-week-cleanup-days), 76 days before the "Chat được lưu tối
+     * đa 90 ngày" consent promise and policy().retentionDays = 90. A
+     * conversation idle 20 days must survive the sweep; only conversations
+     * idle beyond the full retention window may be purged.
+     */
     @Test
-    void purgesConversationsOlderThanTwoWeeks() {
-        User patient = createUser("patient.twoweeks@example.com");
+    void staleChatSweepRespectsTheNinetyDayRetentionConsent() {
+        User patient = createUser("patient.retention-sweep@example.com");
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
 
-        // 1. Old conversation (15 days ago) - should be purged
-        AiConversation oldConv = createConversation(patient, false, now.plusDays(75));
-        oldConv.setCreatedAt(now.minusDays(16));
-        oldConv.setUpdatedAt(now.minusDays(15));
-        oldConv.setLastMessageAt(now.minusDays(15));
-        aiConversationRepository.save(oldConv);
+        // 1. Idle 20 days (15 and 30 too, across the old 14-day boundary):
+        //    inside the promised 90-day retention, so it must NOT be purged.
+        AiConversation idleTwentyDays = createConversation(patient, false, now.plusDays(70));
+        idleTwentyDays.setCreatedAt(now.minusDays(21));
+        idleTwentyDays.setUpdatedAt(now.minusDays(20));
+        idleTwentyDays.setLastMessageAt(now.minusDays(20));
+        aiConversationRepository.save(idleTwentyDays);
 
-        // 2. Recent conversation (5 days ago) - should NOT be purged
-        AiConversation recentConv = createConversation(patient, false, now.plusDays(85));
-        recentConv.setCreatedAt(now.minusDays(6));
-        recentConv.setUpdatedAt(now.minusDays(5));
-        recentConv.setLastMessageAt(now.minusDays(5));
-        aiConversationRepository.save(recentConv);
+        AiConversation idleFiveDays = createConversation(patient, false, now.plusDays(85));
+        idleFiveDays.setCreatedAt(now.minusDays(6));
+        idleFiveDays.setUpdatedAt(now.minusDays(5));
+        idleFiveDays.setLastMessageAt(now.minusDays(5));
+        aiConversationRepository.save(idleFiveDays);
+
+        // 2. Idle beyond retentionDays (91 days without a last message; its
+        //    expiresAt has already passed) - should be purged.
+        AiConversation beyondRetention = createConversation(patient, false, now.minusDays(1));
+        beyondRetention.setCreatedAt(now.minusDays(92));
+        beyondRetention.setUpdatedAt(now.minusDays(91));
+        beyondRetention.setLastMessageAt(now.minusDays(91));
+        aiConversationRepository.save(beyondRetention);
 
         int deleted = conversationService.purgeConversationsOlderThanTwoWeeks();
 
         assertThat(deleted).isGreaterThanOrEqualTo(1);
-        assertThat(aiConversationRepository.findById(oldConv.getId())).isEmpty();
-        assertThat(aiConversationRepository.findById(recentConv.getId())).isPresent();
+        assertThat(aiConversationRepository.findById(idleTwentyDays.getId())).isPresent();
+        assertThat(aiConversationRepository.findById(idleFiveDays.getId())).isPresent();
+        assertThat(aiConversationRepository.findById(beyondRetention.getId())).isEmpty();
     }
 
     private void openPatientChatLease(String requestId, UUID conversationId, String idempotencyKey)
@@ -1607,6 +1679,13 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
         profile.setPhone(phone);
         profile.setAiCredits(credits);
         profile.setUpdatedAt(OffsetDateTime.now(ZoneOffset.UTC));
+        // V108: prepare() now runs the weekly refill before the credit gate.
+        // These tests pin the charge/waive/refund semantics of a week whose
+        // grant has already landed, so stamp the current ISO period: the
+        // conditional refill update then matches zero rows and the seeded
+        // balances below (0..3) stay exactly as asserted. The refill itself
+        // is pinned by AiCreditRefillTest.
+        profile.setLastCreditRefillPeriod(AiCreditService.currentRefillPeriod());
         return patientProfileRepository.save(profile);
     }
 

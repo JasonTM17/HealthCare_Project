@@ -46,19 +46,31 @@ public class PatientOverviewService {
             .orElseThrow(() -> new AccessDeniedException("No patient profile is linked to this account"));
         UUID patientId = profile.getId();
 
+        // Claim-by-email (appointment_account_claims) makes bookings linked to this
+        // account reachable in /appointments through findPortalAppointmentsForPatientOrClaim
+        // even when patient_id points at another (unregistered) patient record.
+        // The overview mirrors that exact visibility so both screens agree; all
+        // values stay bind parameters.
         List<Map<String, Object>> latest = jdbc.queryForList("""
             SELECT a.appointment_date, a.start_time, a.status,
                    COALESCE(p.status, a.payment_status) AS payment_status
               FROM appointments a
               LEFT JOIN bank_transfer_payments p ON p.appointment_id = a.id
              WHERE a.patient_id = ?
+                OR EXISTS (SELECT 1 FROM appointment_account_claims c
+                            WHERE c.appointment_id = a.id AND c.user_id = ?)
              ORDER BY a.appointment_time DESC, a.id DESC
              LIMIT 1
-            """, patientId);
+            """, patientId, userId);
         PatientOverviewResponse.LatestAppointment latestAppointment = latest.isEmpty()
             ? null : mapLatest(latest.get(0));
 
-        long appointments = scalar("SELECT count(*) FROM appointments WHERE patient_id = ?", patientId);
+        long appointments = scalar("""
+            SELECT count(*) FROM appointments a
+             WHERE a.patient_id = ?
+                OR EXISTS (SELECT 1 FROM appointment_account_claims c
+                            WHERE c.appointment_id = a.id AND c.user_id = ?)
+            """, patientId, userId);
         long diagnostics = scalar("SELECT count(*) FROM diagnostic_results WHERE patient_id = ?", patientId);
         long prescriptions = scalar("SELECT count(*) FROM prescriptions WHERE patient_id = ?", patientId);
         boolean newDiagnostic = scalar("""

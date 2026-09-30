@@ -68,6 +68,15 @@ public class PatientProfile {
     @Column(name = "ai_credits")
     private Integer aiCredits = 20;
 
+    /**
+     * ISO-week stamp of the last weekly credit refill (V108), e.g.
+     * {@code 2026-W40}. The weekly refill is a conditional atomic update on
+     * this column, so two concurrent chats or two instances can grant the
+     * refill at most once per week. {@code null} means never refilled.
+     */
+    @Column(name = "last_credit_refill_period", length = 16)
+    private String lastCreditRefillPeriod;
+
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
@@ -136,4 +145,6 @@ public class PatientProfile {
     public void setPatientTier(String patientTier) { this.patientTier = patientTier; }
     public Integer getAiCredits() { return aiCredits != null ? aiCredits : 20; }
     public void setAiCredits(Integer aiCredits) { this.aiCredits = aiCredits; }
+    public String getLastCreditRefillPeriod() { return lastCreditRefillPeriod; }
+    public void setLastCreditRefillPeriod(String lastCreditRefillPeriod) { this.lastCreditRefillPeriod = lastCreditRefillPeriod; }
 }

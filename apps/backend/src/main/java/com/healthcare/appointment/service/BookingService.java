@@ -982,16 +982,23 @@ public class BookingService {
         // payment state onto a fresh future slot — erasing the clinic's
         // no-show evidence. Keyed on the scheduled start of the OLD slot,
         // before any mutation.
-        OffsetDateTime rescheduleCheckNow = OffsetDateTime.now(BUSINESS_ZONE);
-        OffsetDateTime currentSlotStart = OffsetDateTime.of(
-            appointment.getAppointmentDate(),
-            appointment.getStartTime(),
-            BUSINESS_ZONE.getRules().getOffset(rescheduleCheckNow.toInstant()));
-        if (!rescheduleCheckNow.isBefore(currentSlotStart)) {
-            throw new ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Không thể đổi lịch khám đã qua giờ hẹn. Vui lòng liên hệ bệnh viện."
-            );
+        // ADMIN is the one exception: authorizeAppointment above already let
+        // that role through, and back-office needs to move a genuinely past
+        // slot to compensate a no-show without cancel-and-recreate (which
+        // loses the booking code and regenerates reminders). Guests (phone
+        // proof, principal == null) and PATIENT/DOCTOR keep the 409 guard.
+        if (principal == null || !hasRole(principal, "ADMIN")) {
+            OffsetDateTime rescheduleCheckNow = OffsetDateTime.now(BUSINESS_ZONE);
+            OffsetDateTime currentSlotStart = OffsetDateTime.of(
+                appointment.getAppointmentDate(),
+                appointment.getStartTime(),
+                BUSINESS_ZONE.getRules().getOffset(rescheduleCheckNow.toInstant()));
+            if (!rescheduleCheckNow.isBefore(currentSlotStart)) {
+                throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Không thể đổi lịch khám đã qua giờ hẹn. Vui lòng liên hệ bệnh viện."
+                );
+            }
         }
         doctorRepository.findActiveByIdForUpdate(appointment.getDoctor().getId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Bác sĩ hiện không nhận lịch khám"));
