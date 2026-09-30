@@ -311,6 +311,10 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             throw exception;
         }
         if (nextToken.equals(result)) return nextToken;
+        // The result code ('!MISSING', '!PERMIT', '!STATE', 'CANCELLED', …)
+        // decides the fix, so it must be observable when operations hit a
+        // renewal rejection storm — the thrown message alone cannot.
+        log.warn("Chat lease renewal rejected requestId={} result={}", requestId, result);
         cancelLocal(requestId);
         publishCancellation(requestId);
         throw new CancellationException("Chat lease renewal was rejected");

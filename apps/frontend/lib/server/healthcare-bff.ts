@@ -1108,8 +1108,10 @@ export async function proxyHealthcareRequest(
           signal: controller.signal,
         });
         if (!response.ok) {
-          await cancelUpstreamBody(response, "BFF_CHAT_LEASE_RENEWAL_REJECTED");
-          throw new Error("chat lease renewal rejected");
+          const rejectionStatus = response.status;
+          let rejectionBody = "";
+          try { rejectionBody = (await response.text()).slice(0, 200); } catch { /* drained */ }
+          throw new Error(`chat lease renewal rejected: HTTP ${rejectionStatus} ${rejectionBody}`);
         }
         const value: unknown = await response.json();
         if (!isRecord(value) || typeof value.renewalPermit !== "string" || !value.renewalPermit) {
@@ -1118,7 +1120,16 @@ export async function proxyHealthcareRequest(
         renewalPermit = value.renewalPermit;
         const renewElapsed = Date.now() - renewStartedAt;
         scheduleLeaseRenewal(Math.max(50, CHAT_LEASE_RENEW_INTERVAL_MS - renewElapsed));
-      } catch {
+      } catch (renewalError) {
+        // A failed renewal aborts the whole turn, so the cause must be
+        // observable: "renewal-timeout" (the 2.5s controller budget) versus
+        // a rejected/invalid response point at completely different fixes.
+        console.warn("healthcare_chat_lease_renewal_failed", {
+          requestId,
+          renewElapsedMs: Date.now() - renewStartedAt,
+          abortReason: String(controller.signal.reason || ""),
+          error: renewalError instanceof Error ? renewalError.message : String(renewalError),
+        });
         failLeaseHeartbeat();
       } finally {
         clearTimeout(renewalTimeoutId);
@@ -1375,6 +1386,19 @@ export async function proxyHealthcareRequest(
     if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH) {
       return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), interruptedOutcome("fallback"));
     }
+    // The 502 here hides the transport-level cause (reset, timeout, abort
+    // reason) unless it is logged: the stage summary below only carries the
+    // duration. Name the error and its undici cause so the operations loop
+    // can tell a dead keep-alive socket apart from a real backend outage.
+    console.warn("healthcare_bff_upstream_failed", {
+      apiPath,
+      requestId,
+      durationMs: Date.now() - traceStartedAt,
+      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      cause: error instanceof Error && error.cause instanceof Error
+        ? `${error.cause.name}: ${error.cause.message}`
+        : error instanceof Error && error.cause ? String(error.cause) : undefined,
+    });
     return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
   } finally {
     if (!responseBodyOwnsCleanup) {
