@@ -34,8 +34,8 @@ class BankStatementImportServiceTest {
 
     private final BankTransferPaymentService paymentService = mock(BankTransferPaymentService.class);
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    private final BankStatementImportService service =
-        new BankStatementImportService(paymentService, jdbcTemplate);
+    private final BankStatementImportService service = new BankStatementImportService(
+        paymentService, jdbcTemplate, mock(org.springframework.transaction.PlatformTransactionManager.class));
     private final UserDetails admin = new org.springframework.security.core.userdetails.User(
         "admin@example.test", "not-used", List.of());
 

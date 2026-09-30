@@ -187,6 +187,82 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
     }
 
     /**
+     * A phone already bound to a live account must not be claimable by a
+     * fresh registration. The block stays (anti-hijack), but the caller now
+     * gets an actionable code instead of the generic CONFLICT.
+     */
+    @Test
+    void registerWithPhoneAlreadyBoundToAnotherAccountReturnsOwnedByAccountCode() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "phone.owner@example.com",
+                      "password": "%s",
+                      "displayName": "Phone Owner",
+                      "phone": "0901110001"
+                    }
+                    """.formatted(fixturePassword())))
+            .andExpect(status().isAccepted());
+
+        long profilesBefore = patientProfileRepository.count();
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "hijack.attempt@example.com",
+                      "password": "%s",
+                      "displayName": "Hijack Attempt",
+                      "phone": "090 111-0001"
+                    }
+                    """.formatted(fixturePassword())))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("PHONE_OWNED_BY_ACCOUNT"))
+            .andExpect(jsonPath("$.message").value(
+                "Số điện thoại này đã liên kết một tài khoản khác — hãy đăng nhập hoặc dùng SĐT khác"));
+
+        // Blocking behavior preserved: nothing persisted for the impostor.
+        assertThat(userRepository.findByEmail("hijack.attempt@example.com")).isEmpty();
+        assertThat(patientProfileRepository.count()).isEqualTo(profilesBefore);
+    }
+
+    /**
+     * A guest booked with phone X under email Z; someone now registers phone
+     * X with a different email W. Still blocked, but the code must tell them
+     * which email to come back to — not the generic CONFLICT.
+     */
+    @Test
+    void registerWithGuestBookingPhoneAndMismatchedEmailReturnsBookingEmailCode() throws Exception {
+        PatientProfile bookingProfile = new PatientProfile();
+        bookingProfile.setFullName("Guest Booked");
+        bookingProfile.setPhone("0902220002");
+        bookingProfile.setEmail("guest.booking@example.com");
+        patientProfileRepository.saveAndFlush(bookingProfile);
+
+        long profilesBefore = patientProfileRepository.count();
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "wrong.email@example.com",
+                      "password": "%s",
+                      "displayName": "Wrong Email",
+                      "phone": "090 222-0002"
+                    }
+                    """.formatted(fixturePassword())))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("PHONE_LINKED_TO_BOOKING_EMAIL"))
+            .andExpect(jsonPath("$.message").value(
+                "Số điện thoại này đã dùng đặt lịch với một email khác — hãy đăng ký bằng email bạn đã nhận mã xác nhận đặt lịch"));
+
+        // Blocking behavior preserved: nothing persisted for the impostor.
+        assertThat(userRepository.findByEmail("wrong.email@example.com")).isEmpty();
+        assertThat(patientProfileRepository.count()).isEqualTo(profilesBefore);
+    }
+
+    /**
      * Hermetic throwaway password for disposable Testcontainers accounts.
      * Generated per call so no credential literal is added to source.
      */

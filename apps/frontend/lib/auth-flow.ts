@@ -32,15 +32,33 @@ const FIELD_ERROR_COPY: Record<AuthFieldName, string> = {
   token: "Mã xác minh chưa hợp lệ hoặc đã hết hạn.",
 };
 
+// Error codes whose guidance must be shown on a specific input. Code-owned copy
+// always wins over the generic per-field copy so the recovery instruction is
+// never replaced by a bland "check this field" hint.
+const CODE_FIELD_COPY: Record<string, { field: AuthFieldName; message: string }> = {
+  PHONE_LINKED_TO_BOOKING_EMAIL: {
+    field: "email",
+    message: "Hãy đăng ký bằng đúng email bạn đã dùng khi đặt lịch (email đã nhận mã xác nhận).",
+  },
+  PHONE_OWNED_BY_ACCOUNT: {
+    field: "phone",
+    message: "Số điện thoại này đã thuộc một tài khoản. Vui lòng đăng nhập bằng tài khoản đó thay vì tạo tài khoản mới.",
+  },
+};
+
 export function authFieldErrors(error: unknown): AuthFieldErrors {
   if (!(error instanceof ApiError)) return {};
 
-  return Object.fromEntries(
+  const fieldErrors = Object.fromEntries(
     Object.keys(error.fieldErrors).flatMap((key) => {
       const field = FIELD_ALIASES[key] ?? (key as AuthFieldName);
       return Object.hasOwn(FIELD_ERROR_COPY, field) ? [[field, FIELD_ERROR_COPY[field]]] : [];
     }),
   );
+
+  const apiError = error as ApiError;
+  const codeCopy = apiError.code ? CODE_FIELD_COPY[apiError.code] : undefined;
+  return codeCopy ? { ...fieldErrors, [codeCopy.field]: codeCopy.message } : fieldErrors;
 }
 
 export function maskEmail(email: string): string {
@@ -80,6 +98,12 @@ export function authErrorMessage(error: unknown, fallback: string): string {
   }
   if (apiError.status === 403) {
     return "Tài khoản của bạn không có quyền truy cập hoặc đã bị tạm khóa.";
+  }
+  if (apiError.code === "PHONE_LINKED_TO_BOOKING_EMAIL") {
+    return "Hãy đăng ký bằng đúng email bạn đã dùng khi đặt lịch (email đã nhận mã xác nhận).";
+  }
+  if (apiError.code === "PHONE_OWNED_BY_ACCOUNT") {
+    return "Số điện thoại này đã thuộc một tài khoản. Vui lòng đăng nhập bằng tài khoản đó thay vì tạo tài khoản mới.";
   }
   if (apiError.status === 400 || apiError.status === 409 || apiError.status === 422) {
     return "Thông tin chưa hợp lệ hoặc đã được sử dụng. Vui lòng kiểm tra và thử lại.";

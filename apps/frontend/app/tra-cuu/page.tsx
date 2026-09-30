@@ -19,6 +19,30 @@ const TRACKING_STEPS = [
   ["03", "Kiểm tra trạng thái", "Xem bác sĩ, cơ sở, khung giờ và các hướng dẫn cần xác nhận trước khi đến."],
 ] as const;
 
+// A guest who just found their appointment is holding the exact phone and
+// email that a patient account must reuse for the old appointments to surface
+// in the portal, so the found ticket bridges straight into registration with
+// both values prefilled. Values are validated first, then percent-encoded by
+// URLSearchParams (a leading "+" in an international number must survive the
+// query string).
+const REGISTER_PATH = "/auth/register";
+const PHONE_QUERY_PATTERN = /^(?=.*[0-9])[+0-9() .-]{7,20}$/;
+const EMAIL_QUERY_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function buildRegisterHref(phone: string | null | undefined, email: string | null | undefined): string {
+  const params = new URLSearchParams();
+  const candidatePhone = phone?.trim() ?? "";
+  const candidateEmail = email?.trim() ?? "";
+  if (PHONE_QUERY_PATTERN.test(candidatePhone)) {
+    params.set("phone", candidatePhone);
+  }
+  if (EMAIL_QUERY_PATTERN.test(candidateEmail)) {
+    params.set("email", candidateEmail);
+  }
+  const query = params.toString();
+  return query ? `${REGISTER_PATH}?${query}` : REGISTER_PATH;
+}
+
 async function fetchWithTimeout(input: string, init: RequestInit = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS);
@@ -47,6 +71,12 @@ export default function TraCuuPage() {
   const cancelDialogRef = useRef<HTMLDivElement>(null);
 
   useDialogFocus(cancelDialogRef, showCancelDialog, () => setShowCancelDialog(false));
+
+  // Once a ticket is found, the hero CTA carries the same verified identity as
+  // the ticket CTA; before a lookup it is a plain registration link.
+  const registerHref = appointment
+    ? buildRegisterHref(appointment.patientPhone, appointment.patientEmail)
+    : REGISTER_PATH;
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +208,9 @@ export default function TraCuuPage() {
               <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
               <Link className="outline-button outline-button--light" href="/huong-dan">
                 Xem hướng dẫn đặt khám
+              </Link>
+              <Link className="outline-button outline-button--light" data-testid="tra-cuu-register-cta-hero" href={registerHref}>
+                Tạo tài khoản để lưu lịch vào cổng bệnh nhân
               </Link>
             </div>
             <dl className="resource-meta-grid">
@@ -368,6 +401,13 @@ export default function TraCuuPage() {
               {/* Actions */}
               <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-mint-100 no-print">
                 <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    className="min-h-[2.75rem] px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
+                    data-testid="tra-cuu-register-cta-ticket"
+                    href={buildRegisterHref(appointment.patientPhone, appointment.patientEmail)}
+                  >
+                    <Icon name="user" size={15} /> Tạo tài khoản để lưu lịch vào cổng bệnh nhân
+                  </Link>
                   <button
                     type="button"
                     onClick={() => window.print()}
