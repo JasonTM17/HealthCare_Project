@@ -314,7 +314,14 @@ public class ChatRequestCancellationRegistry implements MessageListener {
         // The result code ('!MISSING', '!PERMIT', '!STATE', 'CANCELLED', …)
         // decides the fix, so it must be observable when operations hit a
         // renewal rejection storm — the thrown message alone cannot.
-        log.warn("Chat lease renewal rejected requestId={} result={}", requestId, result);
+        String currentState;
+        try {
+            currentState = redis.opsForValue().get(key(requestId));
+        } catch (RuntimeException diagnoseFailure) {
+            currentState = "<unreadable: " + diagnoseFailure.getClass().getSimpleName() + ">";
+        }
+        log.warn("Chat lease renewal rejected requestId={} result={} currentState={}",
+            requestId, result, currentState);
         cancelLocal(requestId);
         publishCancellation(requestId);
         throw new CancellationException("Chat lease renewal was rejected");
