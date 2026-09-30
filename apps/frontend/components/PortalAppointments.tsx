@@ -13,6 +13,8 @@ type PortalAppointmentsProps =
       onCancel?: (appointment: PatientPortalAppointment) => void;
       onPayment?: (appointment: PatientPortalAppointment) => void;
       activePaymentAppointmentId?: string;
+      onLoadMore?: () => void;
+      loadingMore?: boolean;
     }
   | {
       page: Page<DoctorPortalAppointment>;
@@ -23,6 +25,8 @@ type PortalAppointmentsProps =
       onCancel?: never;
       onPayment?: never;
       activePaymentAppointmentId?: never;
+      onLoadMore?: never;
+      loadingMore?: never;
     };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -64,6 +68,8 @@ export default function PortalAppointments({
   onCancel,
   onPayment,
   activePaymentAppointmentId,
+  onLoadMore,
+  loadingMore,
 }: PortalAppointmentsProps) {
   // Doctor actions are day-scoped by the backend; re-derive per render so a
   // long-lived tab crosses midnight correctly.
@@ -225,6 +231,23 @@ export default function PortalAppointments({
           ) : null}
         </article>
       ))}
+      {/* The badge counts totalElements but only page.content rows render, so
+          a patient with more than one page needs this control or their older
+          appointments stay invisible forever. Doctor day-views are a single
+          synthetic page, so the control is patient-only. */}
+      {viewer === "patient" && page.number + 1 < page.totalPages && onLoadMore ? (
+        <div className="portal-appointment-list__more">
+          <button
+            aria-label={`Xem thêm lịch hẹn (đã hiển thị ${page.content.length} trên ${page.totalElements} lịch hẹn)`}
+            className="outline-button"
+            disabled={loadingMore === true}
+            onClick={onLoadMore}
+            type="button"
+          >
+            {loadingMore === true ? "Đang tải..." : `Xem thêm lịch hẹn (${page.content.length}/${page.totalElements})`}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

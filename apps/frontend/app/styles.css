@@ -5488,6 +5488,14 @@ main {
   gap: var(--sp-3);
 }
 
+.portal-appointment-list__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+
 .portal-appointment {
   padding: var(--sp-4);
   border: 1px solid var(--portal-line);
