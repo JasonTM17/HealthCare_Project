@@ -437,7 +437,7 @@ export default function AdminAiContentReviewsPage() {
               </div>
               <button
                 aria-label="Đóng xem trước"
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
                 onClick={() => setPreviewModalOpen(false)}
                 type="button"
               >

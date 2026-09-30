@@ -69,6 +69,13 @@ public class BookingService {
     private static final String OTP_ATTEMPTS_EXHAUSTED_MESSAGE =
         "Bạn đã nhập sai mã OTP quá " + MAX_OTP_ATTEMPTS + " lần. Vui lòng yêu cầu gửi lại mã OTP.";
     private static final String BOOKING_PRIVACY_CONSENT_VERSION = "booking-privacy-v1";
+    /**
+     * Foreign-code copy thrown by the booking-code lookup on cancel and
+     * reschedule. A guest whose phone proof fails must see exactly this
+     * status + message, never a distinct 401: that would confirm the code
+     * exists and feed booking-code enumeration / phone brute-forcing.
+     */
+    private static final String BOOKING_NOT_FOUND_MESSAGE = "Không tìm thấy lịch khám";
     /** Live holds one patient may keep open at the same time. */
     static final int MAX_LIVE_HOLDS_PER_PATIENT = 2;
     /**
@@ -878,9 +885,10 @@ public class BookingService {
      */
     @Transactional(readOnly = true)
     public AppointmentResponse getAppointment(String bookingCode, String phone, UserDetails principal) {
+        String notFoundMessage = "Không tìm thấy lịch khám với mã: " + bookingCode;
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetails(bookingCode.trim())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám với mã: " + bookingCode));
-        authorizeAppointment(appointment, phone, principal);
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, notFoundMessage));
+        authorizeAppointment(appointment, phone, principal, notFoundMessage);
         return principal == null ? toPublicResponse(appointment) : toResponse(appointment);
     }
 
@@ -909,9 +917,9 @@ public class BookingService {
             String phone,
             UserDetails principal) {
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(bookingCode.trim())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, BOOKING_NOT_FOUND_MESSAGE));
 
-        authorizeAppointment(appointment, phone, principal);
+        authorizeAppointment(appointment, phone, principal, BOOKING_NOT_FOUND_MESSAGE);
 
         if (appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION
                 && appointment.getStatus() != AppointmentStatus.CONFIRMED) {
@@ -966,9 +974,9 @@ public class BookingService {
             RescheduleAppointmentRequest request,
             UserDetails principal) {
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(bookingCode.trim())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch khám"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, BOOKING_NOT_FOUND_MESSAGE));
 
-        authorizeAppointment(appointment, request.phone(), principal);
+        authorizeAppointment(appointment, request.phone(), principal, BOOKING_NOT_FOUND_MESSAGE);
 
         if (appointment.getStatus() != AppointmentStatus.CONFIRMED) {
             throw new ResponseStatusException(
@@ -1149,10 +1157,16 @@ public class BookingService {
         return "APT-" + token;
     }
 
-    private void authorizeAppointment(Appointment appointment, String phone, UserDetails principal) {
+    private void authorizeAppointment(Appointment appointment, String phone, UserDetails principal, String notFoundMessage) {
         if (principal == null) {
             if (phone == null || !normalizePhone(phone).equals(normalizePhone(appointment.getPatient().getPhone()))) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Cần xác thực số điện thoại để xem lịch hẹn");
+                // Indistinguishable from an unknown booking code: same 404,
+                // same message as this endpoint's code lookup raises for a
+                // foreign code (echoing only the caller's own input). The
+                // previous 401 here confirmed "this code exists", turning the
+                // query/cancel/reschedule endpoints into a booking-code
+                // oracle that fed phone/OTP brute-forcing.
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, notFoundMessage);
             }
             return;
         }

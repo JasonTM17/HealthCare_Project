@@ -2327,7 +2327,7 @@ export default function PatientDashboardPage() {
                           <UiIcon name="alert-triangle" size={16} />
                         </span>
                         <div className="flex-1 min-w-0">
-                          <label className="block text-sm font-bold text-amber-950">
+                          <label className="block text-sm font-bold text-amber-950" htmlFor="allergy-warning">
                             Cảnh báo dị ứng (Thuốc, thực phẩm, thời tiết, hóa chất...)
                           </label>
                           <p className="text-xs text-amber-800/90 mt-0.5 mb-3">
@@ -2335,6 +2335,7 @@ export default function PatientDashboardPage() {
                           </p>
                           <textarea
                             className="w-full min-h-[60px] p-3 rounded-[4px] border border-amber-300 bg-white text-slate-900 text-sm font-medium placeholder:text-amber-800/40 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:border-amber-600 resize-y"
+                            id="allergy-warning"
                             rows={2}
                             placeholder="Ví dụ: Dị ứng Penicillin, Cephalosporin, dị ứng hải sản (tôm, cua), dị ứng aspirin, phấn hoa..."
                             value={profileForm.allergies}
