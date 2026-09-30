@@ -541,9 +541,8 @@ function PatientChatPageContent() {
           <p>Đăng nhập để lưu lịch sử và gửi câu hỏi. Bạn có thể chọn trước mục đích cuộc trò chuyện:</p>
           <div aria-label="Các mục đích cuộc trò chuyện" className={styles.modeOptions} role="group">
             {ASSISTANT_MODE_OPTIONS.map((option) => (
-              <div className={styles.modeOption} key={option.value}>
+              <div className={styles.modeOption} key={option.value} title={option.description}>
                 <strong>{option.label}</strong>
-                <span>{option.description}</span>
               </div>
             ))}
           </div>
@@ -990,18 +989,18 @@ function PatientChatPageContent() {
 
         <section aria-label="Lưu ý an toàn khi dùng trợ lý" className={styles.safetyBand}>
           <div className={styles.safetyItem}>
-            <UiIcon name="shield-check" size={22} />
-            <p><strong>Thông tin tham khảo.</strong> Trợ lý không thay thế bác sĩ, chẩn đoán, đơn thuốc hoặc hướng dẫn cấp cứu.</p>
+            <UiIcon name="shield-check" size={16} />
+            <p>Trợ lý không thay thế bác sĩ, chẩn đoán, đơn thuốc hoặc hướng dẫn cấp cứu.</p>
           </div>
           <div className={`${styles.safetyItem} ${styles.emergencyItem}`}>
-            <UiIcon name="alert-triangle" size={22} />
-            <p><strong>Tình huống khẩn cấp.</strong> Nếu khó thở, đau ngực dữ dội, bất tỉnh hoặc có nguy cơ tức thời, gọi 115 hoặc đến khoa cấp cứu gần nhất. Không chờ phản hồi từ trợ lý.</p>
+            <UiIcon name="alert-triangle" size={16} />
+            <p><strong>Khẩn cấp:</strong> khó thở, đau ngực dữ dội, bất tỉnh — gọi 115 hoặc đến khoa cấp cứu gần nhất, không chờ trợ lý.</p>
           </div>
         </section>
 
         <section aria-label="Chọn mục đích cuộc trò chuyện" className={styles.modePicker}>
           <div className={styles.modePickerHeading}>
-            <strong>Chọn mục đích trước khi bắt đầu</strong>
+            <strong>Chọn mục đích</strong>
             <span>{activeConversation ? "Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới." : "Mỗi cuộc trò chuyện giữ một chế độ cố định."}</span>
           </div>
           <div aria-label="Mục đích cuộc trò chuyện" className={styles.modeOptions} role="group">
@@ -1016,52 +1015,49 @@ function PatientChatPageContent() {
                 type="button"
               >
                 <strong>{option.label}</strong>
-                <span>{option.description}</span>
               </button>
             ))}
           </div>
           <div aria-label="Cấu hình trợ lý theo tài khoản" className={styles.assistantSettings}>
-            <div className={styles.assistantSettingsRow}>
-              <label className={styles.assistantSettingField}>
-                <span>Giọng trả lời</span>
-                <select
-                  disabled={settingsBusy}
-                  onChange={(event) => void handleSaveAssistantSettings({
-                    chatTone: event.target.value as AssistantAccountSettings["chatTone"],
-                  })}
-                  value={accountSettings?.chatTone ?? "than_thien"}
-                >
-                  <option value="than_thien">Thân thiện</option>
-                  <option value="chuyen_nghiep">Chuyên nghiệp</option>
-                  <option value="ngan_gon">Ngắn gọn</option>
-                </select>
-              </label>
-              <label className={styles.assistantSettingToggle}>
-                <input
-                  checked={accountSettings?.chatPersonalized ?? false}
-                  disabled={settingsBusy}
-                  onChange={(event) => void handleSaveAssistantSettings({
-                    chatPersonalized: event.target.checked,
-                  })}
-                  type="checkbox"
-                />
-                <span>Gợi ý cá nhân hóa (tên, lịch hẹn sắp tới của bạn)</span>
-              </label>
-              <button
-                className={styles.assistantSettingSave}
-                disabled={settingsBusy || !accountSettings}
-                onClick={() => accountSettings
-                  ? void handleSaveAssistantSettings({
-                    chatDefaultMode: selectedMode,
-                    chatTone: accountSettings.chatTone,
-                    chatPersonalized: accountSettings.chatPersonalized,
-                  })
-                  : undefined}
-                type="button"
+            <label className={styles.assistantSettingField}>
+              <span>Giọng trả lời</span>
+              <select
+                disabled={settingsBusy}
+                onChange={(event) => void handleSaveAssistantSettings({
+                  chatTone: event.target.value as AssistantAccountSettings["chatTone"],
+                })}
+                value={accountSettings?.chatTone ?? "than_thien"}
               >
-                Lưu mục đích làm mặc định
-              </button>
-            </div>
+                <option value="than_thien">Thân thiện</option>
+                <option value="chuyen_nghiep">Chuyên nghiệp</option>
+                <option value="ngan_gon">Ngắn gọn</option>
+              </select>
+            </label>
+            <label className={styles.assistantSettingToggle}>
+              <input
+                checked={accountSettings?.chatPersonalized ?? false}
+                disabled={settingsBusy}
+                onChange={(event) => void handleSaveAssistantSettings({
+                  chatPersonalized: event.target.checked,
+                })}
+                type="checkbox"
+              />
+              <span>Gợi ý cá nhân hóa (tên, lịch hẹn sắp tới)</span>
+            </label>
+            <button
+              className={styles.assistantSettingSave}
+              disabled={settingsBusy || !accountSettings}
+              onClick={() => accountSettings
+                ? void handleSaveAssistantSettings({
+                  chatDefaultMode: selectedMode,
+                  chatTone: accountSettings.chatTone,
+                  chatPersonalized: accountSettings.chatPersonalized,
+                })
+                : undefined}
+              type="button"
+            >
+              Lưu mục đích làm mặc định
+            </button>
             <p aria-live="polite" className={styles.assistantSettingHint} role="status">
               {settingsSaved
                 ? "Đã lưu cài đặt trợ lý của bạn."
