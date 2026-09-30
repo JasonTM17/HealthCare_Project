@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Sequence
-from typing import Any
 
 import pytest
 
@@ -319,7 +318,10 @@ def test_deepseek_aliases_do_not_populate_openai_settings(
 
 _BLUEPRINT_BASE_ENV = {
     # Values copied from the render.yaml healthcare-beta-ai envVars block.
-    # AI_API_KEY is a synthetic literal — no real credential anywhere here.
+    # Deliberately NO API key entry: Settings defaults ai_api_key to "", the
+    # validators here never require it (provider boot is checked elsewhere),
+    # and every assertion below stubs the provider client — no socket is
+    # opened, so a literal key would only be scanner noise.
     "AI_PROVIDER": "deepseek",
     "AI_CHAT_MODEL": "deepseek-flash",
     "AI_BASE_URL": "https://api.deepseek.com",
@@ -328,7 +330,6 @@ _BLUEPRINT_BASE_ENV = {
     "AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL": "false",
     "AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED": "true",
     "REMOTE_AI_KILL_SWITCH": "true",
-    "AI_API_KEY": "synthetic-test-key",
 }
 
 
