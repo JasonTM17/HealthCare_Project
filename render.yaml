@@ -60,14 +60,36 @@ services:
         value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
         value: "false"
+      # [L2 2026-09-30] Patient remote egress ON, as ONE atomic set with the
+      # backend AI_CHAT_REMOTE_PROVIDER_ENABLED flip below. Business signature:
+      # REMOTE_AI_RELEASE_HOLD=true is the explicit "release hold lifted"
+      # commitment -- the ai-service validator (app/config.py:173-176) refuses
+      # to boot when the remote keys are on without it (fail-closed; sealed
+      # oracle: tests/test_config.py:161 "cannot bypass release hold").
+      # Quota consequence: every patient turn WITH a catalog source now costs
+      # real remote_llm (deepseek-flash) on the account shared with the public
+      # chatbot; the credit gate, weekly refill and AI_CHAT_USAGE attempt
+      # markers still apply on the patient path. Turns with NO catalog source
+      # stay INSUFFICIENT_EVIDENCE (AiConversationService.java:774-775) until
+      # the deferred uncited-guidance code item lands -- this env change does
+      # not claim otherwise.
       - key: AI_PATIENT_CHAT_REMOTE_ENABLED
-        value: "false"
+        value: "true"
+      - key: REMOTE_AI_RELEASE_HOLD
+        value: "true"
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
         value: "false"
       - key: AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED
         value: "true"
+      # REMOTE_AI_SYNTHETIC_ONLY=false unblocks the second gate at
+      # app/llm.py:2623-2631 (render-beta is not synthetic-beta). No side
+      # effect: the synthetic 403/embedding branches in chatbot.py only fire
+      # when AI_SERVICE_RUNTIME is synthetic-beta, and EMBEDDING_PROVIDER
+      # stays local above. REMOTE_AI_KILL_SWITCH is deliberately NOT changed:
+      # grep confirms no app consumer (declared only at app/config.py:60) --
+      # dead key, flipping it is noise.
       - key: REMOTE_AI_SYNTHETIC_ONLY
-        value: "true"
+        value: "false"
       - key: REMOTE_AI_KILL_SWITCH
         value: "true"
       - key: AI_API_KEY
@@ -89,6 +111,17 @@ services:
         generateValue: true
       - key: RAG_INGEST_TOKEN
         generateValue: true
+
+      # L1 cross-instance keep-warm. A GET from this instance to the backend's
+      # public health URL is real inbound HTTPS, so it keeps the backend awake
+      # and wakes it after an eviction; the backend's SelfWarmer pings this
+      # service's /livez the same way, making the warm chain bidirectional and
+      # self-healing. The warmer code already exists (apps/ai-service/app/main.py
+      # startup hook) and self-disables when this variable is absent. The URL is
+      # a public health endpoint (no credentials), matching the warm cron in
+      # .github/workflows/render-warm.yml.
+      - key: BACKEND_WARM_URL
+        value: https://healthcare-beta-backend-4wb7.onrender.com/actuator/health
 
   - type: web
     name: healthcare-beta-backend
@@ -175,8 +208,14 @@ services:
         value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
         value: "false"
+      # [L2] Spring-side key of the patient egress set (paired with the
+      # healthcare-beta-ai flips above). application.yml:295 binds this to
+      # AiConversationService, whose sanitize gate (:1559) otherwise rejects
+      # provenance=remote_provider with a 502 AI_RESPONSE_INVALID. Safety
+      # guards are unchanged: sanitize re-validation, rejectDiagnoseOrPrescribe,
+      # unsafe-claim refusal, circuit breaker, EMERGENCY/HANDOFF pre-gate.
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
-        value: "false"
+        value: "true"
       - key: AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED
         value: "true"
       - key: AI_CHAT_SYMPTOM_TRIAGE_ENABLED

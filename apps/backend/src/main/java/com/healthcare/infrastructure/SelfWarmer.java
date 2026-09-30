@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -66,6 +68,20 @@ public class SelfWarmer {
      * Default cadence is four minutes: comfortably inside Render Free's idle
      * eviction window, and cheap enough (two tiny GETs) to leave on by default.
      */
+    /**
+     * L1 cold-window fix: fire one warm pass the moment the application is
+     * ready instead of waiting up to a full {@code fixedDelay} tick after
+     * every restart/deploy. The scheduler's first execution races the web
+     * server binding, so without this hook the ai-service can stay cold for
+     * minutes while the first chat turns hit the BFF deadline. Same contract
+     * as the tick: two tiny health GETs, zero provider/quota calls, failures
+     * swallowed.
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        warm();
+    }
+
     @Scheduled(fixedDelayString = "${app.self-warmer.interval-ms:240000}")
     public void warm() {
         pingSelf();

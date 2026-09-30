@@ -55,6 +55,39 @@ class SelfWarmerTest {
         verify(restTemplate).getForEntity(URI.create("http://127.0.0.1:8080/actuator/health"), String.class);
     }
 
+    /**
+     * L1: after every restart/deploy the first scheduled tick only fires after
+     * up to the full interval, leaving the ai-service cold for minutes while
+     * chat turns hit the BFF deadline. The warmer must run once the moment the
+     * application is ready — and that immediate run must still be exactly the
+     * two cheap GETs (own /actuator/health + ai-service /livez), never a
+     * chat/quota endpoint.
+     */
+    @Test
+    void onApplicationReady_firesWarmImmediatelyWithOnlyTheTwoHealthGets() {
+        whenGetForEntityReturnsOk();
+        SelfWarmer warmer = new SelfWarmer(10000, "http://localhost:8000", restTemplate);
+
+        assertThatCode(warmer::onApplicationReady).doesNotThrowAnyException();
+
+        verify(restTemplate, org.mockito.Mockito.times(1))
+            .getForEntity(URI.create("http://127.0.0.1:10000/actuator/health"), String.class);
+        verify(restTemplate, org.mockito.Mockito.times(1))
+            .getForEntity(URI.create("http://localhost:8000/livez"), String.class);
+    }
+
+    @Test
+    void onApplicationReady_whenAiServiceCold_swallowsAndStillPingsBackend() {
+        whenGetForEntityReturnsOk();
+        doThrow(new RestClientException("connection refused"))
+            .when(restTemplate).getForEntity(URI.create("http://localhost:8000/livez"), String.class);
+        SelfWarmer warmer = new SelfWarmer(10000, "http://localhost:8000", restTemplate);
+
+        assertThatCode(warmer::onApplicationReady).doesNotThrowAnyException();
+
+        verify(restTemplate).getForEntity(URI.create("http://127.0.0.1:10000/actuator/health"), String.class);
+    }
+
     private void whenGetForEntityReturnsOk() {
         org.mockito.Mockito.when(restTemplate.getForEntity(any(URI.class), eq(String.class)))
             .thenReturn(ResponseEntity.ok("ok"));
