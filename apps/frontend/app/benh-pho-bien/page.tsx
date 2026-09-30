@@ -286,7 +286,7 @@ export default function CommonDiseasesPage() {
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 {hasActiveFilters ? (
-                  <button className="outline-button outline-button--small min-h-10" onClick={() => { setQuery(""); setCategory("ALL"); }} type="button">
+                  <button className="outline-button outline-button--small min-h-11" onClick={() => { setQuery(""); setCategory("ALL"); }} type="button">
                     Xóa bộ lọc
                   </button>
                 ) : null}

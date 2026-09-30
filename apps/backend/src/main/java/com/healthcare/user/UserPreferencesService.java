@@ -11,11 +11,23 @@ import com.healthcare.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DateTimeException;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 public class UserPreferencesService {
+
+    // Shape guard for a BCP-47 style tag; the content guard below pins it to
+    // real ISO-639/ISO-3166 codes.
+    private static final Pattern LOCALE_TAG_PATTERN =
+        Pattern.compile("^[a-zA-Z]{2,3}(-[A-Za-z0-9]{2,8})*$");
+    private static final Set<String> ISO_LANGUAGES = Set.of(Locale.getISOLanguages());
+    private static final Set<String> ISO_COUNTRIES = Set.of(Locale.getISOCountries());
 
     private final UserRepository userRepository;
     private final UserPreferencesRepository preferencesRepository;
@@ -50,13 +62,23 @@ public class UserPreferencesService {
             if (request.locale().isBlank()) {
                 throw new BusinessException(400, ErrorCodes.PREFERENCES_INVALID, "Locale must not be blank");
             }
-            preferences.setLocale(request.locale().trim());
+            String locale = request.locale().trim();
+            if (!isRealLocaleTag(locale)) {
+                throw new BusinessException(400, ErrorCodes.PREFERENCES_INVALID, "Locale is not a valid language tag");
+            }
+            preferences.setLocale(locale);
         }
         if (request.timezone() != null) {
             if (request.timezone().isBlank()) {
                 throw new BusinessException(400, ErrorCodes.PREFERENCES_INVALID, "Timezone must not be blank");
             }
-            preferences.setTimezone(request.timezone().trim());
+            String timezone = request.timezone().trim();
+            try {
+                ZoneId.of(timezone);
+            } catch (DateTimeException ex) {
+                throw new BusinessException(400, ErrorCodes.PREFERENCES_INVALID, "Timezone is not a valid zone identifier");
+            }
+            preferences.setTimezone(timezone);
         }
         // Bean Validation already pins the chat enums to the supported sets;
         // the blank re-check keeps a bare whitespace patch from storing an
@@ -78,6 +100,22 @@ public class UserPreferencesService {
         }
         preferences.setUpdatedAt(OffsetDateTime.now());
         return toResponse(preferencesRepository.save(preferences));
+    }
+
+    /**
+     * Locale.forLanguageTag accepts any well-formed tag, so syntax alone
+     * would still persist junk like 'xx-XX' (observed in production). The
+     * language and region must be real ISO codes; vi-VN and en-US pass.
+     */
+    private static boolean isRealLocaleTag(String value) {
+        if (!LOCALE_TAG_PATTERN.matcher(value).matches()) {
+            return false;
+        }
+        Locale locale = Locale.forLanguageTag(value);
+        if (locale.getLanguage().isEmpty() || !ISO_LANGUAGES.contains(locale.getLanguage())) {
+            return false;
+        }
+        return locale.getCountry().isEmpty() || ISO_COUNTRIES.contains(locale.getCountry());
     }
 
     private UserPreferences getOrCreate(UUID userId) {

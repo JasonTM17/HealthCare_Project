@@ -326,6 +326,57 @@ class PatientConsultationServiceTest {
     }
 
     @Test
+    void duplicateCreateFailsFastWithDedicatedConflictCode() {
+        UUID appointmentId = UUID.randomUUID();
+        when(jdbc.queryForMap(contains("FROM appointments"), eq(appointmentId), eq(userId)))
+            .thenReturn(Map.of(
+                "status", "CONFIRMED",
+                "appointment_time", OffsetDateTime.now(),
+                "patient_id", UUID.randomUUID(),
+                "doctor_id", UUID.randomUUID()
+            ));
+        when(jdbc.queryForObject(contains("SELECT EXISTS"), eq(Boolean.class), eq(appointmentId)))
+            .thenReturn(true);
+
+        var request = new ConsultationContracts.CreateRequest(
+            appointmentId, "Trao đổi sau buổi khám", true, "consultation-v1");
+
+        assertThatThrownBy(() -> service.create(request, principal))
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("code", "CONSULTATION_ALREADY_EXISTS")
+            .hasFieldOrPropertyWithValue("status", 409);
+        verify(jdbc, never()).update(contains("INSERT INTO patient_consultation_threads"), any(Object[].class));
+    }
+
+    @Test
+    void duplicateCreateRaceFallsBackToRealUniqueConstraintName() {
+        UUID appointmentId = UUID.randomUUID();
+        when(jdbc.queryForMap(contains("FROM appointments"), eq(appointmentId), eq(userId)))
+            .thenReturn(Map.of(
+                "status", "CONFIRMED",
+                "appointment_time", OffsetDateTime.now(),
+                "patient_id", UUID.randomUUID(),
+                "doctor_id", UUID.randomUUID()
+            ));
+        when(jdbc.queryForObject(contains("SELECT EXISTS"), eq(Boolean.class), eq(appointmentId)))
+            .thenReturn(false);
+        // PostgreSQL auto-names the inline UNIQUE from V37 as
+        // patient_consultation_threads_appointment_id_key; the catch branch
+        // must match that exact name so the race stays a 409, not a 500.
+        when(jdbc.update(contains("INSERT INTO patient_consultation_threads"), any(Object[].class)))
+            .thenThrow(new org.springframework.dao.DuplicateKeyException(
+                "PreparedStatementCallback; SQL [...]; duplicate key value violates unique constraint \"patient_consultation_threads_appointment_id_key\""));
+
+        var request = new ConsultationContracts.CreateRequest(
+            appointmentId, "Trao đổi sau buổi khám", true, "consultation-v1");
+
+        assertThatThrownBy(() -> service.create(request, principal))
+            .isInstanceOf(BusinessException.class)
+            .hasFieldOrPropertyWithValue("code", "CONSULTATION_ALREADY_EXISTS")
+            .hasFieldOrPropertyWithValue("status", 409);
+    }
+
+    @Test
     void reusedIdempotencyKeyWithDifferentBodyFailsBeforeWindowLock() {
         UUID threadId = UUID.randomUUID();
         when(jdbc.queryForObject(anyString(), eq(UUID.class), any(Object[].class))).thenReturn(threadId);

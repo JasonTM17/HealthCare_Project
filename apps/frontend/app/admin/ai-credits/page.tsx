@@ -326,7 +326,7 @@ export default function AdminAiCreditsPage() {
 
             <div className="mt-5 space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600" htmlFor="grant-amount">
                   Số lượng credit cộng thêm
                 </label>
                 <div className="mt-2 flex gap-2">
@@ -347,6 +347,7 @@ export default function AdminAiCreditsPage() {
                 </div>
                 <input
                   className="mt-2 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
+                  id="grant-amount"
                   min="1"
                   onChange={(e) => setCustomAmount(Math.max(1, Number(e.target.value) || 1))}
                   type="number"
@@ -355,11 +356,12 @@ export default function AdminAiCreditsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600" htmlFor="grant-reason">
                   Lý do / Ghi chú
                 </label>
                 <input
                   className="mt-1 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
+                  id="grant-reason"
                   onChange={(e) => setGrantReason(e.target.value)}
                   placeholder="Ví dụ: Tri ân khách hàng thân thiết, hỗ trợ nghiên cứu..."
                   type="text"
