@@ -104,6 +104,17 @@ public class PatientConsultationService {
         }
         UUID patientId = (UUID) appointment.get("patient_id");
         UUID doctorId = (UUID) appointment.get("doctor_id");
+        // One consultation channel per appointment is a product rule backed by
+        // the UNIQUE in V37.  Check it up front so the common duplicate click
+        // returns the dedicated Vietnamese 409 instead of surfacing a database
+        // constraint error; the catch below stays as the race safety-net.
+        Boolean threadExists = jdbc.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM patient_consultation_threads WHERE appointment_id = ?)
+            """, Boolean.class, request.appointmentId());
+        if (Boolean.TRUE.equals(threadExists)) {
+            throw new BusinessException(409, "CONSULTATION_ALREADY_EXISTS",
+                "Lịch hẹn này đã có kênh tư vấn — hãy mở kênh hiện có");
+        }
         try {
             UUID id = UUID.randomUUID();
             jdbc.update("""
@@ -123,7 +134,11 @@ public class PatientConsultationService {
             appendEvent(id, userId, "PATIENT", "CREATED", "{}");
             return summary(id, userId);
         } catch (DataAccessException ex) {
-            if (String.valueOf(ex.getMessage()).contains("uq_patient_consultation_threads_appointment")) {
+            // V37 declares appointment_id as an inline UNIQUE, so PostgreSQL
+            // auto-names the constraint patient_consultation_threads_appointment_id_key.
+            // The previous literal (uq_...) never existed in any migration and
+            // made this branch dead code; keep the real name as the race net.
+            if (String.valueOf(ex.getMessage()).contains("patient_consultation_threads_appointment_id_key")) {
                 throw new BusinessException(409, "CONSULTATION_ALREADY_EXISTS", "Lịch hẹn đã có kênh tư vấn");
             }
             throw ex;

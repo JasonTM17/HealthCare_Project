@@ -486,9 +486,11 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message").value("Lịch hẹn này đã được xác nhận"));
 
-        // 4. Query appointment details by booking code
+        // 4. Query appointment details by booking code. Without phone proof the
+        // guest must see exactly what an unknown code shows: 404, not 401 — a
+        // 401 would confirm the code exists (booking-code oracle).
         mockMvc.perform(get("/api/v1/appointments/" + bookingCode))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/api/v1/appointments/" + bookingCode)
                 .param("phone", "0901234567"))
@@ -724,7 +726,7 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -792,7 +794,56 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
 
         mockMvc.perform(get("/api/v1/appointments/" + bookingCode)
                 .param("phone", "0900000000"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void guestPhoneMismatchIsIndistinguishableFromUnknownBookingCode() throws Exception {
+        String bookingCode = createConfirmedAppointment(
+            nextDate(DayOfWeek.MONDAY), LocalTime.of(9, 30), "0907000333");
+        String missingCode = "APT-NO-SUCH-CODE-00000000000000";
+
+        // Lookup: an anonymous caller who cannot prove the phone must get the
+        // SAME 404 + same body shape as a foreign code. The old 401 confirmed
+        // "this code exists" and fed brute-forcing of phone/OTP guesses.
+        MvcResult missingLookup = mockMvc.perform(get("/api/v1/appointments/" + missingCode))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"))
+            .andReturn();
+        MvcResult mismatchLookup = mockMvc.perform(get("/api/v1/appointments/" + bookingCode)
+                .param("phone", "0900000000"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"))
+            .andReturn();
+        // The message echoes only the attacker's own input, so normalizing the
+        // code token out must leave byte-identical copy on both probes.
+        assertEquals(
+            objectMapper.readTree(missingLookup.getResponse().getContentAsString())
+                .get("message").asText().replace(missingCode, "<CODE>"),
+            objectMapper.readTree(mismatchLookup.getResponse().getContentAsString())
+                .get("message").asText().replace(bookingCode, "<CODE>"));
+
+        // Cancel: the foreign-code copy is static, so real-code + wrong phone
+        // must return that exact same message (not just the same status).
+        mockMvc.perform(post("/api/v1/appointments/" + missingCode + "/cancel")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"0900000000\"}"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Không tìm thấy lịch khám"));
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/cancel")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"0900000000\"}"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Không tìm thấy lịch khám"));
+
+        // Reschedule: same static foreign-code copy on phone-mismatch.
+        mockMvc.perform(post("/api/v1/appointments/" + bookingCode + "/reschedule")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new RescheduleAppointmentRequest(
+                    nextDate(DayOfWeek.SATURDAY), LocalTime.of(10, 0), defaultBranch.getId(),
+                    "0900000000"))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.message").value("Không tìm thấy lịch khám"));
     }
 
     @Test

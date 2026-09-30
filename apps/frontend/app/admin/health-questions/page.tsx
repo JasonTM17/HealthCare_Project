@@ -189,7 +189,7 @@ export default function AdminHealthQuestionsPage() {
         <span className="font-bold text-slate-700">Trang {page + 1}</span>
         <div className="flex gap-2">
           <button
-            className="min-h-10 rounded-lg border border-slate-300 px-3 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 rounded-lg border border-slate-300 px-3 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={loading || page === 0}
             onClick={() => setPage((value) => Math.max(0, value - 1))}
             type="button"
@@ -197,7 +197,7 @@ export default function AdminHealthQuestionsPage() {
             Trước
           </button>
           <button
-            className="min-h-10 rounded-lg border border-slate-300 px-3 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="min-h-11 rounded-lg border border-slate-300 px-3 font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={loading || !hasNextPage}
             onClick={() => setPage((value) => value + 1)}
             type="button"
@@ -288,13 +288,13 @@ export default function AdminHealthQuestionsPage() {
                             </div>
                             {report.status === "OPEN" || report.status === "UNDER_REVIEW" ? (
                               <div className="flex flex-wrap gap-2">
-                                {report.status === "OPEN" ? <button className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "UNDER_REVIEW")}>Nhận xử lý</button> : null}
-                                <button className="min-h-10 rounded-lg bg-rose-700 px-3 text-xs font-bold text-white" disabled={reportBusy === report.id} type="button" onClick={() => setPendingRemoval({
+                                {report.status === "OPEN" ? <button className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "UNDER_REVIEW")}>Nhận xử lý</button> : null}
+                                <button className="min-h-11 rounded-lg bg-rose-700 px-3 text-xs font-bold text-white" disabled={reportBusy === report.id} type="button" onClick={() => setPendingRemoval({
                                   questionId: item.id,
                                   reportId: report.id,
                                   reasonLabel: reportReasonLabels[report.reasonCode] ?? "Lý do khác",
                                 })}>Gỡ nội dung</button>
-                                <button className="min-h-10 rounded-lg border border-teal-300 bg-white px-3 text-xs font-bold text-teal-800" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "DISMISSED", "NO_ACTION")}>Không vi phạm</button>
+                                <button className="min-h-11 rounded-lg border border-teal-300 bg-white px-3 text-xs font-bold text-teal-800" disabled={reportBusy === report.id} type="button" onClick={() => void decideReport(item.id, report, "DISMISSED", "NO_ACTION")}>Không vi phạm</button>
                               </div>
                             ) : null}
                           </div>

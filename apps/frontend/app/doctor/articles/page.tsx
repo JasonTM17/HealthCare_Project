@@ -449,7 +449,7 @@ export default function DoctorArticlesPage() {
           <div className="pt-4 flex flex-wrap items-center gap-3">
             <div className="inline-flex p-1 bg-slate-100/90 rounded-sm border border-slate-200/80 gap-1.5">
               <button
-                className={`min-h-10 px-4 py-2 rounded-[4px] text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                className={`min-h-11 px-4 py-2 rounded-[4px] text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === "community_feed"
                     ? "bg-white text-teal-950 shadow-xs border border-slate-200/60"
                     : "text-slate-600 hover:text-teal-900 hover:bg-slate-200/60"
@@ -465,7 +465,7 @@ export default function DoctorArticlesPage() {
               </button>
 
               <button
-                className={`min-h-10 px-4 py-2 rounded-[4px] text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                className={`min-h-11 px-4 py-2 rounded-[4px] text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === "my_articles"
                     ? "bg-white text-teal-950 shadow-xs border border-slate-200/60"
                     : "text-slate-600 hover:text-teal-900 hover:bg-slate-200/60"
@@ -684,7 +684,7 @@ export default function DoctorArticlesPage() {
 
                       <div className="flex items-center gap-2">
                         <button
-                          className="rounded-[4px] p-2 text-slate-600 hover:bg-slate-100 hover:text-teal-800 cursor-pointer"
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-[4px] p-2 text-slate-600 hover:bg-slate-100 hover:text-teal-800 cursor-pointer"
                           onClick={() => handleOpenEditor(a)}
                           title="Sửa bài viết"
                           type="button"
@@ -692,7 +692,7 @@ export default function DoctorArticlesPage() {
                           <UiIcon name="sparkles" size={15} />
                         </button>
                         <button
-                          className="rounded-[4px] p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-[4px] p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 cursor-pointer"
                           onClick={() => setPendingDelete({ kind: "article", slug: a.slug, title: a.title })}
                           title="Xóa bài viết"
                           type="button"
@@ -719,7 +719,7 @@ export default function DoctorArticlesPage() {
                 </span>
                 <button
                   aria-label="Đóng bài báo"
-                  className="rounded-[4px] p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-[4px] p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                   onClick={() => setReadingArticle(null)}
                   type="button"
                 >
@@ -911,7 +911,7 @@ export default function DoctorArticlesPage() {
                     />
                     <div className="mt-2.5 flex justify-end">
                       <button
-                        className="min-h-10 rounded-[4px] bg-teal-800 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
+                        className="min-h-11 rounded-[4px] bg-teal-800 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
                         disabled={busy || !replyText.trim()}
                         type="submit"
                       >
@@ -940,7 +940,7 @@ export default function DoctorArticlesPage() {
                 </h2>
                 <button
                   aria-label="Đóng biểu mẫu"
-                  className="rounded-[4px] p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-[4px] p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
                   onClick={handleCloseEditor}
                   type="button"
                 >
@@ -952,7 +952,7 @@ export default function DoctorArticlesPage() {
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tiêu đề bài viết *</label>
                   <input
-                    className="mt-1 w-full min-h-10 rounded-[4px] border border-slate-300 px-3.5 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
+                    className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3.5 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Ví dụ: Hướng dẫn chăm sóc và phòng ngừa tăng huyết áp tại nhà"
                     required
@@ -965,7 +965,7 @@ export default function DoctorArticlesPage() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên mục</label>
                     <input
-                      className="mt-1 w-full min-h-10 rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
+                      className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       onChange={(e) => setCategory(e.target.value)}
                       placeholder="Tim mạch, Tiêu hóa..."
                       type="text"
@@ -975,7 +975,7 @@ export default function DoctorArticlesPage() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên khoa</label>
                     <select
-                      className="mt-1 w-full min-h-10 rounded-[4px] border border-slate-300 px-3 py-2 text-sm bg-white focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
+                      className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3 py-2 text-sm bg-white focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       onChange={(e) => setSpecialtySlug(e.target.value)}
                       value={specialtySlug}
                     >
@@ -989,7 +989,7 @@ export default function DoctorArticlesPage() {
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Thời gian đọc (phút)</label>
                     <input
-                      className="mt-1 w-full min-h-10 rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
+                      className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       min={1}
                       onChange={(e) => setReadingMinutes(e.target.value)}
                       type="number"
@@ -1062,14 +1062,14 @@ export default function DoctorArticlesPage() {
 
                 <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
                   <button
-                    className="rounded-[4px] border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-10 cursor-pointer"
+                    className="rounded-[4px] border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 min-h-11 cursor-pointer"
                     onClick={handleCloseEditor}
                     type="button"
                   >
                     Hủy bỏ
                   </button>
                   <button
-                    className="min-h-10 rounded-[4px] bg-teal-800 px-6 py-2 text-sm font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition cursor-pointer shadow-xs"
+                    className="min-h-11 rounded-[4px] bg-teal-800 px-6 py-2 text-sm font-bold uppercase tracking-wider text-white hover:bg-teal-900 disabled:opacity-50 transition cursor-pointer shadow-xs"
                     disabled={busy}
                     type="submit"
                   >
