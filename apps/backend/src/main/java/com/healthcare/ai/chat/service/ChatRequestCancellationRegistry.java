@@ -511,6 +511,11 @@ public class ChatRequestCancellationRegistry implements MessageListener {
                     String.valueOf(stateTtl.toMillis())
                 );
                 if (!"ACTIVE".equals(state) && !"COMMITTING".equals(state) && !"COMMITTED".equals(state)) {
+                    // A sweep-side termination is the prime suspect whenever
+                    // the BFF later reports renewal 409s with result=!STATE,
+                    // so the reconciled state must be attributable.
+                    log.warn("AI chat lease reconciled to termination requestId={} state={}",
+                        cancellation.requestId(), state);
                     cancellation.cancel();
                 }
             }
