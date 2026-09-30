@@ -94,10 +94,20 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     assert ai_env["AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED"]["value"] == "true"
     assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
     assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True
-    for key in (
-        "AI_PATIENT_CHAT_REMOTE_ENABLED", "AI_CHAT_REMOTE_PROVIDER_ENABLED",
-    ):
-        assert ai_env[key]["value"] == "false"
+    # [L2 2026-09-30] Patient remote egress ON — one atomic set with the
+    # backend AI_CHAT_REMOTE_PROVIDER_ENABLED flip (release commit 7bdbd52):
+    # patient flag + release hold + synthetic-only off. The ai-service copy of
+    # AI_CHAT_REMOTE_PROVIDER_ENABLED stays "false": it is read only by the
+    # boot validator (app/config.py), not by routing.
+    assert ai_env["AI_PATIENT_CHAT_REMOTE_ENABLED"]["value"] == "true"
+    assert ai_env["REMOTE_AI_RELEASE_HOLD"]["value"] == "true"
+    assert ai_env["REMOTE_AI_SYNTHETIC_ONLY"]["value"] == "false"
+    assert ai_env["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "false"
+    # [L1] Cross-warmer ai→backend must stay enabled: without this key the
+    # startup hook in app/main.py self-disables and the warm chain is one-way.
+    assert ai_env["BACKEND_WARM_URL"]["value"] == (
+        "https://healthcare-beta-backend-4wb7.onrender.com/actuator/health"
+    )
 
 
 def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -> None:
@@ -130,13 +140,20 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["AI_RAG_INGEST_ENABLED"]["value"] == "true"
     assert backend["CMS_DISTRIBUTED_REALTIME_ENABLED"]["value"] == "true"
     for key in (
-        "AI_CHAT_REMOTE_PROVIDER_ENABLED", "AI_CHAT_SYMPTOM_TRIAGE_ENABLED",
+        "AI_CHAT_SYMPTOM_TRIAGE_ENABLED",
         "AI_CHAT_HEALTH_EDUCATION_ENABLED", "AI_CHAT_SYNTHETIC_BETA_ASSERTED",
         "AI_CHAT_CHUNKED_ENABLED", "APP_MAIL_ENABLED",
         "APP_MAIL_OUTBOX_ENABLED", "APP_PAYMENT_BANK_TRANSFER_ENABLED",
         "STORAGE_UPLOAD_ENABLED", "STORAGE_CONSULTATION_ENABLED",
     ):
         assert backend[key]["value"] == "false"
+    # [L2 2026-09-30] Patient egress flip (commit 7bdbd52): the Spring-side
+    # provenance gate now accepts remote_provider on the patient path. Paired
+    # atomically with the ai-service keys asserted in the ai test above; the
+    # deploy order (backend first) is recorded in the commit message because
+    # an ai-service emitting remote_provider against an old backend 502s the
+    # turn AFTER the provider call was spent.
+    assert backend["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "true"
     for key in (
         "SUPABASE_DB_URL",
         "STORAGE_ENDPOINT", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY",

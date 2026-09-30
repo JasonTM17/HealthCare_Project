@@ -3,6 +3,8 @@
 import asyncio
 import contextlib
 import logging
+from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
@@ -361,7 +363,7 @@ class _StubProviderClient:
         *,
         system_prompt: str,
         user_prompt: str,
-        context: tuple[str, ...] = (),
+        context: Sequence[str] = (),
     ) -> dict[str, str]:
         del system_prompt, context
         self.calls.append(user_prompt)
