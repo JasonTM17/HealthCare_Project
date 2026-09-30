@@ -12,12 +12,13 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from d704454 (guest-booking phone linkage: register
-# binds the guest profile, split 409 codes, tra-cuu register bridge,
-# statement-import REQUIRES_NEW, portal pagination). Update together with
-# the blueprint when a new image is released.
+# release line, built from c59e751 (weekly AI credit refill to tier max with
+# V108 ledger index + REQUIRES_NEW lock-budget refill, ICS VTIMEZONE/CRLF,
+# protected-file download hardening, 90-day chat retention, overview claim
+# counts, admin reschedule past slots). Update together with the blueprint
+# when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:d41cc01fc29217ebca6256f9a5d3b582fb734976c28ee51d68f5f046d9b78138"
+    "sha256:32623110b4488fb63d3f252eb8eb665cde7e6ca24561eb79926b6dece70621ad"
 )
 
 
