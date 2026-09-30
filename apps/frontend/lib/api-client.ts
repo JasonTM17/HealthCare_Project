@@ -3312,6 +3312,58 @@ export async function createDoctorDiagnosticResult(
   );
 }
 
+function stripWrappingQuotes(value: string): string {
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return value.slice(1, -1);
+    }
+  }
+  return value;
+}
+
+/**
+ * Decode a RFC 5987 / RFC 6266 `filename*` value such as the one Spring's
+ * ContentDisposition emits for UTF-8 names (`UTF-8''T%E1%BB%95ng....pdf`).
+ * Returns null when the value is missing or not valid percent-encoding.
+ */
+function decodeRfc5987Filename(raw: string): string | null {
+  const value = stripWrappingQuotes(raw.trim());
+  const separator = value.indexOf("''");
+  const encoded = separator === -1 ? value : value.slice(separator + 2);
+  if (!encoded) return null;
+  try {
+    const decoded = decodeURIComponent(encoded);
+    return decoded === "" ? null : decoded;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract the download name from a Content-Disposition response header,
+ * preferring the RFC 5987 `filename*` parameter and falling back to the
+ * basic `filename=` parameter. Returns null when the header carries neither.
+ */
+function filenameFromContentDisposition(header: string | null): string | null {
+  if (!header) return null;
+  let basic: string | null = null;
+  for (const part of header.split(";")) {
+    const segment = part.trim();
+    if (/^filename\*\s*=/i.test(segment)) {
+      const decoded = decodeRfc5987Filename(segment.slice(segment.indexOf("=") + 1));
+      if (decoded) return decoded;
+      continue;
+    }
+    if (/^filename\s*=/i.test(segment)) {
+      const value = stripWrappingQuotes(segment.slice(segment.indexOf("=") + 1).trim());
+      if (value) basic = value;
+    }
+  }
+  return basic;
+}
+
 export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua"): Promise<void> {
   const normalizedPath = fileUrl.startsWith("/api/v1") ? fileUrl.slice("/api/v1".length) : fileUrl;
   const response = await withAuthenticatedSession(normalizedPath, async () => {
@@ -3328,12 +3380,23 @@ export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua
       throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, normalizedPath);
     }
   });
-  const blobUrl = URL.createObjectURL(await response.blob());
+  // The backend sets a RFC 5987 Content-Disposition carrying the stored
+  // original filename with extension (FileController.download in
+  // apps/backend .../storage/controller/FileController.java). Prefer that name
+  // over the caller's display-only fallback (a Vietnamese test name without
+  // extension that the OS cannot open).
+  const downloadName =
+    filenameFromContentDisposition(response.headers.get("Content-Disposition")) ?? filename;
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = blobUrl;
-  anchor.download = filename;
+  anchor.download = downloadName;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
   anchor.click();
-  URL.revokeObjectURL(blobUrl);
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
 }
 
 export async function downloadPatientDocument(

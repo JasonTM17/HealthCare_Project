@@ -36,6 +36,17 @@ public class AiCreditTransaction {
     @Column(name = "description", length = 500)
     private String description;
 
+    /**
+     * ISO-week stamp carried only by {@code AI_CHAT_REFILL} rows (V108). The
+     * partial unique index {@code ux_ai_credit_refill_patient_week} over
+     * {@code (user_id, refill_period)} is the database backstop that makes
+     * the weekly refill once-per-patient-per-week even if a caller forgets
+     * the conditional update. {@code null} for every other transaction type,
+     * which keeps those rows outside the predicate.
+     */
+    @Column(name = "refill_period", length = 16)
+    private String refillPeriod;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
@@ -104,6 +115,14 @@ public class AiCreditTransaction {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getRefillPeriod() {
+        return refillPeriod;
+    }
+
+    public void setRefillPeriod(String refillPeriod) {
+        this.refillPeriod = refillPeriod;
     }
 
     public OffsetDateTime getCreatedAt() {

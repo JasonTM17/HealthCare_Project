@@ -76,6 +76,24 @@ export function buildGoogleCalendarUrl(appt: CalendarAppointmentInput): string {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
+/**
+ * RFC 5545 requires every TZID used in DTSTART/DTEND to be defined by a VTIMEZONE in
+ * the same calendar; without it Apple Calendar / Outlook fall back to UTC and the
+ * appointment shifts by 7 hours. Asia/Ho_Chi_Minh (ICT) has had no DST since 1970,
+ * so a single static STANDARD component with fixed +07:00 offsets is correct.
+ */
+const VTIMEZONE_ASIA_HO_CHI_MINH: string[] = [
+  "BEGIN:VTIMEZONE",
+  "TZID:Asia/Ho_Chi_Minh",
+  "BEGIN:STANDARD",
+  "DTSTART:19700101T000000",
+  "TZOFFSETFROM:+0700",
+  "TZOFFSETTO:+0700",
+  "TZNAME:ICT",
+  "END:STANDARD",
+  "END:VTIMEZONE",
+];
+
 function buildVevent(appt: CalendarAppointmentInput): string[] {
   const datePart = cleanIsoDate(appt.appointmentDate);
   const startPart = cleanIsoTime(appt.startTime);
@@ -110,11 +128,12 @@ export function buildIcsCalendar(appt: CalendarAppointmentInput): string {
     "PRODID:-//Personal Appointment Reminder//VI",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
+    ...VTIMEZONE_ASIA_HO_CHI_MINH,
     ...buildVevent(appt),
     "END:VCALENDAR",
   ];
 
-  return icsLines.join("\r\n");
+  return icsLines.join("\r\n") + "\r\n";
 }
 
 /** One file, many events: a doctor exports a whole day or 7-day range in a single click. */
@@ -125,11 +144,12 @@ export function buildIcsCalendarMany(appointments: CalendarAppointmentInput[]): 
     "PRODID:-//Personal Appointment Reminder//VI",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
+    ...VTIMEZONE_ASIA_HO_CHI_MINH,
     ...appointments.flatMap(buildVevent),
     "END:VCALENDAR",
   ];
 
-  return icsLines.join("\r\n");
+  return icsLines.join("\r\n") + "\r\n";
 }
 
 function triggerIcsDownload(icsContent: string, filename: string): void {

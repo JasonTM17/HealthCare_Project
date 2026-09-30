@@ -10,14 +10,21 @@ import com.healthcare.exception.ErrorCodes;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.WeekFields;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -82,9 +89,71 @@ public class AiCreditService {
     public static final int ADMIN_LISTING_MAX_SIZE = 100;
     private static final Sort ADMIN_LISTING_SORT = Sort.by(Sort.Direction.ASC, "id");
 
+    /**
+     * Ledger type stamped on weekly refill rows. The partial unique index
+     * {@code ux_ai_credit_refill_patient_week} (V108) scopes its predicate to
+     * exactly this type, so a second refill row for the same patient and the
+     * same ISO week is rejected by the database.
+     */
+    public static final String AI_CHAT_REFILL_TYPE = "AI_CHAT_REFILL";
+
+    /**
+     * The one authoritative tier-credit map (V108 refill design). It used to
+     * exist twice with different numbers — here (20/50/100/300) and in
+     * {@code PatientAiCreditController} (100/150/200/300) — and only VIP
+     * agreed, so the weekly refill and the patient status badge could not
+     * disagree about what "full" means. Both call sites now read this map.
+     */
+    private static final int TIER_MAX_STANDARD = 20;
+    private static final int TIER_MAX_SILVER = 50;
+    private static final int TIER_MAX_GOLD = 100;
+    private static final int TIER_MAX_VIP = 300;
+
+    /** Time zone the weekly refill period is computed in (product decision). */
+    public static final ZoneId CREDIT_REFILL_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    /**
+     * The refill target for a tier name. Unknown or null tiers fall back to
+     * the STANDARD allowance, mirroring {@link #getPatientTier}'s default.
+     * {@code Locale.ROOT}: a host locale (the Turkish dotted-capital case)
+     * must never make a tier name miss its own constant.
+     */
+    public static int tierMaxCredits(String tier) {
+        String normalized = tier == null ? "" : tier.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "SILVER" -> TIER_MAX_SILVER;
+            case "GOLD" -> TIER_MAX_GOLD;
+            case "VIP" -> TIER_MAX_VIP;
+            default -> TIER_MAX_STANDARD;
+        };
+    }
+
+    /**
+     * The current refill period: the ISO week-based year and week number in
+     * {@link #CREDIT_REFILL_ZONE}, formatted {@code YYYY-Www} (fits the
+     * VARCHAR(16) column). Exposed so callers and tests share one definition
+     * of "the same 7 days".
+     */
+    public static String currentRefillPeriod() {
+        LocalDate today = LocalDate.now(CREDIT_REFILL_ZONE);
+        int weekBasedYear = today.get(WeekFields.ISO.weekBasedYear());
+        int week = today.get(WeekFields.ISO.weekOfWeekBasedYear());
+        return String.format(Locale.ROOT, "%04d-W%02d", weekBasedYear, week);
+    }
+
     private final PatientProfileRepository patientProfileRepository;
     private final UserRepository userRepository;
     private final AiCreditTransactionRepository transactionRepository;
+
+    /**
+     * Carries the refill's {@code SET LOCAL lock_timeout} inside its own
+     * physical transaction (a session command has no repository home).
+     * Field-injected so the constructor signature and its hand-built unit
+     * tests stay untouched; {@code refillPatientCreditsWeekly} tolerates a
+     * missing manager (unsprung instances) and just loses the lock budget.
+     */
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public AiCreditService(
             PatientProfileRepository patientProfileRepository,
@@ -146,6 +215,144 @@ public class AiCreditService {
         return profile != null
             && (profile.getAiCredits() == null
                 || profile.getAiCredits() > 0);
+    }
+
+    /**
+     * Weekly credit refill: at most once per ISO week (in
+     * {@link #CREDIT_REFILL_ZONE}), the balance is reset to the tier maximum
+     * from {@link #tierMaxCredits}. Called by {@code AiConversationService#prepare}
+     * immediately before the balance gate and after the crisis bypass, so a
+     * patient who ran out of credits can chat again at the start of a new
+     * week without an admin grant; as the refill commits on its own before
+     * returning, the gate reads the topped-up balance right after.
+     *
+     * <p><b>Best-effort by construction (REQUIRES_NEW).</b> The refill is a
+     * weekly topping and must never kill a chat turn. It therefore runs in
+     * its own physical transaction rather than joining the caller's, and the
+     * caller wraps it in a catch guard. A Java-side catch alone is not
+     * enough: if the ledger insert inside the <em>caller's</em> transaction
+     * violated {@code ux_ai_credit_refill_patient_week}, PostgreSQL aborts
+     * the whole physical transaction at that statement, and no amount of
+     * exception swallowing on the Java side can rescue the commit — every
+     * later statement of the prepare transaction fails too, so the patient's
+     * chat 500s until the week rolls over. As a separate physical
+     * transaction, a failure — the inconsistent-history surgery below, a
+     * constraint race, anything — rolls back only the grant itself (the
+     * balance update included, so the row and the ledger never drift apart)
+     * and leaves the outer transaction unmarked and free to commit; the
+     * caller's guard also swallows the propagated exception, including
+     * {@code UnexpectedRollbackException} from the inner commit.
+     *
+     * <p><b>Inconsistent-history pre-check.</b> The ledger row for the
+     * current period is checked <em>before</em> the conditional update.
+     * Without it, a profile whose stamp differs from the real grant history
+     * (only reachable through direct surgery on one of the two tables) would
+     * let the update win — the WHERE matches the stale stamp — and then die
+     * on the unique index at the insert. With the pre-check that state is a
+     * silent no-op that leaves the surgery exactly as it found it; the
+     * happy path pays one extra indexed SELECT.
+     *
+     * <p><b>Concurrency contract.</b> The grant is the conditional atomic
+     * {@link PatientProfileRepository#refillAiCreditsByUserId} — the row is
+     * written to {@code tierMax} and stamped with {@code period} only while
+     * the stored stamp differs from {@code period}. Two concurrent chats, a
+     * retried prepare, or a second instance therefore cannot double-grant:
+     * every caller but the first re-evaluates the WHERE against the already
+     * advanced stamp and gets 0 rows. The ledger insert happens only for the
+     * winner, so {@code balance_after} stays monotonic per week, and the
+     * V108 partial unique index
+     * {@code ux_ai_credit_refill_patient_week (user_id, refill_period)} is
+     * the database backstop if a future caller forgets the guard — a race
+     * that loses against the index fails inside this method's own
+     * transaction and, per the contract above, costs the patient at most the
+     * topping, never the message. The pre/post balances are read through
+     * scalar projections, never through {@code findByUserId}: loading the
+     * entity here would leave a stale managed copy behind the bulk update,
+     * and the chat gate that runs next reads the balance through the entity.
+     *
+     * <p><b>Ledger {@code amount} is the true balance delta
+     * ({@code tierMax - balanceBefore}) in the single-writer case, and an
+     * approximation when writers interleave:</b> the {@code before} scalar
+     * is read separately from the bulk update, so an admin grant or a spend
+     * committing between the read and the update makes the recorded delta
+     * differ from the balance movement the update actually applied.
+     * {@code balance_after} is always re-read after the update and stays
+     * exact. The amount is an audit narrative, not an accounting input, so
+     * the read is deliberately not folded into the UPDATE.
+     * When an admin grant had pushed the balance above the tier cap the
+     * delta is negative, which honestly records that the weekly reset
+     * brought the balance back down to the cap.
+     *
+     * <p><b>Lock-wait budget.</b> The stale-lease refund earlier in
+     * {@code prepare} joins the caller's transaction and keeps the row lock
+     * on this patient's profile until the caller commits — while Spring has
+     * suspended that same caller to run this method. Without a budget that
+     * is a self-deadlock: the inner UPDATE waits for a lock only the
+     * suspended outer can release, no exception ever fires, and the turn
+     * hangs until the infrastructure kills the connection. Every refill
+     * transaction therefore runs under {@code SET LOCAL lock_timeout = 2s};
+     * a contended refill fails fast, the caller's guard swallows it, and
+     * the next turn retries. The budget is per-transaction, not per-pool.
+     *
+     * @return {@code true} when this call performed the refill and wrote the
+     *         ledger row; {@code false} when already refilled this period
+     *         (including the pre-check against the ledger), the period's
+     *         grant row exists against a mismatched stamp, or the profile
+     *         does not exist (fail closed, like the gate).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean refillPatientCreditsWeekly(UUID userId) {
+        if (entityManager != null) {
+            // Lock-wait budget. The stale-lease refund earlier in prepare
+            // runs in the CALLER's transaction and keeps the row-exclusive
+            // lock on this patient_profiles row until the caller commits.
+            // Spring suspends that caller around this REQUIRES_NEW call, so
+            // the UPDATE below can only wait for a lock its own suspended
+            // outer will never release until this inner returns — a circular
+            // wait with no exception, invisible to the caller's catch guard,
+            // and unbounded without a budget (each stuck turn pins two pool
+            // connections). Capping the wait at two seconds turns that hang
+            // into an ordinary failure the caller's guard swallows; the
+            // topping is merely deferred to the next chat turn, which reruns
+            // this method without the contended lock. SET LOCAL scopes the
+            // budget to this transaction only — no pool-wide timeout changes.
+            entityManager.createNativeQuery("SET LOCAL lock_timeout = '2s'").executeUpdate();
+        }
+        String tier = patientProfileRepository.findPatientTierByUserId(userId).orElse(null);
+        if (tier == null) {
+            // No profile: nothing to refill. The paid gate refuses this account
+            // separately (fail closed), so no ledger row is ever owed to it.
+            return false;
+        }
+        int tierMax = tierMaxCredits(tier);
+        String period = currentRefillPeriod();
+        if (transactionRepository.existsPatientRefillInPeriod(userId, period)) {
+            // The grant for this period is already in the ledger even though
+            // the profile stamp says otherwise (inconsistent history). A
+            // no-op that touches nothing: repairing the stamp here would
+            // rewrite surgical state, and the insert below would collide
+            // with ux_ai_credit_refill_patient_week and abort a transaction.
+            return false;
+        }
+        int before = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
+        int updated = patientProfileRepository.refillAiCreditsByUserId(userId, tierMax, period);
+        if (updated == 0) {
+            // Already refilled this ISO week (or the profile vanished
+            // concurrently): exactly-once per period, no ledger row.
+            return false;
+        }
+        // Scalar projection: the ledger must record the balance the row
+        // actually holds after the conditional update.
+        int after = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
+
+        AiCreditTransaction tx = new AiCreditTransaction(
+                userId, "PATIENT", tierMax - before, after, AI_CHAT_REFILL_TYPE,
+                "Hồi credit AI hằng tuần (kỳ " + period + ", hạng "
+                        + tier.toUpperCase(Locale.ROOT) + ")"
+        );
+        tx.setRefillPeriod(period);
+        transactionRepository.save(tx);
+        return true;
     }
 
     @Transactional(readOnly = true)
@@ -340,14 +547,15 @@ public class AiCreditService {
         PatientProfile profile = patientProfileRepository.findById(patientProfileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found: " + patientProfileId));
 
-        profile.setPatientTier(newTier.toUpperCase());
-        int defaultTierCredits = switch (newTier.toUpperCase()) {
-            case "SILVER" -> 50;
-            case "GOLD" -> 100;
-            case "VIP" -> 300;
-            default -> 20;
-        };
-        int credits = newCredits != null && newCredits >= 0 ? newCredits : defaultTierCredits;
+        // Locale.ROOT: a host locale (the Turkish dotted-capital case) must
+        // never write a tier name that tierMaxCredits/getPatientTier can no
+        // longer map back to its constant — "silver".toUpperCase(tr) is
+        // "SİLVER", which silently falls back to the STANDARD allowance.
+        profile.setPatientTier(newTier.toUpperCase(Locale.ROOT));
+        // Single source of truth: the weekly refill resets to this same map.
+        int credits = newCredits != null && newCredits >= 0
+                ? newCredits
+                : tierMaxCredits(newTier);
         profile.setAiCredits(credits);
         patientProfileRepository.save(profile);
 
@@ -358,7 +566,7 @@ public class AiCreditService {
                     credits,
                     credits,
                     "TIER_UPGRADE",
-                    "Cập nhật hạng thành viên: " + newTier.toUpperCase() + " (" + credits + " credits)"
+                    "Cập nhật hạng thành viên: " + newTier.toUpperCase(Locale.ROOT) + " (" + credits + " credits)"
             );
             transactionRepository.save(tx);
         }

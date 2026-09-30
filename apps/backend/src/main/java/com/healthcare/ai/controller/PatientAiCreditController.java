@@ -43,16 +43,20 @@ public class PatientAiCreditController {
         List<AiCreditTransaction> history = aiCreditService.listTransactions(user.getId());
         long totalTransactions = aiCreditService.countTransactions(user.getId());
 
-        int tierMax = switch (tier.toUpperCase()) {
-            case "VIP" -> 300;
-            case "GOLD" -> 200;
-            case "SILVER" -> 150;
-            default -> 100;
-        };
-        // Computed over the whole ledger, not the capped history window, so
-        // maxCredits keeps its value even once older transactions scroll out.
-        int historyMax = aiCreditService.getMaxTransactionBalance(user.getId());
-        int maxCredits = Math.max(tierMax, Math.max(historyMax, credits));
+        // Single source of truth (V108): this used to be a second, divergent
+        // copy of the tier map (VIP 300 / GOLD 200 / SILVER 150 / STANDARD 100)
+        // while the service granted 300/100/50/20 on tier change — only VIP
+        // agreed — and the weekly refill now resets the balance to exactly the
+        // service map. The badge ceiling must be the number the refill tops up
+        // to, or a STANDARD patient would refill to 20 against a "100" badge.
+        int tierMax = AiCreditService.tierMaxCredits(tier);
+        // W4: max(tierMax, credits), not max(tierMax, historyMax, credits).
+        // historyMax (the highest balance ever seen across the whole ledger)
+        // let a one-off admin grant of 500 pin the badge at "/500" forever,
+        // even though the weekly refill tops the patient up only to the tier
+        // ceiling. The current balance still wins when it genuinely exceeds
+        // the tier ceiling; a historical peak that has been spent must not.
+        int maxCredits = Math.max(tierMax, credits);
 
         return ResponseEntity.ok(Map.of(
                 "tier", tier,

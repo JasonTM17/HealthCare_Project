@@ -42,4 +42,19 @@ public interface AiCreditTransactionRepository extends JpaRepository<AiCreditTra
         + " where t.userId = :userId and t.transactionType = 'AI_CHAT_REFUND'"
         + " and t.description like concat('%', :marker, '%')")
     boolean existsPatientRefund(@Param("userId") UUID userId, @Param("marker") String marker);
+
+    /**
+     * Whether this patient's weekly refill row already exists for one ISO
+     * period. The refill pre-check uses it so the inconsistent-history state
+     * (the grant row present while the profile stamp lags) short-circuits
+     * before the conditional balance update, instead of letting the ledger
+     * insert die on {@code ux_ai_credit_refill_patient_week} and poison the
+     * surrounding transaction. Scoped to {@code AI_CHAT_REFILL} so a
+     * {@code TIER_UPGRADE} row sharing the stamp cannot mask a real grant —
+     * exactly the predicate the V108 partial index uses.
+     */
+    @Query("select count(t) > 0 from AiCreditTransaction t"
+        + " where t.userId = :userId and t.transactionType = 'AI_CHAT_REFILL'"
+        + " and t.refillPeriod = :period")
+    boolean existsPatientRefillInPeriod(@Param("userId") UUID userId, @Param("period") String period);
 }

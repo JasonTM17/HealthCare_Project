@@ -3,6 +3,7 @@ package com.healthcare.appointment;
 import com.healthcare.appointment.dto.HoldSlotRequest;
 import com.healthcare.appointment.dto.HoldSlotResponse;
 import com.healthcare.appointment.dto.ConfirmAppointmentRequest;
+import com.healthcare.appointment.dto.RescheduleAppointmentRequest;
 import com.healthcare.appointment.dto.OtpDeliveryStatus;
 import com.healthcare.appointment.dto.ResendOtpResponse;
 import com.healthcare.appointment.entity.Appointment;
@@ -45,6 +46,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -850,6 +852,137 @@ class BookingServiceValidationTest {
         verifyNoInteractions(fixture.patients);
         verify(fixture.appointments, never()).saveAndFlush(any());
         verifyNoInteractions(fixture.emailSender);
+    }
+
+    /**
+     * Wires a fully stubbed fixture around one CONFIRMED appointment whose OLD
+     * slot already started (yesterday 09:00, Asia/Ho_Chi_Minh). Returns the
+     * appointment so each test can assert what happened to it after a reschedule
+     * attempt onto a fresh future slot (plusDays(2) at 10:00, same branch).
+     */
+    private Appointment confirmedPastSlotRescheduleFixture(HoldFixture fixture, UUID doctorId, UUID branchId) {
+        UUID patientUserId = UUID.randomUUID();
+        UUID adminUserId = UUID.randomUUID();
+        LocalDate pastDate = LocalDate.now().minusDays(1);
+        LocalDate newDate = LocalDate.now().plusDays(2);
+
+        PatientProfile patient = new PatientProfile();
+        patient.setId(UUID.randomUUID());
+        patient.setUserId(patientUserId);
+        patient.setFullName("Nguyễn Văn A");
+        patient.setPhone("0900000001");
+        patient.setEmail("owner@example.test");
+        Doctor doctor = new Doctor();
+        doctor.setId(doctorId);
+        doctor.setUserId(UUID.randomUUID());
+        doctor.setFullName("Bác sĩ Trần B");
+        doctor.setActive(true);
+        com.healthcare.hospital.entity.Branch branch = activeBranch(branchId);
+        branch.setName("Cơ sở 1");
+
+        Appointment appointment = new Appointment();
+        appointment.setId(UUID.randomUUID());
+        appointment.setBookingCode("APT-PAST");
+        appointment.setPatient(patient);
+        appointment.setDoctor(doctor);
+        appointment.setBranch(branch);
+        appointment.setStatus(com.healthcare.appointment.entity.AppointmentStatus.CONFIRMED);
+        appointment.setAppointmentDate(pastDate);
+        appointment.setStartTime(LocalTime.of(9, 0));
+        appointment.setEndTime(LocalTime.of(9, 30));
+
+        when(fixture.appointments.findByBookingCodeWithDetailsForUpdate("APT-PAST"))
+            .thenReturn(Optional.of(appointment));
+
+        com.healthcare.user.entity.User adminUser = new com.healthcare.user.entity.User();
+        adminUser.setId(adminUserId);
+        adminUser.setEmail("admin@example.test");
+        com.healthcare.user.entity.User patientUser = new com.healthcare.user.entity.User();
+        patientUser.setId(patientUserId);
+        patientUser.setEmail("owner@example.test");
+        when(fixture.users.findByEmail("admin@example.test")).thenReturn(Optional.of(adminUser));
+        when(fixture.users.findByEmail("owner@example.test")).thenReturn(Optional.of(patientUser));
+        when(fixture.patients.findByUserId(patientUserId)).thenReturn(Optional.of(patient));
+
+        // Everything downstream of the past-slot guard is stubbed to succeed, so
+        // the only variable between the admin and patient outcomes is the guard.
+        when(fixture.doctors.findActiveByIdForUpdate(doctorId)).thenReturn(Optional.of(doctor));
+        when(fixture.branches.findByIdAndActiveTrue(branchId)).thenReturn(Optional.of(branch));
+        when(fixture.doctorBranches.existsByDoctorIdAndBranchId(doctorId, branchId)).thenReturn(true);
+        when(fixture.schedules.findBookableSlot(eq(doctorId), eq(branchId), eq(newDate), eq(LocalTime.of(10, 0))))
+            .thenReturn(Optional.of(new ScheduleService.BookableSlot(LocalTime.of(10, 0), LocalTime.of(10, 30))));
+        when(fixture.appointments.findExpiredPendingConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findActiveConflictsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.appointments.findDoctorOverlapsForUpdate(any(), any(), any(), any(), any(), any()))
+            .thenReturn(List.of());
+        when(fixture.branches.getReferenceById(branchId)).thenReturn(branch);
+        when(fixture.appointments.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        return appointment;
+    }
+
+    /**
+     * Back-office regression: ADMIN must be able to move an appointment whose
+     * slot has already passed, to compensate a genuine no-show without
+     * cancelling and recreating the booking (which loses the booking code and
+     * regenerates reminders). authorizeAppointment already lets ADMIN through,
+     * so only the past-slot guard had to skip that role; patients, doctors and
+     * phone-proof guests keep the 409 no-show-evidence protection.
+     */
+    @Test
+    void adminCanRescheduleAppointmentWhoseSlotHasPassed() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        LocalDate newDate = LocalDate.now().plusDays(2);
+        Appointment appointment = confirmedPastSlotRescheduleFixture(fixture, doctorId, branchId);
+
+        UserDetails principal = new User("admin@example.test", "ignored",
+            List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            newDate, LocalTime.of(10, 0), null, null);
+
+        var response = fixture.service().rescheduleAppointment("APT-PAST", request, principal);
+
+        assertEquals("APT-PAST", response.bookingCode());
+        assertEquals(com.healthcare.appointment.entity.AppointmentStatus.CONFIRMED, appointment.getStatus());
+        assertEquals(newDate, appointment.getAppointmentDate());
+        assertEquals(LocalTime.of(10, 0), appointment.getStartTime());
+        verify(fixture.appointments).saveAndFlush(appointment);
+        assertNull(appointment.getReminderSentAt());
+    }
+
+    /**
+     * The complementary half of the guard: the same past-slot move stays 409
+     * for the owning patient, preserving the no-show evidence the clinic
+     * recorded (see BookingService comment at the guard site).
+     */
+    @Test
+    void patientCannotRescheduleAppointmentWhoseSlotHasPassed() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        Appointment appointment = confirmedPastSlotRescheduleFixture(fixture, doctorId, branchId);
+
+        UserDetails principal = new User("owner@example.test", "ignored",
+            List.of(new SimpleGrantedAuthority("ROLE_PATIENT")));
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(
+            LocalDate.now().plusDays(2), LocalTime.of(10, 0), null, null);
+
+        assertThatThrownBy(() -> fixture.service().rescheduleAppointment("APT-PAST", request, principal))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                assertEquals(409, exception.getStatusCode().value());
+                assertEquals(
+                    "Không thể đổi lịch khám đã qua giờ hẹn. Vui lòng liên hệ bệnh viện.",
+                    exception.getReason());
+            });
+        // The refused move must leave the row untouched as no-show evidence.
+        assertEquals(LocalDate.now().minusDays(1), appointment.getAppointmentDate());
+        assertEquals(LocalTime.of(9, 0), appointment.getStartTime());
+        verify(fixture.appointments, never()).saveAndFlush(any());
+        verifyNoInteractions(fixture.schedules);
     }
 
     /** Guest resend must reject the phone form before any booking-code lookup. */
