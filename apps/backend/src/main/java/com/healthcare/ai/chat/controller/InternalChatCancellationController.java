@@ -36,6 +36,10 @@ public class InternalChatCancellationController {
         if (!bffVerifier.isTrusted(request)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Trusted BFF credential is required");
         }
+        // Cancellation storms surface later as lease renewal rejections, so
+        // every inbound BFF cancellation intent is traceable to its request.
+        org.slf4j.LoggerFactory.getLogger(InternalChatCancellationController.class)
+            .info("Chat cancellation requested requestId={}", requestId);
         try {
             cancellations.cancel(requestId.toString());
         } catch (IllegalStateException exception) {
