@@ -360,6 +360,16 @@ export default function PatientDocumentsPage() {
                       >
                         {downloadingId === document.id ? "Đang tải..." : "Tải PDF"}
                       </button>
+                      {document.status === "FAILED" ? (
+                        <button
+                          className="outline-button outline-button--small"
+                          disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null}
+                          onClick={() => void handleGenerate(document.sourceType, document.sourceRecordId)}
+                          type="button"
+                        >
+                          {generatingKey === `${document.sourceType}:${document.sourceRecordId}` ? "Đang tạo lại…" : "Thử tạo lại"}
+                        </button>
+                      ) : null}
                     </div>
                   </article>
                 ))}

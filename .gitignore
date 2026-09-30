@@ -113,3 +113,6 @@ apps/*/scratch/token.tmp
 shots/
 scripts/debug-*.py
 scripts/local-dev-repair/
+
+# Junction compensating npm --prefix double-path in workflow gate commands (build-fix session 2026-10-01)
+apps/frontend/apps/

@@ -292,7 +292,7 @@ for (const viewport of VIEWPORTS) {
     await page.goto("/patient/chat");
 
     await expect(page.getByRole("heading", { name: "Trao đổi có lưu lịch sử" })).toBeVisible();
-    await expect(page.getByText("Tình huống khẩn cấp.")).toBeVisible();
+    await expect(page.getByText("Khẩn cấp:")).toBeVisible();
     await expect(page.getByText("Trợ lý không thay thế bác sĩ, chẩn đoán, đơn thuốc hoặc hướng dẫn cấp cứu.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Chuẩn bị khám tim mạch" })).toBeVisible();
 

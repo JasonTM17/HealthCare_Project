@@ -131,9 +131,11 @@
 }
 
 .safetyBand {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--sp-4);
+  padding: 4px var(--sp-3);
   margin-bottom: var(--sp-2);
   border: 1px solid var(--chat-border);
   border-radius: var(--chat-radius);
@@ -144,8 +146,8 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  padding: 6px var(--sp-3);
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
   color: var(--chat-accent-strong);
 }
 
@@ -156,18 +158,20 @@
 
 .safetyItem p {
   margin: 0;
-  font-size: 0.78125rem;
+  font-size: 0.75rem;
   line-height: 1.4;
   text-wrap: pretty;
 }
 
 .emergencyItem {
   border-left: 1px solid color-mix(in oklch, var(--chat-danger) 25%, var(--chat-border));
-  background: var(--chat-danger-surface);
-  color: color-mix(in oklch, var(--chat-danger) 82%, var(--chat-accent-strong));
 }
 
 .emergencyItem svg {
+  color: var(--chat-danger);
+}
+
+.emergencyItem strong {
   color: var(--chat-danger);
 }
 
@@ -879,25 +883,35 @@
 }
 
 .modeOptions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-2);
+  display: flex;
+  border: 1px solid var(--chat-border);
+  border-radius: var(--chat-radius);
+  background: var(--chat-surface);
 }
 
 .modeOption,
 .modeOptionActive {
+  flex: 1 1 0;
+  min-width: 0;
   min-height: var(--chat-touch-size);
-  display: grid;
-  gap: 2px;
-  justify-items: start;
-  padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--chat-border);
-  border-radius: var(--chat-radius);
-  background: var(--chat-surface);
-  color: var(--chat-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-right: 1px solid var(--chat-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--chat-accent-strong);
   cursor: pointer;
   font: inherit;
-  text-align: left;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.modeOption:last-child,
+.modeOptionActive:last-child {
+  border-right: 0;
 }
 
 .modeOption strong,
@@ -905,16 +919,12 @@
   font-size: 0.8125rem;
 }
 
+/* Segmented-control pressed state: aria-pressed plus an inverted flat fill,
+ * not colour alone. */
 .modeOptionActive {
-  border-color: var(--chat-accent);
-  background: var(--chat-surface-muted);
-}
-
-.modeOption span,
-.modeOptionActive span {
-  color: var(--color-ink-muted);
-  font-size: 0.75rem;
-  line-height: 1.25;
+  background: var(--chat-accent);
+  color: var(--color-paper-bright);
+  font-weight: 700;
 }
 
 .modeOption:disabled,
@@ -926,20 +936,14 @@
 /* Per-account assistant configuration. Kept inside the mode picker so every
  * personalization control lives in one scannable row. */
 .assistantSettings {
-  display: grid;
-  gap: 0.4rem;
-  margin-top: 0.6rem;
-  padding: 0.7rem 0.75rem;
-  border: 1px dashed var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--chat-surface-muted, #f6fbfa);
-}
-
-.assistantSettingsRow {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
   flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: var(--sp-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .assistantSettingField {
@@ -965,6 +969,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  min-height: var(--chat-touch-size);
   font-size: 0.8125rem;
   color: var(--color-ink);
   cursor: pointer;
@@ -976,25 +981,39 @@
   accent-color: var(--chat-accent);
 }
 
+/* Solid accent button: white on teal-800 is ~9.9:1. Disabled keeps a flat
+ * gray fill (no opacity fade) so the two states stay easy to tell apart. */
 .assistantSettingSave {
   min-height: 2.75rem;
   padding: 0.35rem 0.85rem;
   border: 1px solid var(--chat-accent);
   border-radius: var(--radius-xs);
-  background: #ffffff;
-  color: var(--chat-accent);
+  background: var(--chat-accent);
+  color: var(--color-paper-bright);
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+  transition:
+    background-color var(--chat-transition),
+    border-color var(--chat-transition);
+}
+
+.assistantSettingSave:hover:not(:disabled) {
+  border-color: var(--chat-accent-strong);
+  background: var(--chat-accent-strong);
 }
 
 .assistantSettingSave:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  border-color: var(--color-line);
+  background: var(--color-paper);
+  color: var(--color-ink-muted);
 }
 
 .assistantSettingHint {
-  margin: 0;
+  margin: 0 0 0 auto;
+  min-width: 12rem;
+  text-align: right;
   font-size: 0.75rem;
   color: var(--color-ink-muted);
 }
@@ -1234,11 +1253,23 @@
   }
 
   .safetyBand {
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .modeOptions {
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
+  }
+
+  .modeOption,
+  .modeOptionActive {
+    border-right: 0;
+    border-bottom: 1px solid var(--chat-border);
+  }
+
+  .modeOption:last-child,
+  .modeOptionActive:last-child {
+    border-bottom: 0;
   }
 
   .emergencyItem {
