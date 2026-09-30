@@ -45,8 +45,8 @@ public class ChatRequestCancellationRegistry implements MessageListener {
     // CHAT_LEASE_OPEN/RENEW timeouts in lib/server/healthcare-bff.ts:
     // renew interval (2s) < permit freshness (4s) < lease TTL (8s), and every
     // BFF timeout < permit freshness so a slow-but-valid renewal is never rejected.
-    public static final long LEASE_TTL_MILLIS = 8_000;
-    public static final long RENEWAL_PERMIT_FRESHNESS_MILLIS = 4_000;
+    public static final long LEASE_TTL_MILLIS = 20_000;
+    public static final long RENEWAL_PERMIT_FRESHNESS_MILLIS = 10_000;
 
     private static final Logger log = LoggerFactory.getLogger(ChatRequestCancellationRegistry.class);
     private static final String KEY_PREFIX = "healthcare:ai-chat:request:";

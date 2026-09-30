@@ -56,7 +56,7 @@ const CHAT_CANCEL_NOTIFY_TIMEOUT_MS = 750;
 // renew interval < permit freshness < lease TTL, and each timeout < permit freshness.
 const CHAT_LEASE_OPEN_TIMEOUT_MS = 3_000;
 const CHAT_LEASE_RENEW_INTERVAL_MS = 2_000;
-const CHAT_LEASE_RENEW_TIMEOUT_MS = 2_500;
+const CHAT_LEASE_RENEW_TIMEOUT_MS = 5_000;
 const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 const EMERGENCY_FALLBACK_TERMS = [
   "dau nguc du doi",
@@ -952,6 +952,14 @@ export async function proxyHealthcareRequest(
     );
     const notifyBackendCancellation = () => {
       if (!isCancellableChatRequest || cancellationNotification) return;
+      // Cancellation storms surface later as lease renewal rejections, so
+      // record which pipeline stage dispatched the intent — the caller list
+      // spans browser aborts, lease failures, and prepare/commit errors.
+      console.warn("healthcare_chat_cancel_dispatched", {
+        requestId,
+        apiPath,
+        calledFrom: new Error().stack?.split("\n").slice(2, 5).map(s => s.trim()).join(" <- ") || "unknown",
+      });
       cancellationNotification = (async () => {
         const cancelHeaders = new Headers(headers);
         cancelHeaders.set(REQUEST_ID_HEADER, requestId);
