@@ -97,6 +97,73 @@ test("patient chat keeps medical and emergency limits visible and accessible", a
   assert.match(globalStyles, /\.portal-nav\s*\{[^}]*flex-wrap: nowrap;[^}]*overflow-x: auto;/);
 });
 
+test("patient chat renders safety notices as a compact single-line band", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  // The band keeps its accessible name and both items, but drops the heavy
+  // two-banner layout: 16px icons, no standalone "Thông tin tham khảo."
+  // heading, and the one-word "Khẩn cấp:" emergency lead-in.
+  assert.match(page, /<section aria-label="Lưu ý an toàn khi dùng trợ lý" className=\{styles\.safetyBand\}/);
+  assert.match(page, /<UiIcon name="shield-check" size=\{16\} \/>\s*<p>Trợ lý không thay thế bác sĩ, chẩn đoán, đơn thuốc hoặc hướng dẫn cấp cứu\.<\/p>/);
+  assert.match(page, /<UiIcon name="alert-triangle" size=\{16\} \/>\s*<p><strong>Khẩn cấp:<\/strong> khó thở, đau ngực dữ dội, bất tỉnh — gọi 115 hoặc đến khoa cấp cứu gần nhất, không chờ trợ lý\.<\/p>/);
+  assert.doesNotMatch(page, /<strong>Thông tin tham khảo\.<\/strong>/);
+  assert.doesNotMatch(page, /<strong>Tình huống khẩn cấp\.<\/strong>/);
+});
+
+test("patient chat mode picker is a compact segmented row with tooltips", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  // Heading collapses to the short label; the conditional one-line hint is kept.
+  assert.match(page, /<strong>Chọn mục đích<\/strong>/);
+  assert.doesNotMatch(page, /Chọn mục đích trước khi bắt đầu/);
+  assert.match(page, /Mỗi cuộc trò chuyện giữ một chế độ cố định\./);
+
+  // Mode buttons: label only, description lives in the title tooltip, and the
+  // interactive contract (aria-pressed/disabled/onClick) is untouched.
+  assert.doesNotMatch(page, /<span>\{option\.description\}<\/span>/);
+  assert.match(page, /title=\{option\.description\}/);
+  assert.match(page, /aria-pressed=\{selectedMode === option\.value\}/);
+  assert.match(page, /onClick=\{\(\) => void handleModeSelect\(option\.value\)\}/);
+
+  // Guest mirror uses the same .modeOptions/.modeOption markup: static tile,
+  // no description span, tooltip added — the two surfaces cannot drift.
+  assert.match(page, /<div className=\{styles\.modeOption\} key=\{option\.value\} title=\{option\.description\}>\s*<strong>\{option\.label\}<\/strong>\s*<\/div>/);
+
+  // Settings row is inlined under .assistantSettings: no wrapper, shorter
+  // toggle label, and the live-status hint stays a direct child.
+  assert.doesNotMatch(page, /assistantSettingsRow/);
+  assert.match(page, /<span>Gợi ý cá nhân hóa \(tên, lịch hẹn sắp tới\)<\/span>/);
+  assert.match(page, /<p aria-live="polite" className=\{styles\.assistantSettingHint\} role="status">/);
+});
+
+test("chat safety band and mode picker stay single-line with high-contrast save button", async () => {
+  const [page, css] = await Promise.all([
+    read("app/patient/chat/page.tsx"),
+    read("app/patient/chat/chat.module.css"),
+  ]);
+
+  // (a) The emergency item keeps only a hairline divider — no large red panel.
+  assert.doesNotMatch(css, /\.emergencyItem\s*\{[^}]*background:/);
+  // (b) The safety band is a single thin flex strip, not a two-column grid.
+  assert.match(css, /\.safetyBand\s*\{[^}]*display:\s*flex/);
+  // (c) The save button is a solid accent button with paper-bright text; the
+  // disabled state must stay a real flat style, not faded opacity.
+  const saveBlock = css.match(/\.assistantSettingSave\s*\{[^}]*\}/);
+  assert.ok(saveBlock, "chat.module.css must define .assistantSettingSave");
+  assert.match(saveBlock[0], /background: var\(--chat-accent\)/);
+  assert.match(saveBlock[0], /color: var\(--color-paper-bright\)/);
+  assert.doesNotMatch(css, /\.assistantSettingSave:disabled\s*\{[^}]*opacity/);
+  // (d) Both locked safety substrings stay verbatim; descriptions became
+  // title tooltips.
+  assert.match(page, /Trợ lý không thay thế bác sĩ, chẩn đoán, đơn thuốc hoặc hướng dẫn cấp cứu/);
+  assert.match(page, /gọi 115 hoặc đến khoa cấp cứu gần nhất/);
+  assert.match(page, /title=\{option\.description\}/);
+  // (e) Flat UI: no shadows besides explicit `box-shadow: none` resets — the
+  // negative-lookahead pattern is copied from floating-assistant.test.mjs:104
+  // because chat.module.css legitimately contains three `none` resets.
+  assert.doesNotMatch(css, /box-shadow:(?!\s*none\b)/);
+});
+
 test("patient chat keeps consent fail-closed when policy is missing or changes", async () => {
   const page = await read("app/patient/chat/page.tsx");
 
