@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import { register, resendVerificationEmail } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, maskEmail, type AuthFieldErrors } from "../../../lib/auth-flow";
 
-export default function RegisterPage() {
+// Query-driven prefill (the /tra-cuu bridge appends ?phone=&email=) requires
+// the same Suspense boundary pattern as the verify-email and reset-password
+// routes.
+function RegisterForm() {
+  const searchParams = useSearchParams();
   const [displayName, setDisplayName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState(searchParams.get("phone") ?? "");
+  const [email, setEmail] = useState(searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -83,7 +88,7 @@ export default function RegisterPage() {
         <div className="auth-card__brand"><BrandMark tagline="Tài khoản bệnh nhân" /></div>
         <p className="section-note">ĐĂNG KÝ AN TOÀN</p>
         <h1 id="register-title">Tạo tài khoản bệnh nhân</h1>
-        <p className="auth-card__intro">Số điện thoại giúp liên kết đúng lịch hẹn với hồ sơ của bạn. Không nhập triệu chứng hoặc dữ liệu khám bệnh tại đây.</p>
+        <p className="auth-card__intro">Dùng đúng SĐT VÀ email bạn đã dùng khi đặt lịch (kể cả đặt với tư cách khách) để lịch cũ tự xuất hiện trong cổng.</p>
 
         {pendingEmail ? (
           <section aria-live="polite" className="auth-status auth-status--success" role="status">
@@ -139,5 +144,13 @@ export default function RegisterPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<main className="auth-page"><div aria-live="polite" className="auth-route-loading" role="status">Đang mở trang đăng ký...</div></main>}>
+      <RegisterForm />
+    </Suspense>
   );
 }

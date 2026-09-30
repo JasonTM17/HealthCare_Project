@@ -97,11 +97,17 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ApiError> handleDuplicate(DuplicateResourceException ex, WebRequest request) {
+        // The specific code thrown by the service (e.g. PHONE_OWNED_BY_ACCOUNT,
+        // PHONE_LINKED_TO_BOOKING_EMAIL) must survive to the HTTP body — the
+        // register flow's FE keys its actionable guidance on it. The 4-arg
+        // ApiError ctor would default the code to generic CONFLICT and erase it.
         ApiError error = new ApiError(
             409,
             "Conflict",
             ex.getMessage(),
-            extractPath(request)
+            extractPath(request),
+            List.of(),
+            ex.getCode()
         );
         return ResponseEntity.status(409).body(error);
     }

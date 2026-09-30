@@ -47,6 +47,18 @@ public final class ErrorCodes {
     public static final String DEMO_MUTATION_FORBIDDEN = "DEMO_MUTATION_FORBIDDEN";
     /** HC-01/D-01: deployments that are not the demo reject demo personas at authentication. */
     public static final String DEMO_LOGIN_DISABLED = "DEMO_LOGIN_DISABLED";
+    /**
+     * Registration tried to claim a contact phone that is already bound to a
+     * live account. The block is intentional (anti-hijack); the code exists so
+     * the caller can be told to sign in instead of wondering who owns the phone.
+     */
+    public static final String PHONE_OWNED_BY_ACCOUNT = "PHONE_OWNED_BY_ACCOUNT";
+    /**
+     * Registration tried to claim a contact phone that a guest used to book
+     * under a different email. Still blocked; the code points the caller at
+     * the booking confirmation email so registration can succeed there.
+     */
+    public static final String PHONE_LINKED_TO_BOOKING_EMAIL = "PHONE_LINKED_TO_BOOKING_EMAIL";
 
     public static final String BAD_REQUEST = "BAD_REQUEST";
     public static final String SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";

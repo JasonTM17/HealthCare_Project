@@ -5,7 +5,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -34,10 +37,27 @@ public class BankStatementImportService {
 
     private final BankTransferPaymentService paymentService;
     private final JdbcTemplate jdbcTemplate;
+    private final TransactionTemplate confirmTemplate;
 
-    public BankStatementImportService(BankTransferPaymentService paymentService, JdbcTemplate jdbcTemplate) {
+    public BankStatementImportService(BankTransferPaymentService paymentService, JdbcTemplate jdbcTemplate,
+            PlatformTransactionManager transactionManager) {
         this.paymentService = paymentService;
         this.jdbcTemplate = jdbcTemplate;
+        // confirmFromWebhook is @Transactional(REQUIRED). Called plainly from
+        // inside the import transaction it would JOIN it, and the interceptor
+        // marks that shared transaction rollback-only the moment the gate
+        // throws — long before match() catches the ResponseStatusException.
+        // The commit of the whole import (bank_statement_imports header
+        // included) would then die with UnexpectedRollbackException: one
+        // unmatched statement line would erase every matched sibling and the
+        // audit trace in one stroke. Each confirm therefore runs in its own
+        // committed-or-rolled-back transaction, the same isolation the webhook
+        // service gives its evidence writer (BankTransferWebhookService). The
+        // confirm gate only touches payments/appointments/audit — disjoint
+        // from the statement tables this class writes — so suspending the
+        // ambient transaction here cannot self-deadlock.
+        this.confirmTemplate = new TransactionTemplate(transactionManager);
+        this.confirmTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     public record ImportResult(UUID importId, int totalRows, int matchedRows, int duplicateRows,
@@ -120,12 +140,15 @@ public class BankStatementImportService {
      * Reuses the webhook confirm gate verbatim; returns null on success or the
      * unmatched note. The evidence-style event id keeps audit fingerprints
      * stable across a re-import that arrives after the booking is confirmed.
+     * The confirm runs in its own REQUIRES_NEW transaction (see the
+     * constructor): a caught 404/409 must roll back only that gate's own
+     * transaction, never the import transaction that is still open around it.
      */
     private String match(BankStatementParser.StatementRow row, String rowHash) {
         String eventId = "stmt-" + rowHash.substring(0, 16);
         try {
-            paymentService.confirmFromWebhook(
-                new BankTransferWebhookRequest(row.transferContent(), row.amount(), bankReference(row)), eventId);
+            confirmTemplate.execute(status -> paymentService.confirmFromWebhook(
+                new BankTransferWebhookRequest(row.transferContent(), row.amount(), bankReference(row)), eventId));
             jdbcTemplate.update("update bank_statement_rows set matched = true, note = null where row_hash = ?",
                 rowHash);
             return null;

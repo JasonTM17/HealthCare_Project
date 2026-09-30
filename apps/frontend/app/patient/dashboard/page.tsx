@@ -366,6 +366,37 @@ function findUpcomingAppointment(page: Page<PatientPortalAppointment>): PatientP
     .sort((left, right) => appointmentDateTimeKey(left).localeCompare(appointmentDateTimeKey(right)))[0] ?? null;
 }
 
+/**
+ * Appends a fetched page onto the accumulated patient feed. Dedupe by id is
+ * required because a deep-link scan and a manual "Xem thêm" may both fetch the
+ * same page from stale bases; the merged envelope keeps the totals of the
+ * latest response so the badge and load-more control stay truthful.
+ */
+function mergePatientAppointmentPages(
+  current: Page<PatientPortalAppointment>,
+  next: Page<PatientPortalAppointment>,
+): Page<PatientPortalAppointment> {
+  const seen = new Set(current.content.map((appointment) => appointment.id));
+  const content = [...current.content];
+  for (const appointment of next.content) {
+    if (!seen.has(appointment.id)) {
+      seen.add(appointment.id);
+      content.push(appointment);
+    }
+  }
+  return { ...next, content };
+}
+
+/**
+ * True only when every page of the patient feed has been loaded. A deep-link
+ * id may only be declared "not linked to this account" once this is satisfied —
+ * checking page 0 alone wrongly told owners of older appointments their
+ * appointment did not exist.
+ */
+function appointmentFeedFullyLoaded(page: Page<PatientPortalAppointment>): boolean {
+  return page.last || page.content.length >= page.totalElements;
+}
+
 function isOverdueCarePlanItem(item: CarePlan["items"][number]): boolean {
   return item.status === "OPEN" && Boolean(item.dueAt) && Date.parse(item.dueAt ?? "") < Date.now();
 }
@@ -711,6 +742,8 @@ export default function PatientDashboardPage() {
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<PatientPortalAppointment | null>(null);
   const [selectedPaymentAppointmentId, setSelectedPaymentAppointmentId] = useState<string | null>(null);
+  const [appointmentsLoadingMore, setAppointmentsLoadingMore] = useState(false);
+  const [appointmentsMoreError, setAppointmentsMoreError] = useState<string | null>(null);
   const [payment, setPayment] = useState<Loadable<BankTransferPayment> | null>(null);
   // "Now" captured whenever fresh payment data lands; the overdue check must
   // not call Date.now() during render (React purity rules).
@@ -855,6 +888,72 @@ export default function PatientDashboardPage() {
       return changed ? { status: "success", data: { ...current.data, content } } : current;
     });
   }, []);
+
+  /**
+   * Fetches one further page of the patient feed and appends it into state.
+   * Returns the fetched rows (unfiltered) so the deep-link scanner can search
+   * them without waiting for a re-render; null means the page load failed.
+   */
+  const appendAppointmentPage = useCallback(async (nextPageNumber: number, pageSize: number): Promise<PatientPortalAppointment[] | null> => {
+    try {
+      const next = await fetchPatientAppointments(nextPageNumber, pageSize);
+      setAppointments((current) =>
+        current.status === "success" ? { status: "success", data: mergePatientAppointmentPages(current.data, next) } : current,
+      );
+      setAppointmentsMoreError(null);
+      return next.content;
+    } catch (error) {
+      if (getErrorStatus(error) === 401) {
+        clearAuthSession();
+        return null;
+      }
+      setAppointmentsMoreError(getErrorMessage(error));
+      return null;
+    }
+  }, []);
+
+  const handleLoadMoreAppointments = useCallback(() => {
+    if (appointments.status !== "success" || appointmentsLoadingMore) return;
+    const current = appointments.data;
+    const nextPageNumber = current.number + 1;
+    if (nextPageNumber >= current.totalPages) return;
+    setAppointmentsLoadingMore(true);
+    void appendAppointmentPage(nextPageNumber, current.size).finally(() => {
+      setAppointmentsLoadingMore(false);
+    });
+  }, [appendAppointmentPage, appointments, appointmentsLoadingMore]);
+
+  /**
+   * Resolves a deep-linked appointment id (id or booking code) against the
+   * whole paged feed. Page 0 alone is not the account: a payment or reschedule
+   * deep link that points at an older appointment must walk the remaining
+   * pages (appending each into state) before the caller may conclude the
+   * appointment is not linked to this account. A failed page fetch leaves the
+   * partial feed in place and returns null without claiming a conclusion.
+   */
+  const findAppointmentAcrossPages = useCallback(async (requestedId: string): Promise<PatientPortalAppointment | null> => {
+    if (appointments.status !== "success") return null;
+    const matchesRequest = (appointment: PatientPortalAppointment) =>
+      appointment.id === requestedId || appointment.bookingCode === requestedId;
+    const direct = appointments.data.content.find(matchesRequest);
+    if (direct) return direct;
+    let accumulated = appointments.data;
+    while (accumulated.number + 1 < accumulated.totalPages) {
+      try {
+        const next = await fetchPatientAppointments(accumulated.number + 1, accumulated.size);
+        accumulated = mergePatientAppointmentPages(accumulated, next);
+        setAppointments((current) =>
+          current.status === "success" ? { status: "success", data: mergePatientAppointmentPages(current.data, next) } : current,
+        );
+        const found = next.content.find(matchesRequest);
+        if (found) return found;
+      } catch (error) {
+        if (getErrorStatus(error) === 401) clearAuthSession();
+        return null;
+      }
+    }
+    return null;
+  }, [appointments]);
 
   useEffect(() => {
     if (payment?.status === "success" && payment.data.payByDeadline) {
@@ -1056,18 +1155,41 @@ export default function PatientDashboardPage() {
   useEffect(() => {
     if (appointments.status !== "success" || !paymentAppointmentId) return;
     if (handledPaymentAppointmentIdRef.current === paymentAppointmentId) return;
-    const target = appointments.data.content.find(
-      (appointment) => appointment.id === paymentAppointmentId || appointment.bookingCode === paymentAppointmentId,
-    );
-    if (!target) return;
+    // Claim the deep link up front so exactly one cross-page scan runs per
+    // requested id — the scan itself appends pages into state, and each append
+    // would otherwise re-trigger this effect and duplicate the remaining scans.
     handledPaymentAppointmentIdRef.current = paymentAppointmentId;
-    const timer = window.setTimeout(() => void handleChoosePayment(target), 0);
-    return () => window.clearTimeout(timer);
-  }, [appointments, handleChoosePayment, paymentAppointmentId]);
+    let timer: number | null = null;
+    let cancelled = false;
+    void findAppointmentAcrossPages(paymentAppointmentId)
+      .then((target) => {
+        if (cancelled) return;
+        if (!target) {
+          // Scanned every page: the id is genuinely not linked to this
+          // account. Keep the claim so unrelated feed updates do not restart
+          // the scan; the missing-notice below reflects the exhausted feed.
+          return;
+        }
+        timer = window.setTimeout(() => void handleChoosePayment(target), 0);
+      })
+      .catch(() => {
+        // A page fetch failed mid-scan. Release the claim so a later feed
+        // change retries the scan instead of freezing a partial conclusion.
+        handledPaymentAppointmentIdRef.current = null;
+      });
+    return () => {
+      cancelled = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [appointments, findAppointmentAcrossPages, handleChoosePayment, paymentAppointmentId]);
 
+  // The "not linked" notice is only truthful once the whole paged feed has
+  // been loaded — a page-0-only check accused owners of older appointments of
+  // following a broken link.
   const requestedPaymentMissing = Boolean(
     paymentAppointmentId
       && appointments.status === "success"
+      && appointmentFeedFullyLoaded(appointments.data)
       && !appointments.data.content.some(
         (appointment) => appointment.id === paymentAppointmentId || appointment.bookingCode === paymentAppointmentId,
       ),
@@ -1081,17 +1203,23 @@ export default function PatientDashboardPage() {
     if (appointments.status !== "success") return;
     if (!appointmentId || handledAppointmentIdRef.current === appointmentId || selectedAppointment) return;
 
-    const targetAppointment = appointments.data.content.find(
-      (appointment) => appointment.id === appointmentId || appointment.bookingCode === appointmentId,
-    );
-    if (!targetAppointment) return;
-
     handledAppointmentIdRef.current = appointmentId;
-    // The route alias should open the inline reschedule panel once the
-    // target appointment has been resolved.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    handleChooseReschedule(targetAppointment);
-  }, [appointmentId, appointments, handleChooseReschedule, selectedAppointment]);
+    let cancelled = false;
+    void findAppointmentAcrossPages(appointmentId)
+      .then((targetAppointment) => {
+        if (cancelled || !targetAppointment) return;
+        // The route alias should open the inline reschedule panel once the
+        // target appointment has been resolved across the paged feed.
+        handleChooseReschedule(targetAppointment);
+      })
+      .catch(() => {
+        // A page fetch failed mid-scan; release the claim so the scan retries.
+        handledAppointmentIdRef.current = null;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [appointmentId, appointments, findAppointmentAcrossPages, handleChooseReschedule, selectedAppointment]);
 
   const [activeHash, setActiveHash] = useState<string>("");
   const [selectedTab, setSelectedTab] = useState<TabKey | null>(null);
@@ -1638,8 +1766,22 @@ export default function PatientDashboardPage() {
             retry={retry}
             state={appointments}
           >
-            {(page) => <PortalAppointments activePaymentAppointmentId={selectedPaymentAppointmentId ?? undefined} onCancel={handleChooseCancel} onPayment={(appointment) => void handleChoosePayment(appointment)} onReschedule={handleChooseReschedule} page={page} viewer="patient" />}
+            {(page) => (
+              <PortalAppointments
+                activePaymentAppointmentId={selectedPaymentAppointmentId ?? undefined}
+                loadingMore={appointmentsLoadingMore}
+                onCancel={handleChooseCancel}
+                onLoadMore={handleLoadMoreAppointments}
+                onPayment={(appointment) => void handleChoosePayment(appointment)}
+                onReschedule={handleChooseReschedule}
+                page={page}
+                viewer="patient"
+              />
+            )}
           </StateContent>
+          {appointmentsMoreError ? (
+            <p className="section-note" role="alert">Không tải được thêm lịch hẹn: {appointmentsMoreError}</p>
+          ) : null}
           <ConfirmActionDialog
             confirmLabel="Xác nhận hủy lịch"
             confirmingLabel="Đang hủy…"

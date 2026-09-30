@@ -138,10 +138,22 @@ public class AuthService {
         PatientProfile reusableProfile = normalizedPhone == null
             ? null
             : patientProfileRepository.findByPhone(normalizedPhone).orElse(null);
-        if (reusableProfile != null && (reusableProfile.getUserId() != null
-                || reusableProfile.getEmail() == null
+        // The claim stays blocked in both branches (anti-hijack: registration
+        // must never adopt a phone some other identity already books with),
+        // but the generic 409/CONFLICT split into two actionable codes so the
+        // blocked caller knows which path can still succeed.
+        if (reusableProfile != null && reusableProfile.getUserId() != null) {
+            throw new DuplicateResourceException(
+                ErrorCodes.PHONE_OWNED_BY_ACCOUNT,
+                "Số điện thoại này đã liên kết một tài khoản khác — hãy đăng nhập hoặc dùng SĐT khác"
+            );
+        }
+        if (reusableProfile != null && (reusableProfile.getEmail() == null
                 || !normalizedEmail.equals(reusableProfile.getEmail().trim().toLowerCase()))) {
-            throw new DuplicateResourceException("Phone number already registered");
+            throw new DuplicateResourceException(
+                ErrorCodes.PHONE_LINKED_TO_BOOKING_EMAIL,
+                "Số điện thoại này đã dùng đặt lịch với một email khác — hãy đăng ký bằng email bạn đã nhận mã xác nhận đặt lịch"
+            );
         }
 
         Role patientRole = roleRepository.findByCode("PATIENT")
