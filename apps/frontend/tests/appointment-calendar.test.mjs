@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildGoogleCalendarUrl, buildIcsCalendar } from "../lib/appointment-calendar.ts";
+import { buildGoogleCalendarUrl, buildIcsCalendar, buildIcsCalendarMany } from "../lib/appointment-calendar.ts";
 import { presentApiError } from "../lib/present-api-error.ts";
 
 test("calendar exports keep only the appointment time and omit medical identifiers", () => {
@@ -88,6 +88,47 @@ test("calendar exports do not encode booking identity when patientName is omitte
   assert.match(ics, /DTSTART;TZID=Asia\/Ho_Chi_Minh:20261201T100000/u);
   assert.match(ics, /DTEND;TZID=Asia\/Ho_Chi_Minh:20261201T103000/u);
   assert.doesNotMatch(ics, /APT-PORTAL-999|BS Lê Văn C|HealthCare/u);
+});
+
+const icsSample = {
+  appointmentId: "3f1c2a4b-5d6e-4f70-8a9b-0c1d2e3f4a5b",
+  bookingCode: "MED-ICS-001",
+  appointmentDate: "2026-10-15",
+  startTime: "09:30",
+  endTime: "10:00",
+};
+
+function assertIcsTimezoneContract(ics, label) {
+  // RFC 5545: a DTSTART/DTEND carrying TZID must ship the matching VTIMEZONE definition,
+  // otherwise Apple Calendar / Outlook fall back to UTC and shift the appointment by 7 hours.
+  assert.ok(ics.includes("BEGIN:VTIMEZONE"), `${label} is missing BEGIN:VTIMEZONE`);
+  assert.ok(ics.includes("TZID:Asia/Ho_Chi_Minh"), `${label} VTIMEZONE must define TZID=Asia/Ho_Chi_Minh`);
+  assert.ok(ics.includes("BEGIN:STANDARD"), `${label} VTIMEZONE must contain a STANDARD component`);
+  assert.ok(ics.includes("DTSTART:19700101T000000"), `${label} VTIMEZONE STANDARD needs DTSTART:19700101T000000`);
+  assert.ok(ics.includes("TZOFFSETFROM:+0700"), `${label} VTIMEZONE needs TZOFFSETFROM:+0700`);
+  assert.ok(ics.includes("TZOFFSETTO:+0700"), `${label} VTIMEZONE needs TZOFFSETTO:+0700`);
+  assert.ok(ics.includes("TZNAME:ICT"), `${label} VTIMEZONE needs TZNAME:ICT`);
+  assert.ok(ics.includes("END:STANDARD"), `${label} VTIMEZONE must close the STANDARD component`);
+  assert.ok(ics.includes("END:VTIMEZONE"), `${label} VTIMEZONE must be closed`);
+  // The definition must be present for the TZID actually emitted in the VEVENT lines.
+  assert.match(ics, /DTSTART;TZID=Asia\/Ho_Chi_Minh:/u, `${label} events still reference the Asia/Ho_Chi_Minh TZID`);
+  assert.ok(ics.indexOf("BEGIN:VTIMEZONE") < ics.indexOf("BEGIN:VEVENT"), `${label} VTIMEZONE should precede VEVENT`);
+  // RFC 5545 §3.1: content lines are terminated by CRLF, so the file must end with one.
+  assert.ok(ics.endsWith("\r\n"), `${label} must end with a trailing CRLF`);
+}
+
+test("buildIcsCalendar embeds the Asia/Ho_Chi_Minh VTIMEZONE and ends with CRLF", () => {
+  assertIcsTimezoneContract(buildIcsCalendar(icsSample), "buildIcsCalendar");
+});
+
+test("buildIcsCalendarMany embeds the VTIMEZONE once and ends with CRLF", () => {
+  const many = buildIcsCalendarMany([
+    icsSample,
+    { ...icsSample, appointmentId: "9e8d7c6b-5a49-3827-1605-b4c3d2e1f0a9", appointmentDate: "2026-10-16" },
+  ]);
+  assertIcsTimezoneContract(many, "buildIcsCalendarMany");
+  assert.equal(many.split("BEGIN:VTIMEZONE").length - 1, 1, "VTIMEZONE must be embedded once, not per event");
+  assert.equal(many.split("BEGIN:VEVENT").length - 1, 2, "both appointments must be present");
 });
 
 test("re-exporting one appointment keeps one opaque UID while different appointments differ", () => {

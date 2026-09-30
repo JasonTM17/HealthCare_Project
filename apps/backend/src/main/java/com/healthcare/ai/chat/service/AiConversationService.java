@@ -130,7 +130,18 @@ public class AiConversationService {
     @Value("${ai.chat.chunked-enabled:false}")
     private boolean chunkedEnabled = false;
 
+    /**
+     * @deprecated Legacy window of the periodic stale-chat sweep. The sweep
+     * now cuts off at the full {@code ai.chat.retention-days} window: purging
+     * conversations that were idle for only 14 days silently broke the consent
+     * promise "Chat được lưu tối đa 90 ngày" (76 days of early deletion, and
+     * it also destroyed the credit-ledger attempt markers before reconciliation
+     * could run). The property stays bindable so existing deployments that set
+     * {@code ai.chat.two-week-cleanup-days} start cleanly; its value is ignored.
+     */
+    @Deprecated(forRemoval = true)
     @Value("${ai.chat.two-week-cleanup-days:14}")
+    @SuppressWarnings("unused")
     private int twoWeekCleanupDays = 14;
 
     @Autowired
@@ -841,9 +852,16 @@ public class AiConversationService {
     }
 
     /**
-     * Periodic cleanup running every 5 days to permanently purge
-     * conversations older than 2 weeks (14 days).
-     * Default cron triggers at 03:00 every 5 days.
+     * Periodic stale-chat sweep running every 5 days. It purges conversations
+     * whose last activity is older than the FULL retention window
+     * ({@code ai.chat.retention-days}, i.e. the 90 days promised by the
+     * consent text and returned by {@code policy()}) — a defense-in-depth net
+     * behind {@link #purgeExpired()}, which already deletes rows once
+     * {@code expiresAt} passes. The legacy 14-day window was dropped: it
+     * deleted idle patients' history 76 days before the advertised retention
+     * and took the credit-ledger attempt markers with it. The method name is
+     * kept for call-site and configuration compatibility; the cutoff is
+     * retention-based. Default cron triggers at 03:00 every 5 days.
      */
     @Scheduled(cron = "${ai.chat.two-week-cleanup-cron:0 0 3 1/5 * *}")
     @Transactional
@@ -851,7 +869,7 @@ public class AiConversationService {
         if (!cleanupEnabled) {
             return 0;
         }
-        OffsetDateTime cutoff = now().minusDays(twoWeekCleanupDays);
+        OffsetDateTime cutoff = now().minusDays(retentionDays);
         int totalDeleted = 0;
         for (int batch = 0; batch < cleanupMaxBatches; batch++) {
             List<AiConversation> older = conversationRepository.findOlderThanCutoff(
@@ -868,7 +886,7 @@ public class AiConversationService {
             }
         }
         if (totalDeleted > 0) {
-            log.info("Purged {} AI conversations older than {} days (cutoff: {})", totalDeleted, twoWeekCleanupDays, cutoff);
+            log.info("Purged {} AI conversations idle beyond the {}-day retention (cutoff: {})", totalDeleted, retentionDays, cutoff);
         }
         return totalDeleted;
     }
@@ -994,13 +1012,40 @@ public class AiConversationService {
         // produced by safetyResponse with zero provider work, carried as the
         // prepared free answer; complete() waives the EMERGENCY outcome, so no
         // credit is charged for it even when the patient can pay.
+        // Weekly refill (V108), after the crisis bypass: an emergency answer
+        // never touches credits, so it does not need — and must not trigger —
+        // a grant. Placing the refill right before the balance gate is what
+        // makes "ran out last week" chat again this week without an admin
+        // grant: it runs in its own physical transaction (REQUIRES_NEW on
+        // refillPatientCreditsWeekly) and commits before returning, so the
+        // gate below reads the topped-up balance as committed fact. The
+        // grant is a conditional atomic update (once per ISO week per
+        // patient) with the ux_ai_credit_refill_patient_week index as the
+        // database backstop, so concurrent sends, retries, and a second
+        // instance cannot double-grant. It is also strictly best-effort: the
+        // refill is a topping, not a billing dependency, so every runtime
+        // failure of the inner transaction (inconsistent ledger history, a
+        // constraint race, an UnexpectedRollbackException from its commit)
+        // is logged and swallowed HERE — the outer prepare transaction never
+        // sees the abort, the chat turn is not poisoned, and the gate runs
+        // against the balance as it is. AiCreditService#
+        // refillPatientCreditsWeekly documents the contract.
         SanitizedAiResponse freeAnswer = null;
         if (ChatMedicalSafety.containsEmergencyInputCue(content)) {
             freeAnswer = safetyResponse(conversation.getMode(), "EMERGENCY", content);
-        } else if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
-            freeAnswer = localProviderFreeAnswer(conversation.getMode(), content);
-            if (freeAnswer == null) {
-                aiCreditService.requirePatientCredits(userId);
+        } else {
+            if (aiCreditService != null) {
+                try {
+                    aiCreditService.refillPatientCreditsWeekly(userId);
+                } catch (RuntimeException refillFailure) {
+                    log.warn("weekly credit refill skipped", refillFailure);
+                }
+            }
+            if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
+                freeAnswer = localProviderFreeAnswer(conversation.getMode(), content);
+                if (freeAnswer == null) {
+                    aiCreditService.requirePatientCredits(userId);
+                }
             }
         }
 
