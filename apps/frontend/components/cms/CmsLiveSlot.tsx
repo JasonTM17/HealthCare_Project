@@ -19,6 +19,14 @@ export interface CmsLiveSlotProps {
   slotKey: CmsSlotKey;
   client?: CmsClient;
   pollIntervalMs?: number;
+  /**
+   * Opt in to the shared SSE change-feed. Public slots keep it off: every open
+   * tab would otherwise pin a Vercel Fluid invocation for ~30s out of every
+   * ~31s (the BFF caps the stream at 30s and EventSource reconnects right
+   * away, even in background tabs), which is what exhausted Fluid Provisioned
+   * Memory. Polling below refreshes only while the tab is visible.
+   */
+  liveFeed?: boolean;
   className?: string;
   showSourceLabel?: boolean;
   /** Keep transport, version, and transient CMS diagnostics out of patient-facing slots. */
@@ -76,7 +84,8 @@ export function CmsLiveSlot({
   slug,
   slotKey,
   client = defaultCmsClient,
-  pollIntervalMs = 15_000,
+  pollIntervalMs = 60_000,
+  liveFeed = false,
   className = "",
   showSourceLabel = true,
   quiet = false,
@@ -316,8 +325,11 @@ export function CmsLiveSlot({
 
     // CmsClient multiplexes every live slot onto one EventSource and owns its
     // bounded reconnect policy. This effect only owns this slot's durable
-    // reconciliation and polling fallback.
-    stopFeed = client.subscribeToChanges({
+    // reconciliation and polling fallback. Public slots keep the feed OFF by
+    // default (`liveFeed` opts in) so an idle tab never pins a Fluid
+    // invocation; the visibility-gated poll loop below is their updater.
+    if (liveFeed) {
+      stopFeed = client.subscribeToChanges({
         // Keep zero explicit so a reconnect after a failed first refresh asks
         // the backend to replay from the beginning instead of silently
         // dropping the event that triggered the failed refresh.
@@ -436,6 +448,7 @@ export function CmsLiveSlot({
           });
         },
       });
+    }
 
     // Even the first/fallback snapshot bypasses a potentially stale
     // per-instance cache. The durable cursor is the cache-coherence boundary.
@@ -456,18 +469,43 @@ export function CmsLiveSlot({
         setTransport("sse");
       }
     });
-    // Some browser/proxy combinations can leave EventSource "open" while
-    // buffering named SSE frames. Keep a quiet cache-coherence watchdog so a
-    // missed live event still reconciles from the durable backend snapshot.
-    startSafetyPolling();
+    // Visibility gating for polling-only slots: a hidden tab stops its loop
+    // entirely (an open EventSource kept the Fluid invocation pinned even in
+    // background tabs — the exact behavior being removed), and returning to
+    // the tab re-reads immediately so nothing published in between is missed.
+    const handleVisibilityChange = (): void => {
+      if (cancelled) return;
+      if (document.visibilityState === "visible") {
+        startPolling();
+        void runPoll();
+      } else {
+        stopPolling();
+      }
+    };
+    if (!liveFeed && typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+    if (liveFeed) {
+      // Some browser/proxy combinations can leave EventSource "open" while
+      // buffering named SSE frames. Keep a quiet cache-coherence watchdog so a
+      // missed live event still reconciles from the durable backend snapshot.
+      startSafetyPolling();
+    } else {
+      // Polling-only mode: the visibility-gated poll loop is the only
+      // updater, so arm it even when the first read succeeded.
+      startPolling();
+    }
 
     return () => {
       cancelled = true;
       stopFeed();
       stopPolling();
       stopSafetyPolling();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
     };
-  }, [backendSlotKey, client, pollIntervalMs]);
+  }, [backendSlotKey, client, pollIntervalMs, liveFeed]);
 
   if (hideWhileLoading && loading && !content && !error) return <></>;
 

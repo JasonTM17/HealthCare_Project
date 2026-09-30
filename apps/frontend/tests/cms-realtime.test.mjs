@@ -106,7 +106,7 @@ test("CMS renderer is allowlisted and never interprets raw HTML", async () => {
   assert.match(source, /isSafeCmsUrl/);
 });
 
-test("public live slot listens to named SSE changes and has polling fallback", async () => {
+test("public live slot gates the SSE change feed behind liveFeed and polls while visible", async () => {
   const client = await read("lib/cms-client.ts");
   const liveSlot = await read("components/cms/CmsLiveSlot.tsx");
   const routeSlots = await read("components/cms/RouteCmsSlots.tsx");
@@ -129,6 +129,19 @@ test("public live slot listens to named SSE changes and has polling fallback", a
   assert.match(liveSlot, /resolveCmsSlotKey/);
   assert.match(liveSlot, /setTimeout/);
   assert.match(liveSlot, /client\.subscribeToChanges/);
+  // Fluid-cost regression guard: the SSE change-feed pins a Vercel invocation
+  // ~30s per ~31s for every open tab, so it must stay opt-in (`liveFeed`),
+  // the public default must be visibility-gated polling, and a hidden tab
+  // must stop its loop entirely.
+  assert.match(liveSlot, /liveFeed\?: boolean/);
+  assert.match(liveSlot, /liveFeed = false/);
+  assert.match(liveSlot, /pollIntervalMs = 60_000/);
+  assert.match(liveSlot, /if \(liveFeed\) \{\s+stopFeed = client\.subscribeToChanges/);
+  assert.match(liveSlot, /document\.visibilityState === "visible"/);
+  assert.match(liveSlot, /addEventListener\("visibilitychange", handleVisibilityChange\)/);
+  assert.match(liveSlot, /removeEventListener\("visibilitychange", handleVisibilityChange\)/);
+  assert.match(liveSlot, /if \(liveFeed\) \{[\s\S]{0,400}startSafetyPolling\(\)/);
+  assert.match(liveSlot, /\[backendSlotKey, client, pollIntervalMs, liveFeed\]/);
   assert.match(liveSlot, /sseConnected/);
   assert.match(liveSlot, /pendingVersionFloor/);
   assert.match(liveSlot, /refresh\(event\.version, event\.eventId\)/);
