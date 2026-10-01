@@ -2390,7 +2390,7 @@ def _validated_llm_response(
     except Exception:
         if fallback_allowed:
             return fallback
-        raise ProviderUnavailable()
+        raise ProviderUnavailable("pu-01")
 
     questions = [question for question in candidate.suggested_questions if question][:3]
     if not questions:
@@ -2402,7 +2402,7 @@ def _validated_llm_response(
     ):
         if fallback_allowed:
             return fallback
-        raise ProviderUnavailable()
+        raise ProviderUnavailable("pu-02")
     return TriageResponse(
         recommended_specialty=candidate.recommended_specialty,
         urgency_level=candidate.urgency_level,
@@ -2436,7 +2436,7 @@ def deepseek_triage(
     if client is None:
         if allow_fallback:
             return fallback
-        raise ProviderUnavailable()
+        raise ProviderUnavailable("pu-03")
 
     try:
         data = client.complete_json(
@@ -2470,7 +2470,7 @@ def deepseek_triage(
         # exception class name is recorded so an operator can tell an egress
         # failure from an auth/quota failure.
         logger.warning("patient provider call failed type=%s", type(exc).__name__)
-        raise ProviderUnavailable()
+        raise ProviderUnavailable("pu-04")
 
 
 def resolve_triage(
@@ -2489,7 +2489,7 @@ def resolve_triage(
             return rule_based_triage(symptoms).model_copy(update={"provenance": "local_fallback"})
         client = build_llm_client(settings)
         if client is None and not runtime_allows_local_fallback(settings):
-            raise ProviderUnavailable()
+            raise ProviderUnavailable("pu-05")
         return deepseek_triage(
             symptoms,
             settings,
@@ -2649,7 +2649,7 @@ def resolve_chat(
         allow_approved_clinical=allow_approved_clinical,
     ):
         if public_remote_enabled:
-            raise ProviderUnavailable()
+            raise ProviderUnavailable("pu-06")
         return ChatResponse(
             answer=fallback,
             provenance="local_fallback",
@@ -2707,9 +2707,9 @@ def resolve_chat(
                 getattr(settings, "remote_ai_release_hold", None),
                 patient_chat_remote_enabled(settings),
             )
-            raise ProviderUnavailable()
+            raise ProviderUnavailable("pu-07")
         if not fallback_allowed:
-            raise ProviderUnavailable()
+            raise ProviderUnavailable("pu-08")
         return ChatResponse(
             answer=fallback,
             provenance="local_fallback",
@@ -2724,7 +2724,7 @@ def resolve_chat(
                 "public provider request rejected: circuit open (failures=%s)",
                 _CIRCUIT_FAILURES,
             )
-            raise ProviderUnavailable()
+            raise ProviderUnavailable("pu-09")
         if fallback_allowed:
             return ChatResponse(
                 answer=fallback,
@@ -2733,7 +2733,7 @@ def resolve_chat(
                 cost_tier="local_free",
                 routing_reason="circuit_open_fallback",
             )
-        raise ProviderUnavailable()
+        raise ProviderUnavailable("pu-10")
 
     conversation = [f"{role}: {content[:2_000]}" for role, content in recent_turns[-6:]]
     prompt = "\n".join([*conversation, f"user: {message}"])
@@ -2821,7 +2821,7 @@ def resolve_chat(
                         cost_tier="local_free",
                         routing_reason="grounding_failed_fallback",
                     )
-                raise ProviderUnavailable()
+                raise ProviderUnavailable("pu-11")
             return ChatResponse(
                 answer=fallback,
                 provenance="local_fallback",
@@ -2853,7 +2853,7 @@ def resolve_chat(
             str(exc)[:200],
         )
         if public_remote_enabled:
-            raise ProviderUnavailable()
+            raise ProviderUnavailable("pu-12")
         if fallback_allowed:
             return ChatResponse(
                 answer=fallback,
@@ -2862,4 +2862,4 @@ def resolve_chat(
                 cost_tier="local_free",
                 routing_reason="provider_exception_fallback",
             )
-        raise ProviderUnavailable()
+        raise ProviderUnavailable("pu-13")
