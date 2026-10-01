@@ -753,6 +753,10 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             synthetic_beta=request.synthetic_beta,
             public_support_chat=request.public_support_chat,
             allow_public_operational=allow_public_op,
+            # The public hospital-support lane retrieves exclusively from the
+            # approved clinical catalog; the same narrow exemption that let
+            # those rows be ingested applies to the context and output gates.
+            allow_approved_clinical=request.public_support_chat,
             cancellation=cancellation,
         )
 
