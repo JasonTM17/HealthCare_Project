@@ -184,6 +184,7 @@ def embed(
     *,
     synthetic_beta: bool = False,
     allow_public_operational: bool = False,
+    allow_approved_clinical: bool = False,
     cancellation: ChatCancellation | None = None,
 ) -> EmbeddingResult:
     """Return a result with explicit local/remote provenance.
@@ -210,6 +211,7 @@ def embed(
     if remote_requested and contains_sensitive_or_injection(
         text,
         allow_public_operational=allow_public_operational,
+        allow_approved_clinical=allow_approved_clinical,
     ):
         if allow_fallback:
             local = LocalEmbeddingClient().embed(text)

@@ -206,6 +206,22 @@ _PUBLIC_GENERIC_APPOINTMENT_LABEL_PATTERN = re.compile(
     r"\b(?:ma\s+dat\s+lich|booking\s+code|appointment\s+(?:id|number))\b",
     re.IGNORECASE,
 )
+# Reviewer-approved clinical catalog text may list bare field labels ("nhập họ
+# tên, ngày sinh") without any attached value.  Mask the label words only when
+# no value separator follows: "họ tên: Nguyễn Văn A" stays fail-closed through
+# the identity/date-of-birth context checks below.  Enabled exclusively for
+# the token-authenticated approved-clinical ingest path.
+_APPROVED_CLINICAL_BARE_IDENTITY_LABEL_PATTERN = re.compile(
+    r"\b(?:ho\s*ten|ngay\s*sinh)\b(?!\s*[:=])",
+    re.IGNORECASE,
+)
+# Even on the approved-clinical ingest path an explicit "export everything"
+# imperative stays rejected: the approval covers catalog prose, never a
+# bulk-export instruction.  Active on every path (fail-closed).
+_APPROVED_CLINICAL_EXPORT_IMPERATIVE_PATTERN = re.compile(
+    r"\b(?:hay|cho\s+toi|xuat|liet\s+ke)\b.{0,40}\b(?:toan\s+bo|tat\s+ca)\b",
+    re.IGNORECASE,
+)
 _INJECTION_TERMS = (
     "ignore previous", "ignore all previous", "system prompt", "developer message",
     "jailbreak", "bo qua huong dan", "bỏ qua hướng dẫn", "in ra prompt", "reveal prompt",
@@ -1349,7 +1365,7 @@ def public_no_context_query_allowed(query: str) -> bool:
     return True
 
 
-def _injection_detected(normalized: str) -> bool:
+def _injection_detected(normalized: str, *, allow_approved_clinical: bool = False) -> bool:
     """Return whether one normalized text contains an instruction override."""
 
     squashed = _squash(normalized)
@@ -1362,7 +1378,17 @@ def _injection_detected(normalized: str) -> bool:
         or bool(_QUESTION_EXFIL_PATTERN.search(normalized))
         or bool(_VIETNAMESE_EXFIL_OBJECT_PATTERN.search(normalized))
         or bool(_VIETNAMESE_SAFEGUARD_BYPASS_PATTERN.search(normalized))
-        or bool(_VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
+        # Approved clinical prose legitimately describes results being shown
+        # on a personal health record; the broad public-chat exfil detector
+        # reads those sentences as patient-data requests (production: four
+        # approved FAQs were rejected here).  Only this single pattern is
+        # skipped for that closed ingest path — every bypass, injection and
+        # export detector above and below still runs.
+        or (
+            not allow_approved_clinical
+            and bool(_VIETNAMESE_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
+        )
+        or bool(_APPROVED_CLINICAL_EXPORT_IMPERATIVE_PATTERN.search(normalized))
         or bool(_VIETNAMESE_DIRECT_PATIENT_DATA_REQUEST_PATTERN.search(normalized))
         or bool(_VIETNAMESE_PATIENT_COLLECTION_EXFIL_PATTERN.search(normalized))
         or bool(_ENGLISH_PATIENT_DATA_EXFIL_PATTERN.search(normalized))
@@ -1372,7 +1398,7 @@ def _injection_detected(normalized: str) -> bool:
     )
 
 
-def contains_prompt_injection(value: str) -> bool:
+def contains_prompt_injection(value: str, *, allow_approved_clinical: bool = False) -> bool:
     """Return whether untrusted text contains a known instruction override.
 
     Evasion variants (letter-spacing, leet, homoglyphs) are covered so the
@@ -1380,7 +1406,10 @@ def contains_prompt_injection(value: str) -> bool:
     """
 
     normalized = _normalize_sensitive_text(value)
-    return any(_injection_detected(variant) for variant in _policy_variants(normalized))
+    return any(
+        _injection_detected(variant, allow_approved_clinical=allow_approved_clinical)
+        for variant in _policy_variants(normalized)
+    )
 
 
 def _normalize_sensitive_text(value: str) -> str:
@@ -1517,6 +1546,7 @@ def chat_contains_sensitive_data(
     *,
     allow_public_operational: bool = False,
     allow_public_generic_guidance: bool = False,
+    allow_approved_clinical: bool = False,
 ) -> bool:
     # Only user-authored history is evidence that a visitor supplied PII.  An
     # assistant turn can legitimately contain a public branch phone/address
@@ -1560,6 +1590,24 @@ def chat_contains_sensitive_data(
                 "public generic record label",
                 normalized,
             )
+    if allow_approved_clinical:
+        # Reviewer-approved clinical catalog rows (faq/article/specialty with
+        # the closed APPROVED metadata; the caller proves that proof before
+        # enabling this) may describe enrollment or result delivery in public
+        # prose.  The exemption stays narrow: record labels are masked only
+        # when not attached to an owner, and bare identity/date-of-birth
+        # labels only when no value separator follows.  Every value detector
+        # below still runs, so "…của <giá trị>", "họ tên: Nguyễn Văn A" and
+        # any real identifier remain fail-closed.
+        if not _PUBLIC_RECORD_OWNERSHIP_PATTERN.search(normalized):
+            normalized = _PUBLIC_GENERIC_RECORD_GUIDANCE_PATTERN.sub(
+                "public generic record label",
+                normalized,
+            )
+        normalized = _APPROVED_CLINICAL_BARE_IDENTITY_LABEL_PATTERN.sub(
+            "public generic identity label",
+            normalized,
+        )
     return bool(
         _EMAIL_PATTERN.search(normalized)
         or _PHONE_PATTERN.search(normalized)
@@ -1599,6 +1647,7 @@ def contains_sensitive_or_injection(
     *,
     allow_public_operational: bool = False,
     allow_public_generic_guidance: bool = False,
+    allow_approved_clinical: bool = False,
 ) -> bool:
     """Shared fail-closed gate for any text that could leave the service."""
 
@@ -1606,7 +1655,8 @@ def contains_sensitive_or_injection(
         value,
         allow_public_operational=allow_public_operational,
         allow_public_generic_guidance=allow_public_generic_guidance,
-    ) or contains_prompt_injection(value)
+        allow_approved_clinical=allow_approved_clinical,
+    ) or contains_prompt_injection(value, allow_approved_clinical=allow_approved_clinical)
 
 
 def context_contains_sensitive_data(
