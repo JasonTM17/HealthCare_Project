@@ -430,6 +430,7 @@ def _enforce_input_limit(value: str, *, label: str, setting_name: str) -> str:
 def _reject_unsafe_egress_text(
     *values: str,
     allow_public_operational: bool = False,
+    allow_approved_clinical: bool = False,
 ) -> None:
     """Reject unsafe text before any embedding or provider operation.
 
@@ -442,11 +443,29 @@ def _reject_unsafe_egress_text(
         contains_sensitive_or_injection(
             _mask_known_public_hotlines(value),
             allow_public_operational=allow_public_operational,
+            allow_approved_clinical=allow_approved_clinical,
         )
         for value in values
         if isinstance(value, str)
     ):
         raise HTTPException(status_code=422, detail="Input rejected by safety policy")
+
+
+def _approved_clinical_ingest(payload: RAGIndexRequest) -> bool:
+    """Recognize the token-authenticated clinical ingest of an APPROVED row.
+
+    The closed metadata schema (including `approval_state == "APPROVED"`) is
+    already enforced by `_reject_invalid_rag_metadata` before any caller
+    enables this exemption, and only the /rag/index route — guarded by the
+    RAG ingest token — may use it.  Customer-facing chat/search/embedding
+    routes stay on the full gate.
+    """
+
+    return (
+        payload.source_type in ("faq", "article", "specialty")
+        and normalize_projection_kind(payload.metadata) == "CLINICAL"
+        and payload.metadata.get("approval_state") == "APPROVED"
+    )
 
 
 def _public_operational_branch(payload: RAGIndexRequest) -> bool:
@@ -1202,14 +1221,27 @@ def rag_index(
     )
     public_operational = _public_operational_branch(payload)
     _reject_invalid_rag_metadata(payload)
+    approved_clinical = _approved_clinical_ingest(payload)
+    if approved_clinical:
+        # Audit trail for the narrow exemption: which approved source-type
+        # ingest used it.  Never log the document text itself.
+        logger.warning(
+            "Approved clinical ingest exemption applied source_type=%s source_id=%s",
+            payload.source_type,
+            payload.source_id,
+        )
     # Metadata has now passed the closed provenance schema above.  Only the
     # human-authored title/content remain on the generic egress text path;
     # hashes, revisions, approval IDs/state and expiry timestamps are typed
     # values and must not be mistaken for PII dates or identifiers.
-    _reject_unsafe_egress_text(payload.title)
+    _reject_unsafe_egress_text(
+        payload.title,
+        allow_approved_clinical=approved_clinical,
+    )
     _reject_unsafe_egress_text(
         content,
         allow_public_operational=public_operational,
+        allow_approved_clinical=approved_clinical,
     )
     def embed_document(normalized_content: str) -> tuple[list[float], str, ProviderProvenance]:
         return _embedding_parts(
@@ -1218,6 +1250,7 @@ def rag_index(
                 settings,
                 synthetic_beta=payload.synthetic_beta,
                 allow_public_operational=public_operational,
+                allow_approved_clinical=approved_clinical,
             )
         )
 
