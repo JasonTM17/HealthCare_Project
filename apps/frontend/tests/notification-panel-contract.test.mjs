@@ -96,9 +96,12 @@ test("the bell refreshes on a bounded, hidden-aware poll in both shells", async 
   assert.match(helper, /if \(stopped \|\| inFlight\) return/);
   assert.match(helper, /paused \|\| isHidden\(\)/);
 
-  // The same cadence as the CMS live-slot polling fallback, not a new number.
+  // The same visibility-gated shape as the CMS live-slot poll loop. The CMS
+  // slot now defaults to 60s (an idle tab must not pin Fluid memory); the
+  // authenticated bell keeps its 15s cadence because portal users watch it.
   const cmsSlot = await read("../components/cms/CmsLiveSlot.tsx");
-  assert.match(cmsSlot, /pollIntervalMs = 15_000/);
+  assert.match(cmsSlot, /pollIntervalMs = 60_000/);
+  assert.match(cmsSlot, /document\.visibilityState === "visible"/);
   assert.match(helper, /NOTIFICATION_POLL_INTERVAL_MS = 15_000/);
   assert.match(chrome, /healthcare:notifications-updated/);
 });
