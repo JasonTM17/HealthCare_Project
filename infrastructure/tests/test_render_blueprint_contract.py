@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # DI catch on document reuse, contrast/font-floor/a11y residue). Update
 # together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:970a178c76d8e190ca1dbd38b11c6cc37006948726dcd06db8318d87171968ff"
+    "sha256:aa8c60fa764d0b3395513d1ebcebbe3824552edd8266f5028266d679303a37d6"
 )
 
 
