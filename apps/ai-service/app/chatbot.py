@@ -25,6 +25,7 @@ from app.llm import (
     patient_chat_remote_enabled,
     public_chat_mode_for_query,
     public_education_topic_tokens,
+    public_no_context_query_allowed,
     resolve_chat,
     rule_based_triage,
 )
@@ -909,6 +910,85 @@ def grounded_source_excerpt(document: RagDocument) -> str:
     return _grounded_excerpt(_source_metadata(document))
 
 
+def _uncited_general_guidance_response(
+    request: ChatGenerateRequest,
+    settings: Any,
+    turns: Sequence[tuple[str, str]],
+    client: Any | None,
+    cancellation: ChatCancellation | None,
+) -> ChatResponse | None:
+    """Answer a source-less general question from bounded provider guidance.
+
+    The two-step patient contract exists so Spring can revalidate every
+    citation, so a request that authorized zero sources normally stops at
+    INSUFFICIENT_EVIDENCE. A general wellness question ("Uống bao nhiêu nước
+    mỗi ngày?") has no catalog row to cite, and the public hospital-support
+    surface already answers exactly that lane under the same output gates.
+    This helper mirrors the public condition for patient chat and never
+    widens it:
+
+    * hospital-support mode only (clinical modes stay source-bound),
+    * the remote-provider opt-in and the synthetic gate must hold,
+    * the shared content floor must allow the question — treatment,
+      diagnosis, medication, and article/FAQ asks stay denied,
+    * only a ``remote_provider`` / ``ANSWER`` answer that also passes the
+      unsafe-claim check is ever returned.
+
+    Anything else returns ``None`` so the caller keeps the existing
+    insufficient-evidence outcome. This branch deliberately bypasses the
+    exhaustive ``used_sources`` contract below: that contract proves the
+    provider used exactly the sources Spring authorized, and here there are
+    none by design; ``used_sources`` and ``citations`` are emptied instead.
+    """
+
+    if request.mode is not ChatMode.HOSPITAL_SUPPORT:
+        return None
+    if not remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS):
+        return None
+    if not patient_chat_remote_enabled(settings):
+        return None
+    if (
+        getattr(settings, "remote_ai_synthetic_only", False)
+        and str(getattr(settings, "ai_service_runtime", "")).casefold()
+        in {"synthetic-beta", "synthetic_beta"}
+        and request.synthetic_beta is not True
+    ):
+        return None
+    if not public_no_context_query_allowed(request.message):
+        return None
+    if cancellation is not None:
+        cancellation.raise_if_cancelled()
+
+    response = resolve_chat(
+        request.message,
+        settings,
+        recent_turns=turns,
+        client=client,
+        synthetic_beta=request.synthetic_beta,
+        # allow_public_operational stays False: the answer is not backed by an
+        # operational projection, so fabricated addresses and phone numbers
+        # must remain blocked instead of being masked.
+        allow_public_generic_guidance=True,
+        tone=request.tone,
+        cancellation=cancellation,
+    )
+    if response.provenance != "remote_provider":
+        return None
+    if response.safety_action is not ChatSafetyAction.ANSWER:
+        return None
+    if _unsafe_claim(response.answer):
+        return None
+    return response.model_copy(
+        update={
+            "mode": request.mode,
+            "used_sources": [],
+            "citations": [],
+            "cost_tier": "remote_llm",
+            "routing_reason": "remote_llm_escalation",
+        }
+    )
+
+
 def _local_grounded_response(
     message: str,
     mode: ChatMode,
@@ -1235,6 +1315,14 @@ def generate_chat_response(
         cancellation.raise_if_cancelled()
     expected_used = [_used_source(meta) for meta in metas]
     if not metas:
+        # No authorized source: a general hospital-support question may still
+        # receive bounded remote guidance (see _uncited_general_guidance_response);
+        # every other case keeps the fail-closed insufficient-evidence answer.
+        uncited = _uncited_general_guidance_response(
+            request, settings, turns, client, cancellation
+        )
+        if uncited is not None:
+            return uncited
         return _insufficient_response(request.mode)
 
     if any(not _context_is_safe(meta) for meta in metas):

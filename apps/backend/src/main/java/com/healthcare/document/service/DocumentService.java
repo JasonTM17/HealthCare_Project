@@ -122,6 +122,22 @@ public class DocumentService {
                 existing.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
             return toResponse(existing);
         }
+        // Orphaned FAILED rows predate version alignment (ADR-005): a row stored
+        // under an older template/source version never matches today's key, so
+        // every retry would insert another row and leave the old FAILED row stuck
+        // on the patient's panel forever. Reuse the newest FAILED row for this
+        // source instead, and adopt the current identity so the next call becomes
+        // idempotent again. patientId/sourceType/sourceRecordId are all required:
+        // source_record_id is a bare UUID shared by three source tables, so
+        // dropping any of them could hand one patient's row to another source.
+        boolean adoptedFailedOrphan = false;
+        if (existing == null) {
+            existing = documentRepository
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                    patientId, snapshot.sourceType(), snapshot.sourceRecordId(), DocumentStatus.FAILED)
+                .orElse(null);
+            adoptedFailedOrphan = existing != null;
+        }
 
         User generatedBy = resolveUser(principal);
         String snapshotHash = snapshotCodec.sha256Hex(snapshotCodec.canonicalJson(snapshot));
@@ -130,6 +146,11 @@ public class DocumentService {
             // Retry a previously failed object write in place. The idempotency
             // key still points at one row, but a transient MinIO outage does
             // not permanently brick this source/version/template.
+            if (adoptedFailedOrphan) {
+                existing.setSourceVersion(snapshot.sourceVersion());
+                existing.setTemplateVersion(snapshot.templateVersion());
+                existing.setIdempotencyKey(idempotencyKey);
+            }
             existing.setStatus(DocumentStatus.PENDING);
             existing.setGeneratedBy(generatedBy);
             existing.setSha256(null);

@@ -1,5 +1,6 @@
 """Focused tests for the protected two-step patient chatbot contract."""
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -1123,3 +1124,189 @@ def test_specialty_question_focuses_retrieval_on_specialty_rows() -> None:
 
     assert [candidate.source_type for candidate in response.candidates] == ["specialty"]
     assert response.candidates[0].source_id == "than-kinh"
+
+
+# ── B7: uncited general guidance for the patient surface ─────────────────────
+#
+# A patient hospital-support question that matches no catalog source used to be
+# answered with INSUFFICIENT_EVIDENCE even when the remote provider was enabled.
+# The public surface already answers this lane; these tests pin the same lane
+# for patient chat together with every gate that must still refuse it.
+
+
+def _uncited_settings() -> Settings:
+    """Remote patient settings for the source-less general-guidance lane.
+
+    Attributes are assigned after construction on purpose: the field validator
+    refuses remote egress unless the release hold is already lifted, and these
+    tests exercise the runtime gate itself rather than the boot-time contract.
+    """
+
+    local = _settings()
+    local.ai_provider = "deepseek"
+    local.ai_patient_chat_remote_enabled = True
+    local.ai_chat_remote_provider_enabled = True
+    local.remote_ai_release_hold = True
+    local.ai_service_runtime = "render-beta"
+    local.remote_ai_synthetic_only = False
+    local.ai_base_url = "https://api.deepseek.com"
+    local.remote_ai_provider_allowlist = "deepseek"
+    local.remote_ai_https_host_allowlist = "api.deepseek.com"
+    return local
+
+
+def _reset_circuit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.llm._CIRCUIT_OPEN_UNTIL", 0.0)
+    monkeypatch.setattr("app.llm._CIRCUIT_FAILURES", 0)
+
+
+def test_uncited_general_question_is_answered_by_the_remote_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": "Người lớn nên uống khoảng 1,5-2 lít nước mỗi ngày, tùy thời tiết và mức vận động."
+    }
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Uống bao nhiêu nước mỗi ngày?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[],
+        ),
+        _uncited_settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.provenance == "remote_provider"
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert response.used_sources == []
+    assert response.citations == []
+    assert response.cost_tier == "remote_llm"
+    assert response.routing_reason == "remote_llm_escalation"
+    assert provider.complete_json.call_count == 1
+
+
+def test_uncited_general_question_is_not_answered_in_clinical_modes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": "Người lớn nên uống khoảng 1,5-2 lít nước mỗi ngày."
+    }
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Uống bao nhiêu nước mỗi ngày?",
+            mode=ChatMode.SYMPTOM_TRIAGE,
+            authorized_sources=[],
+        ),
+        _uncited_settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    provider.complete_json.assert_not_called()
+
+
+def test_uncited_lane_keeps_the_treatment_and_diagnosis_content_floor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Uống kháng sinh mỗi ngày."}
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Tôi bị bệnh gì?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[],
+        ),
+        _uncited_settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    provider.complete_json.assert_not_called()
+
+
+def test_uncited_answer_cannot_invent_an_operational_fact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Bệnh viện mở cửa lúc 23:59."}
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Uống bao nhiêu nước mỗi ngày?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[],
+        ),
+        _uncited_settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert "23:59" not in response.answer
+
+
+def test_uncited_answer_cannot_diagnose(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Bạn có khả năng mắc viêm phổi."}
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Uống bao nhiêu nước mỗi ngày?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[],
+        ),
+        _uncited_settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda local: setattr(local, "ai_patient_chat_remote_enabled", False),
+        lambda local: setattr(local, "remote_ai_release_hold", False),
+    ],
+)
+def test_uncited_lane_stays_closed_when_the_remote_gate_is_off(
+    mutate: Callable[[Settings], None],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {
+        "answer": "Người lớn nên uống khoảng 1,5-2 lít nước mỗi ngày."
+    }
+    local = _uncited_settings()
+    mutate(local)
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Uống bao nhiêu nước mỗi ngày?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[],
+        ),
+        local,
+        _service(),
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    provider.complete_json.assert_not_called()

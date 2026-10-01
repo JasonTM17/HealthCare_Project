@@ -753,7 +753,9 @@ public class AiConversationService {
         if (cancellation != null) cancellation.throwIfCancelled();
 
         if (retrieved == null) {
-            return supportAwareFallback(mode, content);
+            SanitizedAiResponse uncited = uncitedGeneralGuidance(
+                userId, mode, content, turns, chunkedDeliveryGeneration, cancellation);
+            return uncited != null ? uncited : supportAwareFallback(mode, content);
         }
 
         String safety = stringValue(retrieved.get("safety_action"));
@@ -772,7 +774,9 @@ public class AiConversationService {
             "source-authorization", authorized.isEmpty() ? "empty" : "completed", authorizationStartedAt
         );
         if (authorized.isEmpty()) {
-            return supportAwareFallback(mode, content);
+            SanitizedAiResponse uncited = uncitedGeneralGuidance(
+                userId, mode, content, turns, chunkedDeliveryGeneration, cancellation);
+            return uncited != null ? uncited : supportAwareFallback(mode, content);
         }
         if (cancellation != null) cancellation.throwIfCancelled();
 
@@ -793,10 +797,78 @@ public class AiConversationService {
         if (!tuning.patientContext().isEmpty()) {
             generation.put("patient_context", tuning.patientContext());
         }
-        // The upstream transport may deliver the answer incrementally, but the
-        // FastAPI side only streams slices of a fully generated, fully
-        // validated answer (D-02): these deltas are a consistency log used to
-        // prove the delivered slices equal the persisted answer below.
+        Map<String, Object> generated = dispatchChatGeneration(
+            generation, chunkedDeliveryGeneration, cancellation);
+        return sanitize(generated, mode, authorized, content);
+    }
+
+    /**
+     * Answer a source-less general hospital-support question with a bounded
+     * remote answer. Patient chat normally requires at least one authorized
+     * source so Spring can revalidate every citation, but a general wellness
+     * question ("Uống bao nhiêu nước mỗi ngày?") has no catalog row to cite,
+     * and the public surface already answers that lane under the same output
+     * gates. This path mirrors the public condition and never widens it:
+     *
+     * <ul>
+     *   <li>only {@code HOSPITAL_SUPPORT} — clinical modes stay source-bound;</li>
+     *   <li>only intent {@code GENERAL} — catalog, booking, education and
+     *       navigation questions keep their deterministic fallback;</li>
+     *   <li>only when remote providers are enabled for this deployment, and
+     *       only a {@code remote_provider} answer is ever displayed. A local
+     *       fallback or an insufficient upstream answer returns {@code null},
+     *       so the caller keeps today's insufficient-evidence outcome and the
+     *       ledger keeps waiving it.</li>
+     * </ul>
+     *
+     * <p>The answer still flows through {@link #sanitize} with an empty
+     * authorized list, so the shape/length bounds, the provenance allowlist,
+     * the diagnose/prescribe reject and the safety-action rules all apply
+     * unchanged. No patient context line is sent: a general question needs no
+     * patient record to answer.
+     */
+    private SanitizedAiResponse uncitedGeneralGuidance(
+            UUID userId,
+            ChatMode mode,
+            String content,
+            List<Map<String, String>> turns,
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
+        if (mode != ChatMode.HOSPITAL_SUPPORT
+                || !remoteProviderEnabled
+                || ChatSuggestedActionResolver.classify(content)
+                    != ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL) {
+            return null;
+        }
+        Map<String, Object> generation = new LinkedHashMap<>();
+        generation.put("message", content);
+        generation.put("mode", mode.name());
+        generation.put("recent_turns", turns);
+        generation.put("synthetic_beta", syntheticBetaAsserted && syntheticBetaGuard.eligible(userId));
+        // Tone is a validated server-side register read from this user's
+        // preferences; no catalog allowlist and no patient record travel on
+        // this turn.
+        AiPatientContextService.AssistantTuning tuning = patientContextService != null
+            ? patientContextService.tuningFor(userId)
+            : AiPatientContextService.AssistantTuning.DEFAULT;
+        generation.put("tone", tuning.tone());
+        Map<String, Object> generated = dispatchChatGeneration(
+            generation, chunkedDeliveryGeneration, cancellation);
+        SanitizedAiResponse sanitized = sanitize(generated, mode, List.of(), content);
+        return "remote_provider".equals(sanitized.provenance()) ? sanitized : null;
+    }
+
+    /**
+     * Dispatch one generation call and enforce the D-02 slice contract. The
+     * upstream transport may deliver the answer incrementally, but the FastAPI
+     * side only streams slices of a fully generated, fully validated answer:
+     * these deltas are a consistency log used to prove the delivered slices
+     * equal the answer about to be persisted.
+     */
+    private Map<String, Object> dispatchChatGeneration(
+            Map<String, Object> generation,
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
         List<String> upstreamDeliverySlices = new ArrayList<>();
         long generationStartedAt = System.nanoTime();
         Map<String, Object> generated;
@@ -818,7 +890,7 @@ public class AiConversationService {
                 && !String.join("", upstreamDeliverySlices).equals(answer)) {
             throw invalidAiResponse();
         }
-        return sanitize(generated, mode, authorized, content);
+        return generated;
     }
 
     @Transactional

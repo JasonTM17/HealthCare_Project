@@ -471,6 +471,41 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "patient.uncited-outage-general@example.com", roles = "PATIENT")
+    void generalQuestionDuringRetrievalOutageStaysInsufficientWhileRemoteProvidersAreOff() throws Exception {
+        // B7 fail-closed pin for the shared test profile
+        // (ai.chat.remote-provider-enabled=false): the uncited guidance lane
+        // exists only behind the remote-provider opt-in, so a retrieval outage
+        // must not reach the provider when that flag is off.
+        User patient = createUser("patient.uncited-outage-general@example.com");
+        createPatientProfile(patient, "0901002072", 3);
+        when(aiService.retrieveChat(any())).thenReturn(null);
+
+        String conversationId = mockMvc.perform(post("/api/v1/ai/conversations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"consentAccepted\":true}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString()
+            .replaceAll(".*\\\"id\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "uncited-outage-general-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Uống bao nhiêu nước mỗi ngày?\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("INSUFFICIENT_EVIDENCE"))
+            .andExpect(jsonPath("$.assistantMessage.citations").isEmpty());
+
+        verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).generateChatStream(any(), any());
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
+    }
+
+    @Test
     @WithMockUser(username = "patient.credit-replay@example.com", roles = "PATIENT")
     void idempotentReplayDoesNotDebitAgainEvenAfterBalanceReachesZero() throws Exception {
         User patient = createUser("patient.credit-replay@example.com");
