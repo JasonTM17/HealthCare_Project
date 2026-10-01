@@ -753,7 +753,7 @@ public class AiConversationService {
         if (cancellation != null) cancellation.throwIfCancelled();
 
         if (retrieved == null) {
-            SanitizedAiResponse uncited = uncitedGeneralGuidance(
+            SanitizedAiResponse uncited = uncitedGeneralGuidanceSafely(
                 userId, mode, content, turns, chunkedDeliveryGeneration, cancellation);
             return uncited != null ? uncited : supportAwareFallback(mode, content);
         }
@@ -774,7 +774,7 @@ public class AiConversationService {
             "source-authorization", authorized.isEmpty() ? "empty" : "completed", authorizationStartedAt
         );
         if (authorized.isEmpty()) {
-            SanitizedAiResponse uncited = uncitedGeneralGuidance(
+            SanitizedAiResponse uncited = uncitedGeneralGuidanceSafely(
                 userId, mode, content, turns, chunkedDeliveryGeneration, cancellation);
             return uncited != null ? uncited : supportAwareFallback(mode, content);
         }
@@ -856,6 +856,36 @@ public class AiConversationService {
             generation, chunkedDeliveryGeneration, cancellation);
         SanitizedAiResponse sanitized = sanitize(generated, mode, List.of(), content);
         return "remote_provider".equals(sanitized.provenance()) ? sanitized : null;
+    }
+
+    /**
+     * The remote escalation is best-effort: a provider failure, timeout or
+     * contract violation must degrade to the deterministic local fallback —
+     * the behavior every turn had before the uncited branch existed — instead
+     * of propagating a long hang to the caller. Returning null sends the
+     * caller to {@code supportAwareFallback}. A 422 safety rejection
+     * (diagnosis/prescription claim in the generated answer) is NOT degraded:
+     * it propagates so the blocked content never reaches the user.
+     */
+    private SanitizedAiResponse uncitedGeneralGuidanceSafely(
+            UUID userId,
+            ChatMode mode,
+            String content,
+            List<Map<String, String>> turns,
+            boolean chunkedDeliveryGeneration,
+            ChatRequestCancellation cancellation) {
+        long escalationStartedAt = System.nanoTime();
+        try {
+            return uncitedGeneralGuidance(
+                userId, mode, content, turns, chunkedDeliveryGeneration, cancellation);
+        } catch (BusinessException ex) {
+            if (ex.getStatus() == 422) throw ex;
+            recordChatStage("uncited-general-guidance", "failed", escalationStartedAt);
+            return null;
+        } catch (RuntimeException ex) {
+            recordChatStage("uncited-general-guidance", "failed", escalationStartedAt);
+            return null;
+        }
     }
 
     /**

@@ -543,7 +543,15 @@ class RagService:
                         and existing is None
                     ):
                         authoritative_state = ("TOMBSTONE", projection)
+                    replace_stored = False
                     if authoritative_state != incoming_state:
+                        if authoritative_state == ("TOMBSTONE", projection):
+                            # A tombstoned projection must not be resurrected
+                            # by an equal-revision replay: the delete is
+                            # authoritative and stays authoritative.
+                            raise ValueError(
+                                "equal-revision projection update must be idempotent"
+                            )
                         if projection == "OPERATIONAL":
                             # Branch catalog sync replays the same sync revision
                             # when volatile metadata changed between the stored
@@ -559,14 +567,30 @@ class RagService:
                                 incoming_state,
                             )
                         else:
-                            raise ValueError(
-                                "equal-revision projection update must be idempotent"
+                            # The Spring reconciliation is database-
+                            # authoritative: its equal-revision push carries
+                            # the review-approved state straight from SQL.
+                            # When that state advances without a revision bump
+                            # (volatile governance fields, snapshot-format
+                            # evolution of a persisted store), replacing the
+                            # stored document is the only way the 60s loop can
+                            # converge — raising here 422s every cycle and
+                            # freezes the clinical catalog (production logged
+                            # this every ~60s since 2026-09-27).
+                            replace_stored = True
+                            log.warning(
+                                "equal-revision %s drift source=%s/%s — "
+                                "replacing stored with database-authoritative "
+                                "incoming",
+                                projection,
+                                source_type,
+                                source_id,
                             )
-                    if existing is not None:
+                    if existing is not None and not replace_stored:
                         return existing
                     # An exact replay of an inactive projection stays
                     # tombstoned and never performs embedding work.
-                    if tombstone_revision is not None:
+                    if tombstone_revision is not None and not replace_stored:
                         return document
                 if known_revision is not None and revision < known_revision:
                     return existing or RagDocument(
