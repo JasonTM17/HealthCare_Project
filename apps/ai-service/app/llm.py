@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import html
+import logging
 import os
 import re
 import threading
@@ -38,6 +39,8 @@ from app.schemas import (
     ChatSafetyAction,
     UsedSource,
 )
+
+logger = logging.getLogger(__name__)
 
 RULE_BASED = "rule_based_triage"
 # "đ" folds to "d" so diacritic-free typing still matches policy vocabulary.
@@ -2452,11 +2455,14 @@ def deepseek_triage(
         return response.model_copy(update={"provenance": "remote_provider"})
     except ProviderUnavailable:
         raise
-    except Exception:
+    except Exception as exc:
         if allow_fallback:
             return fallback
         # Do not log the patient prompt or provider payload.  The caller turns
-        # this into a generic 503 without exposing provider details.
+        # this into a generic 503 without exposing provider details.  Only the
+        # exception class name is recorded so an operator can tell an egress
+        # failure from an auth/quota failure.
+        logger.warning("patient provider call failed type=%s", type(exc).__name__)
         raise ProviderUnavailable()
 
 
@@ -2794,8 +2800,16 @@ def resolve_chat(
     except ProviderUnavailable:
         _record_provider_failure(settings)
         raise
-    except Exception:
+    except Exception as exc:
         _record_provider_failure(settings)
+        # Operator-visible without any user prompt content: the exception type
+        # and the provider-side short message are what distinguish a network
+        # egress failure from an auth/quota/model failure.
+        logger.warning(
+            "public provider call failed type=%s detail=%s",
+            type(exc).__name__,
+            str(exc)[:200],
+        )
         if public_remote_enabled:
             raise ProviderUnavailable()
         if fallback_allowed:
