@@ -898,6 +898,9 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
                 synthetic_beta=request.synthetic_beta,
                 allow_public_operational=allow_public_op,
                 public_support_chat=request.public_support_chat,
+                # Same approved-clinical exemption as the other public lane:
+                # the retrieved context is the approved clinical catalog.
+                allow_approved_clinical=request.public_support_chat,
                 cancellation=cancellation,
             )
     elif (
@@ -939,6 +942,9 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             synthetic_beta=request.synthetic_beta,
             allow_public_operational=allow_public_op,
             public_support_chat=request.public_support_chat,
+            # Public lane context = approved clinical catalog; the same
+            # narrow exemption as the ingest gate applies to context/output.
+            allow_approved_clinical=request.public_support_chat,
             cancellation=cancellation,
         )
         if response.provenance == "remote_provider":
