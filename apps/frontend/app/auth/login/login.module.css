@@ -1,5 +1,5 @@
 .page { --login-accent: #075f5e; --login-ink: #0f172a; --login-muted: #475569; min-height: 100dvh; display: grid; place-items: center; padding: 32px 20px; background: #f8fafc; }
-.card { width: min(100%, 560px); margin: 0; padding: 40px 48px 32px; border: 1px solid rgba(13,148,136,.15); border-radius: 8px; background: #fff; box-shadow: none; }
+.card { width: min(100%, 560px); margin: 0; padding: 40px 48px 32px; border: 1px solid rgba(13,148,136,.15); border-radius: var(--radius-sm); background: #fff; box-shadow: none; }
 .card :global(.auth-card__brand) { margin-bottom: 28px; }
 .card :global(h1) { color: var(--login-ink); letter-spacing: 0; font-size: clamp(2rem, 4vw, 2.45rem); line-height: 1.12; margin-bottom: 12px; }
 .card :global(.auth-card__intro) { max-width: 48ch; color: var(--login-muted); font-size: .95rem; line-height: 1.6; }
@@ -7,37 +7,37 @@
 .page :global(.auth-card__back) { display: inline-flex; min-height: 44px; align-items: center; color: var(--login-accent); font-weight: 700; }
 .page :global(.auth-form) { gap: 24px; }
 .page :global(.auth-form label) { color: var(--login-ink); font-size: .9rem; font-weight: 750; }
-.page :global(.auth-form input) { min-height: 54px; border: 1px solid #bfd0d1; border-radius: 8px; color: var(--login-ink); background: #fbfdfd; font-size: 16px; box-shadow: none; }
+.page :global(.auth-form input) { min-height: 54px; border: 1px solid #bfd0d1; border-radius: var(--radius-sm); color: var(--login-ink); background: #fbfdfd; font-size: 16px; box-shadow: none; }
 .page :global(.auth-form input:focus) { border-color: var(--login-accent); outline: 3px solid rgba(8,127,123,.2); outline-offset: 2px; box-shadow: none; }
 .page :global(.auth-form__label-row a) { color: var(--login-accent); font-weight: 700; }
-.page :global([aria-label="Chọn tài khoản kiểm thử"]) { margin: 0 !important; padding: 4px !important; border: 1px solid #d5e2df; background: #f4f8f7 !important; border-radius: 8px !important; gap: 6px !important; }
-.page :global([aria-label="Chọn tài khoản kiểm thử"] button) { min-height: 44px; border-radius: 6px !important; transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease !important; }
+.page :global([aria-label="Chọn tài khoản kiểm thử"]) { margin: 0 !important; padding: 4px !important; border: 1px solid #d5e2df; background: #f4f8f7 !important; border-radius: var(--radius-sm) !important; gap: 6px !important; }
+.page :global([aria-label="Chọn tài khoản kiểm thử"] button) { min-height: 44px; border-radius: var(--radius-sm) !important; transition: background-color 180ms ease, color 180ms ease, box-shadow 180ms ease !important; }
 .page :global([aria-label="Chọn tài khoản kiểm thử"] button:hover) { transform: none; }
-.page :global(.auth-form__submit) { min-height: 52px; border-radius: 8px; background: var(--login-accent); box-shadow: none; font-size: 1rem; }
+.page :global(.auth-form__submit) { min-height: 52px; border-radius: var(--radius-sm); background: var(--login-accent); box-shadow: none; font-size: 1rem; }
 .page :global(.auth-form__submit:hover) { background: #075e5a; transform: none; }
 .passwordWrap { position: relative; display: flex; align-items: center; }
 .passwordInput { width: 100%; padding-right: 60px !important; }
-.passwordToggle { position: absolute; right: 8px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 8px; color: var(--login-muted); background: transparent; cursor: pointer; }
+.passwordToggle { position: absolute; right: 8px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: var(--radius-sm); color: var(--login-muted); background: transparent; cursor: pointer; }
 .passwordToggle:hover { color: var(--login-accent); background: #e8f4f2; }
 .passwordToggle:focus-visible, .page :global(button:focus-visible), .page :global(a:focus-visible) { outline: 3px solid var(--login-accent); outline-offset: 3px; }
 .register { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 28px; padding-top: 24px; border-top: 1px solid #e0eceb; color: var(--login-muted); font-size: .9rem; }
-.registerLink { display: inline-flex; min-height: 44px; align-items: center; padding: 0 14px; border-radius: 8px; color: #086d69; background: #e7f5f2; font-weight: 750; }
-@media (max-width: 600px) { .page { padding: 16px 12px; place-items: start center; } .card { padding: 28px 20px 24px; border-radius: 8px; } .register { align-items: flex-start; flex-direction: column; } .page :global([aria-label="Chọn tài khoản kiểm thử"] button) { font-size: .75rem; } }
+.registerLink { display: inline-flex; min-height: 44px; align-items: center; padding: 0 14px; border-radius: var(--radius-sm); color: #086d69; background: #e7f5f2; font-weight: 750; }
+@media (max-width: 600px) { .page { padding: 16px 12px; place-items: start center; } .card { padding: 28px 20px 24px; border-radius: var(--radius-sm); } .register { align-items: flex-start; flex-direction: column; } .page :global([aria-label="Chọn tài khoản kiểm thử"] button) { font-size: .75rem; } }
 @media (prefers-reduced-motion: reduce) { .page *, .page *::before, .page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 .demoSection { margin: 24px 0 14px; }
 .demoSection :global(.section-note) { margin-bottom: 8px; display: block; }
-.roleGroup { margin: 0 0 12px; padding: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border: 1px solid #d5e7e5; border-radius: 8px; background: #f2f8f7; }
-.roleButton { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border: 1px solid transparent; border-radius: 6px; color: #475569; background: transparent; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; white-space: nowrap; }
+.roleGroup { margin: 0 0 12px; padding: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border: 1px solid #d5e7e5; border-radius: var(--radius-sm); background: #f2f8f7; }
+.roleButton { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); color: #475569; background: transparent; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; white-space: nowrap; }
 .roleButton:hover { color: #075f5e; background: #e8f4f2; transform: none; }
-.roleButtonActive { color: #075f5e; background: #fff; border-color: rgba(7,95,94,.25); box-shadow: 0 1px 3px rgba(0,0,0,.08); font-weight: 750; }
-.roleBadge { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 20px; padding: 14px 16px; border: 1px solid #cfe5e2; border-radius: 8px; color: #14615f; background: #edf8f6; font-size: .82rem; font-weight: 650; line-height: 1.45; }
+.roleButtonActive { color: #075f5e; background: #fff; border-color: rgba(7,95,94,.25); font-weight: 750; }
+.roleBadge { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 20px; padding: 14px 16px; border: 1px solid #cfe5e2; border-radius: var(--radius-sm); color: #14615f; background: #edf8f6; font-size: .82rem; font-weight: 650; line-height: 1.45; }
 .rolePassword { color: #557078; font-size: .75rem; font-weight: 500; }
 .rolePassword code { color: #14615f; font-weight: 700; }
 .submit { cursor: pointer; }
 @media (max-width: 600px) { .roleButton { font-size: .74rem; padding: 6px 2px; gap: 4px; } }
-.layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1fr); width: min(100%, 960px); overflow: hidden; border: 1px solid rgba(13,148,136,.18); border-radius: 8px; background: #fff; box-shadow: none; }
+.layout { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(240px, .72fr) minmax(0, 1fr); width: min(100%, 960px); overflow: hidden; border: 1px solid rgba(13,148,136,.18); border-radius: var(--radius-sm); background: #fff; box-shadow: none; }
 .welcome { display: flex; min-height: 680px; flex-direction: column; padding: 48px 36px; color: #e9fbf7; background: linear-gradient(155deg, #003336 0%, #004b50 100%); }
-.welcomeIcon { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 40px; border: 1px solid rgba(233,251,247,.28); border-radius: 8px; color: #f5c96a; background: rgba(255,255,255,.1); }
+.welcomeIcon { display: grid; width: 48px; height: 48px; place-items: center; margin-bottom: 40px; border: 1px solid rgba(233,251,247,.28); border-radius: var(--radius-sm); color: #f5c96a; background: rgba(255,255,255,.1); }
 .welcomeDivider { width: 100%; height: 1px; margin: auto 0 24px; background: rgba(233,251,247,.2); }
 .welcomeList { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
 .welcomeList li { display: flex; align-items: center; gap: 10px; color: #d7f1eb; font-size: .78rem; line-height: 1.35; }
@@ -45,4 +45,4 @@
 .layout .card { width: auto; max-width: none; border: 0; border-radius: 0; box-shadow: none; }
 .card :global(.auth-card__brand) { align-items: center; }
 .card :global(.auth-card__brand > .brand-identity) { display: inline-flex; flex-direction: row; align-items: center; gap: 12px; }
-@media (max-width: 760px) { .layout { display: block; width: min(100%, 560px); border-radius: 8px; } .welcome { display: none; } .layout .card { border-radius: 8px; } }
+@media (max-width: 760px) { .layout { display: block; width: min(100%, 560px); border-radius: var(--radius-sm); } .welcome { display: none; } .layout .card { border-radius: var(--radius-sm); } }

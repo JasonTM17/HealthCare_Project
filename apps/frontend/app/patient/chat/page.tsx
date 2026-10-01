@@ -973,7 +973,7 @@ function PatientChatPageContent() {
             <h1>Trao đổi có lưu lịch sử</h1>
             <p>Đặt câu hỏi về thông tin chăm sóc và xem lại phản hồi gắn với nguồn HealthCare.</p>
             {creditStatus && (
-              <div className="mt-3 inline-flex items-center gap-2.5 rounded-[4px] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900 shadow-xs">
+              <div className="mt-3 inline-flex items-center gap-2.5 rounded-[var(--chat-radius)] bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-900">
                 <UiIcon name="shield-check" size={15} className="text-emerald-700 shrink-0" />
                 <span>Hạng <strong>{TIER_LABEL[creditStatus.tier ?? ""] ?? "Cơ bản"}</strong></span>
                 <span className="text-emerald-300">|</span>
@@ -1229,11 +1229,11 @@ function PatientChatPageContent() {
                 <div className={styles.composerLabelRow}>
                   <div className="flex items-center gap-2">
                     <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
-                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[4px] border border-emerald-200">
+                    <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[var(--chat-radius)] border border-emerald-200">
                       -1 lượt / câu hỏi
                     </span>
                     {creditStatus ? (
-                      <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[4px] border border-teal-200">
+                      <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[var(--chat-radius)] border border-teal-200">
                         Số dư: {creditStatus.credits} / {creditStatus.maxCredits}
                       </span>
                     ) : null}

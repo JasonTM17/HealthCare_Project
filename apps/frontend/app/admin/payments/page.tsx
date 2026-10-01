@@ -168,7 +168,7 @@ export default function AdminPaymentsPage() {
           <div className="mt-3 max-w-full overflow-x-auto" role="region" aria-label="Bảng thông báo ngân hàng chưa khớp, có thể cuộn ngang" tabIndex={0}>
             <table className="w-full min-w-[860px] text-left text-xs">
               <caption className="sr-only">Bằng chứng chuyển khoản từ webhook ngân hàng chưa ghép được thanh toán</caption>
-              <thead className="border-b border-amber-200 text-[11px] uppercase text-amber-800"><tr><th scope="col" className="px-3 py-2">Mã sự kiện</th><th scope="col" className="px-3 py-2">Nội dung / mã giao dịch</th><th scope="col" className="px-3 py-2">Số tiền</th><th scope="col" className="px-3 py-2">Nhận lúc</th><th scope="col" className="px-3 py-2">Lần thử</th><th scope="col" className="px-3 py-2">Ghi chú hệ thống</th></tr></thead>
+              <thead className="border-b border-amber-200 text-xs uppercase text-amber-800"><tr><th scope="col" className="px-3 py-2">Mã sự kiện</th><th scope="col" className="px-3 py-2">Nội dung / mã giao dịch</th><th scope="col" className="px-3 py-2">Số tiền</th><th scope="col" className="px-3 py-2">Nhận lúc</th><th scope="col" className="px-3 py-2">Lần thử</th><th scope="col" className="px-3 py-2">Ghi chú hệ thống</th></tr></thead>
               <tbody>{webhookEvents.map((event) => <tr className="border-b border-amber-100 last:border-0" key={event.eventId}>
                 <td className="px-3 py-2 font-mono">{event.eventId}</td>
                 <td className="px-3 py-2"><span className="font-mono">{event.transferContent || "—"}</span><br /><strong className="font-mono">{event.transactionReference || "Không có"}</strong></td>

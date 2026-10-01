@@ -743,7 +743,7 @@ function RenderBlockList({
               >
                 <table className="w-full text-xs sm:text-sm border-collapse">
                   {headers.length > 0 && (
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-bold uppercase tracking-wider text-[11px]">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-900 font-bold uppercase tracking-wider text-xs">
                       <tr>
                         {headers.map((h, hIdx) => (
                           <th scope="col" className={`px-4 py-3 ${getAlignClass(hIdx)}`} key={`th-${hIdx}`}>
@@ -825,7 +825,7 @@ function RenderBlockList({
                     key={`chk-${chkIdx}`}
                   >
                     <span
-                      className={`inline-flex items-center justify-center mt-0.5 w-4 h-4 rounded-[2px] border text-[10px] font-bold ${
+                      className={`inline-flex items-center justify-center mt-0.5 w-4 h-4 rounded-[2px] border text-xs font-bold ${
                         item.checked
                           ? "bg-teal-800 border-teal-800 text-white"
                           : "border-slate-300 bg-white text-transparent"
@@ -1612,7 +1612,7 @@ export function RichContentRenderer({
   if (blocks.length === 0) {
     if (fallback) return <>{fallback}</>;
     return (
-      <div className="text-slate-400 italic text-sm py-4">
+      <div className="text-slate-600 italic text-sm py-4">
         Chưa có nội dung chi tiết.
       </div>
     );

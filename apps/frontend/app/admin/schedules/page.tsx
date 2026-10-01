@@ -623,7 +623,7 @@ export default function AdminSchedulesPage() {
                                               title={`${item.doctorName} · ${item.branchName} · ${dayNames[day.dayOfWeek]} ${formatBusinessDate(day.date)} · ${row.startTime}–${row.endTime}${item.active ? "" : " · Tạm ngưng"}`}
                                             >
                                               <strong className="block truncate text-xs font-bold">{item.doctorName}</strong>
-                                              <span className="block truncate text-[11px]">{branchShortName(item.branchName)}</span>
+                                              <span className="block truncate text-xs">{branchShortName(item.branchName)}</span>
                                             </span>
                                           ))}
                                         </div>

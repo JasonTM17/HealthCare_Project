@@ -589,7 +589,7 @@ export default function PackageBookingModal({
         <div className="bg-gradient-to-r from-teal-800 to-[#003336] text-white px-5 py-3 border-b border-teal-900 shadow-inner flex flex-wrap items-center justify-between gap-3">
           <div className="flex-1 min-w-[240px]">
             <div className="flex items-center gap-2 mb-0.5">
-              <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-teal-600/60 text-teal-100 rounded-sm border border-teal-500/40">
+              <span className="px-2 py-0.5 text-xs font-bold uppercase tracking-wider bg-teal-600/60 text-teal-100 rounded-sm border border-teal-500/40">
                 Gói khám đã chọn
               </span>
               {packageItem.durationDays ? (
@@ -608,7 +608,7 @@ export default function PackageBookingModal({
             ) : null}
           </div>
           <div className="text-right">
-            <span className="text-[11px] uppercase tracking-wider text-teal-200 block">Chi phí trọn gói</span>
+            <span className="text-xs uppercase tracking-wider text-teal-200 block">Chi phí trọn gói</span>
             <p className="text-lg sm:text-xl font-extrabold text-amber-300 font-mono">
               {currency(packageItem.price)} <span className="text-xs font-normal text-white">VNĐ</span>
             </p>
@@ -632,7 +632,7 @@ export default function PackageBookingModal({
                       }`}
                     >
                       <span
-                        className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] ${
+                        className={`flex h-5 w-5 items-center justify-center rounded-full text-xs ${
                           isCurrent || isComplete ? "bg-brand-700 text-white font-bold" : "bg-gray-200 text-gray-600"
                         }`}
                       >
@@ -840,7 +840,7 @@ export default function PackageBookingModal({
                                 }`}
                               >
                                 <span className="block text-sm font-bold">{slot.startTime.slice(0, 5)}</span>
-                                <span className="text-[10px] opacity-85">{slot.available ? "Còn chỗ" : "Đã kín"}</span>
+                                <span className="text-xs opacity-85">{slot.available ? "Còn chỗ" : "Đã kín"}</span>
                               </button>
                             );
                           })}
@@ -871,7 +871,7 @@ export default function PackageBookingModal({
                                 }`}
                               >
                                 <span className="block text-sm font-bold">{slot.startTime.slice(0, 5)}</span>
-                                <span className="text-[10px] opacity-85">{slot.available ? "Còn chỗ" : "Đã kín"}</span>
+                                <span className="text-xs opacity-85">{slot.available ? "Còn chỗ" : "Đã kín"}</span>
                               </button>
                             );
                           })}
@@ -1212,7 +1212,7 @@ export default function PackageBookingModal({
                   <div className="p-5 bg-gradient-to-br from-brand-900 to-[#00282b] text-white rounded-sm text-left shadow-xl relative overflow-hidden border border-teal-800">
                     <div className="flex justify-between items-start border-b border-teal-700/60 pb-3 mb-3">
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider text-teal-300 font-bold">
+                        <span className="text-xs uppercase tracking-wider text-teal-300 font-bold">
                           PHIẾU ĐĂNG KÝ GÓI KHÁM ĐIỆN TỬ
                         </span>
                         <h4 className="text-base sm:text-lg font-extrabold text-white">
@@ -1220,7 +1220,7 @@ export default function PackageBookingModal({
                         </h4>
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] uppercase tracking-wider text-teal-300 block">
+                        <span className="text-xs uppercase tracking-wider text-teal-300 block">
                           MÃ PHIẾU KHÁM
                         </span>
                         <p className="font-mono font-bold text-amber-400 text-base sm:text-lg tracking-wider">
@@ -1231,48 +1231,48 @@ export default function PackageBookingModal({
 
                     <div className="grid grid-cols-2 gap-2.5 text-xs">
                       <div className="col-span-2 sm:col-span-1">
-                        <span className="text-teal-300 text-[11px] block">Gói khám sức khỏe:</span>
+                        <span className="text-teal-300 text-xs block">Gói khám sức khỏe:</span>
                         <p className="font-bold text-white text-sm">{packageItem.name}</p>
                       </div>
                       <div className="col-span-2 sm:col-span-1">
-                        <span className="text-teal-300 text-[11px] block">Chi phí niêm yết:</span>
+                        <span className="text-teal-300 text-xs block">Chi phí niêm yết:</span>
                         <p className="font-extrabold text-amber-300 text-sm font-mono">
                           {currency(packageItem.price)} VNĐ
                         </p>
                       </div>
                       <div>
-                        <span className="text-teal-300 text-[11px] block">Người khám:</span>
+                        <span className="text-teal-300 text-xs block">Người khám:</span>
                         <p className="font-bold text-white">{confirmedAppointment.patientName}</p>
                       </div>
                       <div>
-                        <span className="text-teal-300 text-[11px] block">Số điện thoại:</span>
+                        <span className="text-teal-300 text-xs block">Số điện thoại:</span>
                         <p className="font-bold text-white">{confirmedAppointment.patientPhone}</p>
                       </div>
                       <div>
-                        <span className="text-teal-300 text-[11px] block">Ngày tiếp nhận:</span>
+                        <span className="text-teal-300 text-xs block">Ngày tiếp nhận:</span>
                         <p className="font-bold text-amber-300">{formatBusinessDate(confirmedAppointment.appointmentDate)}</p>
                       </div>
                       <div>
-                        <span className="text-teal-300 text-[11px] block">Giờ tiếp nhận:</span>
+                        <span className="text-teal-300 text-xs block">Giờ tiếp nhận:</span>
                         <p className="font-bold text-amber-300">
                           {confirmedAppointment.startTime.slice(0, 5)}
                           {confirmedAppointment.endTime ? ` - ${confirmedAppointment.endTime.slice(0, 5)}` : ""}
                         </p>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-teal-300 text-[11px] block">Cơ sở tiếp đón:</span>
+                        <span className="text-teal-300 text-xs block">Cơ sở tiếp đón:</span>
                         <p className="font-semibold text-white">
                           {currentBranch?.name || confirmedAppointment.branchName || "Hệ thống Bệnh viện HealthCare"}
                         </p>
-                        <p className="text-[11px] text-teal-200/90 mt-0.5">
+                        <p className="text-xs text-teal-200/90 mt-0.5">
                           {currentBranch?.address || confirmedAppointment.branchAddress}
                         </p>
                       </div>
                     </div>
 
                     {/* Preparation Guidelines */}
-                    <div className="mt-3.5 rounded-sm border border-teal-700/70 bg-teal-950/60 p-3 text-[11px] leading-5 text-teal-100">
-                      <p className="font-bold text-amber-300 uppercase tracking-wide text-[10px] mb-1">
+                    <div className="mt-3.5 rounded-sm border border-teal-700/70 bg-teal-950/60 p-3 text-xs leading-5 text-teal-100">
+                      <p className="font-bold text-amber-300 uppercase tracking-wide text-xs mb-1">
                         Hướng dẫn chuẩn bị trước khi đến khám
                       </p>
                       <ul className="list-disc list-inside space-y-0.5">
@@ -1286,7 +1286,7 @@ export default function PackageBookingModal({
                       </ul>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-teal-700/60 flex items-center justify-between text-[11px] text-teal-200">
+                    <div className="mt-3 pt-3 border-t border-teal-700/60 flex items-center justify-between text-xs text-teal-200">
                       <span className="flex items-center gap-1">
                         <Icon name="building" size={13} /> {currentBranch?.name || "HealthCare Vietnam"}
                       </span>
