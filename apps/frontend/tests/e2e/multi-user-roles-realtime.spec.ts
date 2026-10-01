@@ -534,7 +534,9 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
       await expect(heroSlot).toBeVisible();
       await expect(heroSlot).toContainText("Chăm sóc sức khỏe đa chuyên khoa");
       await expect(heroSlot).toHaveAttribute("data-cms-version", "1");
-      await backend.waitForFeedReady();
+      // The public tab holds no live SSE feed (that connection pinned a Vercel
+      // Fluid invocation for the tab's whole lifetime); convergence after a
+      // publish is the bounded poll's job below, not a push event's.
 
       // Admin updates hero content in real-time
       await adminPage.goto("/admin/content");
@@ -548,8 +550,9 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
       await adminPage.getByRole("button", { name: "Xuất bản" }).click();
       await expect(adminPage.getByText("Đã xuất bản homepage.hero, version 2.")).toBeVisible();
 
-      // Verify patient's open homepage updates in real-time via SSE without navigation!
-      await expect(heroSlot).toContainText(updatedHeroTitle);
+      // Verify the patient's open homepage converges through the bounded poll
+      // (next 60s tick) without navigation — not through a live push.
+      await expect(heroSlot).toContainText(updatedHeroTitle, { timeout: 75_000 });
       await expect(heroSlot).toContainText(updatedHeroBody);
       await expect(heroSlot).toHaveAttribute("data-cms-version", "2");
 
