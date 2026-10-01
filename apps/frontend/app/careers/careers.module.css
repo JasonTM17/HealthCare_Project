@@ -281,7 +281,7 @@
   border-radius: var(--radius-xs);
   background: #eef4f2;
   color: #426067;
-  font-size: 0.73rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -394,7 +394,7 @@
 .formGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .fullField { grid-column: 1 / -1; }
 .applicationForm label b { color: #a33a30; }
-.applicationForm label small { color: #708287; font-size: 0.72rem; }
+.applicationForm label small { color: #708287; font-size: 0.75rem; }
 
 .consentField { display: grid !important; grid-template-columns: auto 1fr; gap: 0.65rem !important; align-items: start; margin-top: 1.2rem; }
 .consentField input { width: 1.1rem; min-height: auto; height: 1.1rem; margin-top: 0.2rem; accent-color: var(--career-teal); }
@@ -408,7 +408,7 @@
 .successIcon { display: grid; width: 4.5rem; height: 4.5rem; place-items: center; margin-bottom: 1.3rem; border-radius: var(--radius-sm); background: #dff2ee; color: var(--career-teal); }
 .successState > p { max-width: 34rem; margin: 1rem 0 0; color: #596f76; }
 .receiptCode { display: grid; gap: 0.3rem; width: min(100%, 20rem); margin-top: 1.5rem; padding: 1rem; border: 1px dashed #8cb8b2; border-radius: var(--radius-sm); background: #f4faf8; }
-.receiptCode span { color: #647b81; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
+.receiptCode span { color: #647b81; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
 .receiptCode strong { color: var(--career-navy); font-size: 1.45rem; letter-spacing: 0.08em; }
 .successState .privacyText { margin-top: 0.65rem; font-size: 0.78rem; }
 .successState .primaryButton { margin-top: 1.5rem; }

@@ -72,7 +72,7 @@
 .site-shell .hero-kicker {
   gap: 0.75rem;
   color: var(--color-teal-700);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -335,7 +335,7 @@
 
 .site-shell .care-experience__badge small {
   color: var(--color-ink-soft);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   line-height: 1.35;
 }
 
@@ -385,7 +385,7 @@
 .site-shell .care-experience__moments article > span {
   padding-top: 0.2rem;
   color: var(--color-amber);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.12em;
 }
@@ -608,7 +608,7 @@
 
   .site-shell .hero-kicker {
     margin-bottom: 0.8rem;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .site-shell .hero-kicker__line {
@@ -663,11 +663,11 @@
   }
 
   .site-shell .hero-trust__item strong {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .site-shell .hero-trust__item small {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .site-shell .hero-search {
@@ -733,7 +733,7 @@
   }
 
   .site-shell .hero-visual__floating-label strong {
-    font-size: 0.73rem;
+    font-size: 0.75rem;
   }
 
   .site-shell .hero-visual__index {
@@ -808,7 +808,7 @@
   }
 
   .site-shell .care-link small {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 
   .site-shell .care-experience {

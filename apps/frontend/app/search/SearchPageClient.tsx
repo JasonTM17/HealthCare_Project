@@ -565,7 +565,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                     }`}
                   >
-                    {tab.label} <span className={isActive ? "text-teal-200" : "text-slate-400"}>({count})</span>
+                    {tab.label} <span className={isActive ? "text-teal-200" : "text-slate-600"}>({count})</span>
                   </button>
                 );
               })}

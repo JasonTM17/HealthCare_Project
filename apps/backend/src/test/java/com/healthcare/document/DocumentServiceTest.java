@@ -28,6 +28,7 @@ import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -410,6 +411,90 @@ class DocumentServiceTest {
         verify(objectStore).put(eq(stale.getObjectKey()), eq(RENDERED_PDF), eq("application/pdf"));
         verify(cleanupService).trackCandidate(stale.getObjectKey());
         verify(cleanupService).resolveCandidate(stale.getObjectKey());
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(FOREIGN_DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
+    /**
+     * ADR-005 under concurrency, reuse branch: adopting an orphan FAILED row
+     * writes a fresh idempotency key (DocumentService sets it in place before
+     * flushing). If a concurrent request claims that key first, the flush hits
+     * the V71 unique constraint and must yield the winner's row — exactly what
+     * the INSERT branch already does — instead of surfacing a 500.
+     */
+    @Test
+    void reuseRaceOnIdempotencyKeyReturnsWinnerRowInsteadOfFailing() throws Exception {
+        MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        PatientProfile patient = patientMock(PATIENT_ID);
+        User generator = userMock();
+        PatientDocument winner = availableDocument(FOREIGN_DOCUMENT_ID, RECORD_ID);
+        PatientDocument orphan = availableDocument();
+        orphan.setStatus(DocumentStatus.FAILED);
+        orphan.setSha256(null);
+        orphan.setByteSize(null);
+        orphan.setSourceVersion(1L);
+        orphan.setTemplateVersion("v1.0");
+        orphan.setIdempotencyKey("VISIT_SUMMARY:" + RECORD_ID + ":1:v1.0");
+        // First lookup (entry check) misses; the lookup inside the race catch
+        // finds the row the concurrent winner committed.
+        when(documentRepository.findByIdempotencyKey(anyString()))
+                .thenReturn(Optional.empty(), Optional.of(winner));
+        when(documentRepository
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                        PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
+                .thenReturn(Optional.of(orphan));
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(generator));
+        when(patientProfileRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        when(documentRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("uq_patient_documents_idempotency_key"));
+
+        DocumentResponse response = service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal());
+
+        assertThat(response.id()).isEqualTo(FOREIGN_DOCUMENT_ID);
+        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
+        // Idempotent handoff: no object is written and the winner is audited.
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(FOREIGN_DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
+    /**
+     * Same contract, INSERT branch: losing the race on the unique idempotency
+     * key during the fresh-row flush returns the winner's row without a second
+     * object write.
+     */
+    @Test
+    void insertRaceOnIdempotencyKeyReturnsWinnerRowInsteadOfFailing() throws Exception {
+        MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        PatientProfile patient = patientMock(PATIENT_ID);
+        User generator = userMock();
+        PatientDocument winner = availableDocument(FOREIGN_DOCUMENT_ID, RECORD_ID);
+        when(documentRepository.findByIdempotencyKey(anyString()))
+                .thenReturn(Optional.empty(), Optional.of(winner));
+        when(documentRepository
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                        PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
+                .thenReturn(Optional.empty());
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(generator));
+        when(patientProfileRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        when(documentRepository.saveAndFlush(any()))
+                .thenThrow(new DataIntegrityViolationException("uq_patient_documents_idempotency_key"));
+
+        DocumentResponse response = service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal());
+
+        assertThat(response.id()).isEqualTo(FOREIGN_DOCUMENT_ID);
+        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
+        verify(objectStore, never()).put(anyString(), any(), anyString());
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
                 eq(FOREIGN_DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
                 eq(ClinicalAccessAuditService.DECISION_ALLOW));

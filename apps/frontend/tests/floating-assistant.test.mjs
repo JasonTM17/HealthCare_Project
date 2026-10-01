@@ -48,7 +48,7 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   // Provenance labels live in AssistantProvider so the floating panel and the
   // full patient chat page share one source-honesty contract.
   assert.match(provider, /Hỗ trợ tạm thời/);
-  assert.match(component, /latestMessage\.safetyAction === "INSUFFICIENT_EVIDENCE"/);
+  assert.match(component, /message\.provenance === "local_fallback" && message\.safetyAction === "INSUFFICIENT_EVIDENCE"/);
   assert.match(component, /stickToBottomRef/);
   assert.match(component, /onScroll=\{\(event\) => \{[\s\S]*isNearBottom\(event\.currentTarget\)/);
   assert.doesNotMatch(component, /Đang kết nối backend và AI/);

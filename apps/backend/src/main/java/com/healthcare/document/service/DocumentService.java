@@ -155,7 +155,21 @@ public class DocumentService {
             existing.setGeneratedBy(generatedBy);
             existing.setSha256(null);
             existing.setByteSize(null);
-            PatientDocument retry = documentRepository.saveAndFlush(existing);
+            PatientDocument retry;
+            try {
+                retry = documentRepository.saveAndFlush(existing);
+            } catch (DataIntegrityViolationException exception) {
+                // Same race as the fresh-insert branch below: adopting an orphan
+                // FAILED row writes the current idempotency key (set above), and
+                // a concurrent request may claim that key first. The winner's row
+                // is authoritative for both callers (ADR-005), so return it
+                // idempotently instead of surfacing a 500.
+                PatientDocument concurrent = documentRepository.findByIdempotencyKey(idempotencyKey)
+                        .orElseThrow(() -> exception);
+                auditService.record(principal, patientId, TARGET_DOCUMENT,
+                    concurrent.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
+                return toResponse(concurrent);
+            }
             return storeAndFinalize(retry, patientId, principal, pdfBytes);
         }
 

@@ -264,8 +264,6 @@ function FloatingHealthAssistantPanel({
   // Bounded staged feedback: acknowledge immediately, then report the real
   // waiting activity instead of a single unbounded spinner.
   const waitStage = useChatWaitStage(sending);
-  const latestMessage = messages[messages.length - 1];
-  const isInsufficientEvidence = latestMessage?.role === "ASSISTANT" && latestMessage.safetyAction === "INSUFFICIENT_EVIDENCE";
   const assistantStatus = failure?.kind === "unavailable"
     ? "Gián đoạn"
     : failure?.kind === "credits"
