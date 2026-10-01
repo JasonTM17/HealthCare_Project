@@ -2688,6 +2688,15 @@ def resolve_chat(
     client = client or build_llm_client(settings, cancellation=cancellation)
     if client is None:
         if public_remote_enabled:
+            logger.warning(
+                "public provider client is None: provider=%s model=%s base_url_set=%s "
+                "release_hold=%s remote_enabled=%s",
+                string_setting(settings, "ai_provider", RULE_BASED),
+                string_setting(settings, "ai_chat_model", ""),
+                bool(string_setting(settings, "ai_base_url", "").strip()),
+                getattr(settings, "remote_ai_release_hold", None),
+                patient_chat_remote_enabled(settings),
+            )
             raise ProviderUnavailable()
         if not fallback_allowed:
             raise ProviderUnavailable()
@@ -2701,6 +2710,10 @@ def resolve_chat(
 
     if not _circuit_allows_request():
         if public_remote_enabled:
+            logger.warning(
+                "public provider request rejected: circuit open (failures=%s)",
+                _CIRCUIT_FAILURES,
+            )
             raise ProviderUnavailable()
         if fallback_allowed:
             return ChatResponse(
@@ -2759,16 +2772,33 @@ def resolve_chat(
         if not isinstance(answer, str) or not answer.strip() or len(answer.strip()) > 4_000:
             raise ValueError("invalid chat response")
         answer = answer.strip()
-        if not remote_text_output_is_safe(
+        output_safe = remote_text_output_is_safe(
             answer,
             allow_public_operational=allow_public_operational,
             allow_public_generic_guidance=public_support_chat,
-        ) or not remote_answer_is_grounded(
+        )
+        answer_grounded = remote_answer_is_grounded(
             answer,
             context,
             allow_public_operational=allow_public_operational,
             allow_public_generic_guidance=allow_public_generic_guidance or public_support_chat,
-        ):
+        )
+        if not output_safe or not answer_grounded:
+            # Content-free operator diagnostics: which boundary rejected the
+            # answer plus a hashed fingerprint to correlate repeated
+            # rejections of the same text. Never logs the answer itself.
+            import hashlib as _hashlib
+
+            fingerprint = _hashlib.sha256(answer.encode("utf-8")).hexdigest()[:12]
+            logger.warning(
+                "public provider answer rejected output_safe=%s grounded=%s "
+                "answer_sha256_12=%s len=%s",
+                output_safe,
+                answer_grounded,
+                fingerprint,
+                len(answer),
+            )
+        if not output_safe or not answer_grounded:
             if public_remote_enabled:
                 if public_support_chat:
                     return ChatResponse(
