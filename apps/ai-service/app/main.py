@@ -377,7 +377,9 @@ def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenanc
 
 @app.exception_handler(ProviderUnavailable)
 async def provider_unavailable_handler(request: Request, exc: ProviderUnavailable) -> JSONResponse:
-    del request, exc
+    # Operator diagnostics without payload content: the exception message is
+    # a provider-transport string, never user or catalog text.
+    logger.error("provider unavailable: %s | path=%s", exc, request.url.path)
     return JSONResponse(status_code=503, content={"detail": "AI provider unavailable"})
 
 
