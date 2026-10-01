@@ -183,7 +183,7 @@ test("a rejected tick keeps the last known badge and the same bounded cadence", 
 });
 
 test("the cadence stays inside the documented floor and ceiling", async () => {
-  assert.equal(NOTIFICATION_POLL_INTERVAL_MS, 15_000, "matches the CMS live-slot polling default");
+  assert.equal(NOTIFICATION_POLL_INTERVAL_MS, 60_000, "matches the CMS live-slot polling default");
   const harness = createHarness(0);
   let calls = 0;
   const poll = startNotificationPoll({
