@@ -167,7 +167,9 @@ async function startCmsMockBackend() {
       }
 
       if (method === "GET" && apiPath === `/cms/content/${SLOT_KEY}`) {
-        if (requestUrl.searchParams.get("afterEventId") === "2") publicReadAfterPublish = true;
+        // Public slots no longer receive push events through the live feed;
+        // the oracle is now "any authoritative re-read after the publish".
+        if (publishRequested) publicReadAfterPublish = true;
         sendJson(response, 200, publishedContent);
         return;
       }
@@ -290,7 +292,10 @@ async function closeServer(server: Server, sseClients: Set<ServerResponse>): Pro
   });
 }
 
-test("admin publish updates the public homepage hero through the live CMS feed", async ({ context }) => {
+test("admin publish reaches the public homepage hero through the bounded poll while no live feed is held", async ({ context }) => {
+  // The public slot converges on its next 60s poll instead of a live push, so
+  // this test intentionally outlives the suite-wide 30s timeout.
+  test.setTimeout(120_000);
   const backend = await startCmsMockBackend();
 
   try {
@@ -306,8 +311,6 @@ test("admin publish updates the public homepage hero through the live CMS feed",
     const heroSlot = publicPage.locator('[data-cms-live-slot="hero"]');
     await expect(heroSlot).toContainText(INITIAL_TITLE);
     await expect(heroSlot).toHaveAttribute("data-cms-version", "1");
-    await backend.waitForFeedReady();
-    expect(backend.feedReady).toBe(true);
 
     let publicMainFrameNavigationsAfterLoad = 0;
     publicPage.on("framenavigated", (frame) => {
@@ -329,7 +332,10 @@ test("admin publish updates the public homepage hero through the live CMS feed",
     await adminPage.getByRole("button", { name: "Xuất bản" }).click();
 
     await expect(adminPage.getByText("Đã xuất bản homepage.hero, version 2.")).toBeVisible();
-    await expect(heroSlot).toContainText(UPDATED_TITLE);
+    // The public tab holds no push feed — that invocation pinning was the Fluid
+    // memory leak this branch fixes — so it converges on its next 60s poll.
+    // 75s covers one full poll cycle from mount.
+    await expect(heroSlot).toContainText(UPDATED_TITLE, { timeout: 75_000 });
     await expect(heroSlot).toContainText(UPDATED_BODY);
     await expect(heroSlot).toHaveAttribute("data-cms-version", "2");
     await expect(heroSlot).not.toContainText(INITIAL_TITLE);
@@ -337,6 +343,9 @@ test("admin publish updates the public homepage hero through the live CMS feed",
     expect(publicMainFrameNavigationsAfterLoad).toBe(0);
     expect(backend.publishRequested).toBe(true);
     expect(backend.publicReadAfterPublish).toBe(true);
+    // Regression guard for the Fluid fix: the public tab must never open the
+    // SSE change feed. The mock only marks feedReady when a client connects.
+    expect(backend.feedReady).toBe(false);
     expect(backend.unexpectedApiRequests).toEqual([]);
     expect(backend.serverErrors).toEqual([]);
     await assertNoSensitiveBrowserStorage(adminPage);
