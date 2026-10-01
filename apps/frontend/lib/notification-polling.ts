@@ -12,8 +12,15 @@
  * pause/cooldown behaviour is unit-testable, like `consultation-attachment-polling.ts`.
  */
 
-/** Matches the CMS live-slot default: quiet enough to leave running all shift. */
-export const NOTIFICATION_POLL_INTERVAL_MS = 15_000;
+/**
+ * Matches the CMS live-slot default. 60s keeps a visible portal tab's
+ * background cost at well under 1% of a Fluid invocation's lifetime; freshness
+ * does not depend on the tick — an in-tab action refreshes through the
+ * `healthcare:notifications-updated` event, and returning to a tab that has
+ * been idle longer than the interval ticks immediately (the resume cooldown
+ * clamps to zero).
+ */
+export const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 export const MIN_NOTIFICATION_POLL_INTERVAL_MS = 5_000;
 export const MAX_NOTIFICATION_POLL_INTERVAL_MS = 300_000;
 

@@ -4,8 +4,8 @@
   "buildCommand": "npm run build",
   "functions": {
     "app/api/**/*": {
-      "memory": 256,
-      "maxDuration": 30
+      "memory": 1024,
+      "maxDuration": 60
     }
   }
 }

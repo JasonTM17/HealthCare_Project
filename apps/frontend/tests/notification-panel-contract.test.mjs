@@ -102,7 +102,7 @@ test("the bell refreshes on a bounded, hidden-aware poll in both shells", async 
   const cmsSlot = await read("../components/cms/CmsLiveSlot.tsx");
   assert.match(cmsSlot, /pollIntervalMs = 60_000/);
   assert.match(cmsSlot, /document\.visibilityState === "visible"/);
-  assert.match(helper, /NOTIFICATION_POLL_INTERVAL_MS = 15_000/);
+  assert.match(helper, /NOTIFICATION_POLL_INTERVAL_MS = 60_000/);
   assert.match(chrome, /healthcare:notifications-updated/);
 });
 
