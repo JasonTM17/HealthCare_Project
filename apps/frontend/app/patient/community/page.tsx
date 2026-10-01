@@ -175,7 +175,7 @@ export default function PatientCommunityPage() {
                         <UiIcon name="clock" size={13} />
                         <span>{article.readingMinutes || 5} phút đọc</span>
                       </span>
-                      <span className="text-[11px] text-teal-800 font-semibold group-hover:underline">Đọc toàn bộ bài báo →</span>
+                      <span className="text-xs text-teal-800 font-semibold group-hover:underline">Đọc toàn bộ bài báo →</span>
                     </div>
 
                     <h3 className="text-base font-bold text-teal-950 line-clamp-2 group-hover:text-teal-700 transition-colors">

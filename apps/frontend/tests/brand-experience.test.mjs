@@ -84,7 +84,10 @@ test("typography variables provide deterministic font fallbacks without build-ti
   const styles = await read("app/styles.css");
 
   assert.match(styles, /--font-be-vietnam-pro:\s*"Be Vietnam Pro"/);
-  assert.match(styles, /--font-inter:\s*"Inter"/);
+  // Inter is not loaded by layout.tsx; the sans/body stack leads with the
+  // actually-loaded Be Vietnam Pro (wave-2 font-stack cleanup).
+  assert.match(styles, /--font-inter:\s*"Be Vietnam Pro"/);
+  assert.doesNotMatch(styles, /--font-inter:\s*"Inter"/);
   assert.match(styles, /--font-display:\s*var\(--font-be-vietnam-pro\)/);
   assert.match(styles, /--font-body:\s*var\(--font-inter\)/);
 });

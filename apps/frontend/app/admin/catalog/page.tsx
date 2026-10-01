@@ -1670,6 +1670,7 @@ export default function AdminCatalogPage() {
                 </div>
                 <div className="w-full sm:w-72">
                   <input
+                    aria-label="Tìm kiếm bài viết theo tiêu đề, danh mục, tác giả"
                     className={inputClass}
                     placeholder="Tìm theo tiêu đề, danh mục, tác giả..."
                     value={articleSearchQuery}

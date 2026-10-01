@@ -19,6 +19,11 @@ import test from "node:test";
 // naive /<input[^>]*>/ would cut the tag open mid-expression.
 const grantPath = new URL("../app/admin/ai-credits/page.tsx", import.meta.url);
 const dashPath = new URL("../app/patient/dashboard/page.tsx", import.meta.url);
+// Sóng 2 / B5: the 13 orphan controls the earlier audit deferred, now pinned.
+const doctorArticlesPath = new URL("../app/doctor/articles/page.tsx", import.meta.url);
+const articleCommentsPath = new URL("../components/articles/ArticleComments.tsx", import.meta.url);
+const richTextEditorPath = new URL("../components/editor/RichTextEditor.tsx", import.meta.url);
+const adminCatalogPath = new URL("../app/admin/catalog/page.tsx", import.meta.url);
 
 function readTag(source, tagStart) {
   let i = tagStart + 1;
@@ -105,6 +110,19 @@ test("every form control in patient/dashboard page.tsx has a programmatic label"
   const orphans = findOrphanControls({ name: "app/patient/dashboard/page.tsx", ...collectLabelInfo(source) }, source);
   assert.deepEqual(orphans, [], `orphan controls without id+htmlFor, aria-label, or wrapping <label>:\n${orphans.join("\n")}`);
 });
+
+for (const [name, path] of [
+  ["app/doctor/articles/page.tsx", doctorArticlesPath],
+  ["components/articles/ArticleComments.tsx", articleCommentsPath],
+  ["components/editor/RichTextEditor.tsx", richTextEditorPath],
+  ["app/admin/catalog/page.tsx", adminCatalogPath],
+]) {
+  test(`every form control in ${name} has a programmatic label`, async () => {
+    const source = await readFile(path, "utf8");
+    const orphans = findOrphanControls({ name, ...collectLabelInfo(source) }, source);
+    assert.deepEqual(orphans, [], `orphan controls without id+htmlFor, aria-label, or wrapping <label>:\n${orphans.join("\n")}`);
+  });
+}
 
 test("the two audit-critical grant controls and the allergy textarea are label-paired by id", async () => {
   const grant = await readFile(grantPath, "utf8");

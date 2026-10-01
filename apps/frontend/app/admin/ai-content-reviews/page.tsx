@@ -342,7 +342,7 @@ export default function AdminAiContentReviewsPage() {
                       <td className="px-4 py-4 align-top"><StateBadge state={item.state} /></td>
                       <td className="px-4 py-4 align-top">
                         <p>Revision {item.revision} · vòng {item.approvalRound ?? "chưa có"}</p>
-                        <code className="mt-1 block max-w-[260px] break-all text-[11px] text-slate-500" title={item.contentHash}>SHA-256: {compactHash(item.contentHash)}</code>
+                        <code className="mt-1 block max-w-[260px] break-all text-xs text-slate-500" title={item.contentHash}>SHA-256: {compactHash(item.contentHash)}</code>
                       </td>
                       <td className="px-4 py-4 align-top text-xs text-slate-600">
                         <p>Gửi: {dateLabel(item.submittedAt)}</p>
@@ -513,7 +513,7 @@ export default function AdminAiContentReviewsPage() {
                   <span className="font-bold text-teal-950">Thông tin kiểm duyệt (Clinical Audit):</span>
                   <span>Vòng duyệt: {selected.approvalRound ?? "Chưa có"}</span>
                 </div>
-                <p className="font-mono text-[11px] text-slate-500 break-all">
+                <p className="font-mono text-xs text-slate-500 break-all">
                   SHA-256: {selected.contentHash || "Chưa có"}
                 </p>
                 <p className="text-slate-500">

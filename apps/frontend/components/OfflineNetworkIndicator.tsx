@@ -86,7 +86,7 @@ export default function OfflineNetworkIndicator() {
         </div>
         <button
           aria-label="Đóng thông báo trạng thái mạng"
-          className="px-2 py-0.5 rounded-[4px] hover:bg-black/5 text-current transition-colors text-[11px] font-bold"
+          className="px-2 py-0.5 rounded-[4px] hover:bg-black/5 text-current transition-colors text-xs font-bold"
           onClick={() => {
             setDismissed(true);
             setShowReconnected(false);

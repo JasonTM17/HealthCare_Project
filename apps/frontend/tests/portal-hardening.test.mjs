@@ -225,7 +225,10 @@ test("typography rules globally enforce Be Vietnam Pro for Vietnamese UI", async
 
   // CSS variables in styles.css
   assert.match(styles, /--font-be-vietnam-pro:\s*"Be Vietnam Pro"/);
-  assert.match(styles, /--font-inter:\s*"Inter"/);
+  // Inter is never loaded by app/layout.tsx, so the sans/body stack must not
+  // lead with it (wave-2 font-stack cleanup) — Be Vietnam Pro leads instead.
+  assert.match(styles, /--font-inter:\s*"Be Vietnam Pro"/);
+  assert.doesNotMatch(styles, /--font-inter:\s*"Inter"/);
   assert.match(styles, /--font-display:\s*var\(--font-be-vietnam-pro\)/);
   assert.match(styles, /--font-body:\s*var\(--font-inter\)/);
 

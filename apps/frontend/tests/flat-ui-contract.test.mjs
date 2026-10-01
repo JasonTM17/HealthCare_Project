@@ -38,6 +38,10 @@ const CSS_SURFACES = [
   "app/about/about.module.css",
   "components/FloatingHealthAssistant.module.css",
   "components/PackageVisuals.module.css",
+  "app/auth/login/login.module.css",
+  "app/brand-experience.css",
+  "app/effects.css",
+  "app/careers/careers.module.css",
 ];
 
 test("flat clinical UI tokens clamp structural surfaces and controls", async () => {
@@ -105,6 +109,65 @@ test("targeted CSS avoids direct border radii above the 4px control limit", asyn
       assert.equal(tooLarge, false, `${path} has non-token border-radius above 4px: ${value}`);
     }
   }
+});
+
+// B1 contrast batch A: text-[10px] (0.625rem) and text-[11px] (0.6875rem)
+// fall below the FLAT-UI CONTRACT floor of 0.75rem. These six files carry the
+// densest clusters (54 of ~70 sites) and were migrated to text-xs; the gate
+// pins them so the sub-floor utilities cannot creep back.
+// B1 contrast batch B adds the remaining 16 sites across six page files
+// (doctor/articles 8, admin/layout 3, admin/ai-content-reviews 2,
+// patient/community 1, admin/schedules 1, admin/payments 1).
+const SUB_FLOOR_TYPE_SURFACES = [
+  "components/PackageBookingModal.tsx",
+  "components/articles/ArticleComments.tsx",
+  "components/editor/RichTextEditor.tsx",
+  "components/AiTriageModal.tsx",
+  "components/editor/RichContentRenderer.tsx",
+  "components/OfflineNetworkIndicator.tsx",
+  "app/doctor/articles/page.tsx",
+  "app/admin/layout.tsx",
+  "app/admin/ai-content-reviews/page.tsx",
+  "app/patient/community/page.tsx",
+  "app/admin/schedules/page.tsx",
+  "app/admin/payments/page.tsx",
+];
+
+test("migrated surfaces avoid sub-floor text-[10px]/text-[11px] utilities", async () => {
+  for (const path of SUB_FLOOR_TYPE_SURFACES) {
+    const source = await read(path);
+    assert.doesNotMatch(source, /text-\[(?:10|11)px\]/, `${path} still uses a sub-0.75rem text utility`);
+  }
+});
+
+// B1 batch B also cleared every raw font-size below the 0.75rem contract floor
+// in app/styles.css (0.54–0.6875rem literals and the 10px line at the old
+// :4497). Pin the whole file so sub-floor declarations cannot creep back;
+// other stylesheets are migrated by their own items before being added here.
+test("app/styles.css keeps every raw font-size at or above the 0.75rem floor", async () => {
+  const css = await read("app/styles.css");
+  for (const match of css.matchAll(/font-size:\s*([^;]+);/g)) {
+    const value = match[1].trim().replace(/!important$/, "").trim();
+    if (value.includes("var(") || value.includes("calc(") || value.includes("clamp(") || value === "inherit") continue;
+    const subFloor = [...value.matchAll(/([0-9]*\.?[0-9]+)(px|rem)/g)].some((part) => {
+      const amount = Number(part[1]);
+      return part[2] === "px" ? amount < 12 : amount * 16 < 12;
+    });
+    assert.equal(subFloor, false, `app/styles.css font-size ${value} is below the 0.75rem contract floor`);
+  }
+});
+
+// B2 wave 2: global-error.tsx is dependency-light (CSS tokens may be absent
+// when the root layout itself failed), so its inline styles must stay flat:
+// no shadow, and no rounded geometry above the 4px control limit.
+test("global error boundary stays flat and unrounded", async () => {
+  const source = await read("app/global-error.tsx");
+  assert.doesNotMatch(source, /boxShadow/, "global-error.tsx must not carry an inline boxShadow");
+  assert.doesNotMatch(
+    source,
+    /borderRadius:\s*(1[0-9]|[5-9])[0-9]?/,
+    "global-error.tsx inline borderRadius must stay flat (use 0)",
+  );
 });
 
 test("delight layer stays flat, tokened and reduced-motion safe", async () => {

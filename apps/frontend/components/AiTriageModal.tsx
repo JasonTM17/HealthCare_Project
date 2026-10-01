@@ -294,7 +294,7 @@ export default function AiTriageModal({
                   Chuyên khoa khuyến nghị
                 </span>
                 <span
-                  className={`rounded-md border px-2 py-0.5 text-[10px] font-extrabold ${
+                  className={`rounded-md border px-2 py-0.5 text-xs font-extrabold ${
                     result.urgencyLevel === "EMERGENCY"
                       ? "border-red-300 bg-red-100 text-red-700"
                       : result.urgencyLevel === "HIGH"
@@ -314,7 +314,7 @@ export default function AiTriageModal({
                 <Icon name="stethoscope" size={18} /> {result.recommendedSpecialty}
               </h4>
 
-              <p className="text-[11px] text-gray-600">
+              <p className="text-xs text-gray-600">
                 {result.recommendedSpecialtyId && result.specialtyResolution === "RESOLVED"
                   ? "Chuyên khoa này hiện có trong danh mục đặt lịch."
                   : "Chưa tìm thấy chuyên khoa phù hợp trong danh mục hiện tại; hãy chọn trực tiếp từ danh sách."}
@@ -334,7 +334,7 @@ export default function AiTriageModal({
               ) : null}
 
               {result.citations?.length ? (
-                <div className="border-t border-brand-100 pt-3 text-[11px] text-gray-600">
+                <div className="border-t border-brand-100 pt-3 text-xs text-gray-600">
                   <p className="font-bold text-brand-900">Nguồn tham khảo</p>
                   <ul className="mt-1 list-disc space-y-1 pl-4">
                     {result.citations.map((citation, index) => {
@@ -348,7 +348,7 @@ export default function AiTriageModal({
                 </div>
               ) : null}
 
-              <p className="flex items-start gap-2 rounded-lg bg-white/70 p-3 text-[11px] leading-relaxed text-gray-600">
+              <p className="flex items-start gap-2 rounded-lg bg-white/70 p-3 text-xs leading-relaxed text-gray-600">
                 <Icon name="alert-triangle" size={14} /> <span>{result.disclaimer ?? "Kết quả chỉ mang tính tham khảo và không thay thế thăm khám trực tiếp."}</span>
               </p>
 
@@ -383,7 +383,7 @@ export default function AiTriageModal({
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 border-t border-brand-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-[11px] text-gray-500">Hãy trao đổi lại với nhân viên y tế trước khi quyết định.</span>
+                  <span className="text-xs text-gray-500">Hãy trao đổi lại với nhân viên y tế trước khi quyết định.</span>
                   {result.specialtyResolution === "RESOLVED" && result.recommendedSpecialtyId ? (
                     <button
                       type="button"

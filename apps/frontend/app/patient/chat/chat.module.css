@@ -134,7 +134,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0 var(--sp-4);
+  gap: var(--sp-2) var(--sp-4);
   padding: 4px var(--sp-3);
   margin-bottom: var(--sp-2);
   border: 1px solid var(--chat-border);

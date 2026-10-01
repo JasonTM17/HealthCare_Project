@@ -1470,7 +1470,7 @@ export function RichTextEditor({
               {label} {required && <span className="text-red-500">*</span>}
             </label>
           )}
-          <span className="hidden sm:inline-flex items-center gap-1 rounded-[3px] bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200">
+          <span className="hidden sm:inline-flex items-center gap-1 rounded-[3px] bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-800 border border-teal-200">
             <UiIcon name="sparkles" size={11} />
             <span>Trình soạn thảo y khoa</span>
           </span>
@@ -1778,7 +1778,7 @@ export function RichTextEditor({
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
                 <div>
                   <strong className="block text-amber-900">⚠️ Cảnh báo lâm sàng</strong>
-                  <span className="text-[11px] text-slate-500">Tác dụng phụ, chống chỉ định</span>
+                  <span className="text-xs text-slate-500">Tác dụng phụ, chống chỉ định</span>
                 </div>
               </button>
 
@@ -1791,7 +1791,7 @@ export function RichTextEditor({
                 <span className="w-2 h-2 rounded-full bg-teal-600" />
                 <div>
                   <strong className="block text-teal-900">💡 Lời khuyên bác sĩ</strong>
-                  <span className="text-[11px] text-slate-500">Dặn dò chăm sóc, thói quen tốt</span>
+                  <span className="text-xs text-slate-500">Dặn dò chăm sóc, thói quen tốt</span>
                 </div>
               </button>
 
@@ -1804,7 +1804,7 @@ export function RichTextEditor({
                 <span className="w-2 h-2 rounded-full bg-sky-600" />
                 <div>
                   <strong className="block text-sky-900">📋 Hướng dẫn dùng thuốc</strong>
-                  <span className="text-[11px] text-slate-500">Liều dùng, thời điểm uống thuốc</span>
+                  <span className="text-xs text-slate-500">Liều dùng, thời điểm uống thuốc</span>
                 </div>
               </button>
 
@@ -1817,7 +1817,7 @@ export function RichTextEditor({
                 <span className="w-2 h-2 rounded-full bg-rose-600" />
                 <div>
                   <strong className="block text-rose-900">🚨 Dấu hiệu cấp cứu khẩn cấp</strong>
-                  <span className="text-[11px] text-slate-500">Triệu chứng nguy kịch cần đến viện</span>
+                  <span className="text-xs text-slate-500">Triệu chứng nguy kịch cần đến viện</span>
                 </div>
               </button>
             </div>
@@ -1844,7 +1844,7 @@ export function RichTextEditor({
               className="absolute left-0 top-full mt-1 z-30 w-80 rounded-[4px] border border-slate-200 bg-white p-2 shadow-lg space-y-1.5 text-xs"
               onMouseLeave={() => setShowTemplateMenu(false)}
             >
-              <div className="border-b border-slate-100 pb-1 font-bold text-slate-500 uppercase tracking-wider text-[10px]">
+              <div className="border-b border-slate-100 pb-1 font-bold text-slate-500 uppercase tracking-wider text-xs">
                 Chọn mẫu soạn thảo sẵn
               </div>
               {MEDICAL_TEMPLATES.map((tmpl, idx) => (
@@ -1856,7 +1856,7 @@ export function RichTextEditor({
                   type="button"
                 >
                   <strong className="block text-teal-950 font-bold">{tmpl.title}</strong>
-                  <p className="mt-0.5 text-[11px] text-slate-500 leading-normal">{tmpl.description}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 leading-normal">{tmpl.description}</p>
                 </button>
               ))}
             </div>
@@ -1937,7 +1937,7 @@ export function RichTextEditor({
         {viewMode === "split" && (
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200 h-full">
             <div className="h-full p-2 overflow-y-auto">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-2">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-1 px-2">
                 Soạn thảo trực tiếp
               </div>
               <textarea
@@ -1965,7 +1965,7 @@ export function RichTextEditor({
               />
             </div>
             <div className="h-full p-4 overflow-y-auto bg-slate-50/50">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-teal-800 mb-2 flex items-center gap-1.5">
+              <div className="text-xs font-bold uppercase tracking-wider text-teal-800 mb-2 flex items-center gap-1.5">
                 <UiIcon name="eye" size={12} />
                 <span>Xem trước thời gian thực</span>
               </div>
@@ -2007,7 +2007,7 @@ export function RichTextEditor({
           </span>
         </div>
 
-        <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-500">
+        <div className="hidden sm:flex items-center gap-3 text-xs text-slate-500">
           <span>Phím tắt:</span>
           <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono">Ctrl+B: Đậm</kbd>
           <kbd className="rounded-[3px] bg-white px-1.5 py-0.5 border border-slate-300 font-mono">Ctrl+I: Nghiêng</kbd>
@@ -2037,10 +2037,11 @@ export function RichTextEditor({
 
             <div className="mt-4 space-y-3">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                <label htmlFor="rich-link-text" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Văn bản hiển thị
                 </label>
                 <input
+                  id="rich-link-text"
                   className="mt-1 w-full rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:outline-none"
                   onChange={(e) => setLinkText(e.target.value)}
                   placeholder="Ví dụ: Đọc hướng dẫn khám tim mạch"
@@ -2050,10 +2051,11 @@ export function RichTextEditor({
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                <label htmlFor="rich-link-url" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Địa chỉ URL *
                 </label>
                 <input
+                  id="rich-link-url"
                   className="mt-1 w-full rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:outline-none"
                   onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://... hoặc /articles/..."
@@ -2119,6 +2121,7 @@ export function RichTextEditor({
                 onDrop={handleImageModalDrop}
               >
                 <input
+                  aria-label="Chọn ảnh để tải lên"
                   accept="image/png, image/jpeg, image/webp, image/gif"
                   className="hidden"
                   onChange={handleProcessImageUpload}
@@ -2135,7 +2138,7 @@ export function RichTextEditor({
                   <UiIcon name="plus" size={14} />
                   <span>{isUploadingImage ? "Đang tải ảnh lên..." : "Tải ảnh từ máy tính hoặc Kéo thả vào đây"}</span>
                 </button>
-                <p className="mt-2 text-[11px] text-slate-500">
+                <p className="mt-2 text-xs text-slate-500">
                   Hỗ trợ PNG, JPG, WEBP, GIF (Tối đa 10 MB). Kéo thả ảnh trực tiếp hoặc chọn tệp.
                 </p>
                 {imageUploadError && (
@@ -2145,14 +2148,15 @@ export function RichTextEditor({
 
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-slate-200 w-full" />
-                <span className="bg-white px-2 text-[11px] font-bold text-slate-400 uppercase">Hoặc nhập link ảnh</span>
+                <span className="bg-white px-2 text-xs font-bold text-slate-600 uppercase">Hoặc nhập link ảnh</span>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                <label htmlFor="rich-image-url" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Đường dẫn ảnh (URL) *
                 </label>
                 <input
+                  id="rich-image-url"
                   className="mt-1 w-full rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:outline-none"
                   onChange={(e) => setImageUrl(e.target.value)}
                   placeholder="https://... hoặc /uploads/..."
@@ -2162,10 +2166,11 @@ export function RichTextEditor({
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                <label htmlFor="rich-image-alt" className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                   Chú thích ảnh (Alt text)
                 </label>
                 <input
+                  id="rich-image-alt"
                   className="mt-1 w-full rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:outline-none"
                   onChange={(e) => setImageAlt(e.target.value)}
                   placeholder="Ví dụ: Sơ đồ phác đồ tầm soát tim mạch"
@@ -2177,7 +2182,7 @@ export function RichTextEditor({
               {/* Preview uploaded / entered image */}
               {imageUrl && (
                 <div className="rounded-[4px] border border-slate-200 p-2 bg-slate-50">
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  <span className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
                     Xem trước ảnh:
                   </span>
                   {/* eslint-disable-next-line @next/next/no-img-element */}

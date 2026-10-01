@@ -271,7 +271,7 @@ function AdminNotificationBell() {
       >
         <UiIcon name="bell" size={20} />
         {unread > 0 ? (
-          <span className="absolute right-1.5 top-1.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-[18px] text-white">
+          <span className="absolute right-1.5 top-1.5 min-w-[18px] rounded-full bg-red-600 px-1 text-center text-xs font-bold leading-[18px] text-white">
             {unread > 9 ? "9+" : unread}
           </span>
         ) : null}
@@ -305,10 +305,10 @@ function AdminNotificationBell() {
                   type="button"
                 >
                   <span className="flex items-center justify-between gap-2">
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-slate-600">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-bold uppercase text-slate-600">
                       {formatNotificationType(item.eventType)}
                     </span>
-                    <time className="text-[10px] text-slate-400" dateTime={item.createdAt}>
+                    <time className="text-xs text-slate-600" dateTime={item.createdAt}>
                       {formatBusinessDateTime(item.createdAt)}
                     </time>
                   </span>

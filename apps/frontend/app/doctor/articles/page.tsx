@@ -459,7 +459,7 @@ export default function DoctorArticlesPage() {
               >
                 <UiIcon name="book-open" size={15} />
                 <span>Bảng tin Y khoa Bệnh viện</span>
-                <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
+                <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-800 border border-teal-200/50">
                   {loading ? "--" : communityTotal}
                 </span>
               </button>
@@ -475,7 +475,7 @@ export default function DoctorArticlesPage() {
               >
                 <UiIcon name="stethoscope" size={15} />
                 <span>Bài viết của tôi</span>
-                <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-800 border border-teal-200/50">
+                <span className="ml-1 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-800 border border-teal-200/50">
                   {loading ? "--" : myArticles.length}
                 </span>
               </button>
@@ -576,7 +576,7 @@ export default function DoctorArticlesPage() {
                             <UiIcon name="clock" size={13} />
                             <span>{article.readingMinutes || 5} phút đọc</span>
                           </span>
-                          <span className="text-[11px]">Nhấp để xem →</span>
+                          <span className="text-xs">Nhấp để xem →</span>
                         </div>
 
                         <h3 className="text-base font-bold text-teal-950 line-clamp-2 group-hover:text-teal-700 transition-colors">
@@ -764,12 +764,12 @@ export default function DoctorArticlesPage() {
                       <div>
                         <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
                           <span>{readingArticle.authorName || "Bác sĩ Chuyên khoa"}</span>
-                          <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                          <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-xs font-bold text-white inline-flex items-center gap-1">
                             <UiIcon name="shield-check" size={10} />
                             <span>Đã xác thực</span>
                           </span>
                         </div>
-                        <p className="text-[11px] text-teal-800 m-0">Bệnh viện Đa khoa HealthCare</p>
+                        <p className="text-xs text-teal-800 m-0">Bệnh viện Đa khoa HealthCare</p>
                       </div>
                     </div>
 
@@ -818,7 +818,7 @@ export default function DoctorArticlesPage() {
                   </div>
 
                   {loadingReadingComments ? (
-                    <p className="text-xs text-slate-400">Đang tải thảo luận...</p>
+                    <p className="text-xs text-slate-600">Đang tải thảo luận...</p>
                   ) : readingComments.length === 0 ? (
                     <div className="rounded-[4px] bg-slate-50 p-6 text-center text-xs text-slate-500 border border-dashed border-slate-300">
                       Chưa có phản hồi nào. Hãy là Bác sĩ đầu tiên bình luận chuyên môn cho bài viết này!
@@ -843,18 +843,18 @@ export default function DoctorArticlesPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-slate-900">{c.authorName}</span>
                                 {isDoctor && (
-                                  <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-[10px] font-bold text-white inline-flex items-center gap-1">
+                                  <span className="rounded-[4px] bg-teal-800 px-1.5 py-0.5 text-xs font-bold text-white inline-flex items-center gap-1">
                                     <UiIcon name="shield-check" size={11} />
                                     <span>Bác sĩ</span>
                                   </span>
                                 )}
                                 {isAdmin && (
-                                  <span className="rounded-[4px] bg-purple-700 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                  <span className="rounded-[4px] bg-purple-700 px-1.5 py-0.5 text-xs font-bold text-white">
                                     Quản trị
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[10px] text-slate-400">
+                              <span className="text-xs text-slate-600">
                                 {formatDate(c.createdAt)}
                               </span>
                             </div>
@@ -902,6 +902,7 @@ export default function DoctorArticlesPage() {
                       </div>
                     )}
                     <textarea
+                      aria-label="Gửi phản hồi y khoa chính thức từ Bác sĩ"
                       className="w-full rounded-[4px] border border-slate-300 p-3.5 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none transition leading-relaxed text-slate-800 placeholder:text-slate-400 bg-white"
                       disabled={busy}
                       onChange={(e) => setReplyText(e.target.value)}
@@ -950,8 +951,9 @@ export default function DoctorArticlesPage() {
 
               <form className="mt-4 space-y-4" onSubmit={handleSaveArticle}>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tiêu đề bài viết *</label>
+                  <label htmlFor="article-title" className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tiêu đề bài viết *</label>
                   <input
+                    id="article-title"
                     className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3.5 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Ví dụ: Hướng dẫn chăm sóc và phòng ngừa tăng huyết áp tại nhà"
@@ -963,8 +965,9 @@ export default function DoctorArticlesPage() {
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên mục</label>
+                    <label htmlFor="article-category" className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên mục</label>
                     <input
+                      id="article-category"
                       className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       onChange={(e) => setCategory(e.target.value)}
                       placeholder="Tim mạch, Tiêu hóa..."
@@ -973,8 +976,9 @@ export default function DoctorArticlesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên khoa</label>
+                    <label htmlFor="article-specialty" className="block text-xs font-bold uppercase tracking-wider text-slate-700">Chuyên khoa</label>
                     <select
+                      id="article-specialty"
                       className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3 py-2 text-sm bg-white focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       onChange={(e) => setSpecialtySlug(e.target.value)}
                       value={specialtySlug}
@@ -987,8 +991,9 @@ export default function DoctorArticlesPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Thời gian đọc (phút)</label>
+                    <label htmlFor="article-reading-minutes" className="block text-xs font-bold uppercase tracking-wider text-slate-700">Thời gian đọc (phút)</label>
                     <input
+                      id="article-reading-minutes"
                       className="mt-1 w-full min-h-11 rounded-[4px] border border-slate-300 px-3 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                       min={1}
                       onChange={(e) => setReadingMinutes(e.target.value)}
@@ -999,8 +1004,9 @@ export default function DoctorArticlesPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tóm tắt ngắn (Summary) *</label>
+                  <label htmlFor="article-summary" className="block text-xs font-bold uppercase tracking-wider text-slate-700">Tóm tắt ngắn (Summary) *</label>
                   <textarea
+                    id="article-summary"
                     className="mt-1 w-full rounded-[4px] border border-slate-300 p-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 focus:outline-none"
                     onChange={(e) => setSummary(e.target.value)}
                     placeholder="Tóm tắt ngắn gọn các luận điểm chính để người bệnh nắm nhanh..."
