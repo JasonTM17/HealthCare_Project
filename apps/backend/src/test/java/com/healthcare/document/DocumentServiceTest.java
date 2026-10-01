@@ -45,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -352,6 +353,107 @@ class DocumentServiceTest {
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
                 eq(failed.getId().toString()), eq(DocumentService.ACTION_GENERATE),
                 eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
+    /**
+     * The reported production defect: a FAILED row created by an older template
+     * version ('v1.0') never matches the idempotency key built today ('1.0'), so a
+     * retry from the patient panel must adopt that orphan row in place instead of
+     * inserting a second row and leaving the FAILED one stuck on the UI forever.
+     */
+    @Test
+    void failedDocumentWithStaleTemplateVersionIsReusedInPlaceInsteadOfInsertingSecondRow() throws Exception {
+        MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        PatientProfile patient = patientMock(PATIENT_ID);
+        User generator = userMock();
+        PatientDocument stale = availableDocument(FOREIGN_DOCUMENT_ID, RECORD_ID);
+        stale.setStatus(DocumentStatus.FAILED);
+        stale.setSha256(null);
+        stale.setByteSize(null);
+        stale.setSourceVersion(1L);
+        stale.setTemplateVersion("v1.0");
+        stale.setIdempotencyKey("VISIT_SUMMARY:" + RECORD_ID + ":1:v1.0");
+        when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(documentRepository.findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
+                .thenReturn(Optional.of(stale));
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(generator));
+        when(patientProfileRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        List<DocumentStatus> savedStatuses = new ArrayList<>();
+        when(documentRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> {
+                    PatientDocument document = assignDocumentId(invocation.getArgument(0));
+                    savedStatuses.add(document.getStatus());
+                    return document;
+                });
+
+        DocumentResponse response = service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal());
+
+        // The orphan row is adopted in place: exactly two writes, both on the same
+        // instance, and no second row for this source is ever inserted.
+        assertThat(response.id()).isEqualTo(FOREIGN_DOCUMENT_ID);
+        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
+        assertThat(savedStatuses).containsExactly(DocumentStatus.PENDING, DocumentStatus.AVAILABLE);
+        verify(documentRepository, times(2)).saveAndFlush(same(stale));
+        // The adopted row must carry the current identity, otherwise the very next
+        // retry would miss both lookups again and insert a duplicate after all.
+        assertThat(stale.getIdempotencyKey())
+                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":1.0");
+        assertThat(stale.getTemplateVersion()).isEqualTo("1.0");
+        assertThat(stale.getSourceVersion()).isEqualTo(SOURCE_VERSION);
+        assertThat(response.sha256()).isEqualTo(codec.sha256Hex(RENDERED_PDF));
+        assertThat(response.byteSize()).isEqualTo((long) RENDERED_PDF.length);
+        verify(objectStore).put(eq(stale.getObjectKey()), eq(RENDERED_PDF), eq("application/pdf"));
+        verify(cleanupService).trackCandidate(stale.getObjectKey());
+        verify(cleanupService).resolveCandidate(stale.getObjectKey());
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(FOREIGN_DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
+    /**
+     * The failed-row fallback must not change the ordinary path: a genuine
+     * version miss with no FAILED row for that source still inserts a fresh row.
+     */
+    @Test
+    void keyMissWithoutFailedRowStillInsertsFreshRow() throws Exception {
+        MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        PatientProfile patient = patientMock(PATIENT_ID);
+        User generator = userMock();
+        when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(documentRepository.findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
+                .thenReturn(Optional.empty());
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(generator));
+        when(patientProfileRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        List<DocumentStatus> savedStatuses = new ArrayList<>();
+        when(documentRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> {
+                    PatientDocument document = assignDocumentId(invocation.getArgument(0));
+                    savedStatuses.add(document.getStatus());
+                    return document;
+                });
+
+        DocumentResponse response = service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal());
+
+        verify(documentRepository).findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED);
+        assertThat(response.id()).isEqualTo(DOCUMENT_ID);
+        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
+        ArgumentCaptor<PatientDocument> saved = ArgumentCaptor.forClass(PatientDocument.class);
+        verify(documentRepository, times(2)).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getIdempotencyKey())
+                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":1.0");
+        assertThat(savedStatuses).containsExactly(DocumentStatus.PENDING, DocumentStatus.AVAILABLE);
+        verify(objectStore).put(anyString(), eq(RENDERED_PDF), eq("application/pdf"));
     }
 
     @Test

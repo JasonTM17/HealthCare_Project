@@ -25,4 +25,19 @@ public interface PatientDocumentRepository extends JpaRepository<PatientDocument
             DocumentSourceType sourceType,
             UUID sourceRecordId,
             Collection<DocumentStatus> statuses);
+
+    /**
+     * Newest FAILED row for one source, deliberately ignoring the version and
+     * template that produced it. Orphaned FAILED rows predate version alignment
+     * (ADR-005), so a retry must reuse the existing row instead of inserting a
+     * duplicate that leaves the old row stuck on the patient's panel.
+     *
+     * <p>{@code findFirst} keeps the result deterministic (newest first) when the
+     * historical bug already accumulated more than one FAILED row for a source.
+     */
+    Optional<PatientDocument> findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+            UUID patientId,
+            DocumentSourceType sourceType,
+            UUID sourceRecordId,
+            DocumentStatus status);
 }
