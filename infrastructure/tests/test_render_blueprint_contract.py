@@ -12,12 +12,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 4ae8bb4 (next 16.3.8 security bump for the
-# next/og ImageResponse RCE advisory) on top of the audit sweep 089b2ff
-# (lease budgets, renewal/cause diagnostics). Update together with the
-# blueprint when a new image is released.
+# release line, built from c569e5e (uncited GENERAL guidance for patient
+# chat with the ai-service uncited branch, orphaned FAILED document rows
+# adopted in place). Update together with the blueprint when a new image
+# is released.
 BACKEND_DIGEST = (
-    "sha256:ff24c19836c60262588752f3f6988aeb0fcb860267754b5c7098c0ec7d5ab85d"
+    "sha256:a6aa43065144ce27c03e04bb12bada3a039db6571f05494fc1e65f4a64cd0091"
 )
 
 
