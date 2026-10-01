@@ -317,7 +317,7 @@
 .detailGrid h4 { margin: 0; color: var(--career-navy); font-size: 0.9rem; }
 .detailGrid ul { display: grid; gap: 0.5rem; margin: 0.75rem 0 0; padding-left: 1.15rem; color: #526b72; font-size: 0.88rem; }
 
-.jobSkeleton { height: 13rem; overflow: hidden; border: 1px solid #dbe5e3; border-radius: 0.5rem; background: #fff; }
+.jobSkeleton { height: 13rem; overflow: hidden; border: 1px solid #dbe5e3; border-radius: var(--radius-sm); background: #fff; }
 .jobSkeleton::after { display: block; width: 45%; height: 100%; background: linear-gradient(90deg, transparent, rgb(223 242 238 / 75%), transparent); content: ""; animation: shimmer 1.1s infinite; }
 
 .stateCard {
