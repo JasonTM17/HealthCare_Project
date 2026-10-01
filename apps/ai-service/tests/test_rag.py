@@ -231,6 +231,35 @@ def test_projection_specific_tombstone_does_not_remove_newer_other_projection() 
     assert clinical.content == "Clinical content"
 
 
+def test_equal_revision_clinical_drift_adopts_database_authoritative_incoming() -> None:
+    service = RagService()
+    vector = [1.0, 0.0]
+    service.ingest(
+        "specialty",
+        "clinical-shared",
+        "Clinical",
+        "Stored clinical content",
+        vector,
+        metadata={"projection_kind": "CLINICAL", "_sync_revision": "30"},
+    )
+    service.ingest(
+        "specialty",
+        "clinical-shared",
+        "Clinical",
+        "Drifted replay content",
+        vector,
+        metadata={"projection_kind": "CLINICAL", "_sync_revision": "30"},
+    )
+
+    # The backend's reconciliation loop replays the same sync revision when
+    # its database-authoritative state advanced without a revision bump. The
+    # incoming approved state must replace the stored projection — raising
+    # here 422s the whole loop and freezes the clinical catalog.
+    stored = service.index.get("specialty:clinical-shared", projection="CLINICAL")
+    assert stored is not None
+    assert stored.content == "Drifted replay content"
+
+
 def test_clinical_eligibility_revision_allows_same_content_renewal_after_revoke() -> None:
     service = RagService()
     vector = [1.0, 0.0]
@@ -301,31 +330,33 @@ def test_equal_revision_projection_is_exactly_idempotent_and_tombstone_wins() ->
         {**metadata, "approval_id": "round-b"},
         {**metadata, "approval_expires_at": "2099-12-01T00:00:00Z"},
     ):
-        with pytest.raises(
-            ValueError,
-            match="equal-revision projection update must be idempotent",
-        ):
-            service.ingest(
-                "article",
-                "equal-revision",
-                "Approved article",
-                "Stable reviewed content",
-                [1.0, 0.0],
-                metadata=changed_metadata,
-            )
-
-    with pytest.raises(
-        ValueError,
-        match="equal-revision projection update must be idempotent",
-    ):
-        service.ingest(
+        # The Spring reconciliation is database-authoritative: an equal-
+        # revision push whose governance metadata advanced replaces the
+        # stored projection instead of 422ing the whole 60s loop.
+        replaced = service.ingest(
             "article",
             "equal-revision",
             "Approved article",
-            "Changed reviewed content",
+            "Stable reviewed content",
             [1.0, 0.0],
-            metadata=dict(metadata),
+            metadata=changed_metadata,
         )
+        assert replaced is not None
+        assert replaced.metadata["content_hash"] == changed_metadata["content_hash"]
+        stored = service.index.get("article:equal-revision", projection="CLINICAL")
+        assert stored is not None
+        assert stored.metadata["content_hash"] == changed_metadata["content_hash"]
+
+    replaced_content = service.ingest(
+        "article",
+        "equal-revision",
+        "Approved article",
+        "Changed reviewed content",
+        [1.0, 0.0],
+        metadata=dict(metadata),
+    )
+    assert replaced_content is not None
+    assert replaced_content.content == "Changed reviewed content"
 
     service.remove("article", "equal-revision", revision=8, projection="CLINICAL")
     with pytest.raises(
