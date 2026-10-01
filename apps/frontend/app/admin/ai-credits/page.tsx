@@ -243,7 +243,7 @@ export default function AdminAiCreditsPage() {
                       </td>
                       <td className="px-5 py-4 text-slate-600">
                         <div>{p.phone || "—"}</div>
-                        <div className="text-xs text-slate-400">{p.email || ""}</div>
+                        <div className="text-xs text-slate-600">{p.email || ""}</div>
                       </td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold shadow-xs ${tierInfo.bg} ${tierInfo.text}`}>

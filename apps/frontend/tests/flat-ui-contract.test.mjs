@@ -140,20 +140,32 @@ test("migrated surfaces avoid sub-floor text-[10px]/text-[11px] utilities", asyn
   }
 });
 
-// B1 batch B also cleared every raw font-size below the 0.75rem contract floor
-// in app/styles.css (0.54–0.6875rem literals and the 10px line at the old
-// :4497). Pin the whole file so sub-floor declarations cannot creep back;
-// other stylesheets are migrated by their own items before being added here.
-test("app/styles.css keeps every raw font-size at or above the 0.75rem floor", async () => {
-  const css = await read("app/styles.css");
-  for (const match of css.matchAll(/font-size:\s*([^;]+);/g)) {
-    const value = match[1].trim().replace(/!important$/, "").trim();
-    if (value.includes("var(") || value.includes("calc(") || value.includes("clamp(") || value === "inherit") continue;
-    const subFloor = [...value.matchAll(/([0-9]*\.?[0-9]+)(px|rem)/g)].some((part) => {
-      const amount = Number(part[1]);
-      return part[2] === "px" ? amount < 12 : amount * 16 < 12;
-    });
-    assert.equal(subFloor, false, `app/styles.css font-size ${value} is below the 0.75rem contract floor`);
+// B1 batch B cleared every raw font-size below the 0.75rem contract floor in
+// app/styles.css (0.54–0.6875rem literals and the 10px line at the old :4497).
+// F4 extends the same pin to the four CSS surfaces that already sit in
+// CSS_SURFACES (login, brand-experience, effects, careers) once their 16
+// sub-floor literals were raised to 0.75rem; sub-floor declarations cannot
+// creep back on any of them now.
+const FONT_FLOOR_SURFACES = [
+  "app/styles.css",
+  "app/effects.css",
+  "app/brand-experience.css",
+  "app/careers/careers.module.css",
+  "app/auth/login/login.module.css",
+];
+
+test("pinned CSS surfaces keep every raw font-size at or above the 0.75rem floor", async () => {
+  for (const path of FONT_FLOOR_SURFACES) {
+    const css = await read(path);
+    for (const match of css.matchAll(/font-size:\s*([^;]+);/g)) {
+      const value = match[1].trim().replace(/!important$/, "").trim();
+      if (value.includes("var(") || value.includes("calc(") || value.includes("clamp(") || value === "inherit") continue;
+      const subFloor = [...value.matchAll(/([0-9]*\.?[0-9]+)(px|rem)/g)].some((part) => {
+        const amount = Number(part[1]);
+        return part[2] === "px" ? amount < 12 : amount * 16 < 12;
+      });
+      assert.equal(subFloor, false, `${path} font-size ${value} is below the 0.75rem contract floor`);
+    }
   }
 });
 

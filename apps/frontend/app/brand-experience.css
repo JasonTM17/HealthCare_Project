@@ -197,7 +197,7 @@
   border-radius: var(--radius-sm);
   background: rgb(255 255 255 / 5%);
   color: #e7f4f1;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -249,7 +249,7 @@
 .site-shell .footer-contact__eyebrow {
   margin: 0;
   color: #a9d9d1;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -285,7 +285,7 @@
   padding-top: 1.5rem;
   border-top-color: rgb(191 231 223 / 18%);
   color: #bcd5d1;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   line-height: 1.6;
 }
 
