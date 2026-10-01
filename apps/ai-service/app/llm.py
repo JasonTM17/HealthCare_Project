@@ -1680,6 +1680,8 @@ def context_contains_unsafe_data(
     context: Sequence[str],
     *,
     allow_public_operational: bool = False,
+    allow_public_generic_guidance: bool = False,
+    allow_approved_clinical: bool = False,
 ) -> bool:
     """Fail closed for PII or instruction-like text in provider context."""
 
@@ -1687,6 +1689,8 @@ def context_contains_unsafe_data(
         contains_sensitive_or_injection(
             item,
             allow_public_operational=allow_public_operational,
+            allow_public_generic_guidance=allow_public_generic_guidance,
+            allow_approved_clinical=allow_approved_clinical,
         )
         for item in context
         if isinstance(item, str)
@@ -1753,6 +1757,7 @@ def remote_text_output_is_safe(
     *,
     allow_public_operational: bool = False,
     allow_public_generic_guidance: bool = False,
+    allow_approved_clinical: bool = False,
 ) -> bool:
     """Reject provider-created PII, authority claims, actions, and markup."""
 
@@ -1765,6 +1770,7 @@ def remote_text_output_is_safe(
         value,
         allow_public_operational=allow_public_operational,
         allow_public_generic_guidance=allow_public_generic_guidance,
+        allow_approved_clinical=allow_approved_clinical,
     )
     forbidden = _has_unnegated_forbidden_match(normalized)
     return not (injection or forbidden)
@@ -1795,6 +1801,7 @@ def remote_answer_is_grounded(
     *,
     allow_public_operational: bool = False,
     allow_public_generic_guidance: bool = False,
+    allow_approved_clinical: bool = False,
 ) -> bool:
     """Apply a conservative lexical/numeric grounding check to remote text."""
 
@@ -2620,6 +2627,7 @@ def resolve_chat(
     allow_public_operational: bool = False,
     public_support_chat: bool = False,
     allow_public_generic_guidance: bool = False,
+    allow_approved_clinical: bool = False,
     tone: str = "than_thien",
     cancellation: ChatCancellation | None = None,
 ) -> ChatResponse:
@@ -2637,6 +2645,8 @@ def resolve_chat(
     if context_contains_unsafe_data(
         context,
         allow_public_operational=allow_public_operational,
+        allow_public_generic_guidance=allow_public_generic_guidance,
+        allow_approved_clinical=allow_approved_clinical,
     ):
         if public_remote_enabled:
             raise ProviderUnavailable()
@@ -2776,12 +2786,14 @@ def resolve_chat(
             answer,
             allow_public_operational=allow_public_operational,
             allow_public_generic_guidance=public_support_chat,
+            allow_approved_clinical=allow_approved_clinical,
         )
         answer_grounded = remote_answer_is_grounded(
             answer,
             context,
             allow_public_operational=allow_public_operational,
             allow_public_generic_guidance=allow_public_generic_guidance or public_support_chat,
+            allow_approved_clinical=allow_approved_clinical,
         )
         if not output_safe or not answer_grounded:
             # Content-free operator diagnostics: which boundary rejected the
