@@ -99,6 +99,34 @@ class AiConversationUncitedGuidanceIntegrationTest extends AbstractRedisIntegrat
     }
 
     @Test
+    @WithMockUser(username = "patient.uncited-provider-failure@example.com", roles = "PATIENT")
+    void providerFailureDegradesToSupportAwareFallbackInsteadOfPropagating() throws Exception {
+        User patient = createUser("patient.uncited-provider-failure@example.com");
+        createPatientProfile(patient, "0901002401", 3);
+        when(aiService.generateChat(any(), any()))
+            .thenThrow(new RuntimeException("provider down"));
+
+        String conversationId = createConversation();
+
+        // A provider outage on the escalation lane must degrade to the
+        // deterministic local fallback — the pre-uncited behavior — instead of
+        // propagating the exception (which surfaced to the user as a long
+        // hang followed by the "assistant unavailable" banner).
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversationId + "/messages")
+                .header("Idempotency-Key", "uncited-provider-failure-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"" + GENERAL_QUESTION + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("INSUFFICIENT_EVIDENCE"))
+            .andExpect(jsonPath("$.assistantMessage.citations").isEmpty());
+
+        // A degraded fallback turn is never charged.
+        assertThat(patientProfileRepository.findByUserId(patient.getId()).orElseThrow().getAiCredits())
+            .isEqualTo(3);
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isEqualTo(0);
+    }
+
+    @Test
     @WithMockUser(username = "patient.uncited-booking@example.com", roles = "PATIENT")
     void nonGeneralIntentKeepsInsufficientEvidenceAndNeverCallsTheProvider() throws Exception {
         User patient = createUser("patient.uncited-booking@example.com");
