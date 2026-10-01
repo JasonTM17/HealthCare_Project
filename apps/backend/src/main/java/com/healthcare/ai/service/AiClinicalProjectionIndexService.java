@@ -280,8 +280,27 @@ public class AiClinicalProjectionIndexService {
                 payload.put("active", true);
                 payload.put("published", true);
                 payload.put("metadata", metadata);
-                aiService.indexDocument(payload);
+                // One rejected or failing source must never abort the whole
+                // snapshot pass: a single ai-service rejection otherwise
+                // starves every later source and keeps the tombstone sweep
+                // (below) from ever running — production evidence: one FAQ
+                // rejected by the egress gate stopped 17 eligible sources for
+                // days. The row still counts as current either way: it came
+                // from the live approval query, so it may only suppress a
+                // tombstone, never create one.
                 current.add(sourceType + ":" + sourceId);
+                try {
+                    aiService.indexDocument(payload);
+                } catch (RuntimeException exception) {
+                    log.warn(
+                        "Clinical projection push failed for {}:{} ({}: {}) - skipping, next cycle retries",
+                        sourceType,
+                        sourceId,
+                        exception.getClass().getSimpleName(),
+                        exception.getMessage()
+                    );
+                    continue;
+                }
                 processed++;
             }
 
@@ -311,7 +330,21 @@ public class AiClinicalProjectionIndexService {
                     // revision; if the head is unavailable, fail closed and let
                     // the scheduled reconciliation retry.
                     long revision = currentEligibilityRevision(type, id);
-                    aiService.removeIndexedDocument(type, id, revision, "CLINICAL");
+                    try {
+                        aiService.removeIndexedDocument(type, id, revision, "CLINICAL");
+                    } catch (RuntimeException exception) {
+                        // Same fault isolation as the push loop: one refused
+                        // tombstone must not abort the sweep for every other
+                        // revoked source; the next scheduled cycle retries.
+                        log.warn(
+                            "Clinical projection tombstone failed for {}:{} ({}: {}) - skipping, next cycle retries",
+                            type,
+                            id,
+                            exception.getClass().getSimpleName(),
+                            exception.getMessage()
+                        );
+                        continue;
+                    }
                     processed++;
                 }
             }
