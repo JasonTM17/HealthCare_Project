@@ -28,6 +28,8 @@ build/
 *.tsbuildinfo
 apps/frontend/playwright-report/
 apps/frontend/test-results/
+# Playwright also writes here when it runs from the repository root.
+/test-results/
 
 # Python
 .venv/
