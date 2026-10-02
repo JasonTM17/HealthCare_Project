@@ -7,7 +7,7 @@ import threading as _threading
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Generator, cast
+from typing import AsyncGenerator, Generator, cast
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -211,10 +211,12 @@ rag_service = build_rag_service(settings)
 # This is an internal service-to-service API; IP-based rate limiting is not
 # effective because all calls arrive from a single Spring backend token holder.
 # A threading.Semaphore caps simultaneous LLM calls to prevent upstream budget
-# exhaustion and cascading timeouts under load spikes.
+# exhaustion and cascading timeouts under load spikes. The cap is deployment
+# tunable via LLM_MAX_CONCURRENCY (config.py clamps it to 1..64, default 8);
+# the fail-fast 503 LLM_CAPACITY_EXHAUSTED semantics below stay fixed.
 # FastAPI runs sync endpoints in a thread pool, so threading.Semaphore is
 # the correct primitive here (asyncio.Semaphore would not work across threads).
-_LLM_MAX_CONCURRENCY = 8  # adjust based on provider tier and expected load
+_LLM_MAX_CONCURRENCY = int(settings.llm_max_concurrency)
 _llm_semaphore = _threading.Semaphore(_LLM_MAX_CONCURRENCY)
 
 
@@ -369,7 +371,7 @@ def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenanc
         vector = cast(list[float], value[0])
         model = cast(str, value[1])
         provenance: ProviderProvenance = (
-            "local_provider" if model in {"local", "local-hash"} else "remote_provider"
+            "local_provider" if model in {"local", "local-hash", "local-hash-v2"} else "remote_provider"
         )
         return vector, model, provenance
     raise TypeError("invalid embedding result")
@@ -1040,7 +1042,12 @@ def _chat_generate_sync(
 async def chat_generate_stream(
     request: ChatGenerateRequest, http_request: Request
 ) -> StreamingResponse:
-    """Stream a fully validated generation response as persisted SSE events."""
+    """Stream a fully validated generation response as persisted SSE events.
+
+    The generation runs inside the streamed body so an SSE comment heartbeat
+    can be emitted while it is pending.  Auth, capacity, and input-limit
+    rejections still happen before the response headers are committed.
+    """
 
     message = _enforce_input_limit(
         request.message,
@@ -1048,17 +1055,67 @@ async def chat_generate_stream(
         setting_name="ai_max_input_chars",
     )
     bounded_request = request.model_copy(update={"message": message})
-    response = await _run_cancellable_chat(
-        http_request,
-        lambda cancellation: generate_chat_response(
-            bounded_request, settings, rag_service, cancellation=cancellation
-        ),
-    )
     return StreamingResponse(
-        _chat_response_sse(response),
+        _chat_generate_stream_body(bounded_request, http_request),
         media_type="text/event-stream",
         headers={"X-Accel-Buffering": "no"},
     )
+
+
+# SSE comment heartbeats keep gateways and SSE readers fed while the whole
+# generation is pending (it can take up to AI_TIMEOUT_SECONDS).  Spring's SSE
+# parser and the SSE spec ignore comment lines, so the event payloads,
+# ordering, and the done contract are unchanged.
+_SSE_HEARTBEAT_SECONDS = 5.0
+_SSE_HEARTBEAT = ": ping\n\n"
+
+
+async def _chat_generate_stream_body(
+    request: ChatGenerateRequest, http_request: Request
+) -> AsyncGenerator[str, None]:
+    generation = asyncio.create_task(
+        _run_cancellable_chat(
+            http_request,
+            lambda cancellation: generate_chat_response(
+                request, settings, rag_service, cancellation=cancellation
+            ),
+        )
+    )
+    try:
+        while True:
+            done, _ = await asyncio.wait({generation}, timeout=_SSE_HEARTBEAT_SECONDS)
+            if generation in done:
+                # Generation completed or failed: stop heartbeating immediately.
+                break
+            yield _SSE_HEARTBEAT
+        response = await generation
+    except Exception as error:
+        # The 200 has already been committed once streaming started, so a
+        # late failure can no longer change the status code.  Emit a
+        # content-free SSE error event (Spring maps it to 502) instead of
+        # closing a silent empty stream.
+        for chunk in _sse_event("error", _stream_error_code(error)):
+            yield chunk
+        return
+    finally:
+        if not generation.done():
+            generation.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(generation), timeout=1)
+            except (Exception, asyncio.CancelledError):
+                pass
+    for chunk in _chat_response_sse(response):
+        yield chunk
+
+
+def _stream_error_code(error: BaseException) -> str:
+    """Content-free failure code for the SSE error event."""
+
+    if isinstance(error, HTTPException) and isinstance(error.detail, str) and error.detail:
+        return error.detail
+    if isinstance(error, ChatContractError):
+        return error.code
+    return "GENERATION_FAILED"
 
 
 def _chat_response_sse(response: ChatResponse) -> Generator[str, None, None]:

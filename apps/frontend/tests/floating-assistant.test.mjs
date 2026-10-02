@@ -143,3 +143,42 @@ test("floating assistant fails closed across mode changes and policy refreshes",
   assert.match(apiClient, /provenance !== "local_provider"/);
   assert.ok(apiClient.includes('const CTA_CATALOG_PATH_PATTERN = /^\\/(branches|specialties|doctors|services|packages|articles|faq)$/;'));
 });
+
+test("floating assistant feedback cannot wedge an in-flight send", async () => {
+  const component = await read("components/FloatingHealthAssistant.tsx");
+
+  // (a) handleFeedback is a no-op while a send is in flight: beginLocalRequest
+  // would otherwise abort the send controller and bump the epoch, which the
+  // old epoch-guarded finally turned into a permanent wedge.
+  assert.match(component, /const handleFeedback = async \(message: AiChatMessage, rating: FeedbackRating\): Promise<void> => \{[\s\S]{0,600}?if \(sending \|\| feedbackBusy \|\| message\.role !== "ASSISTANT"/);
+  // (b) The feedback buttons themselves are disabled while sending.
+  assert.match(component, /disabled=\{feedbackBusy === message\.id \|\| sending\}/);
+  // (c) Closing, cancelling, and mode switches mark the cancel before aborting
+  // so the aborted send stays silent instead of surfacing a fake outage.
+  assert.match(component, /const invalidateLocalRequests = useCallback\(\(\): void => \{\s*\/\/[\s\S]{0,300}?intentionalCancelRef\.current = true;/);
+  assert.match(component, /intentionalCancelRef = useRef\(false\)/);
+  assert.match(component, /intentionalCancelRef\.current = false;\s*const \{ controller, epoch \} = beginLocalRequest\(\)/);
+});
+
+test("floating assistant send machine resets unconditionally and maps stray aborts to a retryable timeout", async () => {
+  const component = await read("components/FloatingHealthAssistant.tsx");
+  const provider = await read("components/AssistantProvider.tsx");
+
+  // The old swallow-on-abort catch must not come back.
+  assert.doesNotMatch(component, /if \(isAbortError\(error\) \|\| !isCurrentLocalRequest\(epoch, currentConversation\?\.id\)\) return/);
+  // A raw AbortError that is not an intentional cancel (and not superseded) is
+  // surfaced through the shared CHAT_REQUEST_TIMEOUT taxonomy.
+  assert.match(provider, /CHAT_REQUEST_TIMEOUT: "Hết thời gian chờ phản hồi từ trợ lý\. Vui lòng thử lại\."/);
+  assert.match(provider, /code === "CHAT_REQUEST_TIMEOUT"/);
+  assert.match(component, /function chatTimeoutFailure\(\): AssistantFailure \{/);
+  assert.match(component, /setFailure\(chatTimeoutFailure\(\)\);/);
+  // Staleness still gates data mutations for non-abort failures.
+  assert.match(component, /setFailure\(chatTimeoutFailure\(\)\);\s*return;\s*\}\s*if \(!isCurrentLocalRequest\(epoch, currentConversation\?\.id\)\) return;/);
+  // The finally resets the machine unconditionally; the epoch/identity check
+  // only gates controller cleanup, focus restore, and the intentional-cancel
+  // flag (a stale finally must not disarm a newer send's pending Stop).
+  assert.match(
+    component,
+    /} finally \{\s*\/\/ Invariant:[\s\S]*?setStreamingReply\(""\);\s*setPendingUserMessage\(null\);\s*setSending\(false\);\s*if \(isCurrentLocalRequest\(epoch, currentConversation\?\.id\)\) \{\s*intentionalCancelRef\.current = false;/,
+  );
+});
