@@ -139,7 +139,7 @@ export default function AdminPaymentsPage() {
       </div>
       <section aria-label="Nhập sao kê ngân hàng" className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-bold text-slate-900">Nhập sao kê ngân hàng</h2>
-        <p className="mt-1 text-xs leading-5 text-slate-600">Tệp CSV, mỗi dòng: <code className="font-mono">số tiền; nội dung chuyển khoản; mã giao dịch (tùy chọn)</code>. Dòng khớp nội dung và số tiền sẽ vào hàng chờ đối soát như một thông báo ngân hàng — hệ thống không tự đánh dấu “Đã thanh toán”.</p>
+        <p className="mt-1 text-xs leading-5 text-slate-600">Tệp CSV, mỗi dòng: <code className="font-mono break-all">số tiền; nội dung chuyển khoản; mã giao dịch (tùy chọn)</code>. Dòng khớp nội dung và số tiền sẽ vào hàng chờ đối soát như một thông báo ngân hàng — hệ thống không tự đánh dấu “Đã thanh toán”.</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-bold text-teal-800 hover:bg-slate-50" htmlFor="statement-file">
             Chọn tệp sao kê (.csv)
