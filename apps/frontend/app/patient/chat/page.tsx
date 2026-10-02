@@ -782,6 +782,22 @@ function PatientChatPageContent() {
       sendRequestRef.current === sendRequestId
       && activeIdRef.current === conversationId
     );
+    // The exchange round-trip (including the streamed answer) can take tens of
+    // seconds, so the patient's own message must reach the transcript
+    // immediately: it is inserted as a local PENDING row and is replaced by the
+    // server's copy — the one carrying the real id and sequence — as soon as
+    // the exchange settles.
+    const pendingMessageId = `pending-user-${sendRequestId}`;
+    setMessages((current) => mergeMessages(current, [{
+      id: pendingMessageId,
+      role: "USER",
+      status: "PENDING",
+      content: normalizedContent,
+      sequence: current.reduce((max, message) => Math.max(max, message.sequence), 0) + 1,
+      citations: [],
+      createdAt: new Date().toISOString(),
+    }]));
+    if (options.clearDraftOnSuccess) setDraft("");
     setSending(true);
     setStreamingReply("");
     setSendFailure(null);
@@ -797,7 +813,10 @@ function PatientChatPageContent() {
       });
       if (!isCurrentSendRequest()) return;
       if (options.clearDraftOnSuccess) setDraft("");
-      setMessages((current) => mergeMessages(current, [exchange.userMessage, exchange.assistantMessage]));
+      setMessages((current) => mergeMessages(
+        current.filter((message) => message.id !== pendingMessageId),
+        [exchange.userMessage, exchange.assistantMessage],
+      ));
       setNotice("Trợ lý đã phản hồi. Lịch sử sẽ tiếp tục đồng bộ từ máy chủ.");
       await Promise.allSettled([
         loadThread(conversationId, { background: true }),
@@ -806,6 +825,10 @@ function PatientChatPageContent() {
       ]);
     } catch (error) {
       if (isAbortError(error) || !isCurrentSendRequest()) return;
+      // The attempt was not accepted: drop the placeholder and hand the text
+      // back to the composer so a retry cannot lose what the patient wrote.
+      setMessages((current) => current.filter((message) => message.id !== pendingMessageId));
+      if (options.clearDraftOnSuccess) setDraft(normalizedContent);
       const failure = toFailure(error);
       handleUnauthorized(failure);
       setSendFailure(failure);
