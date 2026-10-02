@@ -3,10 +3,16 @@ FROM maven:3.9.12-eclipse-temurin-21@sha256:c3c9d3ac4ce8431a3995c0318b8d390f448e
 WORKDIR /app
 COPY pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -ntp -Dstyle.color=never -DskipTests dependency:go-offline
+    mvn -B -ntp -Dstyle.color=never -DskipTests \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.http.retryHandler.requestSentRetryEnabled=true \
+        dependency:go-offline
 COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -ntp -Dstyle.color=never -DskipTests package
+    mvn -B -ntp -Dstyle.color=never -DskipTests \
+        -Dmaven.wagon.http.retryHandler.count=5 \
+        -Dmaven.wagon.http.retryHandler.requestSentRetryEnabled=true \
+        package
 
 FROM eclipse-temurin:21-jre@sha256:7a65df4b22d2de92d4e04056e884f3b9122d70b21e2847fd66084278bd0ce037
 WORKDIR /app
