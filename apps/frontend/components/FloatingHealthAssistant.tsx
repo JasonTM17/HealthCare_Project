@@ -25,6 +25,7 @@ import {
   sendPublicAiChat,
   updateAiMessageFeedback,
   type AuthSession,
+  type PublicAiChatResult,
 } from "../lib/api-client";
 import { randomId } from "../lib/secure-random";
 import type {
@@ -678,7 +679,25 @@ function FloatingHealthAssistantPanel({
           role: message.role === "USER" ? "user" as const : "assistant" as const,
           content: message.content,
         }));
-        const reply = await sendPublicAiChat(normalized, recentTurns, { signal: controller.signal });
+        let reply: PublicAiChatResult;
+        try {
+          reply = await sendPublicAiChat(normalized, recentTurns, { signal: controller.signal });
+        } catch {
+          if (intentionalCancelRef.current || !isCurrentLocalRequest(epoch)) return;
+          reply = {
+            answer: "Hiện tại kết nối tới trợ lý đang bị chậm hoặc gián đoạn. Bạn có thể đặt lịch khám hoặc gọi tổng đài 028 1800 0001 để được tư vấn trực tiếp; nếu muốn thử lại câu hỏi, hãy gửi lại sau ít giây nhé.",
+            disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
+            citations: [],
+            provenance: "local_fallback",
+            mode: "HOSPITAL_SUPPORT",
+            safetyAction: "INSUFFICIENT_EVIDENCE",
+            suggestedActions: [
+              { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
+              { kind: "CALL_HOTLINE", label: "Gọi 028 1800 0001", href: "tel:02818000001" },
+              { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+            ],
+          };
+        }
         if (!isCurrentLocalRequest(epoch)) return;
         const createdAt = pendingCreatedAt;
         const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
