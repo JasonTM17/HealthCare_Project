@@ -759,16 +759,41 @@ function createBrowserResponse(
   upstream: Response,
   requestMethod: string,
   onBodySettled?: (outcome: "completed" | "cancelled" | "failed") => void | Promise<void>,
+  apiPath?: string,
 ): Response {
   const headers = new Headers();
   for (const [name, value] of upstream.headers.entries()) {
     if (RESPONSE_HEADER_ALLOWLIST.has(name.toLowerCase())) headers.set(name, value);
   }
+  let hasSetCookie = false;
   for (const cookie of getSetCookieValues(upstream.headers)) {
     const safeCookie = allowlistedSetCookie(cookie);
-    if (safeCookie) headers.append("Set-Cookie", safeCookie);
+    if (safeCookie) {
+      headers.append("Set-Cookie", safeCookie);
+      hasSetCookie = true;
+    }
   }
-  headers.set("Cache-Control", "no-store");
+
+  const isPublicCatalogPath =
+    requestMethod === "GET"
+    && upstream.status === 200
+    && !hasSetCookie
+    && typeof apiPath === "string"
+    && (
+      apiPath.startsWith("/api/v1/hospital/branches")
+      || apiPath.startsWith("/api/v1/hospital/specialties")
+      || apiPath.startsWith("/api/v1/hospital/doctors")
+      || apiPath.startsWith("/api/v1/hospital/services")
+      || apiPath.startsWith("/api/v1/hospital/packages")
+      || apiPath.startsWith("/api/v1/hospital/articles")
+      || apiPath.startsWith("/api/v1/hospital/faqs")
+    );
+
+  if (isPublicCatalogPath) {
+    headers.set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+  } else {
+    headers.set("Cache-Control", "no-store");
+  }
 
   const withoutBody = requestMethod === "HEAD" || upstream.status === 204 || upstream.status === 304;
   if (withoutBody || !upstream.body || !onBodySettled) {
@@ -1404,7 +1429,7 @@ export async function proxyHealthcareRequest(
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
       return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
     }
-    const response = createBrowserResponse(upstream, method, onChatResponseBodySettled(upstream.status));
+    const response = createBrowserResponse(upstream, method, onChatResponseBodySettled(upstream.status), apiPath);
     response.headers.set(REQUEST_ID_HEADER, requestId);
     responseBodyOwnsCleanup = true;
     return response;

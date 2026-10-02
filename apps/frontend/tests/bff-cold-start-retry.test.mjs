@@ -103,7 +103,7 @@ test("BFF retries one safe read when a cold upstream answers 502", async () => {
       new Headers(attempts[0].init.headers).get("X-Request-ID"),
       "both attempts stay inside one browser request id",
     );
-    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("cache-control"), "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
   } finally {
     restore();
   }
