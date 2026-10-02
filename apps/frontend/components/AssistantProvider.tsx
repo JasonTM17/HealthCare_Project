@@ -140,6 +140,11 @@ const ASSISTANT_ERROR_COPY: Readonly<Record<string, string>> = {
   CHAT_RETENTION_EXPIRED: "Cuộc trò chuyện đã hết thời hạn lưu trữ và không còn truy cập được.",
   INSUFFICIENT_AI_CREDITS: "Bạn đã dùng hết lượt hỏi AI. Nâng hạng thẻ hoặc liên hệ quản trị viên để được cấp thêm credit.",
   REQUEST_TIMEOUT: "Phản hồi mất quá nhiều thời gian. Hãy thử lại.",
+  // Reserved for a raw AbortError that reaches a chat surface without being an
+  // intentional cancel (see the send catch blocks). The BFF deadline itself
+  // arrives as REQUEST_TIMEOUT; this code covers the only other abort path so
+  // no send failure can disappear silently.
+  CHAT_REQUEST_TIMEOUT: "Hết thời gian chờ phản hồi từ trợ lý. Vui lòng thử lại.",
 };
 
 export function assistantFailureFromError(error: unknown): AssistantFailure {
@@ -185,6 +190,7 @@ export function assistantFailureFromError(error: unknown): AssistantFailure {
     || status === 429
     || code === "CHAT_MESSAGE_IN_PROGRESS"
     || code === "REQUEST_TIMEOUT"
+    || code === "CHAT_REQUEST_TIMEOUT"
     || code === "BFF_UPSTREAM_UNAVAILABLE"
     || code === "AI_UNAVAILABLE"
     || code === "AI_RESPONSE_INVALID";
