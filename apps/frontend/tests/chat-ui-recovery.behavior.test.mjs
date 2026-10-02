@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
+import { after, before, test as nodeTest } from "node:test";
 import { readFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -159,9 +159,17 @@ control.waiting = (active) => {
 };
 `;
 
+const hasChromium = existsSync(chromium.executablePath());
 let browser;
-before(async () => { browser = await chromium.launch({ headless: true }); });
-after(async () => { await browser?.close(); });
+before(async () => {
+  if (!hasChromium) return;
+  browser = await chromium.launch({ headless: true });
+});
+after(async () => {
+  if (browser) await browser.close();
+});
+
+const test = (name, fn) => nodeTest(name, { skip: !hasChromium ? "Playwright Chromium not installed" : false }, fn);
 
 async function mount(surface, setup = {}) {
   const page = await browser.newPage();
