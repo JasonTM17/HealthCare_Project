@@ -186,3 +186,24 @@ test("patient chat drops late stream updates after a conversation switch", async
   assert.match(page, /if \(isCurrentSendRequest\(\)\) \{[\s\S]*sendInFlightRef\.current = false/);
   assert.match(page, /if \(!options\.background\) \{[\s\S]*invalidateSendRequest\(\)[\s\S]*invalidateConsentRequest\(\)/);
 });
+
+test("patient chat shows the patient's own message before the exchange settles", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  // The exchange round-trip streams a long answer, so the patient's message
+  // must be in the transcript from the moment the send starts — not only after
+  // the server responds. It goes in as a local PENDING row that the settle
+  // paths replace with (or drop in favour of) the server's copy.
+  const insertAt = page.indexOf("pending-user-");
+  const awaitAt = page.indexOf("await sendMessage(conversationId, normalizedContent");
+  assert.ok(insertAt > 0, "the send path builds a local pending row");
+  assert.ok(awaitAt > 0, "the send path still awaits the exchange");
+  assert.ok(
+    insertAt < awaitAt,
+    "the patient's message is inserted before the exchange is awaited",
+  );
+  assert.match(page, /status: "PENDING"/);
+  assert.match(page, /current\.filter\(\(message\) => message\.id !== pendingMessageId\)[\s\S]*exchange\.userMessage/);
+  // A rejected attempt restores the composer text instead of losing it.
+  assert.match(page, /setMessages\(\(current\) => current\.filter\(\(message\) => message\.id !== pendingMessageId\)\);\s*if \(options\.clearDraftOnSuccess\) setDraft\(normalizedContent\)/);
+});
