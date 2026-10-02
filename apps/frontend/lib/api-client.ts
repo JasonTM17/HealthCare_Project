@@ -676,8 +676,7 @@ function hasUnsafeUrlCharacters(value: string): boolean {
 
 function isClosedActionRecord(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
-  const keys = Object.keys(value).sort();
-  return keys.length === 3 && keys[0] === "href" && keys[1] === "kind" && keys[2] === "label";
+  return typeof value.kind === "string" && typeof value.label === "string" && typeof value.href === "string";
 }
 
 /**
@@ -693,10 +692,10 @@ export function isSafeSuggestedAction(value: unknown): value is SuggestedAction 
   const href = value.href;
   if (!label || label.length > CTA_LABEL_MAX_LENGTH) return false;
   if (value.kind === "CALL_EMERGENCY") return href === "tel:115";
-  if (value.kind === "CALL_HOTLINE") return href === "tel:02818000001" || /^tel:(02818000001|1800[0-9]{4}|0[2-9][0-9]{8,9})$/.test(href);
+  if (value.kind === "CALL_HOTLINE") return href === "tel:02818000001" || /^tel:(02818000001|1800[0-9]{4,6}|1900[0-9]{4,6}|0[2-9][0-9]{7,9}|\+?[0-9]{9,15})$/.test(href);
   if (hasUnsafeUrlCharacters(href)) return false;
   if (value.kind === "VIEW_SOURCE") {
-    return CTA_CATALOG_PATH_PATTERN.test(href) || CTA_SOURCE_PATH_PATTERN.test(href) || CTA_FAQ_PATH_PATTERN.test(href);
+    return CTA_CATALOG_PATH_PATTERN.test(href) || CTA_SOURCE_PATH_PATTERN.test(href) || CTA_FAQ_PATH_PATTERN.test(href) || /^\/(branches|specialties|doctors|services|packages|articles|faq)(\?[A-Za-z0-9_=&%-]+)?$/.test(href);
   }
   if (value.kind === "START_BOOKING") return href === "/dat-lich" || CTA_BOOKING_QUERY_PATTERN.test(href);
   return false;
@@ -903,20 +902,17 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
     || typeof value.content !== "string"
     || typeof value.sequence !== "number"
     || !Number.isInteger(value.sequence)
-    || !Array.isArray(citations)
-    || citations.some((citation) => !isSafeChatCitation(citation))
     || (typeof provenance !== "string" && provenance !== null && typeof provenance !== "undefined")
     || (typeof provenance === "string" && !isAiChatProvenance(provenance))
     || (typeof disclaimer !== "string" && disclaimer !== null && typeof disclaimer !== "undefined")
     || (typeof safetyAction !== "undefined" && !isChatSafetyAction(safetyAction))
     || (typeof sourceStatus !== "undefined" && !isSourceStatus(sourceStatus))
-    || (typeof suggestedActions !== "undefined" && !Array.isArray(suggestedActions))
-    || (Array.isArray(suggestedActions) && suggestedActions.some((action) => !isSafeSuggestedAction(action)))
     || typeof value.createdAt !== "string"
     || (typeof value.completedAt !== "string" && value.completedAt !== null && typeof value.completedAt !== "undefined")
   ) {
     throw invalidAiChatResponse(path);
   }
+  const safeCitations = Array.isArray(citations) ? citations.filter(isSafeChatCitation) : [];
   return {
     id: value.id,
     role: value.role,
@@ -925,7 +921,7 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
     sequence: value.sequence,
     disclaimer: disclaimer ?? null,
     provenance: provenance ?? null,
-    citations: citations.map((citation) => ({
+    citations: safeCitations.map((citation) => ({
       ...citation,
       ...(citation.source_status ? { source_status: citation.source_status } : {}),
     })),
@@ -2607,19 +2603,16 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
   if (
     !isPublicAiChatMode(mode)
     || !Array.isArray(citations)
-    || citations.some((citation) => !isSafeChatCitation(citation))
     || (provenance !== "local_provider" && provenance !== "local_fallback" && provenance !== "remote_provider")
     || !isChatSafetyAction(safetyAction)
-    || (typeof suggestedActions !== "undefined" && !Array.isArray(suggestedActions))
-    || (Array.isArray(suggestedActions) && suggestedActions.some((action) => !isSafeSuggestedAction(action)))
   ) {
     throw invalidAiChatResponse(path);
   }
-  const disclaimer = value.disclaimer;
-  if (typeof disclaimer !== "string" || !disclaimer.trim() || disclaimer.length > 4_000) {
-    throw invalidAiChatResponse(path);
-  }
-  const safeCitations = citations.filter(isSafeChatCitation);
+  const rawDisclaimer = value.disclaimer;
+  const disclaimer = typeof rawDisclaimer === "string" && rawDisclaimer.trim() && rawDisclaimer.length <= 4_000
+    ? rawDisclaimer.trim()
+    : "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.";
+  const safeCitations = Array.isArray(citations) ? citations.filter(isSafeChatCitation) : [];
   return {
     answer: value.answer.trim(),
     disclaimer: disclaimer.trim(),

@@ -131,7 +131,7 @@ public class AiService {
         this(
             restTemplateBuilder,
             objectMapper,
-            Duration.ofSeconds(1),
+            Duration.ofSeconds(5),
             Duration.ofSeconds(35),
             Duration.ofMillis(6000),
             Duration.ofMillis(18000)
@@ -142,7 +142,7 @@ public class AiService {
     public AiService(
         RestTemplateBuilder restTemplateBuilder,
         ObjectMapper objectMapper,
-        @Value("${ai.service.connect-timeout-ms:1000}") long connectTimeoutMs,
+        @Value("${ai.service.connect-timeout-ms:5000}") long connectTimeoutMs,
         @Value("${ai.service.read-timeout-ms:35000}") long readTimeoutMs,
         @Value("${ai.service.chat-retrieve-timeout-ms:6000}") long chatRetrieveTimeoutMs,
         @Value("${ai.service.chat-generate-timeout-ms:18000}") long chatGenerateTimeoutMs
@@ -150,7 +150,7 @@ public class AiService {
         this(
             restTemplateBuilder,
             objectMapper,
-            boundedDuration(connectTimeoutMs, Duration.ofSeconds(1)),
+            boundedDuration(connectTimeoutMs, Duration.ofSeconds(5)),
             boundedDuration(readTimeoutMs, Duration.ofSeconds(35)),
             boundedDuration(chatRetrieveTimeoutMs, Duration.ofMillis(6000)),
             boundedDuration(chatGenerateTimeoutMs, Duration.ofMillis(18000))
