@@ -171,7 +171,9 @@ function semanticSourceLabel(sourceType: SemanticSearchResponse["results"][numbe
     article: "Cẩm nang",
     faq: "Hỏi đáp",
   };
-  return labels[sourceType];
+  // The semantic search payload is not runtime-validated, so an unknown
+  // source_type can reach this lookup and would otherwise render an empty chip.
+  return labels[sourceType] ?? "Nguồn HealthCare";
 }
 
 function semanticScoreLabel(score: number): string {
