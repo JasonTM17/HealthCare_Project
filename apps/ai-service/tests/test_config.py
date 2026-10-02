@@ -120,6 +120,58 @@ def test_patient_chat_remote_provider_is_disabled_by_default() -> None:
     assert Settings().ai_patient_chat_remote_enabled is False
 
 
+# ---------------------------------------------------------------------------
+# Statement timeout — connect_timeout only bounds the handshake; SQL execution
+# on the Supavisor pooler needs its own per-connection guard.
+# ---------------------------------------------------------------------------
+
+
+def test_supabase_db_statement_timeout_defaults_to_five_seconds() -> None:
+    assert Settings().supabase_db_statement_timeout_ms == 5_000
+
+
+def test_supabase_db_statement_timeout_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SUPABASE_DB_STATEMENT_TIMEOUT_MS", "8000")
+    assert Settings().supabase_db_statement_timeout_ms == 8_000
+
+
+@pytest.mark.parametrize("value", ["499", "30001"])
+def test_supabase_db_statement_timeout_rejects_out_of_bounds(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("SUPABASE_DB_STATEMENT_TIMEOUT_MS", value)
+    with pytest.raises(ValueError):
+        Settings()
+
+
+# ---------------------------------------------------------------------------
+# LLM_MAX_CONCURRENCY — env-tunable fail-fast capacity cap, clamped 1..64.
+# The 503 LLM_CAPACITY_EXHAUSTED semantics themselves are pinned elsewhere.
+# ---------------------------------------------------------------------------
+
+
+def test_llm_max_concurrency_defaults_to_eight() -> None:
+    assert Settings().llm_max_concurrency == 8
+
+
+def test_llm_max_concurrency_reads_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", "24")
+    assert Settings().llm_max_concurrency == 24
+
+
+@pytest.mark.parametrize(
+    ("raw", "clamped"),
+    [("0", 1), ("-3", 1), ("1", 1), ("64", 64), ("1000", 64)],
+)
+def test_llm_max_concurrency_clamps_to_sane_bounds(
+    monkeypatch: pytest.MonkeyPatch, raw: str, clamped: int
+) -> None:
+    monkeypatch.setenv("LLM_MAX_CONCURRENCY", raw)
+    assert Settings().llm_max_concurrency == clamped
+
+
 def test_public_hospital_support_remote_provider_is_disabled_by_default() -> None:
     assert Settings().ai_public_hospital_support_remote_enabled is False
 

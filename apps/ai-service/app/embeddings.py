@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Iterator, List, Protocol
 
@@ -46,22 +47,67 @@ class EmbeddingClient(Protocol):
         """Return an embedding vector, model identifier, and provenance."""
 
 
+def _fold_text(text: str) -> str:
+    """Fold case and Vietnamese diacritics into one canonical form.
+
+    NFD decomposition separates the combining tone/voice marks (Unicode
+    category ``Mn``), stripping them leaves the base letters, and casefold
+    normalizes case.  ``"tim mạch"`` and ``"tim mach"`` therefore fold to the
+    same string.  This is the SINGLE fold used by every local embedding —
+    queries and ingested documents share it, so both sides of the cosine
+    comparison see identical token forms.
+
+    ``đ`` (U+0111) has no NFD decomposition, so it is mapped explicitly:
+    diacritic-free typing (``"đau"`` vs ``"dau"``) is the norm for a very
+    common Vietnamese medical letter and must still match.
+    """
+
+    decomposed = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
+    stripped = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
+    return stripped.casefold()
+
+
 def _local_embedding(text: str) -> List[float]:
-    """Deterministic, dependency-free embedding for offline/dev use."""
+    """Deterministic, dependency-free embedding for offline/dev use.
+
+    v2 fixes two defects of the v1 hash that made local cosine similarity
+    near-random and broke RAG grounding:
+
+    - position independence: v1 salted the hash with the token index, so the
+      same word at a different position contributed a different vector.
+      v2 hashes each token alone and accumulates tokens in sorted order, so a
+      sentence and any permutation of it embed identically (bag of tokens).
+    - diacritic folding: v1 embedded raw casefolded text, so "tim mach" and
+      "tim mạch" shared no tokens.  v2 folds every token through
+      :func:`_fold_text` before hashing.
+
+    The output contract is unchanged: 384 dimensions, unit length.
+    """
 
     vec = [0.0] * DIMENSION
-    for i, word in enumerate(text.casefold().split()):
-        hashed = hashlib.sha256(f"{i}:{word}".encode("utf-8")).digest()
-        for j in range(min(4, DIMENSION)):
-            index = (i * 4 + j) % DIMENSION
-            vec[index] += (hashed[j] - 128) / 128.0
+    # Sorted multiset: token frequency is preserved while the accumulation
+    # order becomes canonical, so permutations embed to the identical vector.
+    for token in sorted(_fold_text(text).split()):
+        digest = hashlib.sha256(token.encode("utf-8")).digest()
+        # First 16 bytes select 8 dimensions, last 16 bytes supply the signed
+        # magnitudes, keeping the v1 ±(byte-128)/128 scale.
+        for j in range(8):
+            index = int.from_bytes(digest[2 * j : 2 * j + 2], "big") % DIMENSION
+            vec[index] += (digest[16 + j] - 128) / 128.0
     norm = math.sqrt(sum(value * value for value in vec)) or 1.0
     return [value / norm for value in vec]
 
 
 @dataclass(frozen=True)
 class LocalEmbeddingClient:
-    model: str = "local-hash"
+    # v2 marks the position-independent, diacritic-folded hash. The id is
+    # recorded with every vector (RagDocument.embedding_model /
+    # ai_chat_documents.embedding_model), so v1 rows can never be compared
+    # against v2 cosine: both the memory index contract and the durable
+    # single-profile fence fail closed on a model mismatch. A reindex is
+    # required after upgrading — see the reindex runbook note in
+    # app/supabase_rag.py.
+    model: str = "local-hash-v2"
 
     def embed(self, text: str) -> EmbeddingResult:
         return EmbeddingResult(_local_embedding(text), self.model, "local_provider")

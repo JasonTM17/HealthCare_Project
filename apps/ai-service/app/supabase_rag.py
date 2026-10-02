@@ -192,6 +192,7 @@ class SupabaseRagConfig:
     table: str = "ai_chat_documents"
     rpc: str = "match_chat_documents"
     connect_timeout_seconds: float = 5.0
+    statement_timeout_ms: int = 5_000
     embedding_dimension: int = 384
     max_documents: int = 5_000
 
@@ -208,6 +209,10 @@ class SupabaseRagConfig:
             raise SupabaseRagContractError("patient-chat vectors must use exactly 384 dimensions")
         if self.connect_timeout_seconds <= 0 or self.connect_timeout_seconds > 30:
             raise SupabaseRagContractError("Supabase connection timeout must be between 0 and 30 seconds")
+        if not 500 <= self.statement_timeout_ms <= 30_000:
+            raise SupabaseRagContractError(
+                "Supabase statement timeout must be between 500 and 30000 milliseconds"
+            )
         if self.max_documents < 1:
             raise SupabaseRagContractError("max_documents must be positive")
 
@@ -219,6 +224,7 @@ class SupabaseRagConfig:
             table=str(settings.supabase_rag_table),
             rpc=str(settings.supabase_rag_rpc),
             connect_timeout_seconds=float(settings.supabase_db_connect_timeout_seconds),
+            statement_timeout_ms=int(settings.supabase_db_statement_timeout_ms),
             embedding_dimension=int(settings.rag_embedding_dimension),
             max_documents=int(settings.rag_max_documents),
         )
@@ -325,9 +331,16 @@ class SupabaseRagStore:
         except ImportError as exc:  # pragma: no cover - dependency installation concern
             raise SupabaseRagUnavailable("psycopg is required for Supabase RAG persistence") from exc
         try:
+            # `options` carries the server-side statement_timeout so a stalled
+            # Supavisor statement cannot hold a request thread forever (the
+            # handshake-only connect_timeout does not cover SQL execution).
+            # libpq applies this per connection; a DSN that also sets `options`
+            # is overridden by this kwarg, which is the intended precedence for
+            # the Supavisor URIs used here.
             return psycopg.connect(
                 self.config.dsn,
                 connect_timeout=math.ceil(self.config.connect_timeout_seconds),
+                options=f"-c statement_timeout={self.config.statement_timeout_ms}",
             )
         except Exception as exc:  # pragma: no cover - exercised by integration environments
             raise SupabaseRagUnavailable("Supabase database connection failed") from exc
@@ -404,6 +417,30 @@ class SupabaseRagStore:
             metadata=normalized_metadata,
         )
 
+    # ── Reindex runbook note: local-hash → local-hash-v2 ──────────────────────
+    # The local embedding model id is recorded per vector. A query/ingest whose
+    # (embedding_model, embedding_provenance) differs from the single persisted
+    # profile fails closed here instead of cross-comparing v1/v2 cosine. After
+    # bumping the model id (app.embeddings.LocalEmbeddingClient), a database
+    # indexed with the old id therefore refuses every search AND ingest until
+    # it is reindexed. What exists in the schema:
+    #   table  healthcare.ai_chat_documents — has embedding_model /
+    #          embedding_provenance columns, so the model id IS stored per row;
+    #   rpc    healthcare.match_chat_documents(
+    #          extensions.vector(384), real, integer, text[], text)
+    #          (migration supabase/migrations/20260824102515_patient_chat_projection_contract.sql)
+    #          — NO embedding_model parameter, so per-model row filtering inside
+    #          the RPC is impossible without a migration (out of scope here).
+    # Because the single-profile fence already fails closed on any mismatch, v1
+    # rows can never pollute v2 cosine; the required operator procedure is:
+    #   1. Clear the old vectors: `delete from healthcare.ai_chat_documents;`
+    #      (tombstoning via the service API is NOT sufficient for a re-sync:
+    #      an equal-revision replay is rejected by the tombstone conflict
+    #      predicate in the durable upsert).
+    #   2. Re-run the Spring projection sync so every row is re-embedded with
+    #      local-hash-v2 (SupabaseRagStore.upsert writes embedding_model).
+    #   3. Verify: `select embedding_model, count(*) from
+    #      healthcare.ai_chat_documents group by 1;` returns only local-hash-v2.
     def _read_active_profile(self, connection: Any) -> tuple[str, ProviderProvenance] | None:
         with connection.cursor() as cursor:
             cursor.execute(self._sql_active_profile)
@@ -637,7 +674,7 @@ class SupabaseRagStore:
                 active, published, deleted_at
             ) values (
                 %s, %s, %s, %s, %s, %s, '[tombstone]', %s, %s::jsonb,
-                null, 'local-hash', 'local_provider', false, false, now()
+                null, 'local-hash-v2', 'local_provider', false, false, now()
             )
             on conflict (projection_kind, source_type, source_id) do update set
                 content_revision = excluded.content_revision,

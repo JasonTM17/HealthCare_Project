@@ -55,6 +55,9 @@ import styles from "./chat.module.css";
 
 const MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LENGTH = 10_000;
+// The composer chip states the real per-question credit cost; keep it as a
+// constant so the copy cannot silently drift from the backend's charge rule.
+const AI_CHAT_CREDIT_COST_PER_QUESTION = 1;
 // The API speaks enum; the patient portal must not. Mirrors the labels already
 // used by the admin credit console so the two surfaces never disagree.
 const TIER_LABEL: Readonly<Record<string, string>> = {
@@ -135,6 +138,19 @@ function feedbackRating(message: AiChatMessage): FeedbackRating | null {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+// The 33s chat deadline never surfaces as a raw AbortError: getJson converts a
+// timed-out request into ApiError("REQUEST_TIMEOUT", 408). A raw AbortError can
+// therefore only come from this page's own controller, and when it was not an
+// intentional cancel it is reported as a bounded, retryable timeout instead of
+// being swallowed.
+function chatTimeoutFailure(): ChatFailure {
+  return {
+    code: "CHAT_REQUEST_TIMEOUT",
+    message: assistantErrorMessage("CHAT_REQUEST_TIMEOUT"),
+    status: 408,
+  };
 }
 
 function MessageItem({
@@ -342,6 +358,10 @@ function PatientChatPageContent() {
   const sendInFlightRef = useRef(false);
   const sendRequestRef = useRef(0);
   const requestControllerRef = useRef<AbortController | null>(null);
+  // Set immediately before this page intentionally aborts the send controller
+  // (Stop control, invalidateSendRequest, consent, unmount) so the aborted
+  // send's catch can tell a deliberate cancel from a genuine failure.
+  const intentionalCancelRef = useRef(false);
   const modeCreateInFlightRef = useRef(false);
   const consentRequestRef = useRef(0);
 
@@ -357,6 +377,9 @@ function PatientChatPageContent() {
   }, [selectedConversationId]);
 
   const invalidateSendRequest = useCallback(() => {
+    // Thread switches and clears intentionally cancel an in-flight send; the
+    // flag keeps that cancel silent in sendContent's catch.
+    intentionalCancelRef.current = true;
     sendRequestRef.current += 1;
     sendInFlightRef.current = false;
     setSending(false);
@@ -524,6 +547,7 @@ function PatientChatPageContent() {
   }, [messages, streamingReply]);
 
   useEffect(() => () => {
+    intentionalCancelRef.current = true;
     requestControllerRef.current?.abort();
   }, []);
 
@@ -663,6 +687,8 @@ function PatientChatPageContent() {
     if (!conversation || consentBusy) return;
     const consentRequestId = ++consentRequestRef.current;
     const controller = new AbortController();
+    // Confirming consent supersedes any in-flight send on purpose.
+    intentionalCancelRef.current = true;
     requestControllerRef.current?.abort();
     requestControllerRef.current = controller;
     const isCurrentConsentRequest = (): boolean => (
@@ -774,6 +800,7 @@ function PatientChatPageContent() {
     }
 
     sendInFlightRef.current = true;
+    intentionalCancelRef.current = false;
     const sendRequestId = ++sendRequestRef.current;
     const controller = new AbortController();
     requestControllerRef.current?.abort();
@@ -824,24 +851,39 @@ function PatientChatPageContent() {
         refreshCredit(),
       ]);
     } catch (error) {
-      if (isAbortError(error) || !isCurrentSendRequest()) return;
-      // The attempt was not accepted: drop the placeholder and hand the text
+      // Every failure path drops the optimistic placeholder and hands the text
       // back to the composer so a retry cannot lose what the patient wrote.
       setMessages((current) => current.filter((message) => message.id !== pendingMessageId));
       if (options.clearDraftOnSuccess) setDraft(normalizedContent);
-      const failure = toFailure(error);
-      handleUnauthorized(failure);
-      setSendFailure(failure);
-      await Promise.allSettled([
-        loadThread(conversationId, { background: true }),
-        loadConversationList(conversationId, { hydrateThread: false, background: true }),
-        refreshCredit(),
-      ]);
+      if (isAbortError(error)) {
+        // Intentional cancels (Stop, thread switch, consent, unmount) stay
+        // silent; any other abort surfaces as a retryable timeout instead of
+        // disappearing. A superseded request never owns the failure UI.
+        if (intentionalCancelRef.current || !isCurrentSendRequest()) return;
+        setSendFailure(chatTimeoutFailure());
+      } else {
+        if (!isCurrentSendRequest()) return;
+        const failure = toFailure(error);
+        handleUnauthorized(failure);
+        setSendFailure(failure);
+        await Promise.allSettled([
+          loadThread(conversationId, { background: true }),
+          loadConversationList(conversationId, { hydrateThread: false, background: true }),
+          refreshCredit(),
+        ]);
+      }
     } finally {
+      // Invariant: the send state machine resets unconditionally — staleness
+      // (isCurrentSendRequest) may only gate data mutations and the controller
+      // identity cleanup + focus restore below, never the in-flight/sending/
+      // streamingReply flags themselves. The intentional-cancel flag resets
+      // only for the current request: a stale finally must not clear a marker
+      // that a newer send (or its Stop) has just armed.
+      sendInFlightRef.current = false;
+      setStreamingReply("");
+      setSending(false);
       if (isCurrentSendRequest()) {
-        sendInFlightRef.current = false;
-        setStreamingReply("");
-        setSending(false);
+        intentionalCancelRef.current = false;
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
         // The composer is disabled while sending, which drops keyboard focus to
         // <body>; return it so keyboard users can keep typing without re-tabbing.
@@ -859,6 +901,20 @@ function PatientChatPageContent() {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  };
+
+  // Stop is the visible escape from a 30-40s cold start: it marks the cancel as
+  // intentional, aborts the request, and resets the send machine synchronously
+  // so the composer unlocks even before the aborted promise settles. The
+  // aborted send still cleans up after itself silently in sendContent.
+  const handleStopSend = (): void => {
+    if (!sendInFlightRef.current) return;
+    intentionalCancelRef.current = true;
+    requestControllerRef.current?.abort();
+    sendInFlightRef.current = false;
+    setStreamingReply("");
+    setSending(false);
+    setNotice("Đã dừng gửi tin nhắn.");
   };
 
   const handleDeleteConversation = async (): Promise<void> => {
@@ -1253,7 +1309,7 @@ function PatientChatPageContent() {
                   <div className="flex items-center gap-2">
                     <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
                     <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[var(--chat-radius)] border border-emerald-200">
-                      -1 lượt / câu hỏi
+                      {AI_CHAT_CREDIT_COST_PER_QUESTION} lượt / câu hỏi (hoàn lại nếu lỗi)
                     </span>
                     {creditStatus ? (
                       <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[var(--chat-radius)] border border-teal-200">
@@ -1290,14 +1346,26 @@ function PatientChatPageContent() {
                     {selectedSummary?.inFlight ? <p className={styles.inFlightNotice}>Tin nhắn trước có thể vẫn đang xử lý. Bạn có thể thử lại; máy chủ sẽ chỉ nhận yêu cầu mới khi lượt cũ đã hết hạn.</p> : null}
                     {sendFailure ? <p className={styles.composerError} id="patient-chat-error" role="alert">{sendFailure.message}</p> : null}
                   </div>
-                  <button
-                    className={styles.sendButton}
-                    disabled={!selectedConversationId || sendLocked || !draftIsValid || currentConsentRequired}
-                    type="submit"
-                  >
-                    <UiIcon name="send" size={18} />
-                    {sending ? "Đang gửi" : selectedSummary?.inFlight ? "Thử gửi lại" : "Gửi tin nhắn"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {sending ? (
+                      <button
+                        className={styles.secondaryButton}
+                        onClick={handleStopSend}
+                        title="Dừng chờ phản hồi"
+                        type="button"
+                      >
+                        Dừng
+                      </button>
+                    ) : null}
+                    <button
+                      className={styles.sendButton}
+                      disabled={!selectedConversationId || sendLocked || !draftIsValid || currentConsentRequired}
+                      type="submit"
+                    >
+                      <UiIcon name="send" size={18} />
+                      {sending ? "Đang gửi" : selectedSummary?.inFlight ? "Thử gửi lại" : "Gửi tin nhắn"}
+                    </button>
+                  </div>
                 </div>
               </form>
             </section>

@@ -1,10 +1,18 @@
 """Embedding provider contract and bounded fallback tests."""
 
+import math
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import pytest
 
-from app.embeddings import DIMENSION, OpenAIEmbeddingClient, embed
+from app.embeddings import (
+    DIMENSION,
+    LocalEmbeddingClient,
+    OpenAIEmbeddingClient,
+    _fold_text,
+    _local_embedding,
+    embed,
+)
 from app.providers import ProviderUnavailable
 
 # Obvious non-secret dummy used by every provider-credential assertion;
@@ -71,7 +79,72 @@ def test_provider_error_falls_back_to_local_embedding() -> None:
         vector, model = embed("đau đầu", settings)
 
     assert len(vector) == 384
-    assert model == "local-hash"
+    assert model == "local-hash-v2"
+
+
+# ---------------------------------------------------------------------------
+# local-hash-v2 embedding contract.
+#
+# v1 salted the hash with the token index and never folded Vietnamese
+# diacritics, so query/corpus cosine similarity was near-random and RAG
+# grounding effectively failed.  These tests pin the v2 contract: position
+# independence, diacritic folding, the 384-dim unit-norm output, the bumped
+# model id, and the single shared fold used by BOTH query and ingest paths.
+# ---------------------------------------------------------------------------
+
+
+def _cosine(a: list[float], b: list[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    return dot / (norm_a * norm_b)
+
+
+def test_local_hash_v2_is_position_independent() -> None:
+    a = _local_embedding("bác sĩ tim mạch")
+    b = _local_embedding("tim mạch bác sĩ")
+
+    assert _cosine(a, b) > 0.999
+
+
+def test_local_hash_v2_folds_vietnamese_diacritics() -> None:
+    assert _fold_text("tim mạch") == "tim mach"
+    assert _fold_text("BÁC SĨ") == "bac si"
+    # đ (U+0111) has no NFD decomposition; fold it explicitly so the very
+    # common diacritic-free typing "dau" still matches "đau".
+    assert _fold_text("đau") == "dau"
+    assert _fold_text("ĐIỀU TRỊ") == "dieu tri"
+
+    folded = _cosine(_local_embedding("tim mach"), _local_embedding("tim mạch"))
+    assert folded > 0.999
+
+    # v1 behavior (no folding) is gone: raw casefold text differs from folded.
+    assert _local_embedding("tim mạch") == _local_embedding("tim mach")
+
+
+def test_local_hash_v2_keeps_dimension_and_unit_norm_contract() -> None:
+    for text in ("tim mạch", "Khám tim mạch tại cơ sở Trung tâm 028 1234 5678"):
+        vector = _local_embedding(text)
+        assert len(vector) == DIMENSION
+        norm = math.sqrt(sum(value * value for value in vector))
+        assert norm == pytest.approx(1.0, abs=1e-9)
+    # Empty input keeps the v1 degenerate contract: zero vector, no crash.
+    assert _local_embedding("") == [0.0] * DIMENSION
+
+
+def test_local_hash_v2_model_id_is_bumped() -> None:
+    assert LocalEmbeddingClient().embed("đau đầu").model == "local-hash-v2"
+
+
+def test_local_hash_v2_query_and_ingest_share_one_fold_helper() -> None:
+    # The fold is a single module-level helper invoked inside
+    # _local_embedding; query (embed) and ingest (embed_document -> embed)
+    # both reach it through that one path, so no second fold can drift.
+    with patch("app.embeddings._fold_text", side_effect=_fold_text) as fold:
+        _local_embedding("tim mạch")
+
+    assert fold.called
+    assert LocalEmbeddingClient().model == "local-hash-v2"
 
 
 def test_remote_embedding_failure_fails_closed_outside_local_runtime() -> None:
