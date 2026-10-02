@@ -29,6 +29,8 @@ import com.healthcare.appointment.service.AppointmentClaimService;
 import com.healthcare.notification.service.NotificationService;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.core.env.Environment;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -45,6 +47,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -639,32 +643,124 @@ class BookingServiceValidationTest {
         HoldFixture fixture = new HoldFixture();
         UUID doctorId = UUID.randomUUID();
         UUID branchId = UUID.randomUUID();
-        LocalDate date = LocalDate.now().plusDays(1);
         String key = "hold-key-0001";
-
-        Appointment existing = new Appointment();
-        existing.setId(UUID.randomUUID());
-        existing.setBookingCode("APT-REPLAY");
-        existing.setDoctor(activeDoctor(doctorId));
-        existing.setBranch(activeBranch(branchId));
-        existing.setAppointmentDate(date);
-        existing.setStartTime(LocalTime.of(9, 0));
-        existing.setEndTime(LocalTime.of(9, 30));
-        existing.setStatus(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
-        existing.setHoldExpiresAt(java.time.OffsetDateTime.now().plusMinutes(7));
-        existing.setOtpExpiresAt(java.time.OffsetDateTime.now().plusMinutes(3));
-        when(fixture.appointments.findByHoldIdempotencyKey(key)).thenReturn(Optional.of(existing));
+        Appointment existing = ownedReplayHold(fixture, doctorId, branchId, key);
 
         BookingService service = fixture.service();
 
-        HoldSlotResponse replayed = service.holdSlot(holdRequest(doctorId, branchId), null, key);
+        HoldSlotResponse replayed = service.holdSlot(
+            guestHold(doctorId, branchId, "+84 905 550 300", " OWNER@example.test "), null, key);
 
         assertEquals("APT-REPLAY", replayed.bookingCode());
         assertEquals(OtpDeliveryStatus.QUEUED, replayed.otpDeliveryStatus());
         // The retry must not create a second hold, a second OTP, or another row.
-        verify(fixture.appointments, never()).saveAndFlush(any());
-        verifyNoInteractions(fixture.emailSender);
-        verifyNoInteractions(fixture.schedules);
+        assertReplayHoldUnchanged(fixture, existing, key);
+    }
+
+    @Test
+    void repeatedIdempotencyKeyReplaysForTheAuthenticatedOwner() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        String key = "hold-key-0001";
+        Appointment existing = ownedReplayHold(fixture, doctorId, branchId, key);
+        UserDetails principal = new User("owner@example.test", "ignored",
+            List.of(new SimpleGrantedAuthority("ROLE_PATIENT")));
+
+        HoldSlotResponse replayed = fixture.service().holdSlot(
+            guestHold(doctorId, branchId, "0905550300", "owner@example.test"), principal, key);
+
+        assertEquals(existing.getBookingCode(), replayed.bookingCode());
+        assertReplayHoldUnchanged(fixture, existing, key);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0905550301,owner@example.test", "0905550300,other@example.test"})
+    void idempotencyReplayRejectsDifferentGuestContactWithoutMutatingHold(String phone, String email) {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        String key = "hold-key-0001";
+        Appointment existing = ownedReplayHold(fixture, doctorId, branchId, key);
+
+        assertThatThrownBy(() -> fixture.service().holdSlot(
+            guestHold(doctorId, branchId, phone, email), null, key))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                exception -> assertEquals(403, exception.getStatusCode().value()));
+
+        assertReplayHoldUnchanged(fixture, existing, key);
+    }
+
+    @Test
+    void idempotencyReplayRejectsDifferentPrincipalEvenWithOwnerContact() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        String key = "hold-key-0001";
+        Appointment existing = ownedReplayHold(fixture, doctorId, branchId, key);
+        com.healthcare.user.entity.User otherUser = new com.healthcare.user.entity.User();
+        otherUser.setId(UUID.randomUUID());
+        otherUser.setEmail("other@example.test");
+        otherUser.setStatus("ACTIVE");
+        otherUser.setEmailVerified(true);
+        PatientProfile otherProfile = new PatientProfile();
+        otherProfile.setId(UUID.randomUUID());
+        otherProfile.setUserId(otherUser.getId());
+        otherProfile.setPhone("0905550301");
+        otherProfile.setEmail(otherUser.getEmail());
+        when(fixture.users.findByEmail(otherUser.getEmail())).thenReturn(Optional.of(otherUser));
+        when(fixture.patients.findByUserId(otherUser.getId())).thenReturn(Optional.of(otherProfile));
+        UserDetails principal = new User(otherUser.getEmail(), "ignored",
+            List.of(new SimpleGrantedAuthority("ROLE_PATIENT")));
+
+        assertThatThrownBy(() -> fixture.service().holdSlot(
+            guestHold(doctorId, branchId, "0905550300", "owner@example.test"), principal, key))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                exception -> assertEquals(403, exception.getStatusCode().value()));
+
+        assertReplayHoldUnchanged(fixture, existing, key);
+    }
+
+    @Test
+    void idempotencyReplayRejectsForeignExpiredHoldBeforeRecyclingItsKey() {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        String key = "hold-key-0001";
+        Appointment existing = ownedReplayHold(fixture, doctorId, branchId, key);
+        existing.setHoldExpiresAt(java.time.OffsetDateTime.now().minusMinutes(1));
+
+        Throwable failure = catchThrowable(() -> fixture.service().holdSlot(
+            guestHold(doctorId, branchId, "0905550300", "other@example.test"), null, key));
+
+        assertAll(
+            () -> org.assertj.core.api.Assertions.assertThat(failure)
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                    exception -> assertEquals(403, exception.getStatusCode().value())),
+            () -> assertReplayHoldUnchanged(fixture, existing, key),
+            () -> verifyNoInteractions(fixture.doctors, fixture.branches, fixture.slotLocker));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true,false", "false,true"})
+    void idempotencyReplayRejectsChangedPackageOrSpecialty(boolean changePackage, boolean changeSpecialty) {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        String key = "hold-key-0001";
+        Appointment existing = ownedReplayHold(fixture, doctorId, branchId, key);
+        HoldSlotRequest changed = new HoldSlotRequest(
+            doctorId, existing.getAppointmentDate(), existing.getStartTime(),
+            "Chủ Hồ Sơ", "0905550300", "owner@example.test", null,
+            changeSpecialty ? UUID.randomUUID() : null, branchId,
+            changePackage ? UUID.randomUUID() : null, false, true);
+
+        assertThatThrownBy(() -> fixture.service().holdSlot(changed, null, key))
+            .isInstanceOf(BusinessException.class)
+            .extracting(exception -> ((BusinessException) exception).getCode())
+            .isEqualTo(ErrorCodes.CONFLICT);
+
+        assertReplayHoldUnchanged(fixture, existing, key);
     }
 
     @Test
@@ -674,24 +770,68 @@ class BookingServiceValidationTest {
         UUID branchId = UUID.randomUUID();
         String key = "hold-key-0002";
 
-        Appointment otherSlot = new Appointment();
-        otherSlot.setId(UUID.randomUUID());
+        Appointment otherSlot = ownedReplayHold(fixture, doctorId, branchId, key);
         otherSlot.setBookingCode("APT-OTHER");
-        otherSlot.setDoctor(activeDoctor(doctorId));
-        otherSlot.setBranch(activeBranch(branchId));
         otherSlot.setAppointmentDate(LocalDate.now().plusDays(4));
         otherSlot.setStartTime(LocalTime.of(15, 0));
-        otherSlot.setStatus(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
-        otherSlot.setHoldExpiresAt(java.time.OffsetDateTime.now().plusMinutes(5));
-        when(fixture.appointments.findByHoldIdempotencyKey(key)).thenReturn(Optional.of(otherSlot));
 
         BookingService service = fixture.service();
 
-        assertThatThrownBy(() -> service.holdSlot(holdRequest(doctorId, branchId), null, key))
+        assertThatThrownBy(() -> service.holdSlot(
+                guestHold(doctorId, branchId, "0905550300", "owner@example.test"), null, key))
             .isInstanceOf(BusinessException.class)
             .extracting(exception -> ((BusinessException) exception).getCode())
             .isEqualTo(ErrorCodes.CONFLICT);
         verify(fixture.appointments, never()).saveAndFlush(any());
+    }
+
+    private static Appointment ownedReplayHold(HoldFixture fixture, UUID doctorId, UUID branchId, String key) {
+        com.healthcare.user.entity.User owner = new com.healthcare.user.entity.User();
+        owner.setId(UUID.randomUUID());
+        owner.setEmail("owner@example.test");
+        owner.setStatus("ACTIVE");
+        owner.setEmailVerified(true);
+        PatientProfile patient = new PatientProfile();
+        patient.setId(UUID.randomUUID());
+        patient.setUserId(owner.getId());
+        patient.setFullName("Chủ Hồ Sơ");
+        patient.setPhone("0905550300");
+        patient.setEmail(owner.getEmail());
+        when(fixture.users.findById(owner.getId())).thenReturn(Optional.of(owner));
+        when(fixture.users.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
+        when(fixture.patients.findByUserId(owner.getId())).thenReturn(Optional.of(patient));
+        when(fixture.patients.findByPhone(patient.getPhone())).thenReturn(Optional.of(patient));
+        Appointment existing = new Appointment();
+        existing.setId(UUID.randomUUID());
+        existing.setBookingCode("APT-REPLAY");
+        existing.setPatient(patient);
+        existing.setDoctor(activeDoctor(doctorId));
+        existing.setBranch(activeBranch(branchId));
+        existing.setAppointmentDate(LocalDate.now().plusDays(1));
+        existing.setStartTime(LocalTime.of(9, 0));
+        existing.setEndTime(LocalTime.of(9, 30));
+        existing.setStatus(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
+        existing.setHoldIdempotencyKey(key);
+        existing.setHoldExpiresAt(java.time.OffsetDateTime.now().plusMinutes(7));
+        existing.setOtpExpiresAt(java.time.OffsetDateTime.now().plusMinutes(3));
+        existing.setOtpCode("encoded-original-otp");
+        existing.setOtpAttempts(1);
+        when(fixture.appointments.findByHoldIdempotencyKey(key)).thenReturn(Optional.of(existing));
+        return existing;
+    }
+
+    private static void assertReplayHoldUnchanged(HoldFixture fixture, Appointment existing, String key) {
+        assertAll(
+            () -> assertEquals(key, existing.getHoldIdempotencyKey()),
+            () -> assertEquals(com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION, existing.getStatus()),
+            () -> assertEquals("encoded-original-otp", existing.getOtpCode()),
+            () -> assertEquals(1, existing.getOtpAttempts()),
+            () -> assertNull(existing.getSpecialty()),
+            () -> assertNull(existing.getMedicalPackage()),
+            () -> verify(fixture.appointments, never()).save(any()),
+            () -> verify(fixture.appointments, never()).saveAndFlush(any()),
+            () -> verify(fixture.patients, never()).save(any()),
+            () -> verifyNoInteractions(fixture.emailSender, fixture.schedules, fixture.payments, fixture.claimService));
     }
 
     @Test

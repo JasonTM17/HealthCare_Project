@@ -481,10 +481,10 @@ export default function DoctorConsultationDetailPage({ params }: { params: Promi
             </form>
 
             <section className="portal-panel grid gap-3" aria-labelledby="handoff-title">
-              <div><h2 id="handoff-title">Handoff bác sĩ</h2><p className="portal-panel__intro">Chọn bác sĩ đang hoạt động trong cùng chuyên khoa/cơ sở. Handoff ghi audit; coordinator chỉ xem metadata.</p></div>
+              <div><h2 id="handoff-title">Bàn giao cho bác sĩ khác</h2><p className="portal-panel__intro">Chọn bác sĩ khả dụng theo phạm vi lịch hẹn. Hệ thống ghi lại việc bàn giao để kiểm tra quyền truy cập.</p></div>
               {handoffLoading ? <p role="status">Đang tải danh sách bác sĩ…</p> : null}
               <label className="grid gap-1 text-sm font-bold" htmlFor="handoff-doctor">Bác sĩ nhận bàn giao<select id="handoff-doctor" className="min-h-11 rounded-lg border border-slate-300 px-3" disabled={handoffLoading || busyHandoff} onChange={(event) => setHandoffId(event.target.value)} value={handoffId}><option value="">Chọn bác sĩ</option>{handoffDoctors.map((doctor) => <option key={doctor.doctorId} value={doctor.doctorId}>{doctor.fullName}{doctor.specialtySlug ? ` · ${tokenLabel(doctor.specialtySlug)}` : ""}{doctor.branchSlug ? ` · ${tokenLabel(doctor.branchSlug)}` : ""}</option>)}</select></label>
-              <button className="outline-button min-h-11 w-fit" disabled={busyHandoff || !handoffId || handoffLoading} onClick={() => void handoff()} type="button">{busyHandoff ? "Đang chuyển…" : "Chuyển handoff"}</button>
+              <button className="outline-button min-h-11 w-fit" disabled={busyHandoff || !handoffId || handoffLoading} onClick={() => void handoff()} type="button">{busyHandoff ? "Đang bàn giao…" : "Bàn giao tư vấn"}</button>
             </section>
           </>
         ) : null}

@@ -182,7 +182,7 @@ export default function PatientConsultationsPage() {
         <section className="portal-panel portal-panel--notice" aria-label="Lưu ý an toàn">
           <p className="section-note">AN TOÀN VÀ RIÊNG TƯ</p>
           <p className="portal-panel__intro">
-            Chỉ bạn và bác sĩ được phân công/handoff hợp lệ có thể đọc nội dung. Không gửi thông tin cấp cứu;
+            Chỉ bạn và bác sĩ được phân công hoặc được bàn giao hợp lệ có thể đọc nội dung. Không gửi thông tin cấp cứu;
             nếu nguy hiểm tức thời, hãy gọi <a href="tel:115">115</a>.
           </p>
         </section>

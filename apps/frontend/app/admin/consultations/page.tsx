@@ -9,11 +9,12 @@ import {
   assignAdminConsultation,
   fetchAllContent,
   fetchAdminConsultationQueue,
+  fetchBranches,
   hasRole,
 } from "../../../lib/api-client";
 import { presentApiError } from "../../../lib/present-api-error";
 import { formatDateTime } from "../../../lib/datetime";
-import type { ConsultationAdminQueueItem, Doctor } from "../../../types/hospital";
+import type { Branch, ConsultationAdminQueueItem, Doctor } from "../../../types/hospital";
 
 const STATUS_OPTIONS: Array<[string, string]> = [
   ["OPEN", "Đang mở"],
@@ -93,6 +94,8 @@ export default function AdminConsultationsPage() {
   const session = useAuthSession();
   const [items, setItems] = useState<ConsultationAdminQueueItem[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchesError, setBranchesError] = useState(false);
   const [queueLoading, setQueueLoading] = useState(true);
   const [doctorsLoading, setDoctorsLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -150,6 +153,45 @@ export default function AdminConsultationsPage() {
     };
   }, [page, retry, session]);
 
+  useEffect(() => {
+    if (!session || !hasRole(session.user, "ADMIN")) return;
+    let cancelled = false;
+    void Promise.resolve()
+      .then(() => {
+        if (cancelled) return undefined;
+        setBranchesError(false);
+        return fetchAllContent(fetchBranches, ADMIN_PAGE_SIZE);
+      })
+      .then((value) => {
+        if (!cancelled && value) setBranches(value);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBranches([]);
+          setBranchesError(true);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [retry, session]);
+
+  const doctorLabels = useMemo(() => {
+    const branchNames = new Map(branches.map((branch) => [branch.id, branch.name]));
+    const labels = doctors.map((doctor) => {
+      const ids = doctor.branchIds ?? (doctor.branchId ? [doctor.branchId] : []);
+      const names = [...new Set(ids.map((id) => branchNames.get(id)).filter((name): name is string => Boolean(name)))];
+      const missingBranch = ids.length === 0 || ids.some((id) => !branchNames.has(id));
+      if (missingBranch) names.push("Cơ sở chưa cập nhật");
+      return { doctor, missingBranch, label: [doctor.fullName, doctor.specialtyName, names.join(", ")].filter(Boolean).join(" · ") };
+    });
+    const counts = new Map<string, number>();
+    labels.forEach(({ label }) => counts.set(label, (counts.get(label) ?? 0) + 1));
+    // The public profile slug distinguishes same-name staff without exposing internal IDs.
+    return new Map(labels.map(({ doctor, missingBranch, label }) => [
+      doctor.id,
+      missingBranch || (counts.get(label) ?? 0) > 1 ? `${label} · Hồ sơ: ${doctor.slug}` : label,
+    ]));
+  }, [branches, doctors]);
+
   const hasNextPage = items.length === CONSULTATION_QUEUE_PAGE_SIZE;
 
   const filteredItems = useMemo(() => items.filter((item) => {
@@ -196,10 +238,10 @@ export default function AdminConsultationsPage() {
           <p className="section-note">CONSULTATION OPERATIONS</p>
           <h1>Hàng đợi tư vấn riêng</h1>
           <p>Điều phối SLA và phân công bác sĩ mà không đọc chủ đề, nội dung tin nhắn, tệp hoặc danh tính bệnh nhân.</p>
-          <div aria-label="Tóm tắt hàng đợi" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
-            <span className="rounded-md bg-teal-50 px-3 py-1.5">{openCount} kênh đang mở</span>
-            <span className="rounded-md bg-amber-50 px-3 py-1.5">{dueCount} kênh quá SLA</span>
-            <span className="rounded-md bg-slate-100 px-3 py-1.5">{items.length} kênh metadata</span>
+          <div aria-label="Tóm tắt trang hiện tại" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
+            <span className="rounded-md bg-teal-50 px-3 py-1.5">{openCount} kênh đang mở trên trang này</span>
+            <span className="rounded-md bg-amber-50 px-3 py-1.5">{dueCount} kênh quá SLA trên trang này</span>
+            <span className="rounded-md bg-slate-100 px-3 py-1.5">{items.length} kênh trên trang này</span>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -225,9 +267,9 @@ export default function AdminConsultationsPage() {
           <div>
             <p className="section-note">QUEUE FILTERS</p>
             <h2 className="text-lg font-black text-teal-950" id="consultation-filter-title">Lọc ưu tiên vận hành</h2>
-            <p className="mt-1 text-sm text-slate-600">Lọc cục bộ theo trạng thái và SLA; không tải thêm dữ liệu nhạy cảm.</p>
+            <p className="mt-1 text-sm text-slate-600">Lọc trang hiện tại theo trạng thái và SLA. Dùng Trước/Sau để kiểm tra các trang khác.</p>
           </div>
-          <button className="outline-button outline-button--small min-h-11" disabled={!hasFilters} onClick={resetFilters} type="button">Xóa bộ lọc{hasFilters ? ` (${activeFilterCount})` : ""}</button>
+          <button className="outline-button outline-button--small min-h-11" disabled={!hasFilters} onClick={resetFilters} type="button">Xóa bộ lọc trang này{hasFilters ? ` (${activeFilterCount})` : ""}</button>
         </div>
         <fieldset className="grid gap-4 sm:grid-cols-2">
           <legend className="sr-only">Bộ lọc hàng đợi tư vấn</legend>
@@ -241,23 +283,24 @@ export default function AdminConsultationsPage() {
           <label className="grid gap-1 text-sm font-bold text-slate-800" htmlFor="consultation-sla-filter">
             Ưu tiên SLA
             <select className="min-h-11 rounded-lg border border-slate-300 px-3" id="consultation-sla-filter" onChange={(event) => setSlaFilter(event.target.value as "ALL" | "DUE" | "ON_TRACK")} value={slaFilter}>
-              <option value="ALL">Tất cả kênh</option>
-              <option value="DUE">Quá SLA trước</option>
-              <option value="ON_TRACK">Còn trong hạn</option>
+              <option value="ALL">Tất cả kênh trên trang này</option>
+              <option value="DUE">Chỉ kênh quá SLA trên trang này</option>
+              <option value="ON_TRACK">Kênh chưa quá SLA trên trang này</option>
             </select>
           </label>
         </fieldset>
       </section>
 
       {notice ? <p aria-live="polite" className="notice" role="status">{notice}</p> : null}
+      {branchesError ? <p className="notice" role="status">Chưa tải được tên cơ sở. Dùng mã hồ sơ công khai để phân biệt bác sĩ; bấm Tải lại để thử lại.</p> : null}
       {queueError ? <div aria-live="assertive" className="error-banner" role="alert"><span>{queueError}{items.length ? " Đang hiển thị metadata lần tải trước ở chế độ chỉ đọc." : ""}</span><button className="outline-button outline-button--small min-h-11" onClick={() => setRetry((value) => value + 1)} type="button">Tải lại hàng đợi</button></div> : null}
       {doctorsError ? <div aria-live="polite" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status"><span>Chưa tải được danh sách bác sĩ đủ quyền. Bạn vẫn có thể xem SLA; thử tải lại để cập nhật phân công.</span><button className="outline-button outline-button--small min-h-11 ml-3" onClick={() => setRetry((value) => value + 1)} type="button">Tải lại bác sĩ</button></div> : null}
       {queueLoading ? <LoadingState label="Đang tải hàng đợi tư vấn…" /> : null}
-      {!queueLoading && !queueError && filteredItems.length === 0 ? <div className="portal-empty-state grid gap-2" role="status"><p>{hasFilters ? "Không có kênh phù hợp với bộ lọc hiện tại." : "Hiện chưa có kênh cần điều phối."}</p>{hasFilters ? <button className="outline-button outline-button--small min-h-11 w-fit" onClick={resetFilters} type="button">Xem toàn bộ hàng đợi</button> : null}</div> : null}
+      {!queueLoading && !queueError && filteredItems.length === 0 ? <div className="portal-empty-state grid gap-2" role="status"><p>{hasFilters ? "Trang này không có kênh phù hợp với bộ lọc. Kiểm tra trang khác bằng Trước/Sau." : "Trang này chưa có kênh cần điều phối."}</p>{hasFilters ? <button className="outline-button outline-button--small min-h-11 w-fit" onClick={resetFilters} type="button">Xem tất cả trên trang này</button> : null}</div> : null}
 
       {!queueLoading && filteredItems.length > 0 ? (
         <section aria-busy={queueLoading} aria-label="Danh sách kênh tư vấn metadata-only" className="grid gap-4" aria-live="polite">
-          <p className="text-sm font-bold text-teal-950" role="status">{filteredItems.length} kênh phù hợp · {dueCount} kênh quá SLA toàn hàng đợi</p>
+          <p className="text-sm font-bold text-teal-950" role="status">{filteredItems.length} kênh phù hợp trên trang này · {dueCount} kênh quá SLA trên trang này</p>
           {filteredItems.map((item, index) => {
             const due = isDue(item);
             const doctorSelection = selection[item.threadId] ?? "";
@@ -282,7 +325,7 @@ export default function AdminConsultationsPage() {
                     Bác sĩ nhận bàn giao
                     <select aria-describedby={`${controlId}-help`} className="min-h-11 rounded-lg border border-slate-300 px-3" disabled={doctorsLoading || Boolean(doctorsError) || assigning === item.threadId} id={controlId} onChange={(event) => setSelection((current) => ({ ...current, [item.threadId]: event.target.value }))} value={doctorSelection}>
                       <option value="">Chọn bác sĩ đủ quyền</option>
-                      {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.fullName}{doctor.specialtyName ? ` · ${doctor.specialtyName}` : ""}</option>)}
+                      {doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctorLabels.get(doctor.id)}</option>)}
                     </select>
                   </label>
                   <button aria-describedby={`${controlId}-help`} className="outline-button min-h-11" disabled={assigning === item.threadId || doctorsLoading || Boolean(doctorsError) || !doctorSelection} onClick={() => void assign(item)} type="button">{assigning === item.threadId ? "Đang lưu…" : "Cập nhật phân công"}</button>

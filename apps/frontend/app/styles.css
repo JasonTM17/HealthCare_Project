@@ -7851,6 +7851,24 @@ main {
 
   .site-shell .site-nav__inner {
     min-height: 66px;
+    gap: var(--sp-2);
+  }
+
+  .site-shell .site-nav .brand-link {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .site-shell .site-nav .brand-identity {
+    width: 100%;
+  }
+
+  .site-shell .site-nav .brand-copy small {
+    white-space: normal;
+  }
+
+  .site-shell .site-nav__actions {
+    flex: 0 0 auto;
   }
 
   .site-shell .brand-mark {

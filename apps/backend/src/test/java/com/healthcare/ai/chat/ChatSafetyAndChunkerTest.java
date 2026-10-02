@@ -4,6 +4,8 @@ import com.healthcare.ai.chat.service.ChatAnswerChunker;
 import com.healthcare.ai.chat.service.ChatMedicalSafety;
 import com.healthcare.exception.BusinessException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -54,6 +56,53 @@ class ChatSafetyAndChunkerTest {
         // Punctuation-only segments must not crash the sentence loop.
         assertThat(ChatMedicalSafety.containsUnsafeClaim(
             "!!! ... ??? --- Nói lại đi")).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "Khong can lo lang, uong 2 vien moi ngay",
+        "Khong can lo lang, chan doan la cum",
+        "Khong ke don, uong 2 vien moi ngay",
+        "Khong ke don, chan doan la cum",
+        "I do not worry, you should take 500 mg"
+    })
+    void unrelatedNegationDoesNotExcuseALaterClinicalClaim(String answer) {
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(answer)).isTrue();
+        assertThatThrownBy(() -> ChatMedicalSafety.rejectDiagnoseOrPrescribe(answer))
+            .isInstanceOf(BusinessException.class)
+            .extracting(error -> ((BusinessException) error).getCode())
+            .isEqualTo("CHAT_CONTENT_BLOCKED");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "Why not prescribe aspirin?",
+        "Why not stop medication?",
+        "Why not take 500 mg?",
+        "Do not stop medication, prescribe aspirin instead.",
+        "I do not prescribe, stop medication now.",
+        "Khong ke don, hay ngung thuoc ngay."
+    })
+    void rhetoricalOrAffirmativeRecommendationsAreNotClinicalRefusals(String answer) {
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(answer)).isTrue();
+        assertThatThrownBy(() -> ChatMedicalSafety.rejectDiagnoseOrPrescribe(answer))
+            .isInstanceOf(BusinessException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "Khong tu y uong 2 vien moi ngay, hay hoi bac si.",
+        "Toi khong the chan doan, ke don hoac ngung thuoc.",
+        "Do not stop medication without advice from your doctor.",
+        "I cannot provide a prescription.",
+        "I cannot provide any prescription.",
+        "I do not prescribe medication.",
+        "Do not take 500 mg without advice from your doctor."
+    })
+    void genuineClinicalRefusalsRemainAllowed(String answer) {
+        assertThat(ChatMedicalSafety.containsUnsafeClaim(answer)).isFalse();
+        assertThatCode(() -> ChatMedicalSafety.rejectDiagnoseOrPrescribe(answer))
+            .doesNotThrowAnyException();
     }
 
     @Test

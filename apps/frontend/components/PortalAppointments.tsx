@@ -1,5 +1,5 @@
 import type { Page } from "../lib/api-client";
-import { businessDate, formatBusinessDate } from "../lib/business-time";
+import { businessDate, businessDateTimeIso, formatBusinessDate } from "../lib/business-time";
 import type { DoctorPortalAppointment, PatientPortalAppointment } from "../types/hospital";
 import { buildGoogleCalendarUrl, downloadIcsFile } from "../lib/appointment-calendar";
 
@@ -59,6 +59,11 @@ function paymentActionLabel(status: string): string {
   return "Thanh toán";
 }
 
+function appointmentStartTimestamp(date: string, time: string): number {
+  const seconds = Number(time.split(":")[2] ?? 0);
+  return Date.parse(businessDateTimeIso(date, time.slice(0, 5))) + seconds * 1000;
+}
+
 export default function PortalAppointments({
   page,
   viewer,
@@ -73,10 +78,14 @@ export default function PortalAppointments({
 }: PortalAppointmentsProps) {
   // Doctor actions are day-scoped by the backend; re-derive per render so a
   // long-lived tab crosses midnight correctly.
-  const today = businessDate();
+  const now = new Date();
+  const today = businessDate(0, now);
   return (
     <div aria-label={viewer === "patient" ? "Danh sách lịch hẹn của bệnh nhân" : "Lịch hẹn trong ngày của bác sĩ"} className="portal-appointment-list">
-      {page.content.map((appointment) => (
+      {page.content.map((appointment) => {
+        const hasStarted = viewer === "patient"
+          && now.getTime() >= appointmentStartTimestamp(appointment.appointmentDate, appointment.startTime);
+        return (
         <article className="portal-appointment" key={appointment.id}>
           <div className="portal-appointment__meta">
             <span>{formatBusinessDate(appointment.appointmentDate)}</span>
@@ -201,7 +210,7 @@ export default function PortalAppointments({
                   </button>
                 </>
               ) : null}
-              {onReschedule && appointment.status === "CONFIRMED" ? (
+              {onReschedule && appointment.status === "CONFIRMED" && !hasStarted ? (
                 <button className="outline-button outline-button--small" onClick={() => onReschedule(appointment)} type="button">Đổi lịch</button>
               ) : null}
               {onPayment && appointment.status === "CONFIRMED" && appointment.paymentStatus !== "PAID" && appointment.paymentStatus !== "REFUNDED" && appointment.paymentStatus !== "REFUND_PENDING" ? (
@@ -217,7 +226,7 @@ export default function PortalAppointments({
                   {paymentActionLabel(appointment.paymentStatus)}
                 </button>
               ) : null}
-              {onCancel ? (
+              {onCancel && !hasStarted ? (
                 <button
                   aria-label={`Hủy lịch ${appointment.bookingCode}`}
                   className="text-button portal-appointment__cancel"
@@ -227,10 +236,14 @@ export default function PortalAppointments({
                   Hủy lịch
                 </button>
               ) : null}
+              {hasStarted && (onCancel || (onReschedule && appointment.status === "CONFIRMED")) ? (
+                <p className="section-note">Đã qua giờ hẹn. Để đổi hoặc hủy lịch, vui lòng <a href="/contact">liên hệ bệnh viện</a>.</p>
+              ) : null}
             </div>
           ) : null}
         </article>
-      ))}
+        );
+      })}
       {/* The badge counts totalElements but only page.content rows render, so
           a patient with more than one page needs this control or their older
           appointments stay invisible forever. Doctor day-views are a single
