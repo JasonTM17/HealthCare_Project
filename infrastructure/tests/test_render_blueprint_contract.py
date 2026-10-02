@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # send state machines, RAG statement timeout, local-hash-v2 embeddings).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:ba3193d774c0c711b99eb02135d68af82df4c6e2bb7c89773e8d776b63e7d41d"
+    "sha256:06617bd9ed7b450ff6db71c1b9c2313b988e12d8c7136d6c7293a3eb46d0bb9b"
 )
 
 
