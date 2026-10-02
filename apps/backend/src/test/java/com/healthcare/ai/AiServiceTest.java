@@ -10,11 +10,14 @@ import org.slf4j.MDC;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.util.Map;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -379,5 +382,41 @@ class AiServiceTest {
         } finally {
             logger.detachAppender(appender);
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Chat-scoped upstream budgets (D1/D2): non-chat endpoints keep the global
+    // read timeout. The per-stage budget assertions live in
+    // com.healthcare.ai.chat.service.AiServiceCancellationTest, next to the
+    // other live-transport tests (ChatRequestCancellation is package-private).
+    // ---------------------------------------------------------------------------
+
+    /**
+     * Non-chat endpoints keep the global read timeout: search (triage and RAG
+     * admin share the RestTemplate path) keeps the 35s read timeout and never
+     * gets a chat-scoped budget.
+     */
+    @Test
+    void nonChatEndpointsKeepTheGlobalReadTimeout() {
+        server.expect(requestTo("http://ai.test/search"))
+            .andExpect(method(HttpMethod.POST))
+            .andRespond(withSuccess("{\"results\":[],\"query\":\"headache\"}", MediaType.APPLICATION_JSON));
+
+        assertThat(aiService.search("headache", 1)).containsEntry("query", "headache");
+        server.verify();
+
+        // A non-mocked client: the shared upstream timeout behind every
+        // RestTemplate endpoint (search, triage, RAG admin) is still the
+        // global 35s read timeout; no chat-scoped budget applies to it.
+        // (MockRestServiceServer swaps the factory, so inspect a fresh one.)
+        AiService nonMocked = new AiService(new RestTemplateBuilder(), new ObjectMapper());
+        assertThat(ReflectionTestUtils.getField(nonMocked, "upstreamTimeout"))
+            .isEqualTo(Duration.ofSeconds(35));
+        ClientHttpRequestFactory requestFactory =
+            ((RestTemplate) ReflectionTestUtils.getField(nonMocked, "restTemplate")).getRequestFactory();
+        assertThat(requestFactory).isInstanceOf(SimpleClientHttpRequestFactory.class);
+        // SimpleClientHttpRequestFactory exposes no timeout getter; the private
+        // int field (millis) is what setReadTimeout(Duration) wrote.
+        assertThat(ReflectionTestUtils.getField(requestFactory, "readTimeout")).isEqualTo(35000);
     }
 }

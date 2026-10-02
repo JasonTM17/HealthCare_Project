@@ -364,7 +364,7 @@ def _embedding_parts(value: object) -> tuple[list[float], str, ProviderProvenanc
         vector = list(value[0])  # type: ignore[arg-type]
         model = str(value[1])
         provenance: ProviderProvenance = (
-            "local_provider" if model in {"local", "local-hash"} else "remote_provider"
+            "local_provider" if model in {"local", "local-hash", "local-hash-v2"} else "remote_provider"
         )
         return vector, model, provenance
     raise TypeError("invalid embedding result")

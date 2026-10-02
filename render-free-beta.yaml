@@ -53,6 +53,13 @@ services:
         value: deepseek-flash
       - key: AI_BASE_URL
         value: https://api.deepseek.com
+      # [2026-10-02 chatbot stability] LLM call budget must stay <= the backend
+      # chat-generate budget (AI_CHAT_GENERATE_TIMEOUT_MS=18000 + 2s slack) so
+      # the provider's own timeout fires before the backend cancels the turn:
+      # otherwise a 19-20s generation is cancelled AND billed. Pair with the
+      # ai-service config default of 20s (app/config.py ai_timeout_seconds).
+      - key: AI_TIMEOUT_SECONDS
+        value: "18"
       - key: EMBEDDING_PROVIDER
         value: local
       - key: AI_SERVICE_RUNTIME
