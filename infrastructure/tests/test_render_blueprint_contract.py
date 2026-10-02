@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from ea654a2 (V109 APPOINTMENT_REMINDER documents,
-# DI catch on document reuse, contrast/font-floor/a11y residue). Update
-# together with the blueprint when a new image is released.
+# release line, built from 679a2ca (PR #85: bounded chat turns, unwedgeable
+# send state machines, RAG statement timeout, local-hash-v2 embeddings).
+# Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:aa8c60fa764d0b3395513d1ebcebbe3824552edd8266f5028266d679303a37d6"
+    "sha256:ba3193d774c0c711b99eb02135d68af82df4c6e2bb7c89773e8d776b63e7d41d"
 )
 
 
