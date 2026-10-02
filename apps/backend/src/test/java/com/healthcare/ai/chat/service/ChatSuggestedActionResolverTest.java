@@ -84,4 +84,18 @@ class ChatSuggestedActionResolverTest {
         assertThat(ChatSuggestedActionResolver.classify("Bạn cho tôi biết nên khám khoa nào"))
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL);
     }
+
+    @Test
+    void routesIdentityAndHelpQuestionsToGreetingShortcut() {
+        assertThat(ChatSuggestedActionResolver.classify("Bạn là ai á"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GREETING);
+        assertThat(ChatSuggestedActionResolver.classify("Bạn là ai vậy"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GREETING);
+        assertThat(ChatSuggestedActionResolver.classify("Em là ai"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GREETING);
+        assertThat(ChatSuggestedActionResolver.classify("Giới thiệu về bạn"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GREETING);
+        assertThat(ChatSuggestedActionResolver.classify("Bạn có thể giúp gì cho tôi"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GREETING);
+    }
 }

@@ -866,6 +866,23 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void answersIdentityQuestionInstantlyWithoutTheProvider() {
+        AiService aiService = mock(AiService.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Bạn là ai á", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_greeting_shortcut");
+        assertThat((String) body.get("answer"))
+            .contains("trợ lý thông tin sức khỏe của HealthCare");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
     void answersSafeIntentWithOwnedNavigationWhenAiServiceIsUnavailable() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(

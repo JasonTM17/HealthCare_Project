@@ -19,7 +19,10 @@ public final class ChatSuggestedActionResolver {
     private static final Pattern GREETING_PATTERN = Pattern.compile(
         "(?:(?:xin\\s+)?chao(?:\\s+(?:ban|bac\\s+si|em|tro\\s+ly|ad|admin|ban\\s+oi|moi\\s+nguoi|nha|nhe|ban\\s+nhe|em\\s+nhe))*"
             + "|hello(?:\\s+(?:ban|bot|there|all|oi))?|hi(?:\\s+(?:ban|all|there|bot))?|hey"
-            + "|alo(?: ban(?: oi)?| toi can ho tro)?)"
+            + "|alo(?: ban(?: oi)?| toi can ho tro)?"
+            + "|(?:ban|em|tro\\s+ly|bot|may)\\s+la\\s+(?:ai|gi)(?:\\s+(?:a|the|vay|ha|do|the\\s+nhi|the\\s+ta|vay\\s+ta))?"
+            + "|gioi\\s+thieu(?:\\s+(?:ve\\s+)?(?:ban|em|tro\\s+ly|minh))?"
+            + "|(?:ban|em)\\s+(?:co\\s+the\\s+)?giup(?:\\s+duoc)?\\s+gi(?:\\s+(?:cho\\s+toi|cho\\s+minh|a|the|vay))?)"
             + "\\s*[.!?,;:…]*\\s*"
     );
 
@@ -167,7 +170,15 @@ public final class ChatSuggestedActionResolver {
         return false;
     }
 
-    private static String normalize(String value) {
+    public static boolean isIdentityQuestion(String question) {
+        String normalized = normalize(question);
+        return normalized.contains("la ai")
+            || normalized.contains("la gi")
+            || normalized.contains("gioi thieu")
+            || normalized.contains("giup gi");
+    }
+
+    public static String normalize(String value) {
         String decomposed = Normalizer.normalize(value == null ? "" : value, Normalizer.Form.NFD);
         return decomposed.replaceAll("\\p{M}+", "")
             .replace('đ', 'd')
