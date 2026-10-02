@@ -46,6 +46,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
@@ -65,6 +67,14 @@ public class AiService {
      * bounded and flattened onto one log line.
      */
     private static final int UPSTREAM_ERROR_BODY_SNIPPET_CHARS = 500;
+    /**
+     * Fixed grace on top of the per-request upstream timeout before the
+     * waiting servlet thread stops waiting on the cancellable future itself.
+     * The JDK {@link HttpRequest#timeout(Duration)} bounds only response-header
+     * receipt; a body that stalls after the headers would otherwise pin one of
+     * the (production: 16) servlet threads forever.
+     */
+    private static final Duration FUTURE_COMPLETION_SLACK = Duration.ofSeconds(2);
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
 
     /** Latch for the one-WARN-per-episode RAG fallback notice; see {@link #probeHealth}. */
@@ -75,6 +85,17 @@ public class AiService {
     private final ObjectMapper objectMapper;
     private final HttpClient cancellableHttpClient;
     private final Duration upstreamTimeout;
+    /**
+     * Chat-scoped per-request upstream budgets. Budget contract: the browser
+     * gives up at 33s, the BFF at 30s, and one authenticated chat turn costs
+     * retrieve 6s + generate 18s + ~2s overhead, so a slow turn degrades
+     * inside the BFF window instead of returning a 502 to the user. The
+     * ai-service Supabase statement_timeout (5s) nests under the retrieve
+     * budget. All other endpoints (public /chat, triage, search, RAG admin)
+     * keep the global {@link #upstreamTimeout}.
+     */
+    private final Duration chatRetrieveTimeout;
+    private final Duration chatGenerateTimeout;
 
     @FunctionalInterface
     public interface ChatDeltaConsumer {
@@ -107,7 +128,14 @@ public class AiService {
 
     /** Test-friendly constructor with the same safe defaults as production. */
     public AiService(RestTemplateBuilder restTemplateBuilder, ObjectMapper objectMapper) {
-        this(restTemplateBuilder, objectMapper, Duration.ofSeconds(1), Duration.ofSeconds(35));
+        this(
+            restTemplateBuilder,
+            objectMapper,
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(35),
+            Duration.ofMillis(6000),
+            Duration.ofMillis(18000)
+        );
     }
 
     @Autowired
@@ -115,13 +143,17 @@ public class AiService {
         RestTemplateBuilder restTemplateBuilder,
         ObjectMapper objectMapper,
         @Value("${ai.service.connect-timeout-ms:1000}") long connectTimeoutMs,
-        @Value("${ai.service.read-timeout-ms:35000}") long readTimeoutMs
+        @Value("${ai.service.read-timeout-ms:35000}") long readTimeoutMs,
+        @Value("${ai.service.chat-retrieve-timeout-ms:6000}") long chatRetrieveTimeoutMs,
+        @Value("${ai.service.chat-generate-timeout-ms:18000}") long chatGenerateTimeoutMs
     ) {
         this(
             restTemplateBuilder,
             objectMapper,
             boundedDuration(connectTimeoutMs, Duration.ofSeconds(1)),
-            boundedDuration(readTimeoutMs, Duration.ofSeconds(35))
+            boundedDuration(readTimeoutMs, Duration.ofSeconds(35)),
+            boundedDuration(chatRetrieveTimeoutMs, Duration.ofMillis(6000)),
+            boundedDuration(chatGenerateTimeoutMs, Duration.ofMillis(18000))
         );
     }
 
@@ -129,7 +161,9 @@ public class AiService {
         RestTemplateBuilder restTemplateBuilder,
         ObjectMapper objectMapper,
         Duration connectTimeout,
-        Duration readTimeout
+        Duration readTimeout,
+        Duration chatRetrieveTimeout,
+        Duration chatGenerateTimeout
     ) {
         this.restTemplate = restTemplateBuilder
             .requestFactory(() -> {
@@ -150,6 +184,8 @@ public class AiService {
             .version(HttpClient.Version.HTTP_1_1)
             .build();
         this.upstreamTimeout = readTimeout;
+        this.chatRetrieveTimeout = chatRetrieveTimeout;
+        this.chatGenerateTimeout = chatGenerateTimeout;
     }
 
     public Map<String, Object> chat(Map<String, Object> request) {
@@ -218,7 +254,10 @@ public class AiService {
                 throw new ResponseStatusException(BAD_REQUEST, "mode is invalid", exception);
             }
         }
-        return cancellableJsonRequest("/chat", payload, cancellation);
+        // Public support chat is a single upstream call under the public 35s
+        // BFF deadline, so it keeps the global read timeout (only the
+        // two-call patient retrieve+generate flow uses the chat budgets).
+        return cancellableJsonRequest("/chat", payload, cancellation, upstreamTimeout);
     }
 
     /**
@@ -271,7 +310,8 @@ public class AiService {
             Map<String, Object> request,
             ChatRequestCancellation cancellation) {
         return cancellableJsonRequest(
-            "/chat/retrieve", normalizePatientChatPayload(request, false), cancellation);
+            "/chat/retrieve", normalizePatientChatPayload(request, false), cancellation,
+            chatRetrieveTimeout);
     }
 
     /** Alias used by callers that prefer the endpoint terminology. */
@@ -291,7 +331,8 @@ public class AiService {
             Map<String, Object> request,
             ChatRequestCancellation cancellation) {
         return cancellableJsonRequest(
-            "/chat/generate", normalizePatientChatPayload(request, true), cancellation);
+            "/chat/generate", normalizePatientChatPayload(request, true), cancellation,
+            chatGenerateTimeout);
     }
 
     /** Alias retained for explicit two-step call sites and test doubles. */
@@ -348,7 +389,8 @@ public class AiService {
         String outcome = "failed";
         try {
             byte[] body = objectMapper.writeValueAsBytes(payload);
-            byte[] response = cancellableRequest("/chat/generate/stream", body, cancellation, true);
+            byte[] response = cancellableRequest(
+                "/chat/generate/stream", body, cancellation, true, chatGenerateTimeout);
             Map<String, Object> decoded = readChatSse(
                 new ByteArrayInputStream(response), onDelta);
             if (decoded == null || decoded.isEmpty()) {
@@ -617,12 +659,13 @@ public class AiService {
     private Map<String, Object> cancellableJsonRequest(
             String path,
             Map<String, Object> request,
-            ChatRequestCancellation cancellation) {
+            ChatRequestCancellation cancellation,
+            Duration requestTimeout) {
         if (cancellation == null) throw new IllegalArgumentException("Chat cancellation context is required");
         ensureServiceAuthConfiguration();
         try {
             byte[] raw = cancellableRequest(
-                path, objectMapper.writeValueAsBytes(request), cancellation, false);
+                path, objectMapper.writeValueAsBytes(request), cancellation, false, requestTimeout);
             return objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() { });
         } catch (IOException exception) {
             throw new ResponseStatusException(BAD_GATEWAY, "AI service returned invalid JSON", exception);
@@ -633,20 +676,30 @@ public class AiService {
      * Uses JDK HttpClient's cancellable future for patient/public chat work.
      * The response body is bounded while it is read, and cancellation closes
      * the in-flight connection before the caller can reach persistence.
+     *
+     * <p>{@code requestTimeout} is the per-request upstream budget for this
+     * call (the chat-scoped budgets for patient retrieve/generate/stream, the
+     * global read timeout elsewhere). {@link HttpRequest#timeout(Duration)}
+     * bounds only response-header receipt, so the wait on the future itself is
+     * additionally bounded at {@code requestTimeout + FUTURE_COMPLETION_SLACK}:
+     * a body that stalls after the headers fails within that bound instead of
+     * pinning a servlet thread indefinitely.
      */
     private byte[] cancellableRequest(
             String path,
             byte[] body,
             ChatRequestCancellation cancellation,
-            boolean eventStream) {
+            boolean eventStream,
+            Duration requestTimeout) {
         cancellation.throwIfCancelled();
         long startedAt = System.nanoTime();
         String outcome = "failed";
+        Duration futureWaitBudget = requestTimeout.plus(FUTURE_COMPLETION_SLACK);
         try {
             HttpHeaders headers = headers();
             if (eventStream) headers.setAccept(List.of(MediaType.TEXT_EVENT_STREAM));
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(endpoint(path)))
-                .timeout(upstreamTimeout)
+                .timeout(requestTimeout)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body));
             headers.forEach((name, values) -> values.forEach(value -> requestBuilder.header(name, value)));
 
@@ -656,7 +709,18 @@ public class AiService {
                     maxResponseBytes > 0 ? maxResponseBytes : DEFAULT_MAX_RESPONSE_BYTES));
             AutoCloseable cancellationRegistration = cancellation.onCancel(() -> future.cancel(true));
             try {
-                HttpResponse<byte[]> response = future.get();
+                HttpResponse<byte[]> response;
+                try {
+                    response = future.get(futureWaitBudget.toMillis(), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException timeout) {
+                    // Header or body phase exceeded the budget: drop the
+                    // connection so the servlet thread is freed and the
+                    // upstream stops streaming into a dead socket.
+                    future.cancel(true);
+                    log.warn("AI upstream request for {} did not complete within {}; connection cancelled",
+                        path, futureWaitBudget);
+                    throw new ResponseStatusException(BAD_GATEWAY, "AI service is unavailable", timeout);
+                }
                 cancellation.throwIfCancelled();
                 if (response.statusCode() < 200 || response.statusCode() >= 300) {
                     log.warn("AI upstream returned HTTP {} for {} body={}",

@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     supabase_rag_table: str = "ai_chat_documents"
     supabase_rag_rpc: str = "match_chat_documents"
     supabase_db_connect_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    # connect_timeout only bounds the TCP/SSL handshake. Without a server-side
+    # guard, one stalled statement on the Supavisor pooler holds the request
+    # thread forever. statement_timeout is applied per connection via the
+    # libpq `options` parameter, so every SQL execution is bounded too.
+    supabase_db_statement_timeout_ms: int = Field(default=5_000, ge=500, le=30_000)
     # Defaults to True and stays permissive on purpose: build_rag_service() ANDs
     # this with ``ai_service_runtime in {local, test, demo}``, so a hosted
     # deployment (AI_SERVICE_RUNTIME=render, render-beta, non-local, production)
@@ -129,6 +134,18 @@ class Settings(BaseSettings):
     deepseek_model: str = DEFAULT_DEEPSEEK_CHAT_MODEL
     deepseek_embedding_model: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
+
+    # LLM-backed endpoint concurrency cap.  Provider tier and expected load
+    # differ per deployment, so the cap is environment-tunable while the
+    # fail-fast 503 semantics stay fixed.  Out-of-range values are clamped
+    # rather than rejected: a bad capacity number must not keep the whole
+    # service from booting.
+    llm_max_concurrency: int = Field(default=8)
+
+    @field_validator("llm_max_concurrency")
+    @classmethod
+    def clamp_llm_max_concurrency(cls, value: int) -> int:
+        return max(1, min(64, value))
 
     @field_validator("rag_storage_backend")
     @classmethod

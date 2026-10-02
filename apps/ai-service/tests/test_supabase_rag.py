@@ -2048,3 +2048,64 @@ def test_artifacts_declare_catalog_customer_and_vector_contract() -> None:
     assert "generate_series(1, 10000)" in seed
     assert "substring(c.customer_code from 4)::integer <= 7500" in seed
     assert "healthcare.synthetic_embedding" in seed
+
+
+# ---------------------------------------------------------------------------
+# statement_timeout — connect_timeout only bounds the TCP/SSL handshake; SQL
+# execution on the Supavisor pooler needs its own server-side guard, applied
+# per connection through the libpq `options` parameter.
+# ---------------------------------------------------------------------------
+
+
+def test_psycopg_connect_receives_statement_timeout_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    captured: dict[str, Any] = {}
+
+    def fake_connect(dsn: str, **kwargs: Any) -> FakeConnection:
+        captured["dsn"] = dsn
+        captured.update(kwargs)
+        return FakeConnection(FakeCursor())
+
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    config = SupabaseRagConfig(dsn="postgresql://service.test/healthcare")
+    store = SupabaseRagStore(config)
+
+    assert store.count() == 0
+    assert captured["dsn"] == "postgresql://service.test/healthcare"
+    assert captured["connect_timeout"] == 5
+    assert captured["options"] == "-c statement_timeout=5000"
+
+
+def test_statement_timeout_setting_flows_from_env_to_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    captured: dict[str, Any] = {}
+
+    def fake_connect(dsn: str, **kwargs: Any) -> FakeConnection:
+        captured.update(kwargs)
+        return FakeConnection(FakeCursor())
+
+    monkeypatch.setattr(psycopg, "connect", fake_connect)
+    monkeypatch.setenv("SUPABASE_DB_STATEMENT_TIMEOUT_MS", "8000")
+    config = SupabaseRagConfig.from_settings(
+        Settings(supabase_db_url="postgresql://service.test/healthcare")
+    )
+    store = SupabaseRagStore(config)
+    store.count()
+
+    assert captured["options"] == "-c statement_timeout=8000"
+
+
+def test_supabase_rag_config_statement_timeout_bounds() -> None:
+    assert SupabaseRagConfig(
+        dsn="postgresql://service.test/healthcare", statement_timeout_ms=500
+    ).statement_timeout_ms == 500
+    with pytest.raises(SupabaseRagContractError):
+        SupabaseRagConfig(dsn="postgresql://service.test/healthcare", statement_timeout_ms=499)
+    with pytest.raises(SupabaseRagContractError):
+        SupabaseRagConfig(dsn="postgresql://service.test/healthcare", statement_timeout_ms=30_001)

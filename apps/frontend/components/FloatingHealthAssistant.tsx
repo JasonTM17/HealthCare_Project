@@ -176,6 +176,19 @@ function inputFailure(isPublic: boolean): AssistantFailure {
   ));
 }
 
+// The chat deadline never aborts locally — a timed-out request arrives as an
+// ApiError("REQUEST_TIMEOUT"). A raw AbortError can only come from this panel's
+// own controller, and when it was not an intentional cancel it is reported as
+// a bounded, retryable timeout instead of being swallowed.
+function chatTimeoutFailure(): AssistantFailure {
+  return failureFromError(new ApiError(
+    "Hết thời gian chờ phản hồi từ trợ lý. Vui lòng thử lại.",
+    408,
+    "/ai/conversations/messages/stream",
+    { code: "CHAT_REQUEST_TIMEOUT" },
+  ));
+}
+
 // provenanceLabel lives in AssistantProvider so the floating panel and the
 // full patient chat page report the same source honesty.
 
@@ -248,6 +261,10 @@ function FloatingHealthAssistantPanel({
   const panelRef = useRef<HTMLElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const requestControllerRef = useRef<AbortController | null>(null);
+  // Set immediately before this panel intentionally aborts in-flight requests
+  // (close, cancel, mode switch) so an aborted send's catch can tell a
+  // deliberate cancel from a genuine failure.
+  const intentionalCancelRef = useRef(false);
   const policyControllerRef = useRef<AbortController | null>(null);
   const requestEpochRef = useRef(0);
   const conversationIdRef = useRef<string | null>(null);
@@ -286,6 +303,9 @@ function FloatingHealthAssistantPanel({
   }, []);
 
   const invalidateLocalRequests = useCallback((): void => {
+    // Closing, cancelling, or switching modes intentionally kills in-flight
+    // requests; the flag keeps that cancel silent in handleSend's catch.
+    intentionalCancelRef.current = true;
     requestEpochRef.current += 1;
     policyEpochRef.current += 1;
     requestControllerRef.current?.abort();
@@ -583,7 +603,10 @@ function FloatingHealthAssistantPanel({
   };
 
   const handleFeedback = async (message: AiChatMessage, rating: FeedbackRating): Promise<void> => {
-    if (feedbackBusy || message.role !== "ASSISTANT" || message.status !== "COMPLETED" || !conversation) return;
+    // Feedback must never hijack the request slot of an in-flight send:
+    // beginLocalRequest() would abort the send controller and bump the epoch,
+    // wedging the send machine below its own finally guard.
+    if (sending || feedbackBusy || message.role !== "ASSISTANT" || message.status !== "COMPLETED" || !conversation) return;
     const { controller, epoch } = beginLocalRequest();
     const conversationId = conversation.id;
     setFeedbackBusy(message.id);
@@ -616,6 +639,7 @@ function FloatingHealthAssistantPanel({
     }
 
     stickToBottomRef.current = true;
+    intentionalCancelRef.current = false;
     const { controller, epoch } = beginLocalRequest();
     const pendingCreatedAt = new Date().toISOString();
     setSending(true);
@@ -704,17 +728,32 @@ function FloatingHealthAssistantPanel({
         });
       }
     } catch (error: unknown) {
-      if (isAbortError(error) || !isCurrentLocalRequest(epoch, currentConversation?.id)) return;
+      if (isAbortError(error)) {
+        // Intentional cancels (close, Stop, mode switch, unmount) stay silent;
+        // any other abort surfaces as a retryable timeout instead of
+        // disappearing. A superseded request never owns the failure UI.
+        if (intentionalCancelRef.current || !isCurrentLocalRequest(epoch, currentConversation?.id)) return;
+        setLastFailedContent(normalized);
+        setFailure(chatTimeoutFailure());
+        return;
+      }
+      if (!isCurrentLocalRequest(epoch, currentConversation?.id)) return;
       if (error instanceof ApiError && error.status === 401) clearAuthSession();
       const nextFailure = failureFromError(error);
       setLastFailedContent(nextFailure.retryable ? normalized : null);
       setFailure(nextFailure);
     } finally {
+      // Invariant: the send state machine resets unconditionally — the epoch/
+      // identity check may only gate the controller cleanup and focus restore
+      // below, never the sending/streamingReply/pendingUserMessage flags. The
+      // intentional-cancel flag resets only for the current request: a stale
+      // finally must not clear a marker a newer send (or its Stop) has armed.
+      setStreamingReply("");
+      setPendingUserMessage(null);
+      setSending(false);
       if (isCurrentLocalRequest(epoch, currentConversation?.id)) {
-        setStreamingReply("");
-        setPendingUserMessage(null);
+        intentionalCancelRef.current = false;
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
-        setSending(false);
         // The textarea is disabled while sending, which drops focus to <body>;
         // return it so keyboard users can keep the conversation flowing.
         requestAnimationFrame(() => { if (inputRef.current && !inputRef.current.disabled) inputRef.current.focus(); });
@@ -894,7 +933,7 @@ function FloatingHealthAssistantPanel({
                             {(["HELPFUL", "NOT_HELPFUL"] as const).map((rating) => (
                               <button
                                 aria-pressed={feedbackRating(message) === rating}
-                                disabled={feedbackBusy === message.id}
+                                disabled={feedbackBusy === message.id || sending}
                                 key={rating}
                                 onClick={() => void handleFeedback(message, rating)}
                                 type="button"
