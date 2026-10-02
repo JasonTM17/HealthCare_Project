@@ -265,6 +265,8 @@ function FloatingHealthAssistantPanel({
   // (close, cancel, mode switch) so an aborted send's catch can tell a
   // deliberate cancel from a genuine failure.
   const intentionalCancelRef = useRef(false);
+  const historyControllerRef = useRef<AbortController | null>(null);
+  const sendInFlightRef = useRef(false);
   const policyControllerRef = useRef<AbortController | null>(null);
   const requestEpochRef = useRef(0);
   const conversationIdRef = useRef<string | null>(null);
@@ -278,8 +280,7 @@ function FloatingHealthAssistantPanel({
 
   const isPatient = Boolean(session && hasRole(session.user, "PATIENT"));
   const hidden = assistantIsHiddenOnPath(pathname) || Boolean(session && !isPatient);
-  // Bounded staged feedback: acknowledge immediately, then report the real
-  // waiting activity instead of a single unbounded spinner.
+  // Timed feedback describes waiting; it cannot prove upstream activity.
   const waitStage = useChatWaitStage(sending);
   const assistantStatus = failure?.kind === "unavailable"
     ? "Gián đoạn"
@@ -295,6 +296,8 @@ function FloatingHealthAssistantPanel({
 
   const beginLocalRequest = useCallback((): { controller: AbortController; epoch: number } => {
     requestControllerRef.current?.abort();
+    historyControllerRef.current?.abort();
+    historyControllerRef.current = null;
     const controller = new AbortController();
     requestControllerRef.current = controller;
     const epoch = requestEpochRef.current + 1;
@@ -308,14 +311,26 @@ function FloatingHealthAssistantPanel({
     intentionalCancelRef.current = true;
     requestEpochRef.current += 1;
     policyEpochRef.current += 1;
+    sendInFlightRef.current = false;
     requestControllerRef.current?.abort();
     requestControllerRef.current = null;
+    historyControllerRef.current?.abort();
+    historyControllerRef.current = null;
     setStreamingReply("");
     setPendingUserMessage(null);
     policyControllerRef.current?.abort();
     policyControllerRef.current = null;
     invalidateRequests();
   }, [invalidateRequests]);
+
+  useEffect(() => () => {
+    requestEpochRef.current += 1;
+    policyEpochRef.current += 1;
+    sendInFlightRef.current = false;
+    requestControllerRef.current?.abort();
+    historyControllerRef.current?.abort();
+    policyControllerRef.current?.abort();
+  }, []);
 
   const isCurrentLocalRequest = useCallback((epoch: number, conversationId?: string | null): boolean => (
     requestEpochRef.current === epoch
@@ -633,11 +648,19 @@ function FloatingHealthAssistantPanel({
   const handleSend = async (content = draft): Promise<void> => {
     const normalized = content.trim();
     const inputLimit = isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH;
-    if (sending || normalized.length < 2 || normalized.length > inputLimit) {
+    // State updates are batched. Guard synchronously before a second submit can
+    // replace the first request and create a duplicate server attempt.
+    if (sendInFlightRef.current) return;
+    if (normalized.length < 2 || normalized.length > inputLimit) {
       if (normalized.length > 0) setFailure(inputFailure(!isPatient));
       return;
     }
 
+    sendInFlightRef.current = true;
+    // This send supersedes the shared feedback request. Release its lock now;
+    // the old feedback finally must remain epoch-guarded so it cannot clear a
+    // newer feedback operation after this answer arrives.
+    setFeedbackBusy(null);
     stickToBottomRef.current = true;
     intentionalCancelRef.current = false;
     const { controller, epoch } = beginLocalRequest();
@@ -713,20 +736,33 @@ function FloatingHealthAssistantPanel({
       if (inputRef.current) inputRef.current.style.height = "auto";
       setPendingUserMessage(null);
       setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage].slice(-8));
-      try {
-        const page = await fetchAiConversationMessages(currentConversation.id, null, 12, { signal: controller.signal });
-        if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
-        setMessages(page.content.slice(-8));
-      } catch (refreshError: unknown) {
-        if (isAbortError(refreshError) || !isCurrentLocalRequest(epoch, currentConversation.id)) return;
-        if (refreshError instanceof ApiError && refreshError.status === 401) clearAuthSession();
-        setLastFailedContent(null);
-        setFailure({
-          ...failureFromError(refreshError),
-          message: "Tin nhắn đã được gửi, nhưng chưa thể tải lại lịch sử. Không cần gửi lại câu hỏi.",
-          retryable: false,
-        });
-      }
+      const conversationId = currentConversation.id;
+      const historyController = new AbortController();
+      historyControllerRef.current = historyController;
+      // A validated final result releases the composer immediately. The
+      // follow-up read owns a separate controller and the same request epoch;
+      // a newer send, feedback, mode change or close invalidates its snapshot.
+      void (async () => {
+        try {
+          const page = await fetchAiConversationMessages(conversationId, null, 12, { signal: historyController.signal });
+          if (historyController.signal.aborted || !isCurrentLocalRequest(epoch, conversationId)) return;
+          setMessages((current) => {
+            const byId = new Map([...page.content, ...current].map((message) => [message.id, message]));
+            return Array.from(byId.values()).sort((left, right) => left.sequence - right.sequence).slice(-8);
+          });
+        } catch (refreshError: unknown) {
+          if (isAbortError(refreshError) || !isCurrentLocalRequest(epoch, conversationId)) return;
+          if (refreshError instanceof ApiError && refreshError.status === 401) clearAuthSession();
+          setLastFailedContent(null);
+          setFailure({
+            ...failureFromError(refreshError),
+            message: "Tin nhắn đã được gửi, nhưng chưa thể tải lại lịch sử. Không cần gửi lại câu hỏi.",
+            retryable: false,
+          });
+        } finally {
+          if (historyControllerRef.current === historyController) historyControllerRef.current = null;
+        }
+      })();
     } catch (error: unknown) {
       if (isAbortError(error)) {
         // Intentional cancels (close, Stop, mode switch, unmount) stay silent;
@@ -753,6 +789,9 @@ function FloatingHealthAssistantPanel({
       setSending(false);
       if (isCurrentLocalRequest(epoch, currentConversation?.id)) {
         intentionalCancelRef.current = false;
+        sendInFlightRef.current = false;
+        setStreamingReply("");
+        setPendingUserMessage(null);
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
         // The textarea is disabled while sending, which drops focus to <body>;
         // return it so keyboard users can keep the conversation flowing.
@@ -841,7 +880,7 @@ function FloatingHealthAssistantPanel({
               {consentBlocked ? (
                 <section aria-describedby="floating-assistant-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận trước khi trò chuyện</strong>
-                  <p id="floating-assistant-consent-copy">Bạn đồng ý lưu cuộc trò chuyện trong 90 ngày để HealthCare đồng bộ lịch sử tư vấn. Trợ lý hỗ trợ giải đáp thông tin và chuẩn bị thăm khám; không thay thế chẩn đoán hoặc phác đồ từ bác sĩ chuyên khoa.</p>
+                  <p id="floating-assistant-consent-copy">{policy ? `Bạn đồng ý lưu cuộc trò chuyện tối đa ${policy.retentionDays} ngày để HealthCare đồng bộ lịch sử tư vấn.` : "Thời hạn lưu trữ được áp dụng theo chính sách hiện tại của HealthCare."} Trợ lý hỗ trợ giải đáp thông tin và chuẩn bị thăm khám; không thay thế chẩn đoán hoặc phác đồ từ bác sĩ chuyên khoa.</p>
                   <button className={styles.primaryButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
                     {consentBusy ? "Đang xác nhận…" : "Tôi đồng ý và tiếp tục"}
                   </button>
@@ -1044,7 +1083,12 @@ function FloatingHealthAssistantPanel({
                   <button
                     aria-label="Dừng chờ phản hồi"
                     className={styles.sendButton}
-                    onClick={cancelSend}
+                    onClick={(event) => {
+                      // Unlocking changes this reused element into a submit
+                      // button; suppress the original click's default action.
+                      event.preventDefault();
+                      cancelSend();
+                    }}
                     title="Dừng chờ phản hồi"
                     type="button"
                   >
