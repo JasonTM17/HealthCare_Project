@@ -1419,13 +1419,16 @@ export async function proxyHealthcareRequest(
     );
     stopChatLeaseHeartbeat?.();
     if (upstream === null) {
+      if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH) {
+        return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
+      }
       return tracedResponse(jsonError(502, "BFF_UPSTREAM_UNAVAILABLE"), interruptedOutcome("failed"));
     }
     if (upstream.status >= 300 && upstream.status < 400) {
       await cancelUpstreamBody(upstream, "BFF_UPSTREAM_REDIRECT_REJECTED");
       return tracedResponse(jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED"), "failed");
     }
-    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && PUBLIC_AI_FALLBACK_STATUSES.has(upstream.status)) {
+    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && (PUBLIC_AI_FALLBACK_STATUSES.has(upstream.status) || upstream.status >= 500)) {
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
       return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
     }
