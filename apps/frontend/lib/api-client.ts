@@ -693,6 +693,7 @@ export function isSafeSuggestedAction(value: unknown): value is SuggestedAction 
   const href = value.href;
   if (!label || label.length > CTA_LABEL_MAX_LENGTH) return false;
   if (value.kind === "CALL_EMERGENCY") return href === "tel:115";
+  if (value.kind === "CALL_HOTLINE") return href === "tel:02818000001" || /^tel:(02818000001|1800[0-9]{4}|0[2-9][0-9]{8,9})$/.test(href);
   if (hasUnsafeUrlCharacters(href)) return false;
   if (value.kind === "VIEW_SOURCE") {
     return CTA_CATALOG_PATH_PATTERN.test(href) || CTA_SOURCE_PATH_PATTERN.test(href) || CTA_FAQ_PATH_PATTERN.test(href);

@@ -24,6 +24,7 @@ test("chat API rejects malformed provider-shaped responses before they reach the
   assert.match(apiClient, /AI_RESPONSE_INVALID/);
   assert.match(apiClient, /AI_CHAT_PROVENANCES/);
   assert.match(apiClient, /AI_CHAT_STATUSES/);
+  assert.match(apiClient, /CALL_HOTLINE/);
 });
 
 test("patient chat is role gated and keeps server history authoritative", async () => {
