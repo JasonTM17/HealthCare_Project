@@ -182,9 +182,68 @@ test("patient chat drops late stream updates after a conversation switch", async
   assert.match(page, /sendRequestRef = useRef\(0\)/);
   assert.match(page, /const isCurrentSendRequest = \(\): boolean/);
   assert.match(page, /if \(isCurrentSendRequest\(\)\) setStreamingReply/);
-  assert.match(page, /if \(isAbortError\(error\) \|\| !isCurrentSendRequest\(\)\) return/);
-  assert.match(page, /if \(isCurrentSendRequest\(\)\) \{[\s\S]*sendInFlightRef\.current = false/);
+  // Staleness still gates data mutations in the catch, but the machine reset in
+  // the finally runs unconditionally; the intentional-cancel flag resets only
+  // for the current request so a stale finally cannot disarm a newer Stop.
+  assert.match(page, /\} else \{\s*if \(!isCurrentSendRequest\(\)\) return;/);
+  assert.match(page, /sendInFlightRef\.current = false;\s*setStreamingReply\(""\);\s*setSending\(false\);\s*if \(isCurrentSendRequest\(\)\) \{\s*intentionalCancelRef\.current = false;/);
   assert.match(page, /if \(!options\.background\) \{[\s\S]*invalidateSendRequest\(\)[\s\S]*invalidateConsentRequest\(\)/);
+});
+
+test("patient chat surfaces non-cancelled aborts as a retryable timeout failure", async () => {
+  const [page, provider] = await Promise.all([
+    read("app/patient/chat/page.tsx"),
+    read("components/AssistantProvider.tsx"),
+  ]);
+
+  // The taxonomy owns the copy and the retryable classification; the raw
+  // AbortError path reuses it so no send failure can disappear silently.
+  assert.match(provider, /CHAT_REQUEST_TIMEOUT: "Hết thời gian chờ phản hồi từ trợ lý\. Vui lòng thử lại\."/);
+  assert.match(provider, /code === "CHAT_REQUEST_TIMEOUT"/);
+  assert.match(page, /function chatTimeoutFailure\(\): ChatFailure \{/);
+  assert.match(page, /code: "CHAT_REQUEST_TIMEOUT",/);
+  assert.match(page, /message: assistantErrorMessage\("CHAT_REQUEST_TIMEOUT"\),/);
+  assert.match(page, /setSendFailure\(chatTimeoutFailure\(\)\);/);
+  // The old swallow-on-abort catch must not come back.
+  assert.doesNotMatch(page, /if \(isAbortError\(error\) \|\| !isCurrentSendRequest\(\)\) return/);
+  // Every intentional abort site marks the cancel before aborting: the
+  // invalidation callback, the consent takeover, and unmount cleanup.
+  assert.match(page, /const invalidateSendRequest = useCallback\(\(\) => \{\s*\/\/[\s\S]{0,300}?intentionalCancelRef\.current = true;/);
+  assert.match(page, /intentionalCancelRef\.current = true;\s*requestControllerRef\.current\?\.abort\(\);\s*requestControllerRef\.current = controller;/);
+  assert.match(page, /useEffect\(\(\) => \(\) => \{\s*intentionalCancelRef\.current = true;\s*requestControllerRef\.current\?\.abort\(\);\s*\}, \[\]\);/);
+  // Intentional cancels stay silent: the flag short-circuits before any
+  // failure copy is set, while the placeholder cleanup still runs first.
+  assert.match(page, /if \(isAbortError\(error\)\) \{[\s\S]*?if \(intentionalCancelRef\.current \|\| !isCurrentSendRequest\(\)\) return;\s*setSendFailure\(chatTimeoutFailure\(\)\);/);
+});
+
+test("patient chat offers a Stop control that resets the send machine synchronously", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  const stopBlock = page.match(/const handleStopSend = \(\): void => \{[\s\S]*?\n  \};/);
+  assert.ok(stopBlock, "handleStopSend must be defined in the page");
+  assert.match(stopBlock[0], /intentionalCancelRef\.current = true;/);
+  assert.match(stopBlock[0], /requestControllerRef\.current\?\.abort\(\);/);
+  // The machine reset mirrors the send finally and runs synchronously, so the
+  // composer unlocks before the aborted promise settles.
+  assert.match(stopBlock[0], /sendInFlightRef\.current = false;/);
+  assert.match(stopBlock[0], /setStreamingReply\(""\);/);
+  assert.match(stopBlock[0], /setSending\(false\);/);
+  assert.match(stopBlock[0], /setNotice\("Đã dừng gửi tin nhắn\."\);/);
+
+  const stopButton = page.match(/<button\s*\n\s*className=\{styles\.secondaryButton\}\s*\n\s*onClick=\{handleStopSend\}[\s\S]*?<\/button>/);
+  assert.ok(stopButton, "the composer must render a Stop control while sending");
+  assert.match(stopButton[0], /type="button"/);
+  assert.match(stopButton[0], />\s*Dừng\s*</);
+  // The send button stays visible in its sending state next to Stop.
+  assert.match(page, /sending \? "Đang gửi"/);
+});
+
+test("patient chat states the real per-question credit cost", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  assert.match(page, /const AI_CHAT_CREDIT_COST_PER_QUESTION = 1;/);
+  assert.match(page, /\{AI_CHAT_CREDIT_COST_PER_QUESTION\} lượt \/ câu hỏi \(hoàn lại nếu lỗi\)/);
+  assert.doesNotMatch(page, /-1 lượt/);
 });
 
 test("patient chat shows the patient's own message before the exchange settles", async () => {

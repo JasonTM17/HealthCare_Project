@@ -4,9 +4,11 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import time
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.chatbot import (
@@ -100,6 +102,62 @@ def test_local_generate_is_grounded_and_exhaustive() -> None:
     assert response.safety_action is ChatSafetyAction.ANSWER
     assert response.used_sources[0].source_id == "hours"
     assert "7 giờ" in response.answer
+
+
+def test_local_grounded_answer_is_extractive_and_cites_its_sources() -> None:
+    """Remote disabled + retrieved chunks = extractive answer with citations.
+
+    This pins the existing grounded-local seam (generate_chat_response ->
+    _local_grounded_response): the answer quotes approved chunk content and
+    carries citations whose provenance value is the whitelisted
+    "local_provider" — never an invented provenance string.
+    """
+
+    service = _service()
+    provider = MagicMock()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Giờ mở cửa?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[
+                AuthorizedSource(source_type="service", source_id="hours"),
+            ],
+        ),
+        _settings(),
+        service,
+        client=provider,
+    )
+
+    assert response.provenance == "local_provider"
+    assert response.cost_tier == "local_free"
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    # Extractive: the answer carries the chunk's own content, not model prose.
+    assert "Bệnh viện mở cửa từ 7 giờ." in response.answer
+    # Citations point at the exact authorized sources of those chunks.
+    assert [
+        (citation.source_type, citation.source_id) for citation in response.citations
+    ] == [("service", "hours")]
+    provider.complete_json.assert_not_called()
+
+
+def test_local_generation_without_chunks_keeps_honest_insufficient_fallback() -> None:
+    """Remote disabled + no chunks = unchanged honest insufficient evidence."""
+
+    provider = MagicMock()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Uống bao nhiêu nước mỗi ngày?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[],
+        ),
+        _settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert response.citations == []
+    provider.complete_json.assert_not_called()
 
 
 def test_operational_sync_revision_is_not_exposed_as_clinical_provenance() -> None:
@@ -579,6 +637,104 @@ def test_protected_generate_stream_returns_safe_deltas_and_done(
     assert "".join(deltas) == done["answer"]
     assert done["used_sources"][0]["source_id"] == "hours"
     assert done["provenance"] == "local_provider"
+
+
+def _stream_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(main, "rag_service", _service())
+    monkeypatch.setattr(settings, "ai_service_token", "")
+    monkeypatch.setattr(settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(settings, "ai_provider", "local")
+    monkeypatch.setattr(settings, "embedding_provider", "local")
+
+
+def test_generate_stream_heartbeats_while_generation_is_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stream must emit bytes while the whole generation is still running.
+
+    The pre-fix endpoint streamed nothing until generation finished, so
+    gateways and SSE readers saw a silent connection for up to
+    AI_TIMEOUT_SECONDS. Heartbeats are SSE comments (ignored by event
+    parsers) and must stop as soon as the generation completes.
+    """
+
+    _stream_settings(monkeypatch)
+    real_generate = main.generate_chat_response
+
+    def slow_generate(request: object, *args: object, **kwargs: object) -> object:
+        time.sleep(0.25)
+        return real_generate(request, *args, **kwargs)
+
+    monkeypatch.setattr(main, "generate_chat_response", slow_generate)
+    monkeypatch.setattr(main, "_SSE_HEARTBEAT_SECONDS", 0.05)
+
+    client = TestClient(app)
+    with client.stream(
+        "POST",
+        "/chat/generate/stream",
+        json={
+            "message": "Giờ mở cửa?",
+            "mode": "HOSPITAL_SUPPORT",
+            "authorized_sources": [
+                {"source_type": "service", "source_id": "hours", "projection_kind": "OPERATIONAL"}
+            ],
+        },
+    ) as response:
+        assert response.status_code == 200
+        payload = "".join(response.iter_text())
+
+    # Heartbeats were on the wire while the generation was pending, and all of
+    # them precede the first real event (they stop at completion).
+    assert payload.count(": ping") >= 1
+    assert payload.rindex(": ping") < payload.index("event: delta")
+
+    # The existing delta/done contract is unchanged.
+    events = _parse_sse(payload)
+    deltas = [body for event_name, body in events if event_name == "delta"]
+    done_payloads = [body for event_name, body in events if event_name == "done"]
+    assert deltas
+    assert len(done_payloads) == 1
+    done = json.loads(done_payloads[0])
+    assert "".join(deltas) == done["answer"]
+    assert done["used_sources"][0]["source_id"] == "hours"
+
+
+def test_generate_stream_reports_late_failure_as_an_sse_error_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failure after the 200 has committed surfaces an SSE error event.
+
+    Once streaming started the status code can no longer change, so the
+    content-free error event (which the Spring SSE parser already maps to a
+    502) replaces the old silent-empty-stream failure mode.
+    """
+
+    _stream_settings(monkeypatch)
+
+    def failing_generate(*args: object, **kwargs: object) -> object:
+        raise HTTPException(status_code=503, detail="AI provider unavailable")
+
+    monkeypatch.setattr(main, "generate_chat_response", failing_generate)
+
+    client = TestClient(app)
+    with client.stream(
+        "POST",
+        "/chat/generate/stream",
+        json={
+            "message": "Giờ mở cửa?",
+            "mode": "HOSPITAL_SUPPORT",
+            "authorized_sources": [
+                {"source_type": "service", "source_id": "hours", "projection_kind": "OPERATIONAL"}
+            ],
+        },
+    ) as response:
+        assert response.status_code == 200
+        payload = "".join(response.iter_text())
+
+    events = _parse_sse(payload)
+    assert ("error", "AI provider unavailable") in events
+    assert not [body for event_name, _ in events if event_name == "done"]
 
 
 def test_retrieve_relevance_threshold_can_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:

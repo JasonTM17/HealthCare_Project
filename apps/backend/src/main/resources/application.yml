@@ -313,6 +313,13 @@ ai:
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
     connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:1000}
     read-timeout-ms: ${AI_SERVICE_READ_TIMEOUT_MS:35000}
+    # Chat-scoped per-request upstream budgets (JDK HttpClient path only).
+    # Budget contract: browser 33s > BFF 30s >= retrieve 6s + generate 18s
+    # + ~2s overhead, so a slow turn degrades inside the BFF window instead
+    # of surfacing a BFF 502. The ai-service Supabase statement_timeout (5s)
+    # nests under the retrieve budget. Other endpoints keep read-timeout-ms.
+    chat-retrieve-timeout-ms: ${AI_CHAT_RETRIEVE_TIMEOUT_MS:6000}
+    chat-generate-timeout-ms: ${AI_CHAT_GENERATE_TIMEOUT_MS:18000}
   rag-ingest:
     enabled: ${AI_RAG_INGEST_ENABLED:false}
     token: ${AI_RAG_INGEST_TOKEN:}
