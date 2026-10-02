@@ -1,14 +1,26 @@
-# Local-only helper: inject JWT_SECRET from the Windows user store into the
-# backend child process. Values are never printed.
-param([int]$Port = 8090)
+# Local-only helper. Explicit process values and this checkout's .env take
+# precedence over legacy Windows user settings. Values are never printed.
+param(
+    [ValidateRange(1, 65535)][int]$Port = 8090,
+    [string]$EnvFile = (Join-Path (Split-Path -Parent $PSScriptRoot) '.env')
+)
+$ErrorActionPreference = 'Stop'
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
 function Resolve-LocalSecret {
     param([string]$Name)
-    $value = [Environment]::GetEnvironmentVariable($Name, 'User')
-    if (-not $value -and (Test-Path 'D:\HealthCare_Project\.env')) {
-        $line = Select-String -Path 'D:\HealthCare_Project\.env' -Pattern ('^' + [regex]::Escape($Name) + '=') | Select-Object -First 1
-        if ($line) { $value = $line.Line.Substring(($Name + '=').Length).Trim() }
+    $value = [Environment]::GetEnvironmentVariable($Name, 'Process')
+    if ($null -ne $value) { return $value }
+    if (Test-Path -LiteralPath $EnvFile -PathType Leaf) {
+        $line = Select-String -LiteralPath $EnvFile -Pattern ('^\s*' + [regex]::Escape($Name) + '\s*=') | Select-Object -First 1
+        if ($line) {
+            $value = $line.Line.Substring($line.Line.IndexOf('=') + 1).Trim()
+            if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+                $value = $value.Substring(1, $value.Length - 2)
+            }
+            return $value
+        }
     }
-    return $value
+    return [Environment]::GetEnvironmentVariable($Name, 'User')
 }
 
 $secret = Resolve-LocalSecret 'JWT_SECRET'
@@ -16,7 +28,7 @@ if (-not $secret) {
     Write-Error 'JWT_SECRET not found in user store or .env'
     exit 1
 }
-Write-Output ('JWT_SECRET resolved: yes (len ' + $secret.Length + ')')
+Write-Output 'JWT_SECRET resolved: yes'
 $env:JWT_SECRET = $secret
 # Must be the same value the frontend BFF and `playwright.compose.config.ts` read, otherwise every
 # server-to-server call fails the trusted-credential check while looking like an authorization bug.
@@ -26,15 +38,16 @@ if (-not $bffToken) {
     exit 1
 }
 $env:BACKEND_BFF_SERVICE_TOKEN = $bffToken
-Write-Output ('BACKEND_BFF_SERVICE_TOKEN resolved: yes (len ' + $bffToken.Length + ')')
+Write-Output 'BACKEND_BFF_SERVICE_TOKEN resolved: yes'
 
 # Point the backend at the local ai-service so /ready reports ai_ready:true.
 # The shared token must match the AI service's AI_SERVICE_TOKEN.
 $aiToken = Resolve-LocalSecret 'AI_SERVICE_TOKEN'
 if ($aiToken) {
-    $env:AI_SERVICE_URL = 'http://127.0.0.1:8000'
+    $aiUrl = Resolve-LocalSecret 'AI_SERVICE_URL'
+    $env:AI_SERVICE_URL = if ($aiUrl) { $aiUrl } else { 'http://127.0.0.1:8000' }
     $env:AI_SERVICE_TOKEN = $aiToken
-    Write-Output ('AI_SERVICE_TOKEN resolved: yes (len ' + $aiToken.Length + '), AI_SERVICE_URL=http://127.0.0.1:8000')
+    Write-Output 'AI_SERVICE_TOKEN resolved: yes'
 } else {
     Write-Output 'AI_SERVICE_TOKEN resolved: no (backend boots, ai_ready stays false)'
 }
@@ -49,7 +62,7 @@ foreach ($name in 'DATABASE_URL', 'DATABASE_USERNAME', 'DATABASE_PASSWORD') {
         exit 1
     }
     Set-Item -Path ('Env:' + $name) -Value $value
-    Write-Output ($name + ' resolved: yes (len ' + $value.Length + ')')
+    Write-Output ($name + ' resolved: yes')
 }
 
 # A standalone backend does not inherit Compose's MinIO variables. Document
@@ -77,5 +90,12 @@ if (-not $env:PAYMENT_BANK_BIN) { $env:PAYMENT_BANK_BIN = '970436' }
 if (-not $env:PAYMENT_BANK_ACCOUNT) { $env:PAYMENT_BANK_ACCOUNT = '0123456789' }
 if (-not $env:PAYMENT_BANK_ACCOUNT_HOLDER) { $env:PAYMENT_BANK_ACCOUNT_HOLDER = 'HEALTHCARE DEMO' }
 
-Set-Location 'D:\HealthCare_Project\apps\backend'
-& ./mvnw spring-boot:run "-Dspring-boot.run.arguments=--spring.profiles.active=local --server.port=$Port"
+Push-Location -LiteralPath (Join-Path $repositoryRoot 'apps/backend')
+try {
+    $mavenWrapper = if ($env:OS -eq 'Windows_NT') { '.\mvnw.cmd' } else { './mvnw' }
+    & $mavenWrapper spring-boot:run "-Dspring-boot.run.arguments=--spring.profiles.active=local --server.port=$Port"
+    $runtimeExitCode = $LASTEXITCODE
+} finally {
+    Pop-Location
+}
+exit $runtimeExitCode

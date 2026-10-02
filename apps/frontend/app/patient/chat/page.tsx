@@ -31,6 +31,7 @@ import {
   fetchPatientAiCreditStatus,
   type AiCreditStatus,
   type AssistantAccountSettings,
+  type AuthSession,
 } from "../../../lib/api-client";
 import type {
   AiChatCitation,
@@ -272,8 +273,7 @@ function MessageItem({
   );
 }
 
-function PatientChatPageContent() {
-  const session = useAuthSession();
+function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   const {
     setConversation: setAssistantConversation,
     setPolicy: setAssistantPolicy,
@@ -319,16 +319,18 @@ function PatientChatPageContent() {
   const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
   const [modeCreating, setModeCreating] = useState(false);
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
+  const creditRequestRef = useRef(0);
 
   const refreshCredit = useCallback(async () => {
+    const requestId = ++creditRequestRef.current;
     try {
       const data = await fetchPatientAiCreditStatus();
-      setCreditStatus(data);
+      if (requestId === creditRequestRef.current) setCreditStatus(data);
     } catch {}
   }, []);
   useEffect(() => {
-    const task = Promise.resolve().then(refreshCredit);
-    return () => void task;
+    void Promise.resolve().then(refreshCredit);
+    return () => { creditRequestRef.current += 1; };
   }, [refreshCredit]);
   // Load the account's assistant defaults once; seed the mode picker only
   // when the user has not already chosen one during this visit.
@@ -362,8 +364,10 @@ function PatientChatPageContent() {
   // (Stop control, invalidateSendRequest, consent, unmount) so the aborted
   // send's catch can tell a deliberate cancel from a genuine failure.
   const intentionalCancelRef = useRef(false);
+  const threadControllerRef = useRef<AbortController | null>(null);
   const modeCreateInFlightRef = useRef(false);
   const consentRequestRef = useRef(0);
+  const lastSentDraftRef = useRef("");
 
   useEffect(() => {
     if (selectedConversationId && workspaceRef.current) {
@@ -382,6 +386,8 @@ function PatientChatPageContent() {
     intentionalCancelRef.current = true;
     sendRequestRef.current += 1;
     sendInFlightRef.current = false;
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
     setSending(false);
     setStreamingReply("");
   }, []);
@@ -393,6 +399,8 @@ function PatientChatPageContent() {
 
   const clearThread = useCallback(() => {
     threadRequestRef.current += 1;
+    threadControllerRef.current?.abort();
+    threadControllerRef.current = null;
     invalidateSendRequest();
     invalidateConsentRequest();
     activeIdRef.current = null;
@@ -417,8 +425,9 @@ function PatientChatPageContent() {
       invalidateSendRequest();
       invalidateConsentRequest();
     }
-    requestControllerRef.current?.abort();
-    requestControllerRef.current = controller;
+    const sendRequestId = sendRequestRef.current;
+    threadControllerRef.current?.abort();
+    threadControllerRef.current = controller;
     setStreamingReply("");
     activeIdRef.current = conversationId;
     setSelectedConversationId(conversationId);
@@ -438,25 +447,27 @@ function PatientChatPageContent() {
         fetchAiConversation(conversationId, { signal: controller.signal }),
         fetchAiConversationMessages(conversationId, null, MESSAGE_LIMIT, { signal: controller.signal }),
       ]);
-      if (requestId !== threadRequestRef.current || activeIdRef.current !== conversationId) return;
+      if (controller.signal.aborted || requestId !== threadRequestRef.current
+        || sendRequestId !== sendRequestRef.current || activeIdRef.current !== conversationId) return;
 
       shouldScrollToLatestRef.current = true;
       setActiveConversation(conversation);
       setAssistantConversation(conversation);
       if (conversation.mode) setSelectedMode(conversation.mode);
-      setMessages(page.content);
+      setMessages((current) => options.background ? mergeMessages(page.content, current) : page.content);
       setNextCursor(page.nextCursor ?? null);
       setHasMoreMessages(page.hasMore);
       setConversations((current) => current.map((item) => item.id === conversation.id ? conversation : item));
     } catch (error) {
       if (isAbortError(error)) return;
-      if (requestId !== threadRequestRef.current || activeIdRef.current !== conversationId) return;
+      if (controller.signal.aborted || requestId !== threadRequestRef.current
+        || sendRequestId !== sendRequestRef.current || activeIdRef.current !== conversationId) return;
       const failure = toFailure(error);
       handleUnauthorized(failure);
       setThreadFailure(failure);
     } finally {
       if (requestId === threadRequestRef.current) setThreadLoading(false);
-      if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      if (threadControllerRef.current === controller) threadControllerRef.current = null;
     }
   }, [invalidateConsentRequest, invalidateSendRequest, setAssistantConversation]);
 
@@ -545,6 +556,15 @@ function PatientChatPageContent() {
       messageViewportRef.current.scrollTop = messageViewportRef.current.scrollHeight;
     }
   }, [messages, streamingReply]);
+
+  useEffect(() => () => {
+    threadControllerRef.current?.abort();
+    sendRequestRef.current += 1;
+    threadRequestRef.current += 1;
+    listRequestRef.current += 1;
+    consentRequestRef.current += 1;
+    creditRequestRef.current += 1;
+  }, []);
 
   useEffect(() => () => {
     intentionalCancelRef.current = true;
@@ -802,6 +822,13 @@ function PatientChatPageContent() {
     sendInFlightRef.current = true;
     intentionalCancelRef.current = false;
     const sendRequestId = ++sendRequestRef.current;
+    // A previous read may have captured the thread or balance before this
+    // question. Invalidate it even if its transport has already buffered data.
+    threadRequestRef.current += 1;
+    listRequestRef.current += 1;
+    creditRequestRef.current += 1;
+    threadControllerRef.current?.abort();
+    threadControllerRef.current = null;
     const controller = new AbortController();
     requestControllerRef.current?.abort();
     requestControllerRef.current = controller;
@@ -825,6 +852,7 @@ function PatientChatPageContent() {
       createdAt: new Date().toISOString(),
     }]));
     if (options.clearDraftOnSuccess) setDraft("");
+    lastSentDraftRef.current = normalizedContent;
     setSending(true);
     setStreamingReply("");
     setSendFailure(null);
@@ -845,7 +873,9 @@ function PatientChatPageContent() {
         [exchange.userMessage, exchange.assistantMessage],
       ));
       setNotice("Trợ lý đã phản hồi. Lịch sử sẽ tiếp tục đồng bộ từ máy chủ.");
-      await Promise.allSettled([
+      // The persisted final exchange ends waiting. Reconciliation cannot hold
+      // the composer or replace a newer send's thread/credit snapshot.
+      void Promise.allSettled([
         loadThread(conversationId, { background: true }),
         loadConversationList(conversationId, { hydrateThread: false, background: true }),
         refreshCredit(),
@@ -866,23 +896,17 @@ function PatientChatPageContent() {
         const failure = toFailure(error);
         handleUnauthorized(failure);
         setSendFailure(failure);
-        await Promise.allSettled([
+        void Promise.allSettled([
           loadThread(conversationId, { background: true }),
           loadConversationList(conversationId, { hydrateThread: false, background: true }),
           refreshCredit(),
         ]);
       }
     } finally {
-      // Invariant: the send state machine resets unconditionally — staleness
-      // (isCurrentSendRequest) may only gate data mutations and the controller
-      // identity cleanup + focus restore below, never the in-flight/sending/
-      // streamingReply flags themselves. The intentional-cancel flag resets
-      // only for the current request: a stale finally must not clear a marker
-      // that a newer send (or its Stop) has just armed.
-      sendInFlightRef.current = false;
-      setStreamingReply("");
-      setSending(false);
       if (isCurrentSendRequest()) {
+        sendInFlightRef.current = false;
+        setStreamingReply("");
+        setSending(false);
         intentionalCancelRef.current = false;
         if (requestControllerRef.current === controller) requestControllerRef.current = null;
         // The composer is disabled while sending, which drops keyboard focus to
@@ -890,6 +914,26 @@ function PatientChatPageContent() {
         requestAnimationFrame(() => { if (composerInputRef.current && !composerInputRef.current.disabled) composerInputRef.current.focus(); });
       }
     }
+  };
+
+  // Stop is the visible escape from a 30-40s cold start: it marks the cancel as
+  // intentional, aborts the request, and resets the send machine synchronously
+  // so the composer unlocks even before the aborted promise settles. The
+  // aborted send still cleans up after itself silently in sendContent.
+  const handleStopSend = (): void => {
+    if (!sendInFlightRef.current) return;
+    intentionalCancelRef.current = true;
+    requestControllerRef.current?.abort();
+    invalidateSendRequest();
+    sendInFlightRef.current = false;
+    setStreamingReply("");
+    setSending(false);
+    if (lastSentDraftRef.current) {
+      setDraft(lastSentDraftRef.current);
+      setMessages((current) => current.filter((message) => message.status !== "PENDING"));
+    }
+    setNotice("Đã dừng gửi tin nhắn.");
+    requestAnimationFrame(() => composerInputRef.current?.focus());
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -901,20 +945,6 @@ function PatientChatPageContent() {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
-  };
-
-  // Stop is the visible escape from a 30-40s cold start: it marks the cancel as
-  // intentional, aborts the request, and resets the send machine synchronously
-  // so the composer unlocks even before the aborted promise settles. The
-  // aborted send still cleans up after itself silently in sendContent.
-  const handleStopSend = (): void => {
-    if (!sendInFlightRef.current) return;
-    intentionalCancelRef.current = true;
-    requestControllerRef.current?.abort();
-    sendInFlightRef.current = false;
-    setStreamingReply("");
-    setSending(false);
-    setNotice("Đã dừng gửi tin nhắn.");
   };
 
   const handleDeleteConversation = async (): Promise<void> => {
@@ -1276,7 +1306,7 @@ function PatientChatPageContent() {
               {currentConsentRequired ? (
                 <section aria-describedby="patient-chat-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận sử dụng trợ lý</strong>
-                  <p id="patient-chat-consent-copy">Cuộc trò chuyện được lưu tối đa 90 ngày rồi tự động xóa. Trợ lý chỉ cung cấp thông tin tham khảo, không chẩn đoán hoặc kê đơn. Kênh trả lời từ trợ lý thông tin được kiểm duyệt của bệnh viện.</p>
+                  <p id="patient-chat-consent-copy">{chatPolicy ? `Cuộc trò chuyện được lưu tối đa ${chatPolicy.retentionDays} ngày rồi tự động xóa.` : "Thời hạn lưu trữ được áp dụng theo chính sách hiện tại của HealthCare."} Trợ lý chỉ cung cấp thông tin tham khảo, không chẩn đoán hoặc kê đơn. Kênh trả lời từ trợ lý thông tin được kiểm duyệt của bệnh viện.</p>
                   <button className={styles.primaryConsentButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
                     {consentBusy ? "Đang xác nhận…" : "Tôi đồng ý với chính sách"}
                   </button>
@@ -1351,6 +1381,7 @@ function PatientChatPageContent() {
                       <button
                         className={styles.secondaryButton}
                         onClick={handleStopSend}
+                        aria-label="Dừng chờ phản hồi"
                         title="Dừng chờ phản hồi"
                         type="button"
                       >
@@ -1416,9 +1447,10 @@ function PatientChatPageContent() {
 }
 
 export default function PatientChatPage() {
+  const session = useAuthSession();
   return (
-    <AssistantProvider initialMode={DEFAULT_CHAT_MODE}>
-      <PatientChatPageContent />
+    <AssistantProvider initialMode={DEFAULT_CHAT_MODE} key={session?.user.id ?? "guest"}>
+      <PatientChatPageContent session={session} />
     </AssistantProvider>
   );
 }
