@@ -2534,7 +2534,10 @@ export async function sendAiConversationMessageChunked(
         // the real AI_CONVERSATION_NOT_FOUND contract error and must surface.
         const notFoundBody = await res.text();
         if (!notFoundBody.trim()) {
-          return sendAiConversationMessage(conversationId, content, idempotencyKey, options);
+          return await sendAiConversationMessage(conversationId, content, idempotencyKey, {
+            ...options,
+            signal: requestController.signal,
+          });
         }
         throw await apiErrorFromResponse(new Response(notFoundBody, { status: 404 }), path);
       }

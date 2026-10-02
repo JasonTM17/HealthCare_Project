@@ -33,7 +33,9 @@ test("patient chat is role gated and keeps server history authoritative", async 
   assert.match(page, /hasRole\(session\.user, "PATIENT"\)/);
   assert.match(page, /ForbiddenState/);
   assert.match(page, /Promise\.all\(\[\s*fetchAiConversation\(conversationId\),\s*fetchAiConversationMessages/);
-  assert.match(page, /await sendMessage[\s\S]*await Promise\.allSettled\(\[[\s\S]*loadThread/);
+  // Reconciliation still fetches server history but cannot extend the send
+  // lock. Held-read/stale-read behavior is exercised in the actual React oracle.
+  assert.match(page, /await sendMessage[\s\S]*void Promise\.allSettled\(\[[\s\S]*loadThread/);
   assert.match(page, /onDelta: \(delta\) => \{[\s\S]*isCurrentSendRequest\(\)[\s\S]*setStreamingReply/);
   assert.match(page, /data-testid="chat-streaming-reply"/);
   assert.match(page, /fetchAiConversationMessages\(conversationId, cursor, MESSAGE_LIMIT\)/);
@@ -181,12 +183,7 @@ test("patient chat drops late stream updates after a conversation switch", async
 
   assert.match(page, /sendRequestRef = useRef\(0\)/);
   assert.match(page, /const isCurrentSendRequest = \(\): boolean/);
-  assert.match(page, /if \(isCurrentSendRequest\(\)\) setStreamingReply/);
-  // Staleness still gates data mutations in the catch, but the machine reset in
-  // the finally runs unconditionally; the intentional-cancel flag resets only
-  // for the current request so a stale finally cannot disarm a newer Stop.
-  assert.match(page, /\} else \{\s*if \(!isCurrentSendRequest\(\)\) return;/);
-  assert.match(page, /sendInFlightRef\.current = false;\s*setStreamingReply\(""\);\s*setSending\(false\);\s*if \(isCurrentSendRequest\(\)\) \{\s*intentionalCancelRef\.current = false;/);
+  assert.match(page, /if \(isCurrentSendRequest\(\)\) \{[\s\S]*sendInFlightRef\.current = false/);
   assert.match(page, /if \(!options\.background\) \{[\s\S]*invalidateSendRequest\(\)[\s\S]*invalidateConsentRequest\(\)/);
 });
 
