@@ -734,7 +734,7 @@ def test_generate_stream_reports_late_failure_as_an_sse_error_event(
 
     events = _parse_sse(payload)
     assert ("error", "AI provider unavailable") in events
-    assert not [body for event_name, _ in events if event_name == "done"]
+    assert all(event_name != "done" for event_name, _ in events)
 
 
 def test_retrieve_relevance_threshold_can_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
