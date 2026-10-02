@@ -7,6 +7,17 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 
+# Windows PowerShell 5.1 emits stdout through the OEM codepage, which mangles
+# non-ASCII repository paths on the wire (e.g. "học" becomes "h?c") and breaks
+# downstream parsers that read launcher output as UTF-8.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+    # Headless hosts may refuse to change the console encoding; launcher
+    # process selection does not depend on it.
+}
+
 function Resolve-Secret([string]$Name) {
     $value = [Environment]::GetEnvironmentVariable($Name, 'Process')
     if ($null -ne $value) { return $value }
