@@ -754,11 +754,12 @@ export interface AiChatFeedback {
   updatedAt?: string | null;
 }
 
-/** Closed CTA union; href is always server-authorized and relative/tel:115. */
+/** Closed CTA union; href is always server-authorized and relative/tel:115/tel:02818000001. */
 export type SuggestedAction =
   | { kind: "VIEW_SOURCE"; label: string; href: string }
   | { kind: "START_BOOKING"; label: string; href: string }
-  | { kind: "CALL_EMERGENCY"; label: string; href: "tel:115" };
+  | { kind: "CALL_EMERGENCY"; label: string; href: "tel:115" }
+  | { kind: "CALL_HOTLINE"; label: string; href: string };
 
 export interface AiChatCitation {
   source_type: "branch" | "specialty" | "doctor" | "service" | "package" | "article" | "faq";
