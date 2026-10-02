@@ -13,17 +13,43 @@ public final class ChatMedicalSafety {
     private static final Pattern UNSAFE_CLAIM = Pattern.compile(
         "(chan\\s*doan\\s*(la|toi)|diagnosed as|i diagnose|ke\\s*don|prescribe|prescription|"
             + "lieu\\s*thuoc|uong\\s+\\d+(?:[.,]\\d+)?\\s*(?:mg|ml|vien)|"
+            + "(?:take|use)\\s+\\d+(?:[.,]\\d+)?\\s*(?:mg|ml|pills?|tablets?)|"
             + "you\\s+should\\s+(?:take|use)|ngung\\s+thuoc|stop medication)",
         Pattern.CASE_INSENSITIVE
     );
     /** A refusal frame before a claim ("không thể chẩn đoán") makes the claim safe. */
     private static final Pattern NEGATION_FRAME = Pattern.compile(
-        "\\b(?:khong|ko|not)\\b(?:\\s+(?:the|duoc))*",
+        "\\b(?:khong|ko|cannot|can not|can t|don t|do not|does not|did not|"
+            + "must not|should not|will not|would not)\\b",
         Pattern.CASE_INSENSITIVE
     );
-    /** "không kê đơn, NHƯNG hãy uống thuốc này" — contrast after the negation un-safes nothing. */
-    private static final Pattern CONTRASTIVE_WORD = Pattern.compile(
-        "\\b(?:nhung|tuy nhien|however|but|ngoai ra)\\b",
+    private static final String REFUSAL_MODIFIERS =
+        "(?:(?:the|duoc phep|duoc|nen|tu y|dua ra|cung cap|thuc hien|to|"
+            + "provide|give|offer|a|an|any)\\s+)*";
+    private static final String REFUSAL_CLINICAL_VERB =
+        "(?:chan doan|diagnose|ke don|prescribe|prescription|lieu thuoc|"
+            + "ngung thuoc|stop medication|thay doi thuoc)";
+    private static final Pattern DIRECT_REFUSAL_GAP = Pattern.compile(
+        "\\s*" + REFUSAL_MODIFIERS,
+        Pattern.CASE_INSENSITIVE
+    );
+    // A refusal can enumerate clinical verbs; unrelated reassurance cannot
+    // extend its scope to a later instruction or asserted diagnosis.
+    private static final Pattern REFUSAL_LIST_GAP = Pattern.compile(
+        "\\s*" + REFUSAL_MODIFIERS
+            + "(?:" + REFUSAL_CLINICAL_VERB + "\\s+(?:va|hoac|or|and)\\s+)*",
+        Pattern.CASE_INSENSITIVE
+    );
+    // A comma-only middle item needs a complete verb-only enumeration. Drugs,
+    // doses and imperative tails cannot inherit a previous clinical refusal.
+    private static final Pattern REFUSAL_ENUMERATION = Pattern.compile(
+        "\\s*" + REFUSAL_MODIFIERS + REFUSAL_CLINICAL_VERB
+            + "(?:\\s+" + REFUSAL_CLINICAL_VERB + ")*"
+            + "\\s+(?:va|hoac|or|and)\\s+" + REFUSAL_CLINICAL_VERB + "\\s*",
+        Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern ASSERTED_CLAIM = Pattern.compile(
+        "^(?:chan\\s*doan\\s*(?:la|toi)|diagnosed as|i diagnose|uong|take|use|you\\s+should)",
         Pattern.CASE_INSENSITIVE
     );
     private static final Pattern PROTECTED_INPUT_CUE = Pattern.compile(
@@ -82,9 +108,8 @@ public final class ChatMedicalSafety {
         if (answer == null) return false;
         // Sentences split on the RAW text so boundaries survive: normalizeInput
         // collapses punctuation, and a negation must never reach across one.
-        // Inside a sentence, a refusal frame before the claim ("không thể chẩn
-        // đoán") keeps it safe, and a contrastive word after the frame
-        // ("không kê đơn, nhưng…") puts the claim back in force.
+        // A refusal must grammatically modify this claim. An earlier "không
+        // cần lo lắng" is not permission to accept a later dosage or diagnosis.
         for (String rawSentence : answer.split("[.!?\n;]")) {
             String normalized = normalizeInput(rawSentence);
             if (normalized == null) continue;
@@ -95,7 +120,12 @@ public final class ChatMedicalSafety {
                 int lastNegationEnd = -1;
                 while (negation.find()) lastNegationEnd = negation.end();
                 if (lastNegationEnd < 0) return true;
-                if (CONTRASTIVE_WORD.matcher(prefix.substring(lastNegationEnd)).find()) {
+                String gap = prefix.substring(lastNegationEnd);
+                boolean asserted = ASSERTED_CLAIM.matcher(matcher.group()).find();
+                Pattern scope = asserted
+                    ? DIRECT_REFUSAL_GAP : REFUSAL_LIST_GAP;
+                if (!scope.matcher(gap).matches()
+                        && (asserted || !REFUSAL_ENUMERATION.matcher(normalized.substring(lastNegationEnd)).matches())) {
                     return true;
                 }
             }

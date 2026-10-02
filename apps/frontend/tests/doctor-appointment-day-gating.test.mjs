@@ -14,7 +14,7 @@ const source = () => readFile(new URL("../components/PortalAppointments.tsx", im
 test("doctor appointment actions are gated on the business day", async () => {
   const component = await source();
 
-  assert.match(component, /const today = businessDate\(\)/);
+  assert.match(component, /const today = businessDate\((?:0, now)?\)/);
   assert.match(
     component,
     /appointment\.appointmentDate === today \? \([\s\S]*CHECKED_IN[\s\S]*NO_SHOW[\s\S]*\) : appointment\.appointmentDate < today \? \([\s\S]*NO_SHOW[\s\S]*\) : \([\s\S]*Chỉ thao tác được trong ngày khám/,

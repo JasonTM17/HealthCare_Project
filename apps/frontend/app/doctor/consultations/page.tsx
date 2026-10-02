@@ -95,7 +95,7 @@ export default function DoctorConsultationsPage() {
   const unreadCount = useMemo(() => items.reduce((total, item) => total + Math.max(0, item.unreadCount || 0), 0), [items]);
 
   if (!session) return <LoginRequiredState nextPath="/doctor/consultations" />;
-  if (!hasRole(session.user, "DOCTOR")) return <ForbiddenState title="Không thể mở tư vấn" description="Kênh tư vấn riêng chỉ dành cho bác sĩ được phân công hoặc handoff hợp lệ." />;
+  if (!hasRole(session.user, "DOCTOR")) return <ForbiddenState title="Không thể mở tư vấn" description="Kênh tư vấn riêng chỉ dành cho bác sĩ được phân công hoặc được bàn giao hợp lệ." />;
   const status = error instanceof ApiError ? error.status : undefined;
 
   return (
@@ -103,9 +103,9 @@ export default function DoctorConsultationsPage() {
       <div className="section-inner portal-page grid gap-6">
         <header className="portal-hero">
           <div>
-            <p className="section-note">PATIENT CARE</p>
+            <p className="section-note">CHĂM SÓC BỆNH NHÂN</p>
             <h1>Tư vấn bệnh nhân</h1>
-            <p>Chỉ các lịch hẹn được phân công hoặc handoff mới xuất hiện. Nội dung trao đổi chỉ dành cho bác sĩ có quyền.</p>
+            <p>Các kênh được phân công hoặc bàn giao cho bạn. Nội dung chỉ dành cho bác sĩ có quyền truy cập.</p>
             <div aria-label="Tóm tắt kênh tư vấn" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
               <span className="rounded-md bg-teal-50 px-3 py-1.5">{activeCount} kênh đang mở</span>
               <span className="rounded-md bg-amber-50 px-3 py-1.5">{unreadCount} tin chưa đọc</span>

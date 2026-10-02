@@ -146,15 +146,16 @@ export default function AdminAppointmentsChart() {
     );
   }
 
+  const displayedCount = state.slices.reduce((sum, slice) => sum + slice.count, 0);
   return (
     <div className="grid grid-cols-1 gap-6 border-b border-slate-200 bg-white p-6 xl:grid-cols-2">
       <section aria-labelledby="admin-chart-status-title">
         <h3 className="text-base font-bold text-slate-900" id="admin-chart-status-title">Lịch hẹn theo trạng thái</h3>
         <p className="mt-1 text-xs text-slate-500">
-          Phạm vi dữ liệu: {state.slices.reduce((sum, slice) => sum + slice.count, 0)}/{state.total} lịch hẹn trong trang dữ liệu hiện tại.
+          Phạm vi dữ liệu: {displayedCount}/{state.total} lịch hẹn trong trang dữ liệu hiện tại.
         </p>
         <div className="relative mt-4 h-64">
-          <canvas aria-label={`Phân bố ${state.total} lịch hẹn theo trạng thái`} ref={statusCanvasRef} role="img" />
+          <canvas aria-label={`Phân bố ${displayedCount} lịch hẹn trong trang dữ liệu hiện tại theo trạng thái`} ref={statusCanvasRef} role="img" />
         </div>
         <table className="sr-only">
           <caption>Phân bố lịch hẹn theo trạng thái</caption>

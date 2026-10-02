@@ -134,6 +134,16 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [notificationsList, setNotificationsList] = useState<Notification[]>([]);
+  const [notificationPreviewState, setNotificationPreviewState] = useState<"loading" | "ready" | "error">("loading");
+  const [notificationActionError, setNotificationActionError] = useState<string | null>(null);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const notificationLoadRef = useRef<Promise<unknown> | null>(null);
+  const notificationRevisionRef = useRef(0);
+  const notificationRefreshPendingRef = useRef(false);
+  const markingAllReadRef = useRef(false);
+  const notificationReadsRef = useRef(new Set<string>());
+  const selectedNotificationIdRef = useRef<string | null>(null);
+  const [readingNotificationId, setReadingNotificationId] = useState<string | null>(null);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -159,41 +169,52 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   // Returns the settle promise so the background poll can tell when a read is
   // still in flight and refuse to stack a second one on top of it.
   const loadNotifications = useCallback((): Promise<unknown> => {
-    if (role === "PATIENT") {
-      // The badge counts the whole inbox, not the ten rows this panel previews:
-      // deriving it from the first page under-reported as soon as a patient had
-      // more than ten notifications, and the badge is the only signal that
-      // anything is waiting.
-      const badge = fetchPatientOverview()
-        .then((overview) => {
-          if (typeof overview?.unreadNotificationCount === "number") {
-            setUnreadCount(overview.unreadNotificationCount);
-          }
-        })
-        .catch(() => {
-          // A failed count must not blank a badge the patient may still have
-          // notifications behind; keep the last known value.
-        });
-      const preview = fetchNotifications(0, 10)
+    if (notificationLoadRef.current) return notificationLoadRef.current;
+    function refresh(): Promise<unknown> {
+      const revision = notificationRevisionRef.current;
+      setNotificationPreviewState("loading");
+      const preview = fetchNotifications(0, role === "PATIENT" ? 10 : 50)
         .then((data) => {
-          if (data?.content) setNotificationsList(data.content);
+          if (revision !== notificationRevisionRef.current) return;
+          if (!Array.isArray(data?.content)) throw new Error("Notification preview unavailable");
+          setNotificationsList(data.content.slice(0, 10));
+          if (role === "DOCTOR") {
+            setUnreadCount(data.content.filter((item) => !item.read).length);
+          }
+          setNotificationPreviewState("ready");
         })
         .catch(() => {
-          // The preview list is optional; the badge above is the load-bearing part.
+          if (revision !== notificationRevisionRef.current) return;
+          // Keep the last known rows, but distinguish a failed refresh from an empty inbox.
+          setNotificationPreviewState("error");
         });
-      return Promise.allSettled([badge, preview]);
-    }
-    // The doctor portal has no overview endpoint yet, so the badge is derived
-    // from a wider first page of the same role-agnostic notifications API.
-    return fetchNotifications(0, 50)
-      .then((data) => {
-        if (!data?.content) return;
-        setNotificationsList(data.content.slice(0, 10));
-        setUnreadCount(data.content.filter((item) => !item.read).length);
-      })
-      .catch(() => {
-        // Same contract as the patient branch: keep the last known values.
+      // Patient overview counts the whole inbox, beyond the ten preview rows.
+      const badge = role === "PATIENT"
+        ? fetchPatientOverview()
+          .then((overview) => {
+            if (revision !== notificationRevisionRef.current) return;
+            if (typeof overview?.unreadNotificationCount === "number") {
+              setUnreadCount(overview.unreadNotificationCount);
+            }
+          })
+          .catch(() => {
+            // A failed count must not blank a badge the patient may still have
+            // notifications behind; keep the last known value.
+          })
+        : Promise.resolve();
+      const task = Promise.allSettled([badge, preview]).finally(() => {
+        notificationLoadRef.current = null;
+        if (notificationRefreshPendingRef.current) {
+          notificationRefreshPendingRef.current = false;
+          // The poll's settle promise includes this catch-up, so a mutation
+          // invalidates an older response without stacking concurrent reads.
+          return refresh();
+        }
       });
+      notificationLoadRef.current = task;
+      return task;
+    }
+    return refresh();
   }, [role]);
 
   useEffect(() => {
@@ -203,6 +224,8 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleUpdate = () => {
+      notificationRevisionRef.current += 1;
+      if (notificationLoadRef.current) notificationRefreshPendingRef.current = true;
       loadNotifications();
     };
     window.addEventListener("healthcare:notifications-updated", handleUpdate);
@@ -258,34 +281,45 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
 
   const handleTogglePopover = (e: React.MouseEvent) => {
     e.preventDefault();
-    setIsPopoverOpen((prev) => {
-      if (!prev) {
-        loadNotifications();
-      }
-      return !prev;
-    });
+    if (!isPopoverOpen) loadNotifications();
+    setIsPopoverOpen(!isPopoverOpen);
   };
 
   const handleOpenNotificationDetail = async (notification: Notification) => {
+    selectedNotificationIdRef.current = notification.id;
     setSelectedNotification(notification);
     setIsPopoverOpen(false);
+    setNotificationActionError(null);
     if (!notification.read) {
+      if (notificationReadsRef.current.has(notification.id)) return;
+      notificationReadsRef.current.add(notification.id);
+      setReadingNotificationId(notification.id);
       try {
         await markNotificationAsRead(notification.id);
         setNotificationsList((prev) =>
           prev.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
         );
         setUnreadCount((prev) => Math.max(0, prev - 1));
+        setSelectedNotification((current) => current?.id === notification.id ? { ...current, read: true } : current);
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
         }
       } catch {
-        // ignore mark read error
+        if (selectedNotificationIdRef.current === notification.id) {
+          setNotificationActionError("Chưa đánh dấu được thông báo. Bạn có thể thử lại.");
+        }
+      } finally {
+        notificationReadsRef.current.delete(notification.id);
+        setReadingNotificationId((current) => current === notification.id ? null : current);
       }
     }
   };
 
   const handleMarkAllRead = async () => {
+    if (markingAllReadRef.current) return;
+    markingAllReadRef.current = true;
+    setMarkingAllRead(true);
+    setNotificationActionError(null);
     try {
       await markAllNotificationsAsRead();
       setNotificationsList((prev) => prev.map((item) => ({ ...item, read: true })));
@@ -294,7 +328,10 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         window.dispatchEvent(new CustomEvent("healthcare:notifications-updated"));
       }
     } catch {
-      // ignore
+      setNotificationActionError("Chưa đánh dấu được thông báo. Bạn có thể thử lại.");
+    } finally {
+      markingAllReadRef.current = false;
+      setMarkingAllRead(false);
     }
   };
 
@@ -526,14 +563,31 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                           type="button"
                           className="portal-notification-popover__mark-all"
                           onClick={handleMarkAllRead}
+                          disabled={markingAllRead}
                         >
-                          Đánh dấu đã đọc tất cả
+                          {markingAllRead ? "Đang đánh dấu…" : "Đánh dấu đã đọc tất cả"}
                         </button>
                       ) : null}
                     </div>
 
                     <div className="portal-notification-popover__list">
-                      {notificationsList.length === 0 ? (
+                      {notificationPreviewState === "loading" ? (
+                        <p className="px-4 py-3 text-sm text-slate-600" role="status">
+                          {notificationsList.length > 0 ? "Đang cập nhật thông báo…" : "Đang tải thông báo…"}
+                        </p>
+                      ) : null}
+                      {notificationPreviewState === "error" ? (
+                        <div className="grid gap-2 px-4 py-3 text-sm text-amber-900" role="alert">
+                          <p>Chưa tải được thông báo. Bạn có thể tải lại.</p>
+                          <button className="outline-button outline-button--small min-h-11" type="button" onClick={loadNotifications}>
+                            Tải lại thông báo
+                          </button>
+                        </div>
+                      ) : null}
+                      {notificationActionError ? (
+                        <p className="px-4 py-3 text-sm text-amber-900" role="alert">{notificationActionError}</p>
+                      ) : null}
+                      {notificationsList.length === 0 && notificationPreviewState === "ready" ? (
                         <div className="portal-notification-popover__empty">
                           <span aria-hidden="true" className="portal-notification-popover__empty-mark">
                             <UiIcon name="bell" size={20} />
@@ -667,6 +721,14 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
             </div>
 
             <div className="portal-notification-modal__body">
+              {notificationActionError || readingNotificationId === selectedNotification.id ? (
+                <div className="grid gap-2 pb-3 text-sm text-amber-900" role={notificationActionError ? "alert" : "status"}>
+                  {notificationActionError ? <p>{notificationActionError}</p> : null}
+                  <button className="outline-button outline-button--small min-h-11" type="button" disabled={readingNotificationId === selectedNotification.id} onClick={() => handleOpenNotificationDetail(selectedNotification)}>
+                    {readingNotificationId === selectedNotification.id ? "Đang đánh dấu…" : "Đánh dấu đã đọc"}
+                  </button>
+                </div>
+              ) : null}
               <h3 id="notification-modal-title" className="portal-notification-modal__title">
                 {selectedNotification.title}
               </h3>
