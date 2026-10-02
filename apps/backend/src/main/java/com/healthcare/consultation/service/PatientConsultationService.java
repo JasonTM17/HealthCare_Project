@@ -723,10 +723,14 @@ public class PatientConsultationService {
               JOIN users u ON u.id = d.user_id AND u.status = 'ACTIVE'
               JOIN user_roles ur ON ur.user_id = u.id
               JOIN roles r ON r.id = ur.role_id AND r.code = 'DOCTOR'
-              LEFT JOIN doctor_specialties ds ON ds.doctor_id = d.id
-              LEFT JOIN specialties s ON s.id = ds.specialty_id AND s.active
-              LEFT JOIN doctor_branches db ON db.doctor_id = d.id
-              LEFT JOIN branches b ON b.id = db.branch_id AND b.active
+              -- Directory parity: handoff() resolves the target through its own
+              -- specialty/branch joins, so an association that is missing or
+              -- inactive must drop the doctor here too; an outer join would
+              -- offer doctors whose handoff the mutation path then rejects.
+              JOIN doctor_specialties ds ON ds.doctor_id = d.id
+              JOIN specialties s ON s.id = ds.specialty_id AND s.active
+              JOIN doctor_branches db ON db.doctor_id = d.id
+              JOIN branches b ON b.id = db.branch_id AND b.active
              WHERE t.id = ?
                AND (a.specialty_id IS NULL OR ds.specialty_id = a.specialty_id)
                AND (a.branch_id IS NULL OR db.branch_id = a.branch_id)

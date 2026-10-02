@@ -45,3 +45,19 @@ test("AI triage error states always show the 115 emergency line", async () => {
     "emergency line must render inside the error alert, not only with results",
   );
 });
+
+test("AI triage drops blank suggested questions at the response boundary", async () => {
+  const client = await read("lib/api-client.ts");
+  // The modal renders each question as a <li>, so a whitespace-only entry that
+  // passes the string shape check would render an empty list item (and a
+  // duplicate React key). The parser must trim and drop blanks.
+  assert.match(client, /\.map\(\(question\) => question\.trim\(\)\)/);
+  assert.match(client, /\.filter\(\(question\) => question\.length > 0\)/);
+  const assignedAt = client.indexOf("suggestedQuestions: response.suggested_questions");
+  const trimAt = client.indexOf(".map((question) => question.trim())");
+  assert.ok(assignedAt >= 0, "suggestedQuestions assignment exists");
+  assert.ok(
+    trimAt > assignedAt,
+    "blank-question sanitization must sit on the suggestedQuestions assignment",
+  );
+});
