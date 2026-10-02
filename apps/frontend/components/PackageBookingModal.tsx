@@ -90,6 +90,7 @@ export default function PackageBookingModal({
   const [loadedDoctors, setLoadedDoctors] = useState<Doctor[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string>("");
+  const [catalogRequest, setCatalogRequest] = useState(0);
 
   const effectiveBranches = providedBranches.length > 0 ? providedBranches : loadedBranches;
 
@@ -129,6 +130,8 @@ export default function PackageBookingModal({
   const [confirmedAppointment, setConfirmedAppointment] = useState<AppointmentDetails | null>(null);
 
   const dialogRef = useRef<HTMLDivElement>(null);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const lastFocusedStepRef = useRef(step);
   const bookingSessionRef = useRef(0);
   const otpResendAttemptRef = useRef(0);
   const otpResendControllerRef = useRef<AbortController | null>(null);
@@ -136,6 +139,12 @@ export default function PackageBookingModal({
   const minimumAppointmentDate = useMemo(() => businessDate(1), []);
 
   useDialogFocus(dialogRef, isOpen, onClose);
+
+  useEffect(() => {
+    if (!isOpen || lastFocusedStepRef.current === step) return;
+    lastFocusedStepRef.current = step;
+    stepHeadingRef.current?.focus();
+  }, [isOpen, step]);
 
   // Fetch branches if needed; doctors load per active branch below.
   useEffect(() => {
@@ -149,11 +158,9 @@ export default function PackageBookingModal({
       setCatalogLoading(true);
       setCatalogError("");
       try {
-        const branchRes = await fetchBranches(0, 100).catch(() => null);
+        const branchRes = await fetchBranches(0, 100);
         if (cancelled) return;
-        if (branchRes) {
-          setLoadedBranches(branchRes.content);
-        }
+        setLoadedBranches(branchRes.content);
       } catch {
         if (!cancelled) {
           setCatalogError("Chưa thể tải danh sách cơ sở khám. Vui lòng thử lại sau.");
@@ -169,7 +176,7 @@ export default function PackageBookingModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, providedBranches.length]);
+  }, [isOpen, providedBranches.length, catalogRequest]);
 
   // Resolve active branch
   const activeBranchId = useMemo(() => {
@@ -662,7 +669,7 @@ export default function PackageBookingModal({
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Bước 1 / 4</p>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Chọn cơ sở y tế thuận tiện nhất</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900" ref={stepHeadingRef} tabIndex={-1}>Chọn cơ sở y tế thuận tiện nhất</h3>
                 <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
                   Chọn cơ sở thuận tiện nhất với bạn; nhân viên tiếp đón sẽ xác nhận khả năng thực hiện
                   các hạng mục của gói tại cơ sở bạn chọn trước khi khám.
@@ -672,7 +679,20 @@ export default function PackageBookingModal({
               {catalogLoading ? (
                 <div className="py-8 text-center text-sm text-gray-500">Đang tải danh sách cơ sở khám…</div>
               ) : catalogError ? (
-                <div className="p-3 text-sm text-red-700 bg-red-50 rounded-sm border border-red-200">{catalogError}</div>
+                <div aria-live="assertive" className="p-3 text-sm text-red-700 bg-red-50 rounded-sm border border-red-200" role="alert">
+                  <p>{catalogError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setCatalogRequest((request) => request + 1)}
+                    className="mt-2 min-h-11 rounded-sm border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-red-500"
+                  >
+                    Thử lại
+                  </button>
+                </div>
+              ) : effectiveBranches.length === 0 ? (
+                <div aria-live="polite" className="rounded-sm border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-600" role="status">
+                  Chưa có cơ sở khám để đặt gói này. Vui lòng liên hệ bệnh viện để được hướng dẫn.
+                </div>
               ) : (
                 <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                   {effectiveBranches.map((branch) => {
@@ -751,7 +771,7 @@ export default function PackageBookingModal({
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Bước 2 / 4</p>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Chọn ngày & khung giờ tiếp nhận</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900" ref={stepHeadingRef} tabIndex={-1}>Chọn ngày & khung giờ tiếp nhận</h3>
                 <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
                   Bệnh viện tiếp đón ưu tiên theo giờ hẹn, giúp bạn hoàn thành các bước khám nhanh chóng và không phải chờ đợi.
                 </p>
@@ -909,7 +929,7 @@ export default function PackageBookingModal({
             <form onSubmit={handleHoldSlot} className="space-y-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Bước 3 / 4</p>
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Thông tin người khám sức khỏe</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900" ref={stepHeadingRef} tabIndex={-1}>Thông tin người khám sức khỏe</h3>
                 <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
                   Thông tin này sẽ được in trên phiếu khám và hồ sơ bệnh án điện tử tại bệnh viện.
                 </p>
@@ -1094,7 +1114,7 @@ export default function PackageBookingModal({
                 <form onSubmit={handleConfirmOtp} className="space-y-4 text-center">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Bước 4 / 4</p>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-900">Xác nhận mã OTP đặt lịch</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-900" ref={stepHeadingRef} tabIndex={-1}>Xác nhận mã OTP đặt lịch</h3>
                     <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
                       Vui lòng kiểm tra email và nhập mã xác thực 6 số để hoàn tất đăng ký gói khám.
                     </p>
@@ -1109,6 +1129,15 @@ export default function PackageBookingModal({
                       {formatTimer(secondsRemaining)}
                     </span>
                   </div>
+
+                  {!holdExpired && (otpDeliveryStatus === "FAILED" || otpExpired) ? (
+                    <div aria-live="assertive" className="rounded-sm border border-red-200 bg-red-50 p-3 text-left text-sm text-red-800" role="alert">
+                      <p className="font-semibold">
+                        {otpDeliveryStatus === "FAILED" ? "Chưa thể gửi mã OTP." : "Mã OTP đã hết hiệu lực."}
+                      </p>
+                      <p className="mt-1 text-xs leading-5">Hãy gửi lại mã OTP để tiếp tục trong thời gian giữ chỗ còn hiệu lực.</p>
+                    </div>
+                  ) : null}
 
                   {/* Summary of hold */}
                   <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-sm text-left text-xs space-y-1">
@@ -1136,6 +1165,8 @@ export default function PackageBookingModal({
                     <p className="text-xs text-gray-500 mb-3">
                       {otpDeliveryStatus === "QUEUED" ? (
                         <>Mã OTP đang được gửi tới email <strong className="text-gray-800">{maskEmail(email)}</strong>.</>
+                      ) : otpDeliveryStatus === "FAILED" ? (
+                        <>Email nhận mã OTP: <strong className="text-gray-800">{maskEmail(email)}</strong>.</>
                       ) : (
                         <>Mã OTP đã gửi tới email <strong className="text-gray-800">{maskEmail(email)}</strong>.</>
                       )}
@@ -1157,7 +1188,7 @@ export default function PackageBookingModal({
                       className="w-48 text-center p-3 text-2xl font-mono tracking-widest bg-gray-50 border-2 border-brand-700 rounded-sm focus:ring-4 focus:ring-brand-100 focus:outline-none mx-auto block font-bold"
                     />
 
-                    {!holdExpired && !otpExpired ? (
+                    {!holdExpired ? (
                       <div className="mt-3 flex flex-col items-center gap-1">
                         <button
                           type="button"

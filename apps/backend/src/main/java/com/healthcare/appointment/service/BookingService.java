@@ -253,7 +253,7 @@ public class BookingService {
         String cleanPhone = requireValidContactPhone(request.phone());
         String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
         if (idempotencyKey != null) {
-            HoldSlotResponse replayed = replayHold(request, idempotencyKey);
+            HoldSlotResponse replayed = replayHold(request, idempotencyKey, cleanPhone, userDetails);
             if (replayed != null) {
                 return replayed;
             }
@@ -595,16 +595,40 @@ public class BookingService {
      *         answering 409 forever. A key reused for a different slot remains
      *         a conflict, as does retrying a hold that is still live.
      */
-    private HoldSlotResponse replayHold(HoldSlotRequest request, String idempotencyKey) {
+    private HoldSlotResponse replayHold(
+            HoldSlotRequest request, String idempotencyKey, String cleanPhone, UserDetails principal) {
         Appointment existing = appointmentRepository.findByHoldIdempotencyKey(idempotencyKey).orElse(null);
         if (existing == null) {
             return null;
         }
+        // A key identifies a request, not its owner. Check the existing patient
+        // read-only before returning a booking code or recycling an expired key.
+        PatientProfile patient = existing.getPatient();
+        if (patient == null || !cleanPhone.equals(normalizePhone(patient.getPhone()))) {
+            throw patientIdentityMismatch("replay-contact-mismatch", cleanPhone);
+        }
+        if (principal != null && hasRole(principal, "PATIENT")) {
+            User actor = userRepository.findByEmail(principal.getUsername())
+                .filter(user -> user.isEmailVerified() && "ACTIVE".equals(user.getStatus()))
+                .orElseThrow(() -> patientIdentityMismatch("replay-user-unverified", null));
+            if (!Objects.equals(patient.getUserId(), actor.getId())) {
+                throw patientIdentityMismatch("replay-owner-mismatch", cleanPhone);
+            }
+        } else {
+            String destination = storedVerifiedDestination(patient);
+            if (destination == null || !destination.equals(normalizeEmail(request.email()))) {
+                throw patientIdentityMismatch("replay-destination-mismatch", cleanPhone);
+            }
+        }
         UUID existingBranchId = existing.getBranch() == null ? null : existing.getBranch().getId();
+        UUID existingSpecialtyId = existing.getSpecialty() == null ? null : existing.getSpecialty().getId();
+        UUID existingPackageId = existing.getMedicalPackage() == null ? null : existing.getMedicalPackage().getId();
         boolean sameRequest = Objects.equals(existing.getDoctor().getId(), request.doctorId())
             && Objects.equals(existing.getAppointmentDate(), request.appointmentDate())
             && Objects.equals(existing.getStartTime(), request.startTime())
-            && Objects.equals(existingBranchId, request.branchId());
+            && Objects.equals(existingBranchId, request.branchId())
+            && Objects.equals(existingSpecialtyId, request.specialtyId())
+            && Objects.equals(existingPackageId, request.packageId());
         if (!sameRequest) {
             throw new BusinessException(
                 409,
@@ -628,7 +652,7 @@ public class BookingService {
             existing.getBookingCode(),
             existing.getHoldExpiresAt(),
             existing.getOtpExpiresAt(),
-            "Yêu cầu giữ chỗ này đã được xử lý trước đó. Mã OTP của lần giữ chỗ đầu tiên vẫn còn hiệu lực.",
+            "Yêu cầu giữ chỗ này đã được xử lý trước đó. Bạn có thể xác nhận bằng OTP hiện tại hoặc gửi lại nếu mã đã hết hạn.",
             true,
             OtpDeliveryStatus.QUEUED
         );

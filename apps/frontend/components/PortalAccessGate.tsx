@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   AUTH_SESSION_INDETERMINATE_MESSAGE,
@@ -94,7 +95,9 @@ export default function PortalAccessGate({ children, role }: PortalAccessGatePro
         <ForbiddenState
           title="Tài khoản không có quyền mở cổng thông tin này"
           description={getRoleDescription(role)}
-        />
+        >
+          <Link className="outline-button min-h-11" href="/">Về trang chính</Link>
+        </ForbiddenState>
       </main>
     );
   }
