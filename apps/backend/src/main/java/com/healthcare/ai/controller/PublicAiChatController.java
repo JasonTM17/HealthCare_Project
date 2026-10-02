@@ -597,9 +597,13 @@ public class PublicAiChatController {
         ChatSuggestedActionResolver.HospitalSupportIntent intent =
             ChatSuggestedActionResolver.classify(userMessage);
         String answer = switch (intent) {
-            case GREETING ->
-                "Xin chào! Mình có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc "
+            case GREETING -> {
+                if (ChatSuggestedActionResolver.isIdentityQuestion(userMessage)) {
+                    yield "Chào bạn! Mình là trợ lý thông tin sức khỏe của HealthCare. Mình có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc hoặc hướng dẫn đặt lịch khám.";
+                }
+                yield "Xin chào! Mình có thể hỗ trợ bạn tra cứu Chuyên khoa, Bác sĩ, Cơ sở & giờ làm việc "
                     + "hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare.";
+            }
             case BOOKING ->
                 "Bạn có thể bắt đầu tại trang Đặt lịch khám: chọn chuyên khoa hoặc bác sĩ, "
                     + "sau đó chọn cơ sở và khung giờ còn trống. Nếu chưa biết nên bắt đầu từ đâu, "
