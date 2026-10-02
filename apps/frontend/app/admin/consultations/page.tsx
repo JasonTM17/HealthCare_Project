@@ -321,7 +321,7 @@ export default function AdminConsultationsPage() {
                 </dl>
                 <p className="text-xs text-slate-600">Phân công: {ROLE_LABELS[item.assignmentRole ?? ""] ?? "Chưa phân công"} · Quyền: Chỉ metadata vận hành</p>
                 <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3">
-                  <label className="grid min-w-64 flex-1 gap-1 text-sm font-bold" htmlFor={controlId}>
+                  <label className="grid min-w-0 sm:min-w-64 flex-1 gap-1 text-sm font-bold" htmlFor={controlId}>
                     Bác sĩ nhận bàn giao
                     <select aria-describedby={`${controlId}-help`} className="min-h-11 rounded-lg border border-slate-300 px-3" disabled={doctorsLoading || Boolean(doctorsError) || assigning === item.threadId} id={controlId} onChange={(event) => setSelection((current) => ({ ...current, [item.threadId]: event.target.value }))} value={doctorSelection}>
                       <option value="">Chọn bác sĩ đủ quyền</option>
