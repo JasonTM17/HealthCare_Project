@@ -36,15 +36,15 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /pendingUserMessage/);
   assert.match(component, /data-testid="floating-chat-pending-user"/);
   assert.match(component, /data-testid="floating-chat-thinking"/);
-  // Honest staged feedback: immediate acknowledgment, then the real waiting
-  // activity — never an unbounded "thinking" simulation.
+  // Timers only observe elapsed waiting. Actual rendered stages are covered by
+  // chat-ui-recovery.behavior.test.mjs; do not assert invented upstream activity.
   const waitStage = await read("components/useChatWaitStage.ts");
   assert.match(component, /CHAT_WAIT_STAGE_COPY\[waitStage\]/);
   assert.match(component, /useChatWaitStage\(sending\)/);
   assert.match(waitStage, /received: "Đã nhận câu hỏi — đang chờ phản hồi…"/);
-  assert.match(waitStage, /searching: "Đang tra cứu nguồn y tế & danh mục bác sĩ…"/);
-  assert.match(waitStage, /connecting: "Máy chủ đang kết nối dữ liệu chuyên khoa…"/);
-  assert.match(waitStage, /preparing: "Đang chuẩn bị phản hồi y tế đầy đủ cho bạn…"/);
+  assert.match(waitStage, /searching: "Vẫn đang chờ máy chủ phản hồi…"/);
+  assert.match(waitStage, /connecting: "Phản hồi mất thêm thời gian\. Bạn có thể dừng chờ\."/);
+  assert.match(waitStage, /preparing: "Thời gian chờ lâu hơn thường lệ\. Bạn có thể dừng chờ và thử lại\."/);
   // Provenance labels live in AssistantProvider so the floating panel and the
   // full patient chat page share one source-honesty contract.
   assert.match(provider, /Hỗ trợ tạm thời/);

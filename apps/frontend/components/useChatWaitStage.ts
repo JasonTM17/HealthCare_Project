@@ -5,15 +5,9 @@ import { useEffect, useState } from "react";
 export type ChatWaitStage = "received" | "searching" | "connecting" | "preparing";
 
 /**
- * Honest staged feedback for a bounded chat request (D-02: validated chunked
- * delivery, no simulated generation).
- * Progressive waiting stages during upstream / Render cold-starts:
- * - Stage 1 (< 4s): immediate acknowledgment
- * - Stage 2 (4s - 12s): searching medical sources & doctor catalog
- * - Stage 3 (12s - 24s): backend connecting specialty data
- * - Stage 4 (> 24s): preparing comprehensive clinical response
- * Neither stage implies progressive token generation, and every stage is cleared
- * when the bounded deadline answers — the indicator is never indefinite.
+ * Elapsed-time feedback for a bounded request. The client has no upstream
+ * activity events, so a timer must not claim retrieval, connection or clinical
+ * generation. Each stage ends when the result, error or cancellation arrives.
  */
 export function useChatWaitStage(
   active: boolean,
@@ -49,7 +43,7 @@ export function useChatWaitStage(
 /** User-visible copy per stage; keep it natural Vietnamese and non-simulated. */
 export const CHAT_WAIT_STAGE_COPY: Readonly<Record<ChatWaitStage, string>> = {
   received: "Đã nhận câu hỏi — đang chờ phản hồi…",
-  searching: "Đang tra cứu nguồn y tế & danh mục bác sĩ…",
-  connecting: "Máy chủ đang kết nối dữ liệu chuyên khoa…",
-  preparing: "Đang chuẩn bị phản hồi y tế đầy đủ cho bạn…",
+  searching: "Vẫn đang chờ máy chủ phản hồi…",
+  connecting: "Phản hồi mất thêm thời gian. Bạn có thể dừng chờ.",
+  preparing: "Thời gian chờ lâu hơn thường lệ. Bạn có thể dừng chờ và thử lại.",
 };

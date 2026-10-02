@@ -43,8 +43,9 @@
 .panel {
   width: min(28rem, calc(100vw - 2rem));
   max-width: 100%;
-  height: min(40rem, calc(100dvh - 4.5rem));
-  max-height: min(40rem, calc(100dvh - 4.5rem));
+  /* Leave room for the launcher, gap and viewport edge as well as the panel. */
+  height: min(40rem, calc(100dvh - var(--assistant-bottom-clearance) - 7rem));
+  max-height: min(40rem, calc(100dvh - var(--assistant-bottom-clearance) - 7rem));
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -228,6 +229,7 @@
 }
 
 .iconButton {
+  flex: 0 0 2.75rem;
   width: 2.75rem;
   height: 2.75rem;
   border-radius: var(--radius-sm);
@@ -318,7 +320,7 @@
 
 .emptyState strong {
   margin-top: 0.45rem;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .emptyState p {
@@ -339,7 +341,7 @@
 
 .message p {
   margin: 0.35rem 0;
-  font-size: 0.9rem;
+  font-size: 1rem;
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -544,6 +546,7 @@
 }
 
 .fallbackNotice button {
+  min-height: 2.75rem;
   padding: 0.25rem 0.65rem;
   border: 1px solid #854d0e;
   border-radius: var(--radius-sm, 2px);
@@ -750,7 +753,7 @@
 
 .failure button {
   flex: 0 0 auto;
-  min-height: 2rem;
+  min-height: 2.75rem;
   padding: 0.25rem 0.75rem;
   border: 1px solid #c99d48;
   border-radius: var(--radius-pill, 999px);
