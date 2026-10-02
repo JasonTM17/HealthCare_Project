@@ -46,11 +46,14 @@ test("AI triage error states always show the 115 emergency line", async () => {
   );
 });
 
-test("AI triage drops blank suggested questions at the response boundary", async () => {
-  const client = await read("lib/api-client.ts");
+test("AI triage drops blank suggested questions at both boundaries", async () => {
+  const [client, modal] = await Promise.all([
+    read("lib/api-client.ts"),
+    read("components/AiTriageModal.tsx"),
+  ]);
   // The modal renders each question as a <li>, so a whitespace-only entry that
   // passes the string shape check would render an empty list item (and a
-  // duplicate React key). The parser must trim and drop blanks.
+  // duplicate React key). The parser trims and drops blanks...
   assert.match(client, /\.map\(\(question\) => question\.trim\(\)\)/);
   assert.match(client, /\.filter\(\(question\) => question\.length > 0\)/);
   const assignedAt = client.indexOf("suggestedQuestions: response.suggested_questions");
@@ -59,5 +62,12 @@ test("AI triage drops blank suggested questions at the response boundary", async
   assert.ok(
     trimAt > assignedAt,
     "blank-question sanitization must sit on the suggestedQuestions assignment",
+  );
+  // ...and the render site keeps its own guard for payloads that bypass the
+  // parser entirely.
+  assert.match(modal, /\.filter\(\(question\) => question\.trim\(\)\.length > 0\)/);
+  assert.ok(
+    modal.indexOf(".filter((question) => question.trim().length > 0)") < modal.indexOf("<li key={question}>"),
+    "render guard must run before the list item is built",
   );
 });
