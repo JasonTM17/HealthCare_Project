@@ -960,7 +960,7 @@ function FloatingHealthAssistantPanel({
                           <div className={styles.suggestedActions} aria-label="Bước tiếp theo" role="group">
                             <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
                             {message.suggestedActions.map((action, idx) => (
-                              action.href === "tel:115"
+                              action.href.startsWith("tel:")
                                 ? <a href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</a>
                                 : <Link href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</Link>
                             ))}
