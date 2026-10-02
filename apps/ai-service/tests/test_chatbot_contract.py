@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import time
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -662,9 +663,11 @@ def test_generate_stream_heartbeats_while_generation_is_pending(
     _stream_settings(monkeypatch)
     real_generate = main.generate_chat_response
 
-    def slow_generate(request: object, *args: object, **kwargs: object) -> object:
+    # Passthrough test double: Any keeps the double signature-compatible with
+    # the strongly-typed real function for mypy.
+    def slow_generate(*args: Any, **kwargs: Any) -> Any:
         time.sleep(0.25)
-        return real_generate(request, *args, **kwargs)
+        return real_generate(*args, **kwargs)
 
     monkeypatch.setattr(main, "generate_chat_response", slow_generate)
     monkeypatch.setattr(main, "_SSE_HEARTBEAT_SECONDS", 0.05)
