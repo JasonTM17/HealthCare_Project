@@ -215,6 +215,8 @@ services:
         value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
         value: "false"
+      - key: AI_SERVICE_CONNECT_TIMEOUT_MS
+        value: "5000"
       # [L2] Spring-side key of the patient egress set (paired with the
       # healthcare-beta-ai flips above). application.yml:295 binds this to
       # AiConversationService, whose sanitize gate (:1559) otherwise rejects

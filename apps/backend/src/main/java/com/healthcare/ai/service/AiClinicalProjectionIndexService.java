@@ -208,7 +208,7 @@ public class AiClinicalProjectionIndexService {
 
     @Scheduled(
         initialDelayString = "${ai.rag-ingest.clinical-initial-delay-ms:20000}",
-        fixedDelayString = "${ai.rag-ingest.clinical-sync-delay-ms:60000}"
+        fixedDelayString = "${ai.rag-ingest.clinical-sync-delay-ms:1800000}"
     )
     public void synchronizeClinical() {
         if (!aiService.isRagIngestConfigured()) return;
