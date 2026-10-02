@@ -1025,7 +1025,11 @@ async function recommendSpecialtyFromPath(
     recommendedSpecialty: response.recommended_specialty,
     urgencyLevel: response.urgency_level as AiTriageResult["urgencyLevel"],
     advice: response.clinical_advice,
-    suggestedQuestions: response.suggested_questions,
+    // Blank entries survive the shape check above but render as empty list
+    // items in the triage modal, so drop them at the trust boundary.
+    suggestedQuestions: response.suggested_questions
+      .map((question) => question.trim())
+      .filter((question) => question.length > 0),
   };
 
   if (response.specialty_resolution === "RESOLVED" || response.specialty_resolution === "UNRESOLVED") {
