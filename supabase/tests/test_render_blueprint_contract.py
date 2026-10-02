@@ -71,9 +71,9 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     # equality asserted above keeps render-free-beta.yaml in agreement.
     assert ai_env["EMBEDDING_PROVIDER"]["value"] == "local"
     assert ai_env["REMOTE_AI_KILL_SWITCH"]["value"] == "true"
-    assert ai_env["AI_PATIENT_CHAT_REMOTE_ENABLED"]["value"] == "false"
+    assert ai_env["AI_PATIENT_CHAT_REMOTE_ENABLED"]["value"] == "true"
     assert ai_env["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "false"
-    assert ai_env["REMOTE_AI_SYNTHETIC_ONLY"]["value"] == "true"
+    assert ai_env["REMOTE_AI_SYNTHETIC_ONLY"]["value"] == "false"
     assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
     assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
     assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True

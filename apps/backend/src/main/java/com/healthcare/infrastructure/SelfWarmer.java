@@ -34,8 +34,8 @@ public class SelfWarmer {
 
     private static final Logger log = LoggerFactory.getLogger(SelfWarmer.class);
 
-    /** Hard connect/read ceiling for a loopback ping; a warm instance answers in milliseconds. */
-    private static final Duration PING_TIMEOUT = Duration.ofSeconds(5);
+    /** Hard connect/read ceiling for a loopback ping; a warm instance answers in milliseconds, while a waking Free container needs time. */
+    private static final Duration PING_TIMEOUT = Duration.ofSeconds(30);
 
     private final int serverPort;
     private final String aiServiceUrl;

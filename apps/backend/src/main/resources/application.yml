@@ -311,7 +311,7 @@ ai:
     token: ${AI_SERVICE_TOKEN:}
     runtime: ${AI_SERVICE_RUNTIME:non-local}
     allow-unauthenticated-local: ${AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL:false}
-    connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:1000}
+    connect-timeout-ms: ${AI_SERVICE_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${AI_SERVICE_READ_TIMEOUT_MS:35000}
     # Chat-scoped per-request upstream budgets (JDK HttpClient path only).
     # Budget contract: browser 33s > BFF 30s >= retrieve 6s + generate 18s

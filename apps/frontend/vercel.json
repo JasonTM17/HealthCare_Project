@@ -2,6 +2,7 @@
   "framework": "nextjs",
   "installCommand": "npm install",
   "buildCommand": "npm run build",
+  "regions": ["sin1"],
   "functions": {
     "app/api/**/*": {
       "memory": 1024,

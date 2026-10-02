@@ -214,6 +214,8 @@ services:
         value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
         value: "false"
+      - key: AI_SERVICE_CONNECT_TIMEOUT_MS
+        value: "5000"
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
         value: "true"
       - key: AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED

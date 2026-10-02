@@ -57,7 +57,7 @@ public class AiChatSourceResolver {
     private static final Set<String> BRANCH_LOOKUP_STOPWORDS = Set.of(
         "bao", "benh", "chi", "cho", "co", "cua", "da", "den", "dia", "duoc", "gio",
         "healthcare", "hoat", "hoi", "kham", "lam", "may", "mo", "nhanh", "nhieu", "o", "so", "tai", "the",
-        "thoi", "thu", "toi", "viec", "vien", "xem", "nao", "dong", "gi"
+        "thoi", "thu", "toi", "viec", "vien", "xem", "nao", "dong", "gi", "chu", "nhat", "tuan", "ngay"
     );
     private static final Set<String> SUPPORT_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
@@ -480,6 +480,17 @@ public class AiChatSourceResolver {
         }
     }
 
+    private static final Set<String> BRANCH_NOUN_KEYWORDS = Set.of(
+        "co so", "chi nhanh", "phong kham", "tru so"
+    );
+
+    private boolean containsBranchNoun(String normalizedQuery) {
+        for (String noun : BRANCH_NOUN_KEYWORDS) {
+            if (normalizedQuery.contains(noun)) return true;
+        }
+        return false;
+    }
+
     /**
      * Return whether a branch question contains an explicit identity or
      * locality constraint.  This lets public and authenticated chat callers
@@ -491,9 +502,15 @@ public class AiChatSourceResolver {
         if (normalizedQuery.isBlank()) return false;
         Integer requestedNumber = branchNumber(normalizedQuery);
         Set<String> locationAnchors = branchLocationAnchors(normalizedQuery);
+        if (requestedNumber != null || !locationAnchors.isEmpty()) {
+            return true;
+        }
+        if (!containsBranchNoun(normalizedQuery)) {
+            return false;
+        }
         Set<String> identityTerms = branchIdentityTerms(
             normalizedQuery, locationAnchors, requestedNumber);
-        return requestedNumber != null || !locationAnchors.isEmpty() || !identityTerms.isEmpty();
+        return !identityTerms.isEmpty();
     }
 
     private boolean matchesBranch(

@@ -137,6 +137,12 @@ class AiChatSourceResolverTest {
             .isTrue();
         assertThat(resolver.isSpecificBranchQuery("Giờ làm việc của bệnh viện thế nào?"))
             .isFalse();
+        assertThat(resolver.isSpecificBranchQuery("Bệnh viện có khám tim mạch vào chủ nhật không?"))
+            .isFalse();
+        assertThat(resolver.isSpecificBranchQuery("Khám tổng quát vào cuối tuần"))
+            .isFalse();
+        assertThat(resolver.isSpecificBranchQuery("Cơ sở Cầu Giấy có làm việc không?"))
+            .isTrue();
     }
 
     @Test
