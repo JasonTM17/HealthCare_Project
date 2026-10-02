@@ -328,7 +328,9 @@ export default function AiTriageModal({
                 <div className="rounded-lg border border-brand-100 bg-white/60 p-3 text-xs text-gray-700">
                   <p className="font-semibold text-brand-900">Câu hỏi nên trao đổi với bác sĩ</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
-                    {result.suggestedQuestions.map((question) => <li key={question}>{question}</li>)}
+                    {result.suggestedQuestions
+                      .filter((question) => question.trim().length > 0)
+                      .map((question) => <li key={question}>{question}</li>)}
                   </ul>
                 </div>
               ) : null}
