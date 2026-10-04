@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     # answer/citation limit above so a valid branch is not lost in a large
     # catalog when its operational fields are sparse.
     ai_public_retrieval_candidates: int = Field(default=40, ge=20, le=100)
+    # Deterministic public-answer cache (grounded, citation-carrying, single
+    # turn only). Default off; local dev and compose may enable it. The cache
+    # key carries the RAG index revision, so any ingest invalidates the lane.
+    ai_public_chat_cache_enabled: bool = False
     # Patient two-step retrieval is fail-closed below this hybrid score.
     ai_chat_relevance_threshold: float = Field(default=0.35, ge=0, le=1)
     # Queries matching internal KB above this threshold resolve locally for 0đ cost.

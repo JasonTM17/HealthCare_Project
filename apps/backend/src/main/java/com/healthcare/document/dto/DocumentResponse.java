@@ -23,6 +23,8 @@ public record DocumentResponse(
         Long byteSize,
         UUID generatedBy,
         OffsetDateTime generatedAt,
-        OffsetDateTime revokedAt
+        OffsetDateTime revokedAt,
+        Boolean sourceCurrent,
+        Boolean sourceEligible
 ) {
 }

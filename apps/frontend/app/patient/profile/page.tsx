@@ -5,9 +5,11 @@ import PortalChrome from "../../../components/PortalChrome";
 import {
   ApiError,
   changePassword,
+  fetchPatientAiCreditStatus,
   fetchPatientProfile,
   hasRole,
   updatePatientProfile,
+  type AiCreditStatus,
   type PatientGender,
 } from "../../../lib/api-client";
 import type { PatientProfile } from "../../../types/hospital";
@@ -27,38 +29,42 @@ interface TierDefinition {
   quotaDescription: string;
 }
 
+// maxCredits mirrors the backend's authoritative tier map
+// (AiCreditService.tierMaxCredits: 20/50/100/300). It is only the display
+// fallback — the meter prefers the live /patient/ai-credits/status payload,
+// whose maxCredits is what the weekly refill actually tops up to.
 const TIER_META: Record<string, TierDefinition> = {
   VIP: {
     label: "Hội Viên VIP Đặc Quyền",
-    sublabel: "Executive Health · Bác sĩ gia đình",
+    sublabel: "Hạng hội viên cao nhất",
     icon: "sparkles",
     maxCredits: 300,
-    perks: "Ưu tiên xếp lịch khám tức thì · 300 lượt Trợ lý AI y khoa chuyên sâu · Bác sĩ gia đình đồng hành trực tuyến.",
-    quotaDescription: "Hạn mức cao cấp không giới hạn tính năng phân tích triệu chứng chuyên sâu.",
+    perks: "Định mức Trợ lý AI y khoa tới 300 lượt theo hạng hội viên, nạp lại định kỳ hằng tuần.",
+    quotaDescription: "Số dư và trần hạng đồng bộ trực tiếp từ tài khoản hội viên của bạn.",
   },
   GOLD: {
-    label: "Hội Viên Vàng (Gold Privilege)",
-    sublabel: "Gold Healthcare · Ưu tiên điều phối",
+    label: "Hội Viên Vàng (Gold)",
+    sublabel: "Hạng hội viên ưu tiên",
     icon: "shield-check",
     maxCredits: 100,
-    perks: "Ưu tiên điều phối tư vấn từ xa · 100 lượt Trợ lý AI y khoa · Nhắc lịch tái khám & xét nghiệm định kỳ.",
-    quotaDescription: "Tự động làm mới và duy trì theo định kỳ hoạt động khám chữa bệnh.",
+    perks: "Định mức Trợ lý AI y khoa tới 100 lượt theo hạng hội viên, nạp lại định kỳ hằng tuần.",
+    quotaDescription: "Số dư và trần hạng đồng bộ trực tiếp từ tài khoản hội viên của bạn.",
   },
   SILVER: {
-    label: "Hội Viên Bạc (Silver Member)",
-    sublabel: "Silver Health · Hồ sơ số vĩnh viễn",
+    label: "Hội Viên Bạc (Silver)",
+    sublabel: "Hạng hội viên thân thiết",
     icon: "shield-check",
     maxCredits: 50,
-    perks: "50 lượt Trợ lý AI y khoa · Lưu trữ hồ sơ bệnh án không giới hạn thời gian trên nền tảng y tế số.",
-    quotaDescription: "Được cấp định kỳ theo chính sách chăm sóc sức khỏe khách hàng thân thiết.",
+    perks: "Định mức Trợ lý AI y khoa tới 50 lượt theo hạng hội viên, nạp lại định kỳ hằng tuần.",
+    quotaDescription: "Số dư và trần hạng đồng bộ trực tiếp từ tài khoản hội viên của bạn.",
   },
   STANDARD: {
     label: "Hội Viên Tiêu Chuẩn",
-    sublabel: "Standard Care · Chăm sóc cơ bản",
+    sublabel: "Hạng hội viên mặc định",
     icon: "shield-check",
     maxCredits: 20,
-    perks: "20 lượt Trợ lý AI y khoa cơ bản · Đặt lịch khám, quản lý toa thuốc điện tử và tra cứu xét nghiệm.",
-    quotaDescription: "Cấp mặc định cho toàn bộ tài khoản người bệnh đăng ký tại bệnh viện.",
+    perks: "Định mức Trợ lý AI y khoa tới 20 lượt theo hạng hội viên, nạp lại định kỳ hằng tuần.",
+    quotaDescription: "Số dư và trần hạng đồng bộ trực tiếp từ tài khoản hội viên của bạn.",
   },
 };
 
@@ -68,6 +74,7 @@ export default function PatientProfilePage() {
   const session = useAuthSession();
   const status = useAuthSessionStatus();
   const [profile, setProfile] = useState<PatientProfile | null>(null);
+  const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -114,12 +121,20 @@ export default function PatientProfilePage() {
 
   useEffect(() => {
     if (!session?.user || !hasRole(session.user, "PATIENT")) return;
+    let cancelled = false;
     const task = Promise.resolve().then(async () => {
       setLoading(true);
       setLoadError(null);
       try {
-        const data = await fetchPatientProfile();
+        const [data, credit] = await Promise.all([
+          fetchPatientProfile(),
+          // The meter can fall back to the profile tier map, so a failed
+          // credit read must not take the whole profile down with it.
+          fetchPatientAiCreditStatus().catch(() => null),
+        ]);
+        if (cancelled) return;
         setProfile(data);
+        setCreditStatus(credit);
         setFullName(data.fullName || "");
         setPhone(data.phone || "");
         setEmail(data.email || "");
@@ -133,16 +148,20 @@ export default function PatientProfilePage() {
         setMedicalHistory(data.medicalHistory || "");
         setAllergies(data.allergies || "");
       } catch (err: unknown) {
+        if (cancelled) return;
         setLoadError(
           err instanceof ApiError
             ? presentApiError(err.code, err.status)
             : "Không thể tải hồ sơ bệnh nhân.",
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     });
-    return () => void task;
+    return () => {
+      cancelled = true;
+      void task;
+    };
   }, [session, status]);
 
   if (status !== "settled" && loading) {
@@ -172,14 +191,16 @@ export default function PatientProfilePage() {
     );
   }
 
-  const tierKey = (profile?.patientTier || "STANDARD").toUpperCase();
+  // The live credit status is the same quota source the chat page reads, so
+  // tier, balance and ceiling can never drift apart between the two surfaces.
+  const tierKey = (creditStatus?.tier ?? profile?.patientTier ?? "STANDARD").toUpperCase();
   const tierInfo = TIER_META[tierKey] || TIER_META.STANDARD;
-  // The same fabricated default the dashboard carried: an absent field rendered
-  // as "20 credits", which contradicts the authoritative quota on the chat page.
-  const currentCredits = typeof profile?.aiCredits === "number" ? profile.aiCredits : null;
+  const currentCredits = creditStatus?.credits
+    ?? (typeof profile?.aiCredits === "number" ? profile.aiCredits : null);
+  const creditCeiling = creditStatus?.maxCredits ?? tierInfo.maxCredits;
   const creditPercent = currentCredits === null
     ? 0
-    : Math.min(100, Math.max(5, Math.round((currentCredits / tierInfo.maxCredits) * 100)));
+    : Math.min(100, Math.max(5, Math.round((currentCredits / creditCeiling) * 100)));
   // The code is derived from the patient's real id; the previous hardcoded
   // fallback invented a 2026 sequence for anyone whose id had not loaded.
   const patientCode = profile?.id || session.user.id
@@ -357,7 +378,7 @@ export default function PatientProfilePage() {
                   <strong className={styles.creditNumbers}>
                     {currentCredits === null ? "—" : currentCredits}
                   </strong>
-                  <span className={styles.creditTotal}>/ {tierInfo.maxCredits} lượt</span>
+                  <span className={styles.creditTotal}>/ {creditCeiling} lượt</span>
                 </span>
               </div>
               <div className={styles.progressBar}>
@@ -453,7 +474,7 @@ export default function PatientProfilePage() {
                 <div className={`${styles.inputGroup} ${styles.fieldGridFull}`}>
                   <ImageUpload
                     aspectRatio="square"
-                    helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
+                    helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 5 MB)"
                     label="Ảnh chân dung đại diện"
                     onChange={(url) => {
                       setAvatarUrl(url);
@@ -735,7 +756,7 @@ export default function PatientProfilePage() {
                     <span>Hội Viên Tiêu Chuẩn</span>
                   </div>
                   <span className={styles.tierQuotaBadge} data-tier="STANDARD">
-                    20 lượt AI
+                    20 lượt AI/tuần
                   </span>
                 </div>
 
@@ -745,7 +766,7 @@ export default function PatientProfilePage() {
                     <span>Hội Viên Bạc (Silver)</span>
                   </div>
                   <span className={styles.tierQuotaBadge} data-tier="SILVER">
-                    50 lượt AI
+                    50 lượt AI/tuần
                   </span>
                 </div>
 
@@ -755,7 +776,7 @@ export default function PatientProfilePage() {
                     <span>Hội Viên Vàng (Gold)</span>
                   </div>
                   <span className={styles.tierQuotaBadge} data-tier="GOLD">
-                    100 lượt AI
+                    100 lượt AI/tuần
                   </span>
                 </div>
 
@@ -765,13 +786,13 @@ export default function PatientProfilePage() {
                     <span>Hội Viên VIP Đặc Quyền</span>
                   </div>
                   <span className={styles.tierQuotaBadge} data-tier="VIP">
-                    300 lượt AI
+                    300 lượt AI/tuần
                   </span>
                 </div>
               </div>
 
               <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 leading-relaxed">
-                Phân hạng được tự động tính toán dựa trên tần suất khám chữa bệnh, lịch sử xét nghiệm và các chương trình chăm sóc sức khỏe toàn diện tại bệnh viện.
+                Hạng hội viên do bệnh viện phân hạng theo chính sách chăm sóc hiện hành. Định mức Trợ lý AI của mỗi hạng là trần nạp lại hằng tuần; số dư thực tế hiển thị trên thẻ hội viên.
               </div>
             </div>
 

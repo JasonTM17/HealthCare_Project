@@ -40,6 +40,31 @@ export function useChatWaitStage(
   return stage;
 }
 
+/**
+ * Whole seconds elapsed while a request is in flight. The counter restarts on
+ * every new request and only observes wall-clock waiting — it claims nothing
+ * about upstream work.
+ */
+export function useChatWaitElapsedSeconds(active: boolean): number {
+  const [elapsed, setElapsed] = useState(0);
+  const [previousActive, setPreviousActive] = useState(active);
+  if (active !== previousActive) {
+    setPreviousActive(active);
+    setElapsed(0);
+  }
+
+  useEffect(() => {
+    if (!active) return;
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    }, 500);
+    return () => window.clearInterval(interval);
+  }, [active]);
+
+  return elapsed;
+}
+
 /** User-visible copy per stage; keep it natural Vietnamese and non-simulated. */
 export const CHAT_WAIT_STAGE_COPY: Readonly<Record<ChatWaitStage, string>> = {
   received: "Đã nhận câu hỏi — đang chờ phản hồi…",

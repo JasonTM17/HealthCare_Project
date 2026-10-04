@@ -1,0 +1,115 @@
+diff --git a/apps/backend/src/main/java/com/healthcare/database/IndependentClinicalTransactions.java b/apps/backend/src/main/java/com/healthcare/database/IndependentClinicalTransactions.java
+new file mode 100644
+index 0000000..112aae3
+--- /dev/null
++++ b/apps/backend/src/main/java/com/healthcare/database/IndependentClinicalTransactions.java
+@@ -0,0 +1,57 @@
++package com.healthcare.database;
++
++import com.zaxxer.hikari.HikariDataSource;
++import org.springframework.beans.factory.DisposableBean;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.datasource.DataSourceTransactionManager;
++import org.springframework.stereotype.Component;
++import org.springframework.transaction.TransactionDefinition;
++import org.springframework.transaction.support.TransactionTemplate;
++
++import javax.sql.DataSource;
++import java.sql.SQLException;
++import java.util.function.Consumer;
++
++@Component
++public final class IndependentClinicalTransactions implements DisposableBean {
++
++    private final HikariDataSource pool;
++    private final JdbcTemplate jdbc;
++    private final TransactionTemplate transactions;
++
++    public IndependentClinicalTransactions(DataSource source) throws SQLException {
++        HikariDataSource main = source.unwrap(HikariDataSource.class);
++        HikariDataSource own = new HikariDataSource();
++        main.copyStateTo(own);
++        own.setPoolName((main.getPoolName() == null ? "healthcare" : main.getPoolName())
++                + "-clinical-effects");
++        own.setMaximumPoolSize(2);
++        own.setMinimumIdle(0);
++        own.setConnectionTimeout(5000);
++        own.setIdleTimeout(10000);
++        own.setReadOnly(false);
++        own.setRegisterMbeans(false);
++        own.setScheduledExecutor(null);
++        own.setThreadFactory(null);
++        if (own.getMetricRegistry() != null) {
++            own.setMetricRegistry(null);
++        }
++        if (own.getMetricsTrackerFactory() != null) {
++            own.setMetricsTrackerFactory(null);
++        }
++        own.setHealthCheckRegistry(null);
++        this.pool = own;
++        this.jdbc = new JdbcTemplate(own);
++        this.transactions = new TransactionTemplate(new DataSourceTransactionManager(own));
++        this.transactions.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
++    }
++
++    public void write(Consumer<JdbcTemplate> action) {
++        transactions.executeWithoutResult(status -> action.accept(jdbc));
++    }
++
++    @Override
++    public void destroy() {
++        pool.close();
++    }
++}
+diff --git a/apps/backend/src/main/java/com/healthcare/document/dto/DocumentCapabilitiesResponse.java b/apps/backend/src/main/java/com/healthcare/document/dto/DocumentCapabilitiesResponse.java
+new file mode 100644
+index 0000000..1faba5b
+--- /dev/null
++++ b/apps/backend/src/main/java/com/healthcare/document/dto/DocumentCapabilitiesResponse.java
+@@ -0,0 +1,4 @@
++package com.healthcare.document.dto;
++
++public record DocumentCapabilitiesResponse(boolean generationConfigured) {
++}
+diff --git a/apps/backend/src/test/java/com/healthcare/document/service/MinioDocumentObjectStoreTest.java b/apps/backend/src/test/java/com/healthcare/document/service/MinioDocumentObjectStoreTest.java
+new file mode 100644
+index 0000000..5549669
+--- /dev/null
++++ b/apps/backend/src/test/java/com/healthcare/document/service/MinioDocumentObjectStoreTest.java
+@@ -0,0 +1,36 @@
++package com.healthcare.document.service;
++
++import io.minio.MinioClient;
++import org.junit.jupiter.api.Test;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.mockito.Mockito.mock;
++
++class MinioDocumentObjectStoreTest {
++
++    private final MinioClient client = mock(MinioClient.class);
++
++    @Test
++    void configuredOnlyWhenBothCredentialsAreReal() {
++        assertThat(new MinioDocumentObjectStore(client, "bucket", "access", "secret")
++                .isConfigured()).isTrue();
++    }
++
++    @Test
++    void blankCredentialsAreNotConfigured() {
++        assertThat(new MinioDocumentObjectStore(client, "bucket", "", "secret")
++                .isConfigured()).isFalse();
++        assertThat(new MinioDocumentObjectStore(client, "bucket", "access", " ")
++                .isConfigured()).isFalse();
++        assertThat(new MinioDocumentObjectStore(client, "bucket", null, "secret")
++                .isConfigured()).isFalse();
++    }
++
++    @Test
++    void placeholderSentinelIsNotConfigured() {
++        assertThat(new MinioDocumentObjectStore(client, "bucket", "storage-not-configured", "secret")
++                .isConfigured()).isFalse();
++        assertThat(new MinioDocumentObjectStore(client, "bucket", "access", "storage-not-configured")
++                .isConfigured()).isFalse();
++    }
++}

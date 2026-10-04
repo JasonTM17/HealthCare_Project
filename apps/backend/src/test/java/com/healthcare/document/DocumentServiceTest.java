@@ -52,6 +52,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -78,6 +79,7 @@ class DocumentServiceTest {
     private PatientProfileRepository patientProfileRepository;
     private DoctorRepository doctorRepository;
     private UserRepository userRepository;
+    private AppointmentRepository appointmentRepository;
     private DocumentObjectStore objectStore;
     private DocumentObjectCleanupService cleanupService;
     private SyntheticPdfRenderer renderer;
@@ -93,6 +95,7 @@ class DocumentServiceTest {
         patientProfileRepository = mock(PatientProfileRepository.class);
         doctorRepository = mock(DoctorRepository.class);
         userRepository = mock(UserRepository.class);
+        appointmentRepository = mock(AppointmentRepository.class);
         objectStore = mock(DocumentObjectStore.class);
         cleanupService = mock(DocumentObjectCleanupService.class);
         renderer = mock(SyntheticPdfRenderer.class);
@@ -100,7 +103,7 @@ class DocumentServiceTest {
         codec = new DocumentSnapshotCodec();
         service = new DocumentService(documentRepository, medicalRecordRepository,
                 prescriptionRepository, patientProfileRepository, doctorRepository,
-                userRepository, mock(AppointmentRepository.class), objectStore, cleanupService, renderer,
+                userRepository, appointmentRepository, objectStore, cleanupService, renderer,
                 codec, auditService);
     }
 
@@ -716,6 +719,95 @@ class DocumentServiceTest {
 
         assertThat(visible).hasSize(1);
         assertThat(visible.get(0).sourceRecordId()).isEqualTo(RECORD_ID);
+    }
+
+    @Test
+    void doctorCannotAccessForeignVisitSummaryWhenSourceIdCollidesWithOwnPrescriptionId() throws Exception {
+        UUID collidingSourceId = UUID.fromString("00000000-0000-4000-8000-0000000000e2");
+        PatientDocument foreignVisitSummary = availableDocument(FOREIGN_DOCUMENT_ID, collidingSourceId);
+        Prescription ownPrescription = prescription(PATIENT_ID, DOCTOR_ID, "ACTIVE");
+        when(ownPrescription.getId()).thenReturn(collidingSourceId);
+        when(documentRepository.findByPatientIdOrderByGeneratedAtDesc(PATIENT_ID))
+                .thenReturn(List.of(foreignVisitSummary));
+        when(documentRepository.findByIdAndPatientId(FOREIGN_DOCUMENT_ID, PATIENT_ID))
+                .thenReturn(Optional.of(foreignVisitSummary));
+        when(medicalRecordRepository.findByPatientIdAndDoctorIdOrderByCreatedAtDesc(PATIENT_ID, DOCTOR_ID))
+                .thenReturn(List.of());
+        when(prescriptionRepository.findByPatientIdAndDoctorIdOrderByCreatedAtDesc(PATIENT_ID, DOCTOR_ID))
+                .thenReturn(List.of(ownPrescription));
+        stubDoctorRelationship(PATIENT_ID, DOCTOR_ID);
+
+        List<DocumentResponse> visible = service.listDocuments(PATIENT_ID, doctorPrincipal(DOCTOR_ID));
+        assertThat(visible).isEmpty();
+
+        assertThatThrownBy(() -> service.downloadDocument(
+                PATIENT_ID, FOREIGN_DOCUMENT_ID, doctorPrincipal(DOCTOR_ID)))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(objectStore, never()).get(anyString());
+    }
+
+    @Test
+    void patientCannotResolveBookingBeforePatientScopeAuthorization() throws Exception {
+        assertThatThrownBy(() -> service.downloadAppointmentReminderByBookingCode(
+                OTHER_PATIENT_ID, "FOREIGN-BOOKING", patientPrincipal()))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(appointmentRepository);
+        verify(objectStore, never()).get(anyString());
+    }
+
+    @Test
+    void nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization() throws Exception {
+        assertThatThrownBy(() -> service.downloadAppointmentReminderByBookingCode(
+                OTHER_PATIENT_ID, "FOREIGN-BOOKING", null))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verifyNoInteractions(appointmentRepository);
+        verify(objectStore, never()).get(anyString());
+    }
+
+    @Test
+    void cleanupMarkerFailurePreventsObjectWrite() throws Exception {
+        MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        PatientProfile patient = patientMock(PATIENT_ID);
+        User generator = userMock();
+        when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(generator));
+        when(patientProfileRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        List<DocumentStatus> savedStatuses = new ArrayList<>();
+        when(documentRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> {
+                    PatientDocument document = assignDocumentId(invocation.getArgument(0));
+                    savedStatuses.add(document.getStatus());
+                    return document;
+                });
+        doThrow(new RuntimeException("cleanup marker store down"))
+                .when(cleanupService).trackCandidate(anyString());
+
+        assertThatThrownBy(() -> service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("status")
+                .isEqualTo(503);
+
+        ArgumentCaptor<PatientDocument> saved = ArgumentCaptor.forClass(PatientDocument.class);
+        verify(documentRepository, times(2)).saveAndFlush(saved.capture());
+        assertThat(savedStatuses).containsExactly(DocumentStatus.PENDING, DocumentStatus.FAILED);
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
+    }
+
+    @Test
+    void capabilitiesCheckDeniesBeforeObjectStorePosture() {
+        assertThatThrownBy(() -> service.capabilities(OTHER_PATIENT_ID, patientPrincipal()))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(objectStore, never()).isConfigured();
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────

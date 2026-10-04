@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-10-04T15:13:32.625Z",
+  "target": "http://localhost:3330/",
+  "pageStatus": 200,
+  "cms_live_slot_error_present": false,
+  "consoleErrors": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "location": "http://localhost:3330/api/v1/auth/browser-sessions/current"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": "http://localhost:3330/api/v1/cms/content/homepage.sidebar?afterEventId=0"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "location": "http://localhost:3330/api/v1/cms/content/homepage.footer?afterEventId=0"
+    }
+  ],
+  "consoleWarnings": [
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:3330/_next/static/chunks/2vidt-vhni3qo.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "location": "http://localhost:3330/"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:3330/_next/static/chunks/1sqd9wrux1qv5.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "location": "http://localhost:3330/"
+    },
+    {
+      "type": "warning",
+      "text": "The resource http://localhost:3330/_next/static/chunks/2ff3sc2d_uxox.css was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "location": "http://localhost:3330/"
+    }
+  ],
+  "otherConsoleMessages": [],
+  "pageErrors": [],
+  "failedResponses": [
+    {
+      "url": "http://localhost:3330/api/v1/auth/browser-sessions/current",
+      "status": 401
+    },
+    {
+      "url": "http://localhost:3330/api/v1/cms/content/homepage.sidebar?afterEventId=0",
+      "status": 404
+    },
+    {
+      "url": "http://localhost:3330/api/v1/cms/content/homepage.footer?afterEventId=0",
+      "status": 404
+    }
+  ]
+}

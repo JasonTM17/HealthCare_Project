@@ -626,10 +626,22 @@ def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
 
     monkeypatch.setattr("app.main.resolve_chat", fake_resolve)
 
-    response = client.post("/chat", json={"message": "hello bạn", "public_support_chat": True})
+    response = client.post(
+        "/chat",
+        json={"message": "cho hỏi thông tin chung của bệnh viện", "public_support_chat": True},
+    )
 
     assert response.status_code == 200
     assert seen == {"context": [], "citations": [], "allow_public_operational": True}
+
+    # A pure greeting never reaches remote resolution at all: the
+    # deterministic greeting shortcut answers it without retrieval.
+    greeting = client.post("/chat", json={"message": "hello bạn", "public_support_chat": True})
+    assert greeting.status_code == 200
+    assert greeting.json()["routing_reason"] == "public_greeting_shortcut"
+    assert seen == {"context": [], "citations": [], "allow_public_operational": True}, (
+        "the greeting must not have re-entered remote resolution"
+    )
 
 
 def test_public_local_chat_uses_grounded_operational_source_when_identity_matches(

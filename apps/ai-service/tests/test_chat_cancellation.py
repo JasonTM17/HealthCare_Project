@@ -190,7 +190,7 @@ def test_real_client_disconnect_closes_fastapi_provider_socket(
             await asyncio.sleep(0.05)
         assert server.started
         body = json.dumps(
-            {"message": "Xin chào", "public_support_chat": True, "mode": "HOSPITAL_SUPPORT"}
+            {"message": "bệnh viện có những dịch vụ gì", "public_support_chat": True, "mode": "HOSPITAL_SUPPORT"}
         ).encode()
         _, writer = await asyncio.open_connection("127.0.0.1", port)
         writer.write(

@@ -28,6 +28,7 @@ import {
   subscribeToCatalogChange,
 } from "../../../lib/api-client";
 import { RichTextEditor, toStoredArticleBody } from "../../../components/editor";
+import { hasUnresolvedInlineUpload } from "../../../components/editor/RichContentRenderer";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { useSortableList } from "../../../lib/useSortableList";
 import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
@@ -864,6 +865,16 @@ export default function AdminCatalogPage() {
       const msg = "Clinical metadata phải là JSON object hợp lệ với các giá trị dạng chuỗi (key: value).";
       setFeedback({ tone: "error", title: "Metadata chưa hợp lệ", description: msg });
       addToast({ tone: "error", title: "Metadata chưa hợp lệ", message: msg });
+      return;
+    }
+
+    // A blob:/data: image URL means an upload is still in flight (or bypassed
+    // the upload handler); persisting it stores a permanently dead image, so
+    // the save waits for the author instead of stripping the URL silently.
+    if (hasUnresolvedInlineUpload(articleForm.body)) {
+      const msg = "Ảnh đang được tải lên, vui lòng chờ hoàn tất trước khi lưu.";
+      setFeedback({ tone: "error", title: "Ảnh chưa tải lên xong", description: msg });
+      addToast({ tone: "error", title: "Ảnh chưa tải lên xong", message: msg });
       return;
     }
 

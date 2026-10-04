@@ -10,6 +10,7 @@ import com.healthcare.clinical.entity.Prescription;
 import com.healthcare.clinical.repository.MedicalRecordRepository;
 import com.healthcare.clinical.repository.PrescriptionRepository;
 import com.healthcare.clinical.service.ClinicalAccessAuditService;
+import com.healthcare.document.dto.DocumentCapabilitiesResponse;
 import com.healthcare.document.dto.DocumentResponse;
 import com.healthcare.document.dto.GenerateDocumentRequest;
 import com.healthcare.document.entity.DocumentSourceType;
@@ -34,11 +35,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Synthetic clinical document generation, listing and authorized download
@@ -98,12 +102,20 @@ public class DocumentService {
     public record DocumentDownload(PatientDocument document, InputStream stream) {
     }
 
+    @Transactional(readOnly = true)
+    public DocumentCapabilitiesResponse capabilities(UUID patientId, UserDetails principal) {
+        authorizePatientScope(patientId, principal);
+        return new DocumentCapabilitiesResponse(objectStore.isConfigured());
+    }
+
     @Transactional(noRollbackFor = BusinessException.class)
     public DocumentResponse generateDocument(
             UUID patientId,
             GenerateDocumentRequest request,
             UserDetails principal) {
         authorizePatientScope(patientId, principal);
+        documentRepository.acquireGenerationLock(
+                "DOCUMENT_GENERATION:" + request.sourceType().name() + ":" + request.sourceRecordId());
         PatientProfile patient = patientProfileRepository.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
 
@@ -205,9 +217,9 @@ public class DocumentService {
             byte[] pdfBytes) {
         boolean objectUploaded = false;
         try {
+            cleanupService.trackCandidate(document.getObjectKey());
             objectStore.put(document.getObjectKey(), pdfBytes, DOCUMENT_CONTENT_TYPE);
             objectUploaded = true;
-            cleanupService.trackCandidate(document.getObjectKey());
         } catch (Exception exception) {
             if (objectUploaded) {
                 cleanupStoredObject(document.getObjectKey(), exception);
@@ -300,14 +312,29 @@ public class DocumentService {
                     .findByPatientIdOrderByGeneratedAtDesc(patientId);
             if (hasRole(principal, "DOCTOR")) {
                 // Doctors see only documents synthesized from records they issued.
-                Set<UUID> issuedSourceIds = issuedSourceIds(patientId, requireLinkedDoctor(principal));
+                Map<DocumentSourceType, Set<UUID>> issuedSourceIds =
+                        issuedSourceIds(patientId, requireLinkedDoctor(principal));
                 documents = documents.stream()
-                        .filter(document -> issuedSourceIds.contains(document.getSourceRecordId()))
+                        .filter(document -> issuedSourceIds
+                                .getOrDefault(document.getSourceType(), Set.of())
+                                .contains(document.getSourceRecordId()))
                         .toList();
             }
             auditService.record(principal, patientId, TARGET_DOCUMENT, patientId.toString(),
                 ClinicalAccessAuditService.ACTION_READ, ClinicalAccessAuditService.DECISION_ALLOW);
-            return documents.stream().map(this::toResponse).toList();
+            Set<UUID> reminderSourceIds = documents.stream()
+                    .filter(document -> document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER)
+                    .map(PatientDocument::getSourceRecordId)
+                    .collect(Collectors.toSet());
+            Map<UUID, Appointment> reminderSources = reminderSourceIds.isEmpty()
+                    ? Map.of()
+                    : appointmentRepository.findReminderSourcesWithDetails(patientId, reminderSourceIds)
+                            .stream()
+                            .collect(Collectors.toMap(Appointment::getId, appointment -> appointment));
+            return documents.stream()
+                    .map(document -> toResponse(document,
+                            reminderSources.get(document.getSourceRecordId())))
+                    .toList();
         } catch (AccessDeniedException exception) {
             auditService.record(principal, patientId, TARGET_DOCUMENT, patientId.toString(),
                 ClinicalAccessAuditService.ACTION_READ, ClinicalAccessAuditService.DECISION_DENY);
@@ -344,6 +371,22 @@ public class DocumentService {
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
             throw new BusinessException(409, "Tài liệu chưa sẵn sàng để tải xuống");
         }
+        if (document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER) {
+            Appointment appointment = appointmentRepository
+                    .findById(document.getSourceRecordId()).orElse(null);
+            boolean eligible = appointment != null
+                    && appointment.getPatient().getId().equals(patientId)
+                    && appointment.getStatus() != AppointmentStatus.CANCELLED
+                    && appointment.getStatus() != AppointmentStatus.NO_SHOW;
+            boolean current = eligible
+                    && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
+                            .equals(document.getIdempotencyKey());
+            if (!eligible || !current) {
+                auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
+                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+                throw new BusinessException(409, "Giấy nhắc hẹn đã lỗi thời; hãy tạo lại giấy nhắc mới");
+            }
+        }
         if (!objectStore.isConfigured()) {
             throw new BusinessException(503, "Kho đối tượng chưa được cấu hình");
         }
@@ -369,6 +412,7 @@ public class DocumentService {
     @Transactional(readOnly = true)
     public DocumentDownload downloadAppointmentReminderByBookingCode(
             UUID patientId, String bookingCode, UserDetails principal) {
+        authorizePatientScope(patientId, principal);
         Appointment appointment = appointmentRepository.findByBookingCode(bookingCode)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "No appointment found for booking code: " + bookingCode));
@@ -507,6 +551,10 @@ public class DocumentService {
                 || appointment.getStatus() == AppointmentStatus.NO_SHOW) {
             throw new BusinessException(409, "Chỉ lịch hẹn còn hiệu lực mới có thể kết xuất giấy nhắc hẹn");
         }
+        return appointmentReminderSnapshot(appointment);
+    }
+
+    private DocumentSnapshot appointmentReminderSnapshot(Appointment appointment) {
         DocumentSnapshot.AppointmentReminderPayload payload =
                 new DocumentSnapshot.AppointmentReminderPayload(
                         appointment.getBookingCode(),
@@ -516,10 +564,24 @@ public class DocumentService {
                         appointment.getBranch() != null ? appointment.getBranch().getName() : null,
                         appointment.getSpecialty() != null ? appointment.getSpecialty().getName() : null,
                         appointment.getReasonForVisit());
+        DocumentSnapshot base = new DocumentSnapshot(
+                DocumentSourceType.APPOINTMENT_REMINDER,
+                appointment.getId(),
+                0L,
+                SyntheticPdfRenderer.TEMPLATE_VERSION,
+                appointment.getPatient().getFullName(),
+                appointment.getPatient().getPhone(),
+                appointment.getDoctor().getFullName(),
+                appointment.getCreatedAt(),
+                null,
+                null,
+                payload);
+        String digest = snapshotCodec.sha256Hex(snapshotCodec.canonicalJson(base));
+        long sourceVersion = Math.max(1L, Long.parseLong(digest.substring(0, 13), 16));
         return new DocumentSnapshot(
                 DocumentSourceType.APPOINTMENT_REMINDER,
                 appointment.getId(),
-                sourceVersion(appointment.getCreatedAt()),
+                sourceVersion,
                 SyntheticPdfRenderer.TEMPLATE_VERSION,
                 appointment.getPatient().getFullName(),
                 appointment.getPatient().getPhone(),
@@ -613,16 +675,20 @@ public class DocumentService {
         throw new AccessDeniedException("Document access denied");
     }
 
-    private Set<UUID> issuedSourceIds(UUID patientId, Doctor doctor) {
-        Set<UUID> ids = new HashSet<>();
+    private Map<DocumentSourceType, Set<UUID>> issuedSourceIds(UUID patientId, Doctor doctor) {
+        Map<DocumentSourceType, Set<UUID>> ids = new EnumMap<>(DocumentSourceType.class);
         for (MedicalRecord record : medicalRecordRepository
                 .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, doctor.getId())) {
-            ids.add(record.getId());
+            ids.computeIfAbsent(DocumentSourceType.VISIT_SUMMARY, key -> new HashSet<>())
+                    .add(record.getId());
         }
         for (Prescription prescription : prescriptionRepository
                 .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, doctor.getId())) {
-            ids.add(prescription.getId());
+            ids.computeIfAbsent(DocumentSourceType.PRESCRIPTION, key -> new HashSet<>())
+                    .add(prescription.getId());
         }
+        ids.put(DocumentSourceType.APPOINTMENT_REMINDER,
+                new HashSet<>(appointmentRepository.findDocumentSourceIdsForDoctor(patientId, doctor.getId())));
         return ids;
     }
 
@@ -631,8 +697,10 @@ public class DocumentService {
             return;
         }
         if (hasRole(principal, "DOCTOR")) {
-            Set<UUID> issuedSourceIds = issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
-            if (issuedSourceIds.contains(document.getSourceRecordId())) {
+            Map<DocumentSourceType, Set<UUID>> issuedSourceIds =
+                    issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
+            if (issuedSourceIds.getOrDefault(document.getSourceType(), Set.of())
+                    .contains(document.getSourceRecordId())) {
                 return;
             }
         }
@@ -644,8 +712,10 @@ public class DocumentService {
             return;
         }
         if (hasRole(principal, "DOCTOR")) {
-            Set<UUID> issuedSourceIds = issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
-            if (issuedSourceIds.contains(document.getSourceRecordId())) {
+            Map<DocumentSourceType, Set<UUID>> issuedSourceIds =
+                    issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
+            if (issuedSourceIds.getOrDefault(document.getSourceType(), Set.of())
+                    .contains(document.getSourceRecordId())) {
                 return;
             }
         }
@@ -707,9 +777,12 @@ public class DocumentService {
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    static String buildIdempotencyKey(DocumentSnapshot snapshot) {
+    private String buildIdempotencyKey(DocumentSnapshot snapshot) {
+        String revision = snapshot.sourceType() == DocumentSourceType.APPOINTMENT_REMINDER
+                ? snapshotCodec.sha256Hex(snapshotCodec.canonicalJson(snapshot))
+                : Long.toString(snapshot.sourceVersion());
         return snapshot.sourceType().name() + ":" + snapshot.sourceRecordId()
-            + ":" + snapshot.sourceVersion() + ":" + snapshot.templateVersion();
+            + ":" + revision + ":" + snapshot.templateVersion();
     }
 
     private static long sourceVersion(OffsetDateTime updatedAt) {
@@ -729,6 +802,26 @@ public class DocumentService {
     }
 
     private DocumentResponse toResponse(PatientDocument document) {
+        if (document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER) {
+            return toResponse(document, appointmentRepository
+                    .findById(document.getSourceRecordId()).orElse(null));
+        }
+        return toResponse(document, null);
+    }
+
+    private DocumentResponse toResponse(PatientDocument document, Appointment reminderSource) {
+        Boolean sourceCurrent = null;
+        Boolean sourceEligible = null;
+        if (document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER) {
+            Appointment appointment = reminderSource;
+            sourceEligible = appointment != null
+                    && appointment.getPatient().getId().equals(document.getPatient().getId())
+                    && appointment.getStatus() != AppointmentStatus.CANCELLED
+                    && appointment.getStatus() != AppointmentStatus.NO_SHOW;
+            sourceCurrent = Boolean.TRUE.equals(sourceEligible)
+                    && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
+                            .equals(document.getIdempotencyKey());
+        }
         return new DocumentResponse(
                 document.getId(),
                 document.getPatient().getId(),
@@ -741,6 +834,8 @@ public class DocumentService {
                 document.getByteSize(),
                 document.getGeneratedBy().getId(),
                 document.getGeneratedAt(),
-                document.getRevokedAt());
+                document.getRevokedAt(),
+                sourceCurrent,
+                sourceEligible);
     }
 }

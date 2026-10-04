@@ -8,6 +8,7 @@ import { ApiError, fetchArticleBySlug } from "../../../lib/api-client";
 import { resolveArticleCategoryLabel } from "../../../lib/article-category";
 import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
+import { safeSiteOrigin } from "../../../lib/site-url";
 import type { Article } from "../../../types/hospital";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 import { RichContentRenderer } from "../../../components/editor";
@@ -29,6 +30,24 @@ function safeErrorCopy(reason: unknown): string {
     reason instanceof ApiError ? reason.code : undefined,
     reason instanceof ApiError ? reason.status : undefined,
   );
+}
+
+// Vietnamese author names carry the given name last and often open with
+// honorifics (BS., ThS., PGS.TS.), so the trailing two words are the safest
+// initials source. Falls back to the generic doctor glyph when no byline is
+// published.
+function authorInitials(name?: string | null): string {
+  if (!name) return "BS";
+  const words = name
+    .replace(/[^\p{L}\s]/gu, " ")
+    .split(/\s+/u)
+    .filter(Boolean);
+  const initials = words
+    .slice(-2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+  return initials || "BS";
 }
 
 function stringList(value: unknown): string[] {
@@ -107,7 +126,7 @@ export default function ArticleDetailPage() {
         name: article.title,
         headline: article.title,
         description: article.summary,
-        url: `https://www.healthcare.id.vn/articles/${article.slug}`,
+        url: `${safeSiteOrigin()}/articles/${article.slug}`,
         image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
         datePublished: article.publishedAt,
         dateModified: article.updatedAt || article.publishedAt,
@@ -118,7 +137,7 @@ export default function ArticleDetailPage() {
         publisher: {
           "@type": "MedicalOrganization",
           name: "Hệ thống Y tế Đa khoa HealthCare",
-          url: "https://www.healthcare.id.vn",
+          url: safeSiteOrigin(),
         },
       }
     : null;
@@ -191,7 +210,7 @@ export default function ArticleDetailPage() {
                 <div className="article-editorial-header__byline">
                   <div className="article-editorial-header__author">
                     <div className="article-editorial-header__avatar">
-                      <span>BS</span>
+                      <span>{authorInitials(article.authorName)}</span>
                     </div>
                     <div>
                       <div className="article-editorial-header__author-name">
@@ -447,7 +466,7 @@ export default function ArticleDetailPage() {
                   <div className="article-news-eatt-card__content">
                     <div className="article-news-eatt-card__doctor">
                       <div className="article-news-eatt-card__avatar">
-                        <span>BS</span>
+                        <span>{authorInitials(article.authorName)}</span>
                       </div>
                       <div>
                         <h4 className="article-news-eatt-card__name">{article.authorName || "Hội đồng Cố vấn Y khoa Chuyên sâu"}</h4>
@@ -500,7 +519,7 @@ export default function ArticleDetailPage() {
               <div className="article-news-sidebar__card article-news-sidebar__doctor">
                 <div className="article-news-sidebar__doctor-header">
                   <div className="article-news-sidebar__doctor-avatar">
-                    <span>BS</span>
+                    <span>{authorInitials(article.authorName)}</span>
                   </div>
                   <div>
                     <span className="article-news-sidebar__doctor-badge">BÁC SĨ THAM VẤN</span>

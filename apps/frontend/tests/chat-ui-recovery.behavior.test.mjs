@@ -171,7 +171,7 @@ after(async () => {
 
 const test = (name, fn) => nodeTest(name, { skip: !hasChromium ? "Playwright Chromium not installed" : false }, fn);
 
-async function mount(surface, setup = {}) {
+async function mount(surface, setup = {}, { expectComposer = true } = {}) {
   const page = await browser.newPage();
   page.setDefaultTimeout(4000);
   const errors = [];
@@ -182,6 +182,7 @@ async function mount(surface, setup = {}) {
   await page.evaluate(({ surface, setup }) => { Object.assign(chatFixture, setup); chatFixture.mount(surface); }, { surface, setup });
   if (surface === "floating") await page.getByRole("button", { name: "Mở trợ lý sức khỏe", exact: true }).click();
   const input = page.locator(surface === "patient" ? "#patient-chat-message" : "#floating-health-assistant-input");
+  if (!expectComposer) return { page, input, errors };
   await input.waitFor();
   await page.waitForFunction((selector) => !document.querySelector(selector)?.disabled,
     surface === "patient" ? "#patient-chat-message" : "#floating-health-assistant-input");
@@ -267,8 +268,24 @@ test("patient: canceled request finally cannot unlock a newer in-flight request"
   } finally { await page.close(); }
 });
 
+test("floating: anonymous visitors hit the login gate and cannot send", async () => {
+  const { page } = await mount("floating", { session: null }, { expectComposer: false });
+  try {
+    const gate = page.getByTestId("floating-assistant-login-gate");
+    await gate.waitFor();
+    assert.equal(await gate.getByRole("link", { name: "Đăng nhập", exact: true }).count(), 1);
+    assert.equal(await page.locator("#floating-health-assistant-input").count(), 0, "guest must not get a composer");
+    // Even a forced submit dispatch must not reach the transport.
+    await page.evaluate(() => {
+      const form = document.querySelector("form");
+      if (form) form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    assert.equal(await page.evaluate(() => chatFixture.sends.length), 0, "gate must block guest sends");
+  } finally { await page.close(); }
+});
+
 test("floating: synchronous duplicate submits create one send", async () => {
-  const { page, input } = await mount("floating", { session: null, holdPublic: true });
+  const { page, input } = await mount("floating");
   try {
     await input.fill("Câu hỏi không gửi trùng");
     await input.evaluate((node) => {

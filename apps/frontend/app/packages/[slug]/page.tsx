@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { packageVisualStyles } from "../../../components/PackageVisualCard";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
 import { fetchPackageBySlug } from "../../../lib/api-client";
+import { safeSiteOrigin } from "../../../lib/site-url";
 import { getPackageVisual } from "../../../lib/package-visuals";
 import type { HealthPackage } from "../../../types/hospital";
 import PackageBookingModal from "../../../components/PackageBookingModal";
@@ -50,7 +51,7 @@ export default function PackageDetailPage() {
         "@type": "MedicalProcedure",
         name: item.name,
         description: item.description || "Gói khám sức khỏe toàn diện tại Hệ thống Y tế HealthCare.",
-        url: `https://www.healthcare.id.vn/packages/${item.slug}`,
+        url: `${safeSiteOrigin()}/packages/${item.slug}`,
         image: visual ? [visual.imageSrc] : undefined,
         offers: {
           "@type": "Offer",
@@ -61,7 +62,7 @@ export default function PackageDetailPage() {
         provider: {
           "@type": "MedicalOrganization",
           name: "Hệ thống Y tế Đa khoa HealthCare",
-          url: "https://www.healthcare.id.vn",
+          url: safeSiteOrigin(),
         },
       }
     : null;

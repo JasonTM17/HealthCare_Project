@@ -1,0 +1,46 @@
+{
+  "schema": "healthcare.review-round.v1",
+  "round": 1,
+  "packet": "reports/local-audit-final-review-packet.json",
+  "identity": "dirty repaired snapshot v1; HEAD bbba6935851cdb630f5fd87717c47458a69e2d4e plus controller Git blob manifest",
+  "acceptance": "HOLD_FOR_REWORK",
+  "execution": {
+    "mode": "Genuine native subagent_explore contexts loading specialist role instructions",
+    "customProfiles": "Four .devin/agents profiles validated by devin doctor; current IDE only exposes built-in profiles, so wrappers declare the native Explore fallback",
+    "underlyingModel": "unknown",
+    "providerFamilyIndependence": false,
+    "productionQualification": false,
+    "r0Boundaries": "No reviewer edits, commands, DB/service calls, credentials, peer spawning, publication or release authority"
+  },
+  "completedRoles": [
+    {"role":"Advisor","scope":"Capability and acceptance counsel only; no product correctness verdict","originalDescriptionLoaded":true},
+    {"role":"Kongming","scope":"Architecture and first repaired-snapshot review","originalDescriptionLoaded":true,"gate":"HOLD_FOR_REWORK"},
+    {"role":"Wukong","scope":"Seven bounded source/supplied-evidence probes","originalDescriptionLoaded":true,"claimStatus":"INCONCLUSIVE","gate":"REPAIR_THEN_RETEST"},
+    {"role":"Code reviewer","scope":"First repaired snapshot, not final acceptance","originalDescriptionLoaded":true,"gate":"HOLD_FOR_REWORK"},
+    {"role":"AI safety reviewer","scope":"AI members and direct helpers","originalDescriptionLoaded":false,"gate":"HOLD_FOR_REWORK"},
+    {"role":"FE/CMS reviewer","scope":"Frontend/CMS members and direct helpers","originalDescriptionLoaded":true,"gate":"HOLD_FOR_REWORK"},
+    {"role":"BE authorization/concurrency reviewer","scope":"Backend document, lifecycle and storage boundaries","originalDescriptionLoaded":false,"gate":"HOLD_FOR_REWORK"}
+  ],
+  "cancelledAttempts": "Two early Wukong/code-review invocations were interrupted and were not counted; later native invocations completed",
+  "controllerAcceptedFindings": [
+    {"id":"AI-URL-TITLE","priority":"high","state":"SOURCE_DERIVED; execution confirmation requested","mechanism":"The temporary safety string stripped title URLs, while excerpt/citation rendering retained the raw title. Repair must validate title separately and only remove known renderer-stripped body URLs."},
+    {"id":"AI-BARE-STOP","priority":"high","state":"SOURCE_DERIVED; execution confirmation requested","mechanism":"The doctor-phrase mask did not require conditional preparation wording. Require the explicit conditional phrase and retain negative imperative controls."},
+    {"id":"AI-REFUSAL-COMMA","priority":"high","state":"SOURCE_DERIVED; execution confirmation requested","mechanism":"A broad preceding refusal/khong could excuse a comma-joined medication imperative without a listed contrastive word. Add strict direct-action rejection and preserve ordinary refusal/caution controls."},
+    {"id":"AI-OPERATIONAL-ROUTING","priority":"medium","state":"OBSERVED FAIL","mechanism":"One service-hours test remains red under hold=true. Controller design: simple authorized operational facts must render deterministically without consulting an injected provider. Assertions must not be weakened."},
+    {"id":"BE-POOL","priority":"high","state":"HYPOTHESIS; deterministic fresh-PostgreSQL execution requested","mechanism":"Same-source lock waiters can exhaust the main pool while the lock holder needs REQUIRES_NEW cleanup/audit connections. The two-caller green test does not settle pool-sized concurrency."},
+    {"id":"BE-REMINDER-FRESHNESS","priority":"medium","state":"SOURCE_DERIVED; reschedule/cancel regression requested","mechanism":"Reminder versioning uses immutable appointment.createdAt; mutable schedule fields are not reflected. Appointment has no updatedAt field, so a suggested getUpdatedAt fix is invalid."},
+    {"id":"FE-PDF-CAPABILITY","priority":"medium","state":"CONFIRMED static follow-up","mechanism":"Server-generated document controls are tied to the generic media-upload flag, not a document-specific capability. No security guard may be bypassed to hide this discrepancy."},
+    {"id":"BE-MARKER-WINDOW","priority":"medium","state":"SOURCE_DERIVED follow-up","mechanism":"Putting bytes before committing the cleanup marker leaves a failure window if marker persistence and immediate deletion both fail."}
+  ],
+  "controllerRejectedOrLimitedClaims": [
+    {"claim":"The documents page necessarily spins forever on indeterminate auth","judgment":"Not established; patient layout wraps children in PortalAccessGate, which already renders an indeterminate-session retry screen. No fix based only on page-level inspection."},
+    {"claim":"Installed Next.js guides do not exist","judgment":"Incorrect inference from a restricted search/read surface. The controller located exact guide paths, and the coding runtime read them successfully."},
+    {"claim":"Appointment reminder sourceVersion can use an existing updatedAt","judgment":"Incorrect for the inspected entity; no updatedAt field exists."},
+    {"claim":"Superseded or revoked stored objects should be deleted automatically","judgment":"Retention/product decision not settled. Do not mutate or delete retained user data to satisfy a reviewer assumption."},
+    {"claim":"The mask allows arbitrary aspirin dosage text followed by a doctor phrase","judgment":"Overstated: the actual regex permits only the explicit stop-medication phrase with optional loang mau, not arbitrary dosage words. The narrower bare-imperative counterexample remains valid to test."},
+    {"claim":"The first network capture proved a zero-byte PDF defect","judgment":"Withdrawn; actual downloaded bytes and authenticated fetch matched 660381 bytes, PDF magic and stored hash on the baseline local build."}
+  ],
+  "identityRecheck": "Controller rechecked the five active repair/test members after user IDE metadata and before the new rework brief; all matched v1. Full post-review manifest recheck and fresh identity are still required after rework.",
+  "nextGate": "Confirm new high-risk candidates through exact regression probes, apply consolidated cause-aligned rework, run broader local checks once, rebuild only the isolated audit application containers, execute real browser/PDF journeys, and obtain a fresh post-rework review.",
+  "production": "No commits, pushes, deployment or production database operations authorized or performed"
+}

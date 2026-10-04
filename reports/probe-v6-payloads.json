@@ -1,0 +1,13 @@
+[
+  {"tag":"adh-punct","message":"uống paracetamol theo đơn bác sĩ?","recent_turns":[]},
+  {"tag":"adh-longtail","message":"dùng kháng sinh theo đơn bác sĩ có được không","recent_turns":[]},
+  {"tag":"adh-comma","message":"uống paracetamol, theo đơn","recent_turns":[]},
+  {"tag":"adh-midmsg","message":"tôi đang uống paracetamol theo đơn rồi, còn câu hỏi khác","recent_turns":[]},
+  {"tag":"dose-before-verb","message":"mỗi ngày 2 viên, uống theo đơn","recent_turns":[]},
+  {"tag":"dose-drug-order","message":"ngày 2 viên paracetamol theo đơn","recent_turns":[]},
+  {"tag":"amenity-parking","message":"Cơ sở có bãi xe không?","recent_turns":[]},
+  {"tag":"amenity-pharmacy","message":"cơ sở có nhà thuốc không","recent_turns":[]},
+  {"tag":"or-districts","message":"cơ sở quận 1 hay quận 5?","recent_turns":[]},
+  {"tag":"anchor-referent","message":"Còn số điện thoại?","recent_turns":[{"role":"user","content":"Quận 7 mở cửa mấy giờ?"},{"role":"assistant","content":"Các cơ sở ở Quận 7 mở 06:30-20:00."}]},
+  {"tag":"protected-mix","message":"tôi đang sốt, địa chỉ cơ sở 4 là gì","recent_turns":[]}
+]

@@ -63,6 +63,10 @@ services:
         value: "18"
       - key: EMBEDDING_PROVIDER
         value: local
+      # Deterministic public-answer cache stays off on hosted render until
+      # reviewed; local compose enables it (infrastructure/docker-compose.yml).
+      - key: AI_PUBLIC_CHAT_CACHE_ENABLED
+        value: "false"
       - key: AI_SERVICE_RUNTIME
         value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
@@ -217,6 +221,13 @@ services:
         value: "false"
       - key: AI_SERVICE_CONNECT_TIMEOUT_MS
         value: "5000"
+      # Upstream read must stay below BOTH BFF deadlines: public chat 35s and
+      # patient chat 30s, each including lease-open <=3s. The previous 35s
+      # default could outlast the deadline so a valid slow answer always lost
+      # to the fallback/timeout. 26s still covers the internal turn budget
+      # (retrieve <=6s + generate <=18s = 24s).
+      - key: AI_SERVICE_READ_TIMEOUT_MS
+        value: "26000"
       # [L2] Spring-side key of the patient egress set (paired with the
       # healthcare-beta-ai flips above). application.yml:295 binds this to
       # AiConversationService, whose sanitize gate (:1559) otherwise rejects

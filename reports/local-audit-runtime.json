@@ -1,0 +1,54 @@
+{
+  "kind": "local-audit-runtime.v1",
+  "project": "healthcare-devin-local-audit",
+  "isolation": "fresh compose project with project-scoped volumes/networks; no other project's resources touched",
+  "buildIdentity": {
+    "buildVcsRef": "bbba6935851cdb630f5fd87717c47458a69e2d4e",
+    "provenance": "dirty working tree - identified by reports/local-audit-baseline.json manifest, NOT clean/release provenance",
+    "compose": "--env-file .env.example + reports/local-audit.compose.yaml + process env overrides (secrets generated in-process, never persisted)"
+  },
+  "up": { "exit": 0, "buildLog": "scratch/local-audit-build.log" },
+  "containers": [
+    "frontend-1 Up (healthy) 127.0.0.1:3330->3000",
+    "backend-1 Up (healthy) 127.0.0.1:8180->8080",
+    "ai-service-1 Up (healthy) 8000/tcp INTERNAL ONLY - no host publish; AI_SERVICE_HOST_PORT=8100 unused",
+    "attachment-scanner-1 Up (healthy) 8080/tcp internal only",
+    "postgres-1 Up (healthy) 127.0.0.1:5540->5432",
+    "redis-1 Up (healthy) 127.0.0.1:6390->6379",
+    "minio-1 Up (healthy) 127.0.0.1:9010->9000, 127.0.0.1:9011->9001",
+    "mailpit-1 Up (healthy) 127.0.0.1:1125->1025, 127.0.0.1:8125->8025",
+    "clamav-1 Up (healthy) 3310,7357 internal only",
+    "minio-init-1 exited 0; local-seed-1 exited 0 (synthetic fixture INSERTs applied)"
+  ],
+  "hostReadiness": {
+    "frontend_/": 200,
+    "backend_actuator_health": 200,
+    "ai_/livez": "NO_RESPONSE (unpublished port - expected, internal-only service)",
+    "ai_/api/v1/health": "NO_RESPONSE (same reason)",
+    "minio_health_live_9010": 200,
+    "mailpit_api_8125": 200,
+    "bucket healthcare-local-audit": "exists (anonymous probe 403)"
+  },
+  "baselineTests": {
+    "frontend_node_test": { "files": 5, "pass": 34, "fail": 0, "log": "scratch/local-audit-frontend-tests.log" },
+    "backend_unit": { "classes": 6, "run": 95, "failures": 0, "errors": 0, "jdk": 24, "jdk21": "absent - only JDK 17.0.17 (Microsoft), JDK 24, JDK 26 installed; ran on JAVA_HOME jdk-24 with -release 21", "log": "scratch/local-audit-backend-tests.log" },
+    "backend_integration": { "test": "DocumentGenerationIntegrationTest", "run": 2, "failures": 0, "db": "fresh Testcontainers PostgreSQL 16.15, 111 Flyway migrations, object storage mocked", "log": "scratch/local-audit-backend-it.log" },
+    "ai_pytest": { "files": 5, "passed": 317, "failed": 14, "allFailuresIn": "tests/test_chatbot_contract.py (public-branch grounding: provenance local vs remote_provider; fabricated contact data not rejected; INSUFFICIENT_EVIDENCE vs ANSWER)", "env": "AI_PROVIDER=local, EMBEDDING_PROVIDER=local, RAG_STORAGE_BACKEND=memory, AI_SERVICE_RUNTIME=test, remote providers empty/disabled, kill+hold true", "log": "scratch/local-audit-ai-tests.log" }
+  },
+  "agentHelp": ["reports/local-audit-ak-help.txt", "reports/local-audit-claude-help.txt"],
+  "pdfSmokePrerequisites": {
+    "stackReady": true,
+    "auth": "demo login enabled (HEALTHCARE_DEMO_LOGIN_ALLOWED=true), seeded patients from local-seed",
+    "upload": "POST /documents via BFF :3330 (same-origin) or backend :8180 -> DocumentService -> MinioDocumentObjectStore",
+    "storage": "bucket healthcare-local-audit on 127.0.0.1:9010 exists",
+    "av": "STORAGE_AV_REQUIRED=true; clamav + attachment-scanner healthy on internal network",
+    "download": "GET document binary; verify %PDF magic/bytes",
+    "notDone": "no reseed/manual SQL/browser journey beyond readiness probes - awaiting exact probes from lead"
+  },
+  "limitations": [
+    "Secret values generated only inside the bring-up exec process and not persisted (no PTY on Windows; exec calls are separate processes). Later compose management commands can re-source scratch/local-audit-env.ps1 with fresh placeholders - fine for ps/logs/exec/restart, but a future 'up'/recreate would generate different secrets; lead to decide if needed.",
+    "JDK 21 not installed; backend unit/integration tests ran on JDK 24 (Maven runtime) compiling -release 21.",
+    "ai-service not host-reachable; health verified via docker healthcheck only.",
+    "Integration test mocks object storage; no real PDF bytes exercised yet."
+  ]
+}

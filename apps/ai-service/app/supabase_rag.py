@@ -742,12 +742,19 @@ class SupabaseRagStore:
         embedding_model: str = "provided",
         embedding_provenance: ProviderProvenance = "local_provider",
     ) -> list[tuple[RagDocument, float]]:
-        """Use the migration's bounded SECURITY INVOKER hybrid RPC."""
+        """Use the migration's bounded SECURITY INVOKER hybrid RPC.
+
+        The fifth RPC parameter is ``projection_filter`` (``NULL``, ``'OPERATIONAL'``
+        or ``'CLINICAL'``), not free query text. Passing the user's message here
+        made ``d.projection_kind = upper(:message)`` never match, so every filtered
+        search returned zero rows and callers had to pay an unfiltered retry.
+        Projection eligibility is enforced by the Python-side mode gates either
+        way, so the search passes ``NULL`` and stays one round trip.
+        """
 
         embedding = vector_literal(query_embedding, self.config.embedding_dimension)
         if len(query_text) > MAX_INPUT_CHARS:
             raise SupabaseRagContractError("RAG query exceeds the maximum input size")
-        normalized_query_text = query_text.strip()
         bounded_top_k = max(1, min(int(top_k), 20))
         bounded_threshold = max(-1.0, min(float(match_threshold), 1.0))
         filters = list(source_types) if source_types else None
@@ -767,7 +774,7 @@ class SupabaseRagStore:
             with connection.cursor() as cursor:
                 cursor.execute(
                     sql,
-                    (embedding, bounded_threshold, bounded_top_k, filters, normalized_query_text),
+                    (embedding, bounded_threshold, bounded_top_k, filters, None),
                 )
                 rows = cursor.fetchall()
         results: list[tuple[RagDocument, float]] = []

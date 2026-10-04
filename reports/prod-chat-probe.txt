@@ -1,0 +1,4 @@
+[Địa chỉ của Cơ sở 4 là gì?] 1.2s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, quận/thành phố hoặ
+[Số điện thoại Cơ sở 17?] 0.4s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, quận/thành phố hoặ
+[cơ sở có bãi xe không?] 0.4s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, quận/thành phố hoặ
+[uống paracetamol theo đơn bác sĩ?] 6.3s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Tôi có thể hỗ trợ định hướng thông tin sức khỏe ở mức tham khảo. Bạn hãy mô tả rõ triệu chứng, thời gian xuất 

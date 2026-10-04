@@ -298,7 +298,7 @@ export default function DoctorCarePlansPage() {
     <div className="section-inner portal-page">
       <header className="portal-hero">
         <div>
-          <p className="section-note">FOLLOW-UP CARE</p>
+          <p className="section-note">CHĂM SÓC SAU KHÁM</p>
           <h1>Kế hoạch chăm sóc</h1>
           <p>Tạo checklist mục tiêu và lời nhắc gắn đúng lịch hẹn. Không nhập đơn thuốc, chẩn đoán hay hướng dẫn điều trị tự động.</p>
         </div>

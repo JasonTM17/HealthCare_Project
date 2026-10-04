@@ -156,7 +156,7 @@ public class PublicAiChatController {
         payload.put("mode", publicMode.name());
         boolean protectedInput = ChatMedicalSafety.containsProtectedInputCue(userMessage);
         if (!protectedInput) {
-            Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage);
+            Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage, recentTurns);
             if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
         }
         if (!protectedInput
@@ -596,6 +596,15 @@ public class PublicAiChatController {
         }
         ChatSuggestedActionResolver.HospitalSupportIntent intent =
             ChatSuggestedActionResolver.classify(userMessage);
+        // Before the static navigation copy, try a short live list from the
+        // same Spring catalog: a broad CATALOG/BRANCH/DOCTOR question is more
+        // useful answered with real branch/doctor rows than with a deferral
+        // to the page the visitor is already asking about. Citations and
+        // actions are built from those live rows through the verified
+        // builders, so revalidation passes; an empty or unavailable catalog
+        // keeps the previous static copy (fail-soft).
+        Map<String, Object> liveList = publicCatalogListAnswer(userMessage, intent, routingReason);
+        if (liveList != null) return liveList;
         String answer = switch (intent) {
             case GREETING -> {
                 if (ChatSuggestedActionResolver.isIdentityQuestion(userMessage)) {
@@ -638,6 +647,83 @@ public class PublicAiChatController {
         result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
         result.put("safety_action", "ANSWER");
         result.put("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", routingReason);
+        return result;
+    }
+
+    /** Same bounded row budget as the branch-hours overview answer. */
+    private static final int MAX_CATALOG_LIST_ROWS = 4;
+
+    /**
+     * Short live-list answer for the three broad-navigation intents, built
+     * from the current active Spring catalog: CATALOG/BRANCH list the active
+     * branches, DOCTOR lists active doctors filtered by the specialty keyword
+     * in the question. The answer text names only rows returned by the
+     * resolver, and citations/actions come from those same rows through the
+     * existing verified builders. An empty or unavailable catalog returns
+     * {@code null} so the caller falls back to the static navigation copy.
+     */
+    private Map<String, Object> publicCatalogListAnswer(
+            String userMessage,
+            ChatSuggestedActionResolver.HospitalSupportIntent intent,
+            String routingReason) {
+        List<AiChatSourceResolver.ResolvedSource> sources = null;
+        String answer = null;
+        try {
+            if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG
+                    || intent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
+                List<AiChatSourceResolver.BranchDetails> branches =
+                    sourceResolver.activeBranchOverview(MAX_CATALOG_LIST_ROWS);
+                if (branches != null && !branches.isEmpty()) {
+                    List<String> labels = new ArrayList<>();
+                    List<AiChatSourceResolver.ResolvedSource> resolved = new ArrayList<>();
+                    for (AiChatSourceResolver.BranchDetails branch : branches) {
+                        if (branch == null || branch.source() == null) continue;
+                        labels.add(branch.source().title());
+                        resolved.add(branch.source());
+                    }
+                    if (!labels.isEmpty()) {
+                        sources = resolved;
+                        answer = "Theo dữ liệu cơ sở đang hoạt động, hiện HealthCare có các cơ sở sau: "
+                            + String.join("; ", labels)
+                            + ". Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.";
+                    }
+                }
+            } else if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.DOCTOR) {
+                List<AiChatSourceResolver.ResolvedSource> doctors =
+                    sourceResolver.activeDoctorOverview(MAX_CATALOG_LIST_ROWS, userMessage);
+                if (doctors != null && !doctors.isEmpty()) {
+                    List<String> labels = doctors.stream()
+                        .map(AiChatSourceResolver.ResolvedSource::title)
+                        .filter(value -> value != null && !value.isBlank())
+                        .toList();
+                    if (!labels.isEmpty()) {
+                        sources = doctors;
+                        answer = "Theo dữ liệu đang hoạt động, một số bác sĩ phù hợp với yêu cầu của bạn: "
+                            + String.join("; ", labels)
+                            + ". Bạn có thể mở nguồn bên dưới để xem thông tin và đặt lịch khám.";
+                    }
+                }
+            }
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+        if (sources == null || answer == null) return null;
+        List<Map<String, String>> citations = verifiedOperationalCitations(sources);
+        if (citations.isEmpty()) return null;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("answer", answer);
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", citations);
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", publicViewActions(sources, userMessage));
         result.put("costTier", "local_free");
         result.put("routingReason", routingReason);
         return result;
@@ -818,11 +904,13 @@ public class PublicAiChatController {
      * a query about Cơ sở 2), so a specific operational lookup must be decided
      * by the live Spring catalog first.
      */
-    private Map<String, Object> publicSpecificBranchResponse(String userMessage) {
-        if (ChatSuggestedActionResolver.classify(userMessage)
-                != ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
-            return null;
-        }
+    private Map<String, Object> publicSpecificBranchResponse(
+            String userMessage,
+            List<Map<String, String>> recentTurns) {
+        boolean branchIntent = ChatSuggestedActionResolver.classify(userMessage)
+                == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH;
+        boolean followupCue = sourceResolver.hasBranchAttributeCue(userMessage);
+        if (!branchIntent && !followupCue) return null;
         if (ChatMedicalSafety.containsProtectedInputCue(userMessage)) {
             // Let the AI service's input safety guard decide emergency,
             // refusal, or clinical guidance before any catalog shortcut.
@@ -834,6 +922,23 @@ public class PublicAiChatController {
         try {
             specific = sourceResolver.isSpecificBranchQuery(userMessage);
             matches = sourceResolver.branchDetails(userMessage);
+            if (!specific && (matches == null || matches.isEmpty()) && followupCue) {
+                // A follow-up like "Còn số điện thoại thì sao?" carries the
+                // question but not the identity; resolve the branch from the
+                // last user turn that actually named one.  Only a message
+                // without its own explicit identity may borrow a referent —
+                // a named-but-unresolvable branch must fail closed, not
+                // silently substitute an older branch's details.
+                String referent = sourceResolver.latestSpecificBranchUserTurn(recentTurns);
+                if (referent != null) {
+                    List<AiChatSourceResolver.BranchDetails> contextual =
+                        sourceResolver.branchDetails(referent);
+                    specific = true;
+                    if (contextual != null && !contextual.isEmpty()) {
+                        matches = contextual;
+                    }
+                }
+            }
         } catch (RuntimeException ignored) {
             return publicBranchUnavailable(userMessage);
         }
@@ -894,7 +999,8 @@ public class PublicAiChatController {
         if (citations.isEmpty()
                 || !validPublicText(source.title(), MAX_CITATION_TITLE_LENGTH)
                 || (branch.address() != null && !validPublicText(branch.address(), 500))
-                || (branch.workingHours() != null && !validPublicText(branch.workingHours(), 255))) {
+                || (branch.workingHours() != null && !validPublicText(branch.workingHours(), 255))
+                || (branch.phone() != null && !validPublicText(branch.phone(), 100))) {
             return null;
         }
 
@@ -904,6 +1010,9 @@ public class PublicAiChatController {
         String hours = branch.workingHours() == null
             ? "Giờ làm việc đang cập nhật; bạn nên kiểm tra lại trước khi đến."
             : "Giờ làm việc: " + branch.workingHours() + ".";
+        String phone = branch.phone() == null
+            ? "Điện thoại đang cập nhật."
+            : "Điện thoại: " + branch.phone() + ".";
         List<Map<String, String>> actions;
         try {
             actions = sourceResolver.actions(List.of(source));
@@ -918,7 +1027,7 @@ public class PublicAiChatController {
         result.put(
             "answer",
             "Theo dữ liệu cơ sở đang hoạt động, " + source.title() + ". "
-                + address + " " + hours
+                + address + " " + phone + " " + hours
                 + " Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.");
         result.put(
             "disclaimer",

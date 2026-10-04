@@ -141,7 +141,9 @@ test("public live slot gates the SSE change feed behind liveFeed and polls while
   assert.match(liveSlot, /addEventListener\("visibilitychange", handleVisibilityChange\)/);
   assert.match(liveSlot, /removeEventListener\("visibilitychange", handleVisibilityChange\)/);
   assert.match(liveSlot, /if \(liveFeed\) \{[\s\S]{0,400}startSafetyPolling\(\)/);
-  assert.match(liveSlot, /\[backendSlotKey, client, pollIntervalMs, liveFeed\]/);
+  // inlineSaveTick re-runs the live loop right after an admin inline save so
+  // the author sees the published change without waiting for a poll tick.
+  assert.match(liveSlot, /\[backendSlotKey, client, pollIntervalMs, liveFeed, inlineSaveTick\]/);
   assert.match(liveSlot, /sseConnected/);
   assert.match(liveSlot, /pendingVersionFloor/);
   assert.match(liveSlot, /refresh\(event\.version, event\.eventId\)/);
@@ -162,7 +164,15 @@ test("public live slot gates the SSE change feed behind liveFeed and polls while
   assert.match(liveSlot, /setError\(new CmsApiError\("not-found", 404/);
   assert.match(liveSlot, /CmsReconciliationLedger/);
   assert.match(liveSlot, /hideOnError\?: boolean/);
-  assert.match(liveSlot, /hideOnError && !loading && !content && error && fallback === undefined/);
+  // hideOnError may only hide a genuinely unpublished slot silently; every
+  // other failure is a real outage and must emit exactly one content-free
+  // console.warn per (slotKey, status) before falling back or going empty.
+  // The dedupe ref is read inside an effect — refs must not be touched in render.
+  assert.match(liveSlot, /hideOnError && !loading && !content && error && fallback === undefined\) return <><\/>;/);
+  assert.match(liveSlot, /warnedSlotErrorKeys/);
+  assert.match(liveSlot, /error instanceof CmsApiError && error\.kind === "not-found"\) return;/);
+  assert.match(liveSlot, /console\.warn\("cms_live_slot_error", \{ slotKey: backendSlotKey, status \}\)/);
+  assert.match(liveSlot, /\[hideOnError, loading, content, error, backendSlotKey\]/);
   assert.equal((routeSlots.match(/hideOnError/g) ?? []).length, 3);
   assert.match(liveSlot, /reconciliation\.observe\(event\.eventId\)/);
   assert.match(liveSlot, /acknowledgeThrough/);

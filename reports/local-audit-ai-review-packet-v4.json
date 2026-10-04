@@ -1,0 +1,27 @@
+{
+  "schema":"healthcare.ai-corrected-snapshot.v4",
+  "frozen":true,
+  "scope":"Four fixed AI source/test members and directly required helpers; no mutable frontend/backend/runtime review",
+  "sourceManifest":[
+    {"path":"apps/ai-service/app/chatbot.py","gitBlob":"3cca937c6b91187fed5711eb02ac8e12d9cd5058"},
+    {"path":"apps/ai-service/app/llm.py","gitBlob":"74a5c93958156bb4e3ba6eb66681faaaf6e5dcf3"},
+    {"path":"apps/ai-service/tests/test_chatbot_contract.py","gitBlob":"726d71e7cabb52ccecc37c0a30300f2856742f14"},
+    {"path":"apps/ai-service/tests/test_llm.py","gitBlob":"7c283077d35d217eb42f29d1a65445ad12bd1097"}
+  ],
+  "identity":"Controller Git blob SHA-1 manifest; dirty working source over HEAD bbba6935851cdb630f5fd87717c47458a69e2d4e",
+  "authority":"Read-only source/captured evidence; no edits, commands, services, secrets, DB queries, peers, commits, push or release approval",
+  "modelRoute":"Separate native Explore context; underlying model unknown; no provider-family independence or production qualification",
+  "profilePolicy":"Directly read exact project descriptions before claiming loaded. An ignored-file glob/read failure is a capability limit, not proof that a profile is absent. No denied-file relaying or mirror substitution.",
+  "falsifiableClaim":"Both the forbidden-match CATEGORY and its immediately bounded negated-action PREFIX are required for refusal excusal. Only the seven exact clinical-action verb phrases can be excused. Diagnosis assertions, dosage labels, strength matches, URLs/IDs and prescription nouns cannot inherit an earlier refusal. Ordinary/enumerated refusal, negated caution, conditional doctor-directed preparation and hydration controls remain usable.",
+  "rootRepair":"_REFUSABLE_CLINICAL_ACTIONS verb-only set plus _CLINICAL_REFUSAL_PREFIX_PATTERN. No growing blacklist for each counterexample, no prompt/score/threshold/data-pipeline or medical-authority change. Existing raw source PII/injection, body-versus-title handling, local operational facts, approval/citation and remote egress gates retained.",
+  "primaryEvidence":[
+    {"path":"reports/local-audit-ai-refusal-boundary-probe.json","state":"Original three confirmed comma/refusal diagnosis or bare-dose local echoes"},
+    {"path":"reports/local-audit-ai-refusal-boundary-confirmation.json","state":"Controller confirmed those three previously failing paths fail closed after the prefix repair"},
+    {"path":"reports/local-audit-ai-refusal-keyword-probe.json","state":"Controller confirmed dosage-label and first-person-assertion variants on prior v3; three more local echoes, not mere hypotheses"},
+    {"path":"reports/local-audit-ai-refusal-keyword-confirmation.json","state":"Controller fresh local generation/helper confirmation after the verb-category repair"},
+    {"path":"reports/local-audit-v4-ai-pytest.txt","state":"Actual offline framework stdout: 882 passed, eight deprecation warnings; local/memory/fake provider only"}
+  ],
+  "budget":{"maximumStaticProbes":7,"requireCompetingHypotheses":true,"newHighSeverityFindingsNeedFreshExecution":true},
+  "reviewFocus":"Read full relevant source and tests; verify the category-plus-prefix rule, retained controls, title/body handling, unsafe-source refusal, exact citations and closed clinical/remote authority. Do not invent a passing full-provider or exhaustive-vocabulary claim. Proposed counterexamples need an execution gate before confirmation.",
+  "limits":["No live paid provider or production","Running AI image rebuild not yet bound to this source at packet creation","Backend full JDK21 suite and frontend live checks continue separately","Hashing unavailable to reviewer; controller rechecks all members","No universal diagnosis/medication-vocabulary guarantee or model-family-independent production sign-off"]
+}

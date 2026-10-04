@@ -1,0 +1,16 @@
+{
+  "schema":"healthcare.local-browser-download.v1",
+  "observer":"Team Lead",
+  "origin":"http://localhost:3330",
+  "inputArtifact":"reports/local-audit-repaired-browser-fetch-pdfs.json",
+  "inputPolicy":"Read the previously captured available document classes and sizes; did not regenerate sources or recompute the original delivered measurement for presentation.",
+  "method":"Patient document UI button -> actual browser Download event -> failure() -> createReadStream() -> complete bytes/hash/magic/filename comparison -> saved actual PDF file",
+  "result":"PASS for three real patient UI file downloads on the repaired build",
+  "documents":[
+    {"alias":"visit-summary.pdf","sourceType":"VISIT_SUMMARY","actualDownloadedBytes":660381,"byteSizeMatches":true,"sha256Matches":true,"magic":"%PDF-","filenamePrefixMatches":true,"downloadFailure":null},
+    {"alias":"prescription.pdf","sourceType":"PRESCRIPTION","actualDownloadedBytes":660049,"byteSizeMatches":true,"sha256Matches":true,"magic":"%PDF-","filenamePrefixMatches":true,"downloadFailure":null},
+    {"alias":"appointment-reminder.pdf","sourceType":"APPOINTMENT_REMINDER","actualDownloadedBytes":660000,"byteSizeMatches":true,"sha256Matches":true,"magic":"%PDF-","filenamePrefixMatches":true,"downloadFailure":null}
+  ],
+  "notProven":["PDF structural parsing until verifier executes","Fresh clinical fixture and issuing-doctor/admin real scope matrix","Arbitrary object corruption/tamper prevention","Whole-project or production readiness"],
+  "authority":"Owned local browser context only, no root dotenv/secret capture, no data deletion, no production or external mutation; the test-created download files are retained for user inspection."
+}

@@ -128,7 +128,10 @@ class BankTransferPaymentStateMachineTest {
             .thenReturn(Optional.of(appointment));
         when(paymentRepository.findByAppointmentId(APPOINTMENT_ID)).thenReturn(Optional.of(payment));
         when(paymentRepository.findByAppointmentIdForUpdate(APPOINTMENT_ID)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findById(PAYMENT_ID)).thenReturn(Optional.of(payment));
         when(paymentRepository.findByIdForUpdate(PAYMENT_ID)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findAppointmentIdByTransferContent(TRANSFER_CONTENT))
+            .thenReturn(Optional.of(APPOINTMENT_ID));
         when(paymentRepository.findByTransferContentForUpdate(TRANSFER_CONTENT)).thenReturn(Optional.of(payment));
         when(paymentRepository.save(any(BankTransferPayment.class))).thenAnswer(call -> call.getArgument(0));
         when(claimService.claimedUserIds(APPOINTMENT_ID)).thenReturn(List.of());
@@ -315,6 +318,98 @@ class BankTransferPaymentStateMachineTest {
                 new RefundBankTransferRequest("REFUND-0002"), adminPrincipal))
             .isInstanceOfSatisfying(ResponseStatusException.class,
                 ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    @DisplayName("review takes the appointment lock before the payment lock — the sweep's canonical order")
+    void reviewLocksAppointmentBeforePayment() {
+        submit(REFERENCE, "key-1");
+
+        review(ReviewBankTransferRequest.Decision.VERIFY, null);
+
+        // Deterministic order check only: the live AB-BA interleaving proof is
+        // the Team Lead's container run, not a unit test.
+        org.mockito.InOrder lockOrder =
+            org.mockito.Mockito.inOrder(appointmentRepository, paymentRepository);
+        lockOrder.verify(paymentRepository).findById(PAYMENT_ID);
+        lockOrder.verify(appointmentRepository).findByIdWithDetailsForUpdate(APPOINTMENT_ID);
+        lockOrder.verify(paymentRepository).findByIdForUpdate(PAYMENT_ID);
+    }
+
+    @Test
+    @DisplayName("A cancelled appointment returns the committed payment row instead of a conflict")
+    void getForPatientReturnsCommittedPaymentAfterCancellation() {
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        payment.setStatus(PaymentStatus.REFUND_PENDING);
+
+        var response = service.getForPatient(APPOINTMENT_ID, patientPrincipal);
+
+        assertThat(response.status()).isEqualTo(PaymentStatus.REFUND_PENDING);
+    }
+
+    @Test
+    @DisplayName("A cancelled appointment with no payment still conflicts on first creation")
+    void getForPatientStillConflictsOnCancelledAppointmentWithoutPayment() {
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        when(paymentRepository.findByAppointmentId(APPOINTMENT_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getForPatient(APPOINTMENT_ID, patientPrincipal))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    @DisplayName("An ended appointment can never become payable: COMPLETED rejects submit")
+    void completedAppointmentRejectsSubmit() {
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+
+        assertThatThrownBy(() -> submit(REFERENCE, "key-1"))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(ex.getReason()).contains("kết thúc");
+            });
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.UNPAID);
+    }
+
+    @Test
+    @DisplayName("VERIFY on a completed appointment conflicts instead of authorizing PAID")
+    void verifyBlockedForCompletedAppointment() {
+        submit(REFERENCE, "key-1");
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+
+        assertThatThrownBy(() -> review(ReviewBankTransferRequest.Decision.VERIFY, null))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING_VERIFICATION);
+    }
+
+    @Test
+    @DisplayName("A key already bound to a different payment conflicts instead of violating the unique index")
+    void keyBoundToAnotherPaymentConflicts() {
+        BankTransferPayment other = new BankTransferPayment();
+        ReflectionTestUtils.setField(other, "id",
+            UUID.fromString("eeeeeeee-5555-5555-5555-555555555555"));
+        when(paymentRepository.findBySubmissionIdempotencyKey("key-other"))
+            .thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() -> submit(REFERENCE, "key-other"))
+            .isInstanceOfSatisfying(ResponseStatusException.class, ex -> {
+                assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(ex.getReason()).contains("đã được dùng cho yêu cầu thanh toán khác");
+            });
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.UNPAID);
+    }
+
+    @Test
+    @DisplayName("Webhook on a completed appointment conflicts — ended visits never take payments")
+    void webhookOnCompletedAppointmentConflicts() {
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+
+        assertThatThrownBy(() -> service.confirmFromWebhook(
+                new BankTransferWebhookRequest(TRANSFER_CONTENT, AMOUNT, REFERENCE), "evt-4"))
+            .isInstanceOfSatisfying(ResponseStatusException.class,
+                ex -> assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.UNPAID);
     }
 
     private com.healthcare.payment.dto.BankTransferPaymentResponse submit(String reference, String key) {

@@ -29,6 +29,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Sequence
+import unicodedata
 
 # Ensure UTF-8 output on Windows terminal
 if sys.platform == "win32":
@@ -43,6 +44,13 @@ if sys.platform == "win32":
 # -----------------------------------------------------------------------------
 DEFAULT_INPUT_FILE = Path("supabase/tools/data/clinical_knowledge.json")
 DEFAULT_OUTPUT_SQL = Path("supabase/seed_clinical_knowledge.sql")
+# LEGACY target: `ai_documents` is the retired public-lane table. The chat
+# knowledge base reads `healthcare.ai_chat_documents`, which is only writable
+# through the governed path (POST /rag/index with an approved clinical
+# projection, or the Spring AiClinicalProjectionIndexService sync). Rows
+# seeded here do NOT appear in chat answers — retargeting this tool at
+# ai_chat_documents requires schema-aware projection metadata, not just a
+# table-name swap.
 DEFAULT_TABLE = "healthcare.ai_documents"
 EMBEDDING_DIMENSION = 384
 DEFAULT_MODEL = "local-hash"
@@ -155,18 +163,29 @@ def compute_content_hash(text: str) -> str:
 # -----------------------------------------------------------------------------
 # Deterministic 384-dimensional Embeddings
 # -----------------------------------------------------------------------------
+def _fold_text(text: str) -> str:
+    """Fold case and Vietnamese diacritics into one canonical form.
+
+    Matching ``apps/ai-service/app/embeddings.py``.
+    """
+    decomposed = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
+    stripped = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
+    return stripped.casefold()
+
+
 def _local_embedding(text: str, dimension: int = EMBEDDING_DIMENSION) -> list[float]:
     """Deterministic, dependency-free embedding matching ``apps/ai-service/app/embeddings.py``.
 
+    v2 fixes two defects: position independence and Vietnamese diacritic folding.
     Generates a 384-dimensional unit vector using SHA-256 word hashing with zero
     heavy external dependencies (no PyTorch, no transformers).
     """
     vec = [0.0] * dimension
-    for i, word in enumerate(text.casefold().split()):
-        hashed = hashlib.sha256(f"{i}:{word}".encode("utf-8")).digest()
-        for j in range(min(4, dimension)):
-            index = (i * 4 + j) % dimension
-            vec[index] += (hashed[j] - 128) / 128.0
+    for token in sorted(_fold_text(text).split()):
+        digest = hashlib.sha256(token.encode("utf-8")).digest()
+        for j in range(8):
+            index = int.from_bytes(digest[2 * j : 2 * j + 2], "big") % dimension
+            vec[index] += (digest[16 + j] - 128) / 128.0
     norm = math.sqrt(sum(value * value for value in vec)) or 1.0
     return [value / norm for value in vec]
 

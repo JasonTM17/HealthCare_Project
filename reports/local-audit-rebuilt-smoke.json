@@ -1,0 +1,105 @@
+{
+  "probe": "rebuilt-stack-smoke",
+  "base": "http://localhost:3330",
+  "generatedAt": "2026-10-04T16:51:06.704Z",
+  "pages": [
+    {
+      "path": "/",
+      "docStatus": 200,
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "pageErrors": [],
+      "badResponses": [
+        {
+          "url": "http://localhost:3330/api/v1/auth/browser-sessions/current",
+          "status": 401
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/homepage.footer?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/homepage.sidebar?afterEventId=0",
+          "status": 404
+        }
+      ],
+      "heroImg": {
+        "src": "/_next/image?url=%2Fmedia%2Fhospital-team-landscape.jpg&w=3840&q=75",
+        "naturalWidth": 588,
+        "naturalHeight": 391
+      }
+    },
+    {
+      "path": "/articles",
+      "docStatus": 200,
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "pageErrors": [],
+      "badResponses": [
+        {
+          "url": "http://localhost:3330/api/v1/auth/browser-sessions/current",
+          "status": 401
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/articles.sidebar?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/articles.hero?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/articles.footer?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/articles.body?afterEventId=0",
+          "status": 404
+        }
+      ]
+    },
+    {
+      "path": "/contact",
+      "docStatus": 200,
+      "consoleErrors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ],
+      "pageErrors": [],
+      "badResponses": [
+        {
+          "url": "http://localhost:3330/api/v1/auth/browser-sessions/current",
+          "status": 401
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/contact.hero?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/contact.footer?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/contact.sidebar?afterEventId=0",
+          "status": 404
+        },
+        {
+          "url": "http://localhost:3330/api/v1/cms/content/contact.body?afterEventId=0",
+          "status": 404
+        }
+      ]
+    }
+  ],
+  "envNote": "Audit env realigned (BFF_PUBLIC_ORIGIN includes :3330, FE/BE/AI/RAG tokens match, remote lanes off). Remaining badResponses are expected anonymous 401s on /auth/browser-sessions/current and 404s on unpopulated optional CMS slots — not page defects."
+}

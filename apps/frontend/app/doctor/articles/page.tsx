@@ -30,6 +30,7 @@ import { useAuthSession, useAuthSessionStatus } from "../../../components/useAut
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
 import { RichContentRenderer, RichTextEditor, toStoredArticleBody } from "../../../components/editor";
+import { hasUnresolvedInlineUpload } from "../../../components/editor/RichContentRenderer";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
 
@@ -305,6 +306,14 @@ export default function DoctorArticlesPage() {
     }
     if (!body.trim()) {
       setError("Bài viết y khoa bắt buộc phải có nội dung chuyên môn chi tiết.");
+      return;
+    }
+
+    // A blob:/data: image URL means an upload is still in flight (or bypassed
+    // the upload handler); persisting it stores a permanently dead image, so
+    // the save waits for the author instead of stripping the URL silently.
+    if (hasUnresolvedInlineUpload(body)) {
+      setError("Ảnh đang được tải lên, vui lòng chờ hoàn tất trước khi lưu.");
       return;
     }
 
@@ -1045,7 +1054,7 @@ export default function DoctorArticlesPage() {
                 <div>
                   <ImageUpload
                     aspectRatio="banner"
-                    helperText="Tải lên tệp ảnh bìa bài viết (PNG, JPG, WEBP tối đa 10 MB)"
+                    helperText="Tải lên tệp ảnh bìa bài viết (PNG, JPG, WEBP tối đa 5 MB)"
                     label="Ảnh bìa bài viết y khoa (Tải lên từ thiết bị)"
                     onChange={(url) => setCoverImageUrl(url)}
                     purpose="ARTICLE_COVER"

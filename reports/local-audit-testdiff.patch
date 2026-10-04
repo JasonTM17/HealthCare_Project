@@ -1,0 +1,440 @@
+diff --git a/apps/ai-service/tests/test_chatbot_contract.py b/apps/ai-service/tests/test_chatbot_contract.py
+index 8c9aea6..5b7d0d0 100644
+--- a/apps/ai-service/tests/test_chatbot_contract.py
++++ b/apps/ai-service/tests/test_chatbot_contract.py
+@@ -141,6 +141,47 @@ def test_local_grounded_answer_is_extractive_and_cites_its_sources() -> None:
+     provider.complete_json.assert_not_called()
+ 
+ 
++def test_local_grounded_answer_survives_approved_clinical_instructions() -> None:
++    """Regression: approved prep instructions must not fail the output scan.
++
++    Hospital-approved specialty content routinely contains legitimate clinical
++    instructions such as "ngß╗½ng thuß╗æc tr╞░ß╗¢c phß║½u thuß║¡t". The local grounded
++    path is deterministic (no model output), and each source already passed
++    `_context_is_safe` inside `_local_grounded_response`, so the advice-shaped
++    output pattern must not re-judge the same approved text into a
++    fail-closed INSUFFICIENT.
++    """
++
++    service = RagService()
++    service.ingest(
++        "specialty",
++        "tim-mach",
++        "Tim mß║ích",
++        "Kh├ím v├á ─æiß╗üu trß╗ï bß╗çnh l├╜ tim, mß║ích m├íu. Chuß║⌐n bß╗ï: c├│ thß╗â cß║ºn ngß╗½ng thuß╗æc "
++        "lo├úng m├íu theo h╞░ß╗¢ng dß║½n cß╗ºa b├íc s─⌐ tr╞░ß╗¢c thß╗º thuß║¡t.",
++        [1.0] + [0.0] * 383,
++        embedding_model="local-hash",
++    )
++    provider = MagicMock()
++    response = generate_chat_response(
++        ChatGenerateRequest(
++            message="chuy├¬n khoa tim mß║ích",
++            mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[
++                AuthorizedSource(source_type="specialty", source_id="tim-mach"),
++            ],
++        ),
++        _settings(),
++        service,
++        client=provider,
++    )
++
++    assert response.safety_action is ChatSafetyAction.ANSWER
++    assert response.provenance == "local_provider"
++    assert "ngß╗½ng thuß╗æc" in response.answer
++    provider.complete_json.assert_not_called()
++
++
+ def test_local_generation_without_chunks_keeps_honest_insufficient_fallback() -> None:
+     """Remote disabled + no chunks = unchanged honest insufficient evidence."""
+ 
+@@ -565,6 +606,52 @@ def test_grounded_article_excerpt_hides_serialized_sections_and_stays_compact()
+     assert len(answer) <= 760
+ 
+ 
++def test_grounded_specialty_excerpt_renders_inline_jsonb_string_arrays() -> None:
++    """Clinical JSONB arrays concatenated mid-content render as plain prose.
++
++    Backend clinical projections concatenate ``common_symptoms`` /
++    ``preparation_steps`` JSONB columns straight into the searchable content
++    (SQL ``concat_ws``), so string arrays appear inline between prose. The
++    excerpt must never show storage serialization to a patient.
++    """
++
++    document = RagDocument(
++        id="specialty:tim-mach",
++        source_type="specialty",
++        source_id="tim-mach",
++        title="Tim mß║ích",
++        content=(
++            "Tim mß║ích\n"
++            'Trieu chung thuong gap: ["Dau nguc", "Kho tho", "Hoi hop"]. '
++            'Chuan bi truoc kham: ["Nghi ngo", "Nhin ket qua mau"].'
++        ),
++    )
++
++    answer = grounded_source_excerpt(document)
++
++    assert "[" not in answer
++    assert "]" not in answer
++    assert '"' not in answer
++    assert "Trieu chung thuong gap: Dau nguc; Kho tho; Hoi hop" in answer
++    assert "Chuan bi truoc kham: Nghi ngo; Nhin ket qua mau" in answer
++
++
++def test_grounded_excerpt_leaves_plain_prose_brackets_untouched() -> None:
++    """A non-JSON bracket group in prose is never rewritten."""
++
++    document = RagDocument(
++        id="specialty:da-lieu",
++        source_type="specialty",
++        source_id="da-lieu",
++        title="Da liß╗àu",
++        content="Benh ly [chua ro nguyen nhan] can duoc theo doi dinh ky.",
++    )
++
++    answer = grounded_source_excerpt(document)
++
++    assert "[chua ro nguyen nhan]" in answer
++
++
+ def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+@@ -1469,3 +1556,32 @@ def test_uncited_lane_stays_closed_when_the_remote_gate_is_off(
+ 
+     assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+     provider.complete_json.assert_not_called()
++
++
++@pytest.mark.parametrize("content", [
++    "Bß║ín bß╗ï vi├¬m phß╗òi.",
++    "H├úy uß╗æng paracetamol 500mg mß╗ùi ng├áy.",
++    "Take aspirin.",
++    "T├┤i kh├┤ng thß╗â k├¬ ─æ╞ín, nh╞░ng h├úy uß╗æng paracetamol 500mg.",
++])
++def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
++    service = RagService()
++    service.ingest(
++        "specialty", "unsafe-local-medical", "Nß╗Öi tß╗òng hß╗úp", content,
++        [1.0] + [0.0] * 383, embedding_model="local-hash",
++        metadata={"projection_kind": "OPERATIONAL"},
++    )
++    provider = MagicMock()
++    response = generate_chat_response(
++        ChatGenerateRequest(
++            message="Th├┤ng tin chuy├¬n khoa n├áy?", mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[AuthorizedSource(
++                source_type="specialty", source_id="unsafe-local-medical",
++                projection_kind="OPERATIONAL",
++            )],
++        ), _settings(), service, client=provider,
++    )
++    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
++    assert response.citations == []
++    assert response.used_sources == []
++    provider.complete_json.assert_not_called()
+diff --git a/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java b/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java
+index 0a0a7a7..01bc833 100644
+--- a/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java
++++ b/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java
+@@ -7,6 +7,7 @@ import com.healthcare.appointment.entity.AppointmentStatus;
+ import com.healthcare.appointment.entity.PatientProfile;
+ import com.healthcare.auth.mail.EmailSender;
+ import com.healthcare.document.service.DocumentObjectStore;
++import com.healthcare.document.service.DocumentSnapshotCodec;
+ import com.healthcare.hospital.entity.Branch;
+ import com.healthcare.hospital.entity.Doctor;
+ import com.healthcare.hospital.entity.DoctorBranch;
+@@ -15,6 +16,7 @@ import com.healthcare.hospital.entity.Specialty;
+ import com.healthcare.security.JwtTokenProvider;
+ import com.healthcare.user.entity.User;
+ import com.healthcare.user.repository.RoleRepository;
++import org.assertj.core.api.SoftAssertions;
+ import org.junit.jupiter.api.BeforeEach;
+ import org.junit.jupiter.api.Test;
+ import org.mockito.ArgumentCaptor;
+@@ -24,18 +26,30 @@ import org.springframework.test.context.ActiveProfiles;
+ import org.springframework.test.context.bean.override.mockito.MockitoBean;
+ import org.springframework.test.web.servlet.MvcResult;
+ 
++import java.io.ByteArrayInputStream;
++import java.nio.charset.StandardCharsets;
+ import java.time.LocalDate;
+ import java.time.LocalTime;
+ import java.time.OffsetDateTime;
+ import java.time.ZoneOffset;
++import java.util.Map;
+ import java.util.UUID;
++import java.util.concurrent.Callable;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
+ 
+ import static org.assertj.core.api.Assertions.assertThat;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.eq;
++import static org.mockito.Mockito.doAnswer;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.when;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+@@ -68,6 +82,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+     private UUID patientId;
+     private UUID appointmentId;
+     private String patientBearer;
++    private String doctorBearer;
+ 
+     @BeforeEach
+     void fixture() {
+@@ -76,6 +91,9 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+         User patientUser = user("PATIENT");
+         patientBearer = "Bearer " + tokenProvider.generateAccessToken(
+                 patientUser.getId(), patientUser.getEmail());
++        User doctorUser = user("DOCTOR");
++        doctorBearer = "Bearer " + tokenProvider.generateAccessToken(
++                doctorUser.getId(), doctorUser.getEmail());
+ 
+         PatientProfile patient = new PatientProfile();
+         patient.setUserId(patientUser.getId());
+@@ -102,6 +120,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+         doctor.setFullName("BS. Synthetic Reminder");
+         doctor.setSlug("synthetic-" + UUID.randomUUID());
+         doctor.setActive(true);
++        doctor.setUserId(doctorUser.getId());
+         doctor = doctorRepository.saveAndFlush(doctor);
+ 
+         // appointments has a composite FK (doctor_id, branch_id) -> doctor_branches.
+@@ -199,6 +218,160 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+         verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
+     }
+ 
++    @Test
++    void concurrentSameSourceGenerationReusesOneRowAndObject() throws Exception {
++        CountDownLatch firstPutEntered = new CountDownLatch(1);
++        CountDownLatch releaseFirstPut = new CountDownLatch(1);
++        doAnswer(invocation -> {
++            firstPutEntered.countDown();
++            assertThat(releaseFirstPut.await(10, TimeUnit.SECONDS)).isTrue();
++            return null;
++        }).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
++
++        ExecutorService executor = Executors.newFixedThreadPool(2);
++        try {
++            Callable<MvcResult> generate = () -> mockMvc.perform(
++                            post("/api/v1/patients/{patientId}/documents", patientId)
++                                    .header("Authorization", patientBearer)
++                                    .contentType(MediaType.APPLICATION_JSON)
++                                    .content(requestBody()))
++                    .andReturn();
++            Future<MvcResult> first = executor.submit(generate);
++            assertThat(firstPutEntered.await(10, TimeUnit.SECONDS)).isTrue();
++            Future<MvcResult> second = executor.submit(generate);
++
++            boolean lockWaitObserved = false;
++            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
++            while (System.nanoTime() < deadline && !lockWaitObserved) {
++                Boolean waiting = jdbcTemplate.queryForObject(
++                        "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database()"
++                                + " AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'"
++                                + " AND (query ILIKE '%patient_documents%'"
++                                + " OR query ILIKE '%pg_advisory_xact_lock%'))",
++                        Boolean.class);
++                lockWaitObserved = Boolean.TRUE.equals(waiting);
++                if (!lockWaitObserved) {
++                    Thread.sleep(25);
++                }
++            }
++            assertThat(lockWaitObserved).isTrue();
++
++            releaseFirstPut.countDown();
++            MvcResult firstResult = first.get(15, TimeUnit.SECONDS);
++            MvcResult secondResult = second.get(15, TimeUnit.SECONDS);
++            assertThat(firstResult.getResponse().getStatus()).isEqualTo(201);
++            assertThat(secondResult.getResponse().getStatus()).isEqualTo(201);
++            String firstId = objectMapper.readTree(firstResult.getResponse().getContentAsString())
++                    .get("id").asText();
++            String secondId = objectMapper.readTree(secondResult.getResponse().getContentAsString())
++                    .get("id").asText();
++            assertThat(secondId).isEqualTo(firstId);
++            assertThat(objectMapper.readTree(firstResult.getResponse().getContentAsString())
++                    .get("status").asText()).isEqualTo("AVAILABLE");
++            assertThat(objectMapper.readTree(secondResult.getResponse().getContentAsString())
++                    .get("status").asText()).isEqualTo("AVAILABLE");
++            verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
++            Integer rows = jdbcTemplate.queryForObject(
++                    "SELECT count(*) FROM patient_documents WHERE source_record_id = ?",
++                    Integer.class, appointmentId);
++            assertThat(rows).isEqualTo(1);
++        } finally {
++            releaseFirstPut.countDown();
++            executor.shutdownNow();
++            executor.awaitTermination(10, TimeUnit.SECONDS);
++        }
++    }
++
++    @Test
++    void assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder() throws Exception {
++        Map<String, byte[]> stored = stubObjectStoreRoundTrip();
++
++        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", doctorBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.status").value("AVAILABLE"))
++                .andReturn();
++        String documentId = objectMapper.readTree(created.getResponse().getContentAsString())
++                .get("id").asText();
++
++        MvcResult list = mockMvc.perform(get("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", doctorBearer))
++                .andReturn();
++        int listStatus = list.getResponse().getStatus();
++        String listBody = list.getResponse().getContentAsString();
++        MvcResult download = mockMvc.perform(get(
++                        "/api/v1/patients/{patientId}/documents/{documentId}/download",
++                        patientId, documentId)
++                        .header("Authorization", doctorBearer))
++                .andReturn();
++        int downloadStatus = download.getResponse().getStatus();
++
++        SoftAssertions softly = new SoftAssertions();
++        softly.assertThat(listStatus).as("doctor list status").isEqualTo(200);
++        softly.assertThat(listBody).as("doctor list includes generated id").contains(documentId);
++        byte[] expected = stored.values().iterator().next();
++        byte[] actual = download.getResponse().getContentAsByteArray();
++        DocumentSnapshotCodec codec = new DocumentSnapshotCodec();
++        softly.assertThat(downloadStatus).as("doctor download status").isEqualTo(200);
++        softly.assertThat(download.getResponse().getContentType())
++                .as("download content type").startsWith("application/pdf");
++        softly.assertThat(actual.length).as("downloaded length equals stored object length")
++                .isEqualTo(expected.length);
++        softly.assertThat(codec.sha256Hex(actual)).as("downloaded sha256 equals stored object sha256")
++                .isEqualTo(codec.sha256Hex(expected));
++        softly.assertThat(new String(actual, 0, Math.min(5, actual.length), StandardCharsets.US_ASCII))
++                .as("downloaded payload is a PDF").isEqualTo("%PDF-");
++        softly.assertAll();
++    }
++
++    @Test
++    void unrelatedDoctorCannotListOrDownloadAnotherPatientsAppointmentReminder() throws Exception {
++        stubObjectStoreRoundTrip();
++
++        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", patientBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andReturn();
++        String documentId = objectMapper.readTree(created.getResponse().getContentAsString())
++                .get("id").asText();
++
++        User strangerUser = user("DOCTOR");
++        Doctor stranger = new Doctor();
++        stranger.setFullName("BS. Unrelated");
++        stranger.setSlug("unrelated-" + UUID.randomUUID());
++        stranger.setActive(true);
++        stranger.setUserId(strangerUser.getId());
++        doctorRepository.saveAndFlush(stranger);
++        String strangerBearer = "Bearer " + tokenProvider.generateAccessToken(
++                strangerUser.getId(), strangerUser.getEmail());
++
++        mockMvc.perform(get("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", strangerBearer))
++                .andExpect(status().isForbidden());
++        mockMvc.perform(get("/api/v1/patients/{patientId}/documents/{documentId}/download",
++                        patientId, documentId)
++                        .header("Authorization", strangerBearer))
++                .andExpect(status().isForbidden());
++    }
++
++    private Map<String, byte[]> stubObjectStoreRoundTrip() throws Exception {
++        Map<String, byte[]> stored = new ConcurrentHashMap<>();
++        doAnswer(invocation -> {
++            stored.put(invocation.getArgument(0), invocation.getArgument(1));
++            return null;
++        }).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
++        when(objectStore.isConfigured()).thenReturn(true);
++        when(objectStore.get(any(String.class))).thenAnswer(invocation -> {
++            byte[] bytes = stored.get(invocation.getArgument(0));
++            return bytes == null ? null : new ByteArrayInputStream(bytes);
++        });
++        return stored;
++    }
++
+     private String requestBody() {
+         return """
+                 {"sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"%s"}
+diff --git a/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java b/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java
+index 9f5d04e..bcf8371 100644
+--- a/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java
++++ b/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java
+@@ -52,6 +52,7 @@ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
++import static org.mockito.Mockito.verifyNoInteractions;
+ import static org.mockito.Mockito.when;
+ 
+ /**
+@@ -78,6 +79,7 @@ class DocumentServiceTest {
+     private PatientProfileRepository patientProfileRepository;
+     private DoctorRepository doctorRepository;
+     private UserRepository userRepository;
++    private AppointmentRepository appointmentRepository;
+     private DocumentObjectStore objectStore;
+     private DocumentObjectCleanupService cleanupService;
+     private SyntheticPdfRenderer renderer;
+@@ -93,6 +95,7 @@ class DocumentServiceTest {
+         patientProfileRepository = mock(PatientProfileRepository.class);
+         doctorRepository = mock(DoctorRepository.class);
+         userRepository = mock(UserRepository.class);
++        appointmentRepository = mock(AppointmentRepository.class);
+         objectStore = mock(DocumentObjectStore.class);
+         cleanupService = mock(DocumentObjectCleanupService.class);
+         renderer = mock(SyntheticPdfRenderer.class);
+@@ -100,7 +103,7 @@ class DocumentServiceTest {
+         codec = new DocumentSnapshotCodec();
+         service = new DocumentService(documentRepository, medicalRecordRepository,
+                 prescriptionRepository, patientProfileRepository, doctorRepository,
+-                userRepository, mock(AppointmentRepository.class), objectStore, cleanupService, renderer,
++                userRepository, appointmentRepository, objectStore, cleanupService, renderer,
+                 codec, auditService);
+     }
+ 
+@@ -718,6 +721,26 @@ class DocumentServiceTest {
+         assertThat(visible.get(0).sourceRecordId()).isEqualTo(RECORD_ID);
+     }
+ 
++    @Test
++    void patientCannotResolveBookingBeforePatientScopeAuthorization() throws Exception {
++        assertThatThrownBy(() -> service.downloadAppointmentReminderByBookingCode(
++                OTHER_PATIENT_ID, "FOREIGN-BOOKING", patientPrincipal()))
++                .isInstanceOf(AccessDeniedException.class);
++
++        verifyNoInteractions(appointmentRepository);
++        verify(objectStore, never()).get(anyString());
++    }
++
++    @Test
++    void nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization() throws Exception {
++        assertThatThrownBy(() -> service.downloadAppointmentReminderByBookingCode(
++                OTHER_PATIENT_ID, "FOREIGN-BOOKING", null))
++                .isInstanceOf(AccessDeniedException.class);
++
++        verifyNoInteractions(appointmentRepository);
++        verify(objectStore, never()).get(anyString());
++    }
++
+     // ΓöÇΓöÇ Fixtures ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+     // Fixtures build their mocks BEFORE entering any when(...) chain so the
+     // nested stubbing never runs while an outer stubbing is unfinished.

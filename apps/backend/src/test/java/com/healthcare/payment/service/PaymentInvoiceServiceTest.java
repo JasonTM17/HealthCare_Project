@@ -112,6 +112,42 @@ class PaymentInvoiceServiceTest {
         assertThat(saved.getValue().getBookingCode()).isEqualTo("HC-TEST-0001");
         assertThat(saved.getValue().getPatientName()).isEqualTo("Nguyễn Văn A");
         assertThat(saved.getValue().getAmount()).isEqualByComparingTo("200000");
+        assertThat(saved.getValue().getStatusSnapshot()).isEqualTo("PAID");
+    }
+
+    @Test
+    @DisplayName("A re-download after refund transitions still renders the issuance-time snapshot")
+    void reDownloadKeepsIssuanceSnapshotAcrossRefundTransitions() {
+        PaymentReceiptPdfRenderer snapshotCapturingRenderer = mock(PaymentReceiptPdfRenderer.class);
+        when(snapshotCapturingRenderer.render(any(), any(), any(), any(), any()))
+            .thenReturn(new byte[] {1});
+        PaymentInvoiceService snapshotService = new PaymentInvoiceService(
+            paymentService, invoiceRepository, snapshotCapturingRenderer, jdbcTemplate);
+
+        // Issued while PAID — the row must freeze that status.
+        snapshotService.receiptForPatient(APPOINTMENT_ID, patientPrincipal);
+        org.mockito.ArgumentCaptor<PaymentInvoice> saved =
+            org.mockito.ArgumentCaptor.forClass(PaymentInvoice.class);
+        verify(invoiceRepository).saveAndFlush(saved.capture());
+        PaymentInvoice issued = saved.getValue();
+        assertThat(issued.getStatusSnapshot()).isEqualTo("PAID");
+
+        // PAID → REFUND_PENDING → REFUNDED: every later download replays the
+        // stored snapshot instead of re-reading the live payment status.
+        when(invoiceRepository.findByPaymentId(PAYMENT_ID)).thenReturn(Optional.of(issued));
+        payment.setStatus(PaymentStatus.REFUND_PENDING);
+        snapshotService.receiptForPatient(APPOINTMENT_ID, patientPrincipal);
+        payment.setStatus(PaymentStatus.REFUNDED);
+        snapshotService.receiptForPatient(APPOINTMENT_ID, patientPrincipal);
+
+        org.mockito.ArgumentCaptor<PaymentReceiptPdfRenderer.PaymentStatusSnapshot> statuses =
+            org.mockito.ArgumentCaptor.forClass(PaymentReceiptPdfRenderer.PaymentStatusSnapshot.class);
+        verify(snapshotCapturingRenderer, org.mockito.Mockito.times(3))
+            .render(any(), any(), any(), any(), statuses.capture());
+        assertThat(statuses.getAllValues()).containsExactly(
+            PaymentReceiptPdfRenderer.PaymentStatusSnapshot.PAID,
+            PaymentReceiptPdfRenderer.PaymentStatusSnapshot.PAID,
+            PaymentReceiptPdfRenderer.PaymentStatusSnapshot.PAID);
     }
 
     @Test
@@ -125,6 +161,7 @@ class PaymentInvoiceServiceTest {
         existing.setCurrency("VND");
         existing.setPatientName("Nguyễn Văn A");
         existing.setBookingCode("HC-TEST-0001");
+        existing.setStatusSnapshot("PAID");
         when(invoiceRepository.findByPaymentId(PAYMENT_ID)).thenReturn(Optional.of(existing));
 
         service.receiptForPatient(APPOINTMENT_ID, patientPrincipal);

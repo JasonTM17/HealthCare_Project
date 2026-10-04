@@ -1,0 +1,17 @@
+{
+  "schema":"healthcare.repaired-pdf-observation.v1",
+  "observer":"Team Lead",
+  "origin":"http://localhost:3330",
+  "fixture":"Existing published synthetic legacy patient; owning-patient scope only, no issuing-doctor positive claim",
+  "path":"Authenticated browser fetch through same-origin BFF, rebuilt Spring application and actual local MinIO",
+  "observations":[
+    {"sourceType":"VISIT_SUMMARY","generationStatus":201,"rowStatus":"AVAILABLE","downloadStatus":200,"contentType":"application/pdf;charset=UTF-8","actualByteSize":660381,"byteSizeMatches":true,"sha256Matches":true,"magic":"%PDF-"},
+    {"sourceType":"PRESCRIPTION","generationStatus":201,"rowStatus":"AVAILABLE","downloadStatus":200,"contentType":"application/pdf;charset=UTF-8","actualByteSize":660049,"byteSizeMatches":true,"sha256Matches":true,"magic":"%PDF-"},
+    {"sourceType":"APPOINTMENT_REMINDER","generationStatus":201,"rowStatus":"AVAILABLE","downloadStatus":200,"contentType":"application/pdf;charset=UTF-8","actualByteSize":660000,"byteSizeMatches":true,"sha256Matches":true,"magic":"%PDF-"}
+  ],
+  "measurement":"Actual ArrayBuffer bytes and browser WebCrypto SHA-256 compared with returned persisted document metadata; no mocked response or zero-byte network capture inference",
+  "result":"PASS for this three-class owning-patient fetch observation on the repaired build",
+  "notProven":["Browser anchor/download-file path","PDF structural parsing","Fresh normal-API clinical fixture journey","Issuing doctor and admin live matrix","Storage corruption/tamper detection on arbitrary objects","AV attachment roundtrip","Live provider or production"],
+  "frozenInputs":"These observed values are captured once. Presentation and handoff should read this artifact rather than regenerate documents to recompute the delivered measurements.",
+  "authority":"Local only. New generation rows/objects retained; no existing record deletion, migrations, shared/production data access, push or deployment. Owned temporary browser context was closed; other browser contexts were untouched."
+}

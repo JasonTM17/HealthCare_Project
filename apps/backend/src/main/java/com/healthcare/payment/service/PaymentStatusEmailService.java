@@ -52,7 +52,12 @@ public class PaymentStatusEmailService {
     }
 
     private void send(BankTransferPayment payment, String statusLine) {
-        if (!enabled || !emailSender.isDeliveryAvailable()) return;
+        if (!enabled) return;
+        // sendTemplateBestEffort picks the live route itself (Resend API →
+        // transactional outbox → best-effort delegate) and absorbs failures.
+        // Gating on isDeliveryAvailable() here skipped delivery whenever the
+        // API route was the only configured one, because that check only
+        // reflects the delegate sender, not the API-preferred path.
         Appointment appointment = payment.getAppointment();
         String recipient = appointment.getPatient().getEmail();
         if (recipient == null || recipient.isBlank()) return;
@@ -61,7 +66,13 @@ public class PaymentStatusEmailService {
             emailSender.sendTemplateBestEffort(
                 EmailTemplateKey.PAYMENT_STATUS,
                 recipient.trim().toLowerCase(Locale.ROOT),
-                java.util.Map.of("message", statusLine)
+                // transitionKey is never rendered; it only makes the outbox
+                // idempotency key distinct per business transition so two
+                // successive rejections do not dedup into a single email.
+                java.util.Map.of(
+                    "message", statusLine,
+                    "transitionKey", payment.getId() + ":" + payment.getUpdatedAt()
+                )
             );
         } catch (RuntimeException exception) {
             log.warn("Payment status email degraded to best-effort failure (cause={})",

@@ -198,32 +198,15 @@ test("patient portal launcher stays compact and low-emphasis on dense dashboards
   expect(launcherVisual.shadow).toBe("none");
 });
 
-test("guest launcher sends even a greeting through stateless hospital-support chat and offers login for history", async ({ context, page }) => {
+test("guest launcher offers the login gate and cannot reach the chat transport", async ({ context, page }) => {
   await installMockBrowserSession(context, null);
+  // Contract change: asking the assistant requires a signed-in account. The
+  // public chat endpoint must not be contacted by an anonymous visitor, and
+  // the gate keeps the safe non-chat channels (booking + hotline) reachable.
+  let chatCalls = 0;
   await context.route("**/api/v1/public/ai/chat", async (route) => {
-    const request = route.request();
-    expect(request.headers()["authorization"]).toBeUndefined();
-    const payload = request.postDataJSON() as { message: string; recent_turns: unknown[] };
-    expect(payload.message).toBe("Xin chào");
-    expect(payload.recent_turns).toEqual([]);
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        answer: "Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.",
-        disclaimer: "Thông tin chỉ mang tính tham khảo.",
-        citations: [{ source_type: "specialty", source_id: "tim-mach", title: "Tim mạch" }],
-        provenance: "local_provider",
-        mode: "HOSPITAL_SUPPORT",
-        safety_action: "ANSWER",
-        suggested_actions: [
-          { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
-          { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
-          { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
-        ],
-      }),
-    });
+    chatCalls += 1;
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/about");
@@ -231,53 +214,24 @@ test("guest launcher sends even a greeting through stateless hospital-support ch
 
   const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("Bạn đang dùng chế độ khách", { exact: false })).toBeVisible();
-  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Xin chào");
-  await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
-  // A fast deterministic response may promote the pending turn to the
-  // completed exchange before the assertion runs. The user question must
-  // remain visible in the transcript in either state; only assert the staged
-  // waiting copy while that transient state is still present.
-  const userTurn = dialog.getByRole("log").getByText("Xin chào", { exact: true });
-  await expect(userTurn).toBeVisible();
-  const thinking = dialog.getByTestId("floating-chat-thinking");
-  if (await thinking.count() > 0) {
-    const transientThinkingText = await thinking.evaluate((element) => {
-      const style = window.getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      const isVisible = style.display !== "none"
-        && style.visibility !== "hidden"
-        && rect.width > 0
-        && rect.height > 0;
-      return isVisible ? element.textContent ?? "" : null;
-    }, { timeout: 0 }).catch(() => null);
-    if (transientThinkingText !== null) {
-      expect(transientThinkingText).toContain("Đã nhận câu hỏi — đang chờ phản hồi…");
-    }
-  }
-  await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
-  await expect(thinking).toBeHidden();
-  await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Thông tin chỉ mang tính tham khảo.", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Bước tiếp theo", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Xem Chuyên khoa" })).toHaveAttribute("href", "/specialties");
-  await expect(dialog.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute("href", "/dat-lich");
-  await expect(dialog.getByRole("link", { name: "đăng nhập" })).toHaveAttribute("href", "/auth/login?next=%2Fpatient%2Fchat");
-  await expect(dialog.getByRole("button", { name: "Hữu ích" })).toHaveCount(0);
+  const gate = dialog.getByTestId("floating-assistant-login-gate");
+  await expect(gate).toBeVisible();
+  await expect(dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe")).toHaveCount(0);
+  await expect(gate.getByRole("link", { name: "Đăng nhập", exact: true })).toHaveAttribute("href", "/auth/login?next=%2Fabout");
+  await expect(gate.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute("href", "/dat-lich");
+  await expect(gate.getByRole("link", { name: "Gọi 028 1800 0001" })).toHaveAttribute("href", "tel:02818000001");
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeFocused();
   await assertNoSensitiveBrowserStorage(page);
+  expect(chatCalls).toBe(0);
 });
 
-test("guest greeting uses the public chat contract instead of a client-side shortcut", async ({ context, page }) => {
+test("guest greeting cannot bypass the login gate through a client-side shortcut", async ({ context, page }) => {
   await installMockBrowserSession(context, null);
   let calls = 0;
   await context.route("**/api/v1/public/ai/chat", async (route) => {
     calls += 1;
-    const payload = route.request().postDataJSON() as { message: string; recent_turns: unknown[] };
-    expect(payload.message).toBe("Xin chào!");
-    expect(payload.recent_turns).toEqual([]);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -288,10 +242,7 @@ test("guest greeting uses the public chat contract instead of a client-side shor
         provenance: "local_provider",
         mode: "HOSPITAL_SUPPORT",
         safety_action: "ANSWER",
-        suggested_actions: [
-          { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
-          { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
-        ],
+        suggested_actions: [],
       }),
     });
   });
@@ -300,11 +251,12 @@ test("guest greeting uses the public chat contract instead of a client-side shor
   await page.goto("/about");
   const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
   await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
-  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Xin chào!");
-  await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
-  await expect(dialog.getByText("Xin chào! Bạn có thể hỏi về chuyên khoa, cơ sở hoặc đặt lịch.", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Xem Chuyên khoa" })).toHaveAttribute("href", "/specialties");
-  expect(calls).toBe(1);
+  // No composer is offered and no client-side greeting is synthesized: the
+  // only path forward is the login CTA.
+  await expect(dialog.getByTestId("floating-assistant-login-gate")).toBeVisible();
+  await expect(dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe")).toHaveCount(0);
+  await expect(dialog.getByText("Xin chào! Bạn có thể hỏi về chuyên khoa, cơ sở hoặc đặt lịch.", { exact: true })).toHaveCount(0);
+  expect(calls).toBe(0);
 });
 
 test("floating panel remains reachable in a short landscape viewport", async ({ context, page }) => {
@@ -319,15 +271,17 @@ test("floating panel remains reachable in a short landscape viewport", async ({ 
   const geometry = await page.evaluate(() => {
     const panel = document.querySelector<HTMLElement>("#floating-health-assistant-panel");
     const close = panel?.querySelector<HTMLButtonElement>("button[aria-label='Đóng cửa sổ trợ lý']");
-    const composer = panel?.querySelector<HTMLElement>("form");
-    if (!panel || !close || !composer) throw new Error("Floating assistant controls are missing");
+    // Anonymous visitors see the login gate instead of a composer; the gate is
+    // the control whose viewport fit this test protects.
+    const gate = panel?.querySelector<HTMLElement>("[data-testid='floating-assistant-login-gate']");
+    if (!panel || !close || !gate) throw new Error("Floating assistant controls are missing");
     const rect = panel.getBoundingClientRect();
     const closeRect = close.getBoundingClientRect();
-    const composerRect = composer.getBoundingClientRect();
+    const gateRect = gate.getBoundingClientRect();
     return {
       panel: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
       close: { top: closeRect.top, bottom: closeRect.bottom, left: closeRect.left, right: closeRect.right },
-      composer: { top: composerRect.top, bottom: composerRect.bottom },
+      gate: { top: gateRect.top, bottom: gateRect.bottom },
       viewport: { width: window.innerWidth, height: window.innerHeight },
     };
   });
@@ -338,7 +292,7 @@ test("floating panel remains reachable in a short landscape viewport", async ({ 
   expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewport.width);
   expect(geometry.close.top).toBeGreaterThanOrEqual(0);
   expect(geometry.close.bottom).toBeLessThanOrEqual(geometry.viewport.height);
-  expect(geometry.composer.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+  expect(geometry.gate.bottom).toBeLessThanOrEqual(geometry.viewport.height);
   await expect(dialog.getByRole("button", { name: "Đóng cửa sổ trợ lý" })).toBeVisible();
 });
 

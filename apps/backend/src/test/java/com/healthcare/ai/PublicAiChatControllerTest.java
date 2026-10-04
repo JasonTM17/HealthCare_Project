@@ -15,6 +15,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -60,6 +61,45 @@ class PublicAiChatControllerTest {
         return resolver;
     }
 
+    private AiChatSourceResolver resolverForLiveBranchList() {
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource branchOne = new AiChatSourceResolver.ResolvedSource(
+            "branch", BRANCH_ID, "Cơ sở 1 — Quận 1", "co-so-1", true, true,
+            "OPERATIONAL", null, null, null, null, "/branches/co-so-1",
+            "/dat-lich?branchId=" + BRANCH_ID);
+        AiChatSourceResolver.ResolvedSource branchTwo = new AiChatSourceResolver.ResolvedSource(
+            "branch", SECOND_SPECIALTY_ID, "Cơ sở 2 — Quận 3", "co-so-2", true, true,
+            "OPERATIONAL", null, null, null, null, "/branches/co-so-2",
+            "/dat-lich?branchId=" + SECOND_SPECIALTY_ID);
+        when(resolver.branchDetails(any())).thenReturn(List.of());
+        when(resolver.catalogOverview()).thenReturn(AiChatSourceResolver.CatalogOverview.empty());
+        when(resolver.activeBranchOverview(anyInt())).thenReturn(List.of(
+            new AiChatSourceResolver.BranchDetails(branchOne, "12 Nguyễn Huệ, Quận 1", "07:00–19:00", null),
+            new AiChatSourceResolver.BranchDetails(branchTwo, "2 Đường số 3, Quận 3", "06:30–20:00", null)));
+        when(resolver.citations(any())).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", branchOne.title()),
+            Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", branchTwo.title())));
+        when(resolver.actions(any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", branchOne.title(), "href", branchOne.viewHref()),
+            Map.of("kind", "VIEW_SOURCE", "label", branchTwo.title(), "href", branchTwo.viewHref())));
+        return resolver;
+    }
+
+    private AiChatSourceResolver resolverForLiveDoctorList() {
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource doctor = new AiChatSourceResolver.ResolvedSource(
+            "doctor", "00000000-0000-0000-0000-000000000005", "BS Nguyễn Văn A — Da liễu",
+            "bac-si-a", true, true, "OPERATIONAL", null, null, null, null,
+            "/doctors/bac-si-a", "/dat-lich?doctorId=00000000-0000-0000-0000-000000000005");
+        when(resolver.activeDoctorOverview(anyInt(), any())).thenReturn(List.of(doctor));
+        when(resolver.citations(any())).thenReturn(List.of(
+            Map.of("source_type", "doctor", "source_id", doctor.id(), "title", doctor.title())));
+        when(resolver.actions(any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", doctor.title(), "href", doctor.viewHref()),
+            Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", doctor.bookingHref())));
+        return resolver;
+    }
+
     private AiChatSourceResolver resolverForBranch() {
         AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
         AiChatSourceResolver.ResolvedSource branch = new AiChatSourceResolver.ResolvedSource(
@@ -70,7 +110,8 @@ class PublicAiChatControllerTest {
             new AiChatSourceResolver.BranchDetails(
                 branch,
                 "2 Đường số 3, Quận 3, TP. Hồ Chí Minh",
-                "06:30–20:00, tất cả các ngày")));
+                "06:30–20:00, tất cả các ngày",
+                "028 38000002")));
         when(resolver.revalidate(ChatMode.HOSPITAL_SUPPORT, "branch", BRANCH_ID))
             .thenReturn(branch);
         when(resolver.citations(List.of(branch))).thenReturn(List.of(
@@ -450,8 +491,8 @@ class PublicAiChatControllerTest {
             "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
         when(resolver.isSpecificBranchQuery(any())).thenReturn(true);
         when(resolver.branchDetails(any())).thenReturn(List.of(
-            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00"),
-            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null)));
+            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00", null),
+            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null, null)));
         when(resolver.citations(any())).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", district3.title()),
             Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())));
@@ -478,6 +519,71 @@ class PublicAiChatControllerTest {
             .contains("Cơ sở 2 — Quận 3", "Cơ sở 2, Quận 7")
             .contains("cho mình biết quận/thành phố")
             .doesNotContain("Cơ sở 13");
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
+    }
+
+    @Test
+    void namedButUnresolvableBranchFollowUpFailsClosedWithoutBorrowingHistory() {
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        // The current message names an explicit branch that the catalog
+        // cannot resolve; history contains a different, resolvable branch
+        // that must never be substituted for it.
+        when(resolver.hasBranchAttributeCue("Số điện thoại Cơ sở 99?")).thenReturn(true);
+        when(resolver.isSpecificBranchQuery("Số điện thoại Cơ sở 99?")).thenReturn(true);
+        when(resolver.branchDetails("Số điện thoại Cơ sở 99?")).thenReturn(List.of());
+        when(resolver.latestSpecificBranchUserTurn(any())).thenReturn("Cơ sở 17 ở đâu?");
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Số điện thoại Cơ sở 99?",
+                List.of(new PublicAiChatController.PublicChatTurn("user", "Cơ sở 17 ở đâu?"))))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("routingReason", "public_branch_unavailable");
+        assertThat((String) body.get("answer"))
+            .contains("chưa thể xác minh cơ sở")
+            .doesNotContain("38000017", "Cơ sở 17");
+        verify(resolver, never()).branchDetails("Cơ sở 17 ở đâu?");
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
+    }
+
+    @Test
+    void anonymousBranchFollowUpResolvesReferentFromUserTurns() {
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver.ResolvedSource branch17 = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000017",
+            "Bệnh viện Đa khoa HealthCare — Cơ sở 17", "co-so-17",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-17", "/dat-lich?branchId=00000000-0000-0000-0000-000000000017");
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.hasBranchAttributeCue("Còn số điện thoại thì sao?")).thenReturn(true);
+        when(resolver.latestSpecificBranchUserTurn(any())).thenReturn("Cơ sở 17 ở đâu?");
+        when(resolver.branchDetails("Cơ sở 17 ở đâu?")).thenReturn(List.of(
+            new AiChatSourceResolver.BranchDetails(
+                branch17, "17 Đường Số 17, Quận Bình Tân", "06:30–20:00", "028 38000017")));
+        when(resolver.citations(List.of(branch17))).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", branch17.id(), "title", branch17.title())));
+        when(resolver.actions(List.of(branch17))).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", branch17.title(), "href", branch17.viewHref())));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Còn số điện thoại thì sao?",
+                List.of(
+                    new PublicAiChatController.PublicChatTurn("user", "Cơ sở 17 ở đâu?"),
+                    new PublicAiChatController.PublicChatTurn(
+                        "assistant", "Theo dữ liệu cơ sở đang hoạt động."))))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback");
+        assertThat((String) body.get("answer"))
+            .contains("Cơ sở 17")
+            .contains("Điện thoại: 028 38000017");
         verify(aiService, org.mockito.Mockito.never()).chat(any());
     }
 
@@ -1315,5 +1421,103 @@ class PublicAiChatControllerTest {
                 Map.of("role", "user", "content", "Bệnh viện có khoa tim mạch không?")
             )
         ));
+    }
+
+    @Test
+    void answersBranchCountQuestionWithLiveBranchListWhenAiIsUnavailable() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            SERVICE_UNAVAILABLE, "AI service is unavailable"));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveBranchList())
+            .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có mấy cơ sở?", null))
+            .getBody();
+
+        // The live rows answer the question directly instead of deflecting
+        // the visitor to the branch page, and each cited row is a live branch.
+        assertThat((String) body.get("answer"))
+            .contains("Cơ sở 1 — Quận 1")
+            .contains("Cơ sở 2 — Quận 3")
+            .doesNotContain("Giờ làm việc có thể khác theo từng cơ sở");
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("mode", "HOSPITAL_SUPPORT")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_ai_degraded_navigation")
+            .containsEntry("citations", List.of(
+                Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", "Cơ sở 1 — Quận 1"),
+                Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", "Cơ sở 2 — Quận 3")))
+            .containsKey("suggested_actions");
+    }
+
+    @Test
+    void answersDoctorSpecialtyQuestionWithLiveDoctorListWhenAiFallsBackWithoutCitations() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_fallback",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveDoctorList())
+            .chat(new PublicAiChatController.PublicChatRequest("Bác sĩ nào giỏi về da liễu?", null))
+            .getBody();
+
+        assertThat((String) body.get("answer"))
+            .contains("BS Nguyễn Văn A — Da liễu")
+            .doesNotContain("Để tìm bác sĩ phù hợp");
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("mode", "HOSPITAL_SUPPORT")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_navigation_fallback")
+            .containsEntry("citations", List.of(Map.of(
+                "source_type", "doctor", "source_id", "00000000-0000-0000-0000-000000000005",
+                "title", "BS Nguyễn Văn A — Da liễu")));
+    }
+
+    @Test
+    void keepsStaticBranchNavigationCopyWhenTheLiveBranchListIsEmpty() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            SERVICE_UNAVAILABLE, "AI service is unavailable"));
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.activeBranchOverview(anyInt())).thenReturn(List.of());
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có mấy cơ sở?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("citations", List.of())
+            .containsEntry("routingReason", "public_ai_degraded_navigation")
+            .containsEntry("answer",
+                "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
+                    + "để xem thông tin hiện tại trước khi đến khám.");
+    }
+
+    @Test
+    void keepsStaticDoctorNavigationCopyWhenTheResolverFails() {
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            SERVICE_UNAVAILABLE, "AI service is unavailable"));
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.activeDoctorOverview(anyInt(), any()))
+            .thenThrow(new RuntimeException("catalog down"));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Bác sĩ nào giỏi về da liễu?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("citations", List.of())
+            .containsEntry("routingReason", "public_ai_degraded_navigation")
+            .containsEntry("answer",
+                "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
+                    + "sau đó chọn Đặt lịch khám nếu muốn tiếp tục.");
     }
 }

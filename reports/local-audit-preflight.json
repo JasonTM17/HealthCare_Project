@@ -1,0 +1,104 @@
+{
+  "kind": "runtime-preflight.v1",
+  "root": "D:/HealthCare_Project (path redacted in shared copies)",
+  "branch": "main",
+  "scope": "read-only bounded inventory; no installs, edits, or process changes",
+  "cli_inventory": {
+    "command": "Get-Command node,npm,java,mvn,python,py,docker,ak,claude,codex,gemini,opencode -ErrorAction SilentlyContinue | Select-Object Name,CommandType",
+    "status": "PASS",
+    "found": {
+      "node": "Application (node.exe)",
+      "npm": "ExternalScript (npm.ps1)",
+      "java": "Application (java.exe)",
+      "mvn": "Application (mvn.cmd)",
+      "python": "Application (python.exe)",
+      "py": "Application (py.exe)",
+      "docker": "Application (docker.exe)",
+      "ak": "Application (ak.exe)",
+      "claude": "ExternalScript (claude.ps1)",
+      "codex": "ExternalScript (codex.ps1)",
+      "gemini": "ExternalScript (gemini.ps1)",
+      "opencode": "ExternalScript (opencode.ps1)"
+    },
+    "missing": []
+  },
+  "versions": {
+    "method": "documented --version/-version per CLI, each in a PowerShell job with 20s external timeout; none timed out",
+    "status": "PASS",
+    "results": {
+      "node": "v24.12.0",
+      "npm": "11.6.2",
+      "java": "26.0.1 (Java SE Runtime 26.0.1+8-34, HotSpot 64-bit)",
+      "mvn": "Apache Maven 3.9.12 (runs on Java 24.0.2 via configured JDK; Maven home path redacted)",
+      "python": "3.14.2",
+      "py": "3.14.2",
+      "docker": "29.8.1 (build 4a63305)",
+      "ak": "2.7.0",
+      "claude": "2.1.281 (Claude Code)",
+      "codex": "codex-cli 0.150.1",
+      "gemini": "0.47.0",
+      "opencode": "1.18.25"
+    },
+    "note": "PATH java is 26.0.1 while Maven reports Java 24.0.2 runtime - two JDKs installed; not an error, noted for build reproducibility."
+  },
+  "harness_doctor": {
+    "command": "node $env:USERPROFILE/.claude/skills/harness-doctor/scripts/harness-doctor.cjs --root . --expect agentkit --json",
+    "status": "PASS",
+    "kit": "agentkit",
+    "valid": true,
+    "ready": true,
+    "strictReady": false,
+    "summary": { "PASS": 15, "WARN": 4, "FAIL": 0, "BLOCKED": 0, "NOT_RUN": 0 },
+    "catalog": { "skills": 321, "agents": 51, "claudeSkills": 107, "akSkills": 321, "ckSkills": 0, "registries": 4 },
+    "warnings": [
+      "global-statusline: a global statusline is configured and may replace the preferred project experience",
+      "provider-aliases: custom-provider model aliases incomplete or inconsistent (configured: 4)",
+      "mcp-pinning: 3 global npx MCP packages not version-pinned",
+      "mcp-scope: specialized MCP servers installed globally: mysql, n8n, playwright, postgres, shadcn, stitch"
+    ],
+    "runtime_checks": { "runtime-node": "PASS v24.12.0", "runtime-claude": "PASS 2.1.281", "runtime-ak": "PASS ak 2.7.0" },
+    "limitations": [
+      "Read-only structural evidence is not authenticated provider or production evidence.",
+      "Model tool-use quality requires a separate bounded live smoke."
+    ]
+  },
+  "docker": {
+    "command": "docker version; docker ps --format name|status|ports (30s external timeout, no hang)",
+    "status": "PASS",
+    "engine": "Docker Desktop 4.93.0, Engine 29.8.1, API 1.56, linux/amd64",
+    "containers_running": 57,
+    "all_healthy_note": "all listed containers show 'Up About an hour' and (healthy) where a healthcheck is defined; supabase_rest_campuscore is Up without (healthy)",
+    "stacks_detected": [
+      "infrastructure-* (frontend 3000, backend 8080, postgres->5434, redis->6379, minio->9000-9001, mailpit->1025/8025, ai-service, attachment-scanner, clamav)",
+      "healthcare-local-* (frontend->3200, backend->8081, postgres->5436, redis->6380, minio->9002/9003, mailpit->1027/8027, ai-service, attachment-scanner, clamav)",
+      "healthcare-chatbot-audit-261002-* (backend->8082, postgres->5437, redis->6381, minio->9004/9005, mailpit->1028/8028, ai-service, attachment-scanner, clamav)",
+      "student_management-* (web->3100, api->4010, postgres->5435, mailpit->1026/8026, rag)",
+      "campuscore-audit-261001-* (web->3110, api->4110, postgres->5440, mailpit->1030/8030, rag)",
+      "campuscore-chat-audit-261002-* (api->4120, postgres->5450, mailpit->1031/8031, rag)",
+      "campuscore-chat-handoff-261002-* (api->4130, postgres->5451, mailpit->1032/8032, rag)",
+      "supabase_*_campuscore (db->54322, studio->54323, inbucket->54324, kong->54321, analytics->54327, auth, rest, realtime, storage, pg_meta)",
+      "ci-rag-debug-postgres-1 (unmapped 5432), cc-wave1-probe-* (api->4199->4100, postgres->5599)"
+    ],
+    "action": "none - all pre-existing, left running untouched"
+  },
+  "port_listeners": {
+    "command": "Get-NetTCPConnection -LocalPort <p> -State Listen + owning process name (TCP only; no command lines dumped)",
+    "status": "PASS",
+    "results": {
+      "3000": "LISTEN 127.0.0.1 via com.docker.backend (infrastructure-frontend-1)",
+      "8080": "LISTEN 127.0.0.1 via com.docker.backend (infrastructure-backend-1)",
+      "8000": "no host listener (ai-service containers expose 8000 internally, unpublished)",
+      "5432": "LISTEN 0.0.0.0 and :: via native postgres.exe PID 13224 (host PostgreSQL, NOT Docker)",
+      "6379": "LISTEN 127.0.0.1 via com.docker.backend (infrastructure-redis-1)",
+      "9000": "LISTEN 127.0.0.1 via com.docker.backend (infrastructure-minio-1)",
+      "9001": "LISTEN 127.0.0.1 via com.docker.backend (infrastructure-minio-1)",
+      "8025": "LISTEN 127.0.0.1 via com.docker.backend (infrastructure-mailpit-1)"
+    }
+  },
+  "not_run": [
+    "authenticated agent inference / live provider smoke (out of scope per handoff)",
+    "claude mcp list and global auth/config reads (prohibited per handoff and skill guardrails)",
+    "docker inspect / container env (prohibited - would expose secrets)",
+    "UDP listeners (not requested)"
+  ]
+}

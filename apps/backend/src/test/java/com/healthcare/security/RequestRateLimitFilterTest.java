@@ -445,6 +445,30 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void aiReadsDoNotConsumeTheSendBucket() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.ai-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        // Chat panel opens cost several GETs (conversation list, policy,
+        // quota); none may consume the single send allowed per window.
+        invoke(filter, accepted, "GET", "/api/v1/ai/conversations", "10.0.9.9");
+        invoke(filter, accepted, "GET", "/api/v1/ai/chat-policy", "10.0.9.9");
+        invoke(filter, accepted, "GET", "/api/v1/ai/conversations/abc/messages", "10.0.9.9");
+
+        MockHttpServletResponse send = invokePost(
+            filter, accepted, "/api/v1/ai/conversations/abc/messages", "10.0.9.9");
+        MockHttpServletResponse sendLimited = invokePost(
+            filter, accepted, "/api/v1/ai/conversations/abc/messages", "10.0.9.9");
+
+        assertThat(send.getStatus()).isEqualTo(200);
+        assertThat(sendLimited.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(4);
+    }
+
+    @Test
     void rateLimitsAdminMutationsAndFallsBackToDefaultPostLimit() throws Exception {
         MockEnvironment environment = new MockEnvironment()
             .withProperty("app.security.rate-limit.admin-mutation-limit", "1")
@@ -595,7 +619,16 @@ class RequestRateLimitFilterTest {
             AtomicInteger accepted,
             String path,
             String remoteAddress) throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        return invoke(filter, accepted, "POST", path, remoteAddress);
+    }
+
+    private MockHttpServletResponse invoke(
+            RequestRateLimitFilter filter,
+            AtomicInteger accepted,
+            String method,
+            String path,
+            String remoteAddress) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setRemoteAddr(remoteAddress);
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> accepted.incrementAndGet());

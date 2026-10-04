@@ -1,0 +1,29 @@
+[
+  {
+    "alias": "visit-summary",
+    "documentId": "38983f58-6b35-4b68-9ae6-bc06a0300abf",
+    "sourceType": "VISIT_SUMMARY",
+    "status": "AVAILABLE",
+    "byteSize": 660004,
+    "sha256": "82648ef9398fc2c55aa94199f99b66c4ae90c42f4dd00b5cbb1db82e7debf39e",
+    "suggestedFilename": "ho-so-kham-38983f58.pdf"
+  },
+  {
+    "alias": "prescription",
+    "documentId": "69502092-f657-49a1-8c1f-2da4c37a707c",
+    "sourceType": "PRESCRIPTION",
+    "status": "AVAILABLE",
+    "byteSize": 659875,
+    "sha256": "f541b20a5d723f8fd4627bf5b97f06ea2628545bee9eeb2259af9f73e77418a4",
+    "suggestedFilename": "don-thuoc-69502092.pdf"
+  },
+  {
+    "alias": "appointment-reminder",
+    "documentId": "ea8660de-7f58-4df8-b3c6-80103c087fee",
+    "sourceType": "APPOINTMENT_REMINDER",
+    "status": "AVAILABLE",
+    "byteSize": 660044,
+    "sha256": "3086e7a1ba809de12c252bfd607ffd47325c531a1d78061644bc175e18298c1a",
+    "suggestedFilename": "nhac-lich-hen-ea8660de.pdf"
+  }
+]

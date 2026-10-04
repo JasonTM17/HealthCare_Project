@@ -7,6 +7,12 @@ import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../lib/me
 import UiIcon from "./UiIcon";
 import styles from "./ImageUpload.module.css";
 
+// Mirrors the backend `media.upload.max-file-mb` default (5 MB). No public
+// config surface exposes the configured value, so the client gate and the
+// helper copy stay pinned to the same default the server enforces.
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const MAX_UPLOAD_LABEL = "5 MB";
+
 interface ImageUploadProps {
   value?: string;
   onChange: (url: string) => void;
@@ -22,7 +28,7 @@ export default function ImageUpload({
   label = "Tải ảnh lên",
   purpose = "GENERAL",
   aspectRatio = "banner",
-  helperText = "Hỗ trợ định dạng PNG, JPG, WEBP (Tối đa 10 MB)",
+  helperText = `Hỗ trợ định dạng PNG, JPG, WEBP (Tối đa ${MAX_UPLOAD_LABEL})`,
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -40,8 +46,8 @@ export default function ImageUpload({
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError("Kích thước tệp quá lớn. Giới hạn tối đa là 10 MB.");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(`Kích thước tệp quá lớn. Giới hạn tối đa là ${MAX_UPLOAD_LABEL}.`);
       return;
     }
 

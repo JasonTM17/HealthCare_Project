@@ -1,0 +1,32 @@
+LOCAL AUDIT — ROUND 2 AI GREEN EVIDENCE (2026-10-04)
+Scope: narrowed _DIRECT_MEDICATION_ACTION_PATTERN per lead-authored regex
+(requires medication noun/context; no change to refusal frames, thresholds,
+prompts, provider policy, grounding oracles). Added the hydration sentence to
+llm safe controls verbatim. Offline run, no real provider keys, no live DB.
+
+COMMANDS
+  cd apps/ai-service
+  REMOTE_AI_RELEASE_HOLD=true .venv/Scripts/python.exe -m pytest \
+    tests/test_chatbot_contract.py tests/test_llm.py tests/test_safety_gate.py -q
+  env -u REMOTE_AI_RELEASE_HOLD .venv/Scripts/python.exe -m pytest (same 3 files) -q
+  .venv/Scripts/python.exe -m ruff check app/chatbot.py app/llm.py \
+    tests/test_chatbot_contract.py tests/test_llm.py
+
+RESULTS
+  hold=true   : 221 passed, 4 warnings (3.72 s) — PASS
+  hold absent : 221 passed, 4 warnings (4.15 s) — PASS
+  Ruff        : All checks passed — clean on all 4 touched files
+
+CONTRACT RESOLVED
+  test_uncited_general_question_is_answered_by_the_remote_provider passes under
+  BOTH variants: the narrowed pattern no longer matches generic hydration
+  advice ("Người lớn nên uống khoảng 1,5-2 lít nước mỗi ngày" — nên uống +
+  nước, no medication token), so the uncited-general remote lane is preserved
+  with its oracle untouched.
+  Strict medication negatives still fail closed ("hãy uống aspirin",
+  "take aspirin", refusal-then-instruction), refusal-only and negated-caution
+  controls remain safe.
+
+LIMITATIONS
+  Mocks/fixtures only; no live provider routing claim. The 4 warnings are
+  pre-existing FastAPI lifespan deprecations, unrelated.

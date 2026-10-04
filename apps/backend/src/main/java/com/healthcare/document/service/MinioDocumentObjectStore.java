@@ -26,14 +26,20 @@ public class MinioDocumentObjectStore implements DocumentObjectStore {
 
     private final MinioClient minioClient;
     private final String bucket;
+    private final String accessKey;
+    private final String secretKey;
     private final AtomicBoolean bucketReady = new AtomicBoolean(false);
 
     @Autowired
     public MinioDocumentObjectStore(
             MinioClient minioClient,
-            @Value("${storage.bucket:${minio.bucket:healthcare-files}}") String bucket) {
+            @Value("${storage.bucket:${minio.bucket:healthcare-files}}") String bucket,
+            @Value("${storage.access-key:}") String accessKey,
+            @Value("${storage.secret-key:}") String secretKey) {
         this.minioClient = minioClient;
         this.bucket = bucket;
+        this.accessKey = accessKey;
+        this.secretKey = secretKey;
     }
 
     @Override
@@ -69,7 +75,13 @@ public class MinioDocumentObjectStore implements DocumentObjectStore {
 
     @Override
     public boolean isConfigured() {
-        return minioClient != null;
+        return minioClient != null
+                && isRealCredential(accessKey)
+                && isRealCredential(secretKey);
+    }
+
+    private static boolean isRealCredential(String value) {
+        return value != null && !value.isBlank() && !"storage-not-configured".equals(value.trim());
     }
 
     private void ensureBucket() throws Exception {

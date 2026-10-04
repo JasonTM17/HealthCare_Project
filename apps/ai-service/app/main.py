@@ -49,6 +49,12 @@ from app.providers import (
     remote_provider_requested,
     runtime_allows_local_fallback,
 )
+from app.public_chat_acceleration import (
+    PublicChatResponseCache,
+    is_cacheable_public_response,
+    public_chat_cache_key,
+    public_greeting_response,
+)
 from app.rag import CLINICAL_SOURCE_TYPES, EmbeddingContractError, normalize_projection_kind
 from app.supabase_rag import (
     SupabaseRagContractError,
@@ -92,6 +98,26 @@ from app.schemas import (
 
 settings = Settings()
 app = FastAPI(title="HealthCare AI Service", version="0.1.0")
+
+# Public-chat acceleration state. The revision counter invalidates cached
+# answers whenever the index mutates through this service's own ingest or
+# delete endpoints (Spring's scheduled sync rides /rag/index, so every sync
+# tick naturally invalidates the lane).
+_public_chat_cache = PublicChatResponseCache()
+_rag_index_revision_lock = _threading.Lock()
+_rag_index_revision = 0
+
+
+def _bump_rag_index_revision() -> int:
+    global _rag_index_revision
+    with _rag_index_revision_lock:
+        _rag_index_revision += 1
+        return _rag_index_revision
+
+
+def _current_rag_index_revision() -> int:
+    with _rag_index_revision_lock:
+        return _rag_index_revision
 
 
 @app.on_event("startup")
@@ -599,6 +625,7 @@ def health(response: Response) -> HealthResponse:
     ready = auth_ready and provider_ready and not remote_probe_required and rag_ready
     status = "ok" if ready else "degraded" if fallback_allowed and auth_ready else "misconfigured"
     response.status_code = 200 if ready else 503
+    rag_documents = int(getattr(getattr(rag_service, "index", None), "size", 0) or 0)
     return HealthResponse(
         status=status,
         service=settings.service_name,
@@ -614,6 +641,7 @@ def health(response: Response) -> HealthResponse:
         fallback_allowed=fallback_allowed,
         remote_probe_required=remote_probe_required,
         rag_ready=rag_ready,
+        rag_documents=rag_documents,
         rag_backend=rag_backend,
         rag_fallback_active=rag_fallback_active,
         rag_fallback_permitted=rag_fallback_permitted,
@@ -744,6 +772,13 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             routing_reason="public_education_requires_two_step_contract",
         )
 
+    if request.public_support_chat:
+        # Downstream of the safety gate above: an emergency phrase reaches the
+        # safety response first and can never be greeted away.
+        greeting = public_greeting_response(message, effective_mode)
+        if greeting is not None:
+            return greeting
+
     allow_public_op = request.public_support_chat or effective_mode is ChatMode.HOSPITAL_SUPPORT
     embedding_provider = settings.embedding_provider.strip().casefold()
     if (
@@ -763,6 +798,30 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             allow_approved_clinical=request.public_support_chat,
             cancellation=cancellation,
         )
+
+    cancellation.raise_if_cancelled()
+
+    # Cache lane for the deterministic public catalog path. Lookup sits after
+    # the safety gate, the education short-circuit and the greeting fast path;
+    # keys are exact-normalized messages, the index revision and the requested
+    # top_k (which shapes the citation slice), and multi-turn conversations
+    # never enter the lane.
+    public_cache_key: str | None = None
+    if (
+        settings.ai_public_chat_cache_enabled
+        and request.public_support_chat
+        and not turns
+        and not request.synthetic_beta
+    ):
+        public_cache_key = public_chat_cache_key(
+            message,
+            effective_mode,
+            _current_rag_index_revision(),
+            request.top_k,
+        )
+        cached = _public_chat_cache.get(public_cache_key)
+        if cached is not None:
+            return cached
 
     cancellation.raise_if_cancelled()
     query_embedding, query_model, embedding_provenance = _embedding_parts(
@@ -957,22 +1016,18 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
                 "citations": [] if request.public_support_chat else response.citations,
             })
     final_provenance = merge_provenance(response.provenance, embedding_provenance)
-    if final_provenance == "local_fallback":
-        return response.model_copy(
-            update={
-                "provenance": final_provenance,
-                "citations": [],
-                "mode": effective_mode,
-                "cost_tier": response.cost_tier,
-                "routing_reason": response.routing_reason,
-            }
-        )
-    return response.model_copy(update={
+    final_updates: dict[str, Any] = {
         "provenance": final_provenance,
         "mode": effective_mode,
         "cost_tier": response.cost_tier,
         "routing_reason": response.routing_reason,
-    })
+    }
+    if final_provenance == "local_fallback":
+        final_updates["citations"] = []
+    final_response = response.model_copy(update=final_updates)
+    if public_cache_key is not None and is_cacheable_public_response(final_response):
+        _public_chat_cache.put(public_cache_key, final_response)
+    return final_response
 
 
 @app.post(
@@ -1270,6 +1325,7 @@ def rag_delete(
         raise HTTPException(status_code=409, detail="RAG source revision rejected") from None
     except SupabaseRagUnavailable:
         raise HTTPException(status_code=503, detail="RAG persistence unavailable") from None
+    _bump_rag_index_revision()
     return RAGDeleteResponse(removed=existed, index_size=rag_service.index.size)
 
 
@@ -1338,6 +1394,7 @@ def rag_index(
         raise HTTPException(status_code=409, detail="RAG source revision rejected") from None
     except SupabaseRagUnavailable:
         raise HTTPException(status_code=503, detail="RAG persistence unavailable") from None
+    _bump_rag_index_revision()
     projection = normalize_projection_kind(payload.metadata)
     return RAGIndexResponse(
         id=doc.id,

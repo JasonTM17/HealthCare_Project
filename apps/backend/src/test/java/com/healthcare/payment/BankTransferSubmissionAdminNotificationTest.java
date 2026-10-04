@@ -132,6 +132,8 @@ class BankTransferSubmissionAdminNotificationTest {
             .thenReturn(Optional.of(appointment));
         when(paymentRepository.findByAppointmentId(APPOINTMENT_ID)).thenReturn(Optional.of(payment));
         when(paymentRepository.findByAppointmentIdForUpdate(APPOINTMENT_ID)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findAppointmentIdByTransferContent(TRANSFER_CONTENT))
+            .thenReturn(Optional.of(APPOINTMENT_ID));
         when(paymentRepository.findByTransferContentForUpdate(TRANSFER_CONTENT)).thenReturn(Optional.of(payment));
         when(paymentRepository.save(any(BankTransferPayment.class))).thenAnswer(call -> call.getArgument(0));
         when(claimService.claimedUserIds(APPOINTMENT_ID)).thenReturn(List.of(PATIENT_USER_ID, CLAIMED_USER_ID));

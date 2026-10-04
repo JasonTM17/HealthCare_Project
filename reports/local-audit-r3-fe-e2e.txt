@@ -1,0 +1,13 @@
+
+Running 8 tests using 1 worker
+
+  ok 1 [chromium] › tests\e2e\patient-documents.spec.ts:277:5 › patient document center covers PDF states at required responsive widths (12.9s)
+  ok 2 [chromium] › tests\e2e\patient-documents.spec.ts:319:5 › patient document center can generate and download synthetic PDFs (975ms)
+  ok 3 [chromium] › tests\e2e\patient-documents.spec.ts:361:5 › patient document center renders and downloads an appointment reminder PDF (918ms)
+  ok 4 [chromium] › tests\e2e\patient-documents.spec.ts:405:5 › patient document center disables generation when the server reports storage unconfigured (785ms)
+  ok 5 [chromium] › tests\e2e\patient-documents.spec.ts:426:5 › patient document center shows an error state when the capability probe fails and recovers on retry (818ms)
+  ok 6 [chromium] › tests\e2e\patient-documents.spec.ts:456:5 › patient document center offers regeneration for a stale reminder and blocks its download (1.0s)
+  ok 7 [chromium] › tests\e2e\patient-documents.spec.ts:527:5 › cancelled reminders offer no download, retry, or regeneration controls (871ms)
+  ok 8 [chromium] › tests\e2e\patient-documents.spec.ts:587:5 › a stale generation callback cannot clear or clobber a newer session (1.2s)
+
+  8 passed (29.6s)

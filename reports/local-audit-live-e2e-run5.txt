@@ -1,0 +1,138 @@
+
+Running 3 tests using 1 worker
+
+  x  1 [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals (53.0s)
+  x  2 [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope (13.8s)
+  x  3 [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell (26.1s)
+
+
+  1) [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  -  1
+    + Received  + 16
+
+    - Array []
+    + Array [
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Pattern attribute value [A-Za-z0-9._\\-/ ]+ is not a valid regular expression: Uncaught SyntaxError: Invalid regular expression: /[A-Za-z0-9._\\-/ ]+/v: Invalid character in character class",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    + ]
+
+      1065 |       await cleanupLiveAppointment(bookingCode);
+      1066 |       bookingCode = undefined;
+    > 1067 |       expect(browserIssues).toEqual([]);
+           |                             ^
+      1068 |     } finally {
+      1069 |       if (bookingCode) {
+      1070 |         await cleanupLiveAppointment(bookingCode).catch(() => undefined);
+        at D:\HealthCare_Project\apps\frontend\tests\e2e\live-compose-demo.spec.ts:1067:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\test-failed-3.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #4: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\test-failed-4.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #5: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\test-failed-5.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\error-context.md
+
+  2) [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 7
+
+    - Array []
+    + Array [
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "console error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    + ]
+
+      1265 |
+      1266 |       writeFileSync(join(artifactDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    > 1267 |       expect(browserIssues).toEqual([]);
+           |                             ^
+      1268 |     } finally {
+      1269 |       await bookingPage.context().close().catch(() => undefined);
+      1270 |       await patientPage.context().close().catch(() => undefined);
+        at D:\HealthCare_Project\apps\frontend\tests\e2e\live-compose-demo.spec.ts:1267:29
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-d66ef-and-enforces-document-scope-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-d66ef-and-enforces-document-scope-chromium\test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\local-audit-live\live-compose-demo-live-Com-d66ef-and-enforces-document-scope-chromium\error-context.md
+
+  3) [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('[data-cms-live-slot="hero"]')
+    Expected: "3"
+    Received: "2"
+    Timeout:  20000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 20000ms
+      - waiting for locator('[data-cms-live-slot="hero"]')
+        43 × locator resolved to <div aria-busy="false" class="hero-inner" data-cms-version="2" data-cms-live-slot="hero" aria-label="Thông tin bệnh viện" data-cms-live-source="live-backend" data-cms-backend-slot="homepage.hero">…</div>
+           - unexpected value "2"
+
+
+      1338 |       await expect(heroSlot).toContainText(updatedBody);
+      1339 |       await expect(heroSlot).toContainText(updatedEyebrow);
+    > 1340 |       await expect(heroSlot).toHaveAttribute("data-cms-version", String(publishedVersion));
+           |                              ^
+      1341 |       const rollbackTarget = adminPage.getByRole("listitem").filter({ hasText: `v${initialHero.version} ·` });
+      1342 |       await expect(rollbackTarget).toBeVisible();
+      1343 |       await expect(rollbackTarget.getByRole("button", { name: "Rollback snapshot" })).toBeEnabled();
+        at D:\HealthCare_Project\apps\frontend\tests\e2e\live-compose-demo.spec.ts:1340:30
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ac69-ack-update-the-public-shell-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\local-audit-live\live-compose-demo-live-Com-2ac69-ack-update-the-public-shell-chromium\test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\local-audit-live\live-compose-demo-live-Com-2ac69-ack-update-the-public-shell-chromium\error-context.md
+
+  3 failed
+    [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals 
+    [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope 
+    [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell 

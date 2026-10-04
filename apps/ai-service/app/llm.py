@@ -23,7 +23,8 @@ from app.providers import (
     REMOTE_CHAT_PROVIDERS,
     bounded_timeout_setting,
     provider_secret,
-    remote_base_url_allowed,
+    remote_base_url_permitted,
+    remote_provider_allowed,
     remote_provider_requested,
     runtime_allows_local_fallback,
     string_setting,
@@ -810,6 +811,55 @@ _UNSUPPORTED_CLINICAL_TERMS = (
     "thuốc an thần liều cao", "thuoc an than lieu cao",
     "kháng sinh không cần đơn", "khang sinh khong can don",
 )
+# Input-side clinical actions the term list cannot express: a named drug with
+# a strength ("paracetamol 500mg"), a verb+drug directive ("hãy uống
+# paracetamol"), or any take/drink verb followed by a dose. Evaluated across
+# _policy_variants so homoglyph or spaced-out drug names cannot slip through
+# ("pаrаcetamol" with a Cyrillic а).
+_UNSAFE_CLINICAL_INPUT_PATTERN = re.compile(
+    r"(?:\b(?:ban\s+nen|hay|nen)\s+(?:uong|dung|su\s+dung)\s+"
+    r"(?:thuoc\b|aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|"
+    r"antibiotic|khang\s+sinh)"
+    r"|\byou\s+should\s+(?:take|use)\b"
+    r"|\b(?:uong|dung|su\s+dung|take|use)\s+(?:thuoc\s+)?(?:aspirin|paracetamol|"
+    r"acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b"
+    r"|\b(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin)\s*"
+    r"\d+(?:[.,]\d+)?\s*(?:mg|ml|vien)\b"
+    r"|\b\d+(?:[.,]\d+)?\s*(?:mg|vien)\s+"
+    r"(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|"
+    r"antibiotic|khang\s+sinh)\b"
+    # Dose directives stay drug-bound: "vien" (pill) and "mg" only — "ml"
+    # alone catches everyday phrasing like "uống 500ml nước/sữa".
+    r"|\b(?:uong|take|dung)\s+(?:[a-z][a-z0-9-]*\s+){0,4}"
+    r"\d+(?:[.,]\d+)?\s*(?:mg|vien)\b"
+    # A dose anywhere in the same message as a take-verb is a directive
+    # regardless of order ("mỗi ngày 2 viên, uống theo đơn").
+    r"|(?=.*\b(?:uong|dung|take)\b).*\b\d+(?:[.,]\d+)?\s*(?:mg|vien)\b)",
+    re.IGNORECASE,
+)
+# Prescription-adherence statements ("uống kháng sinh theo đơn bác sĩ")
+# are not directives.  The exemption applies when the message contains
+# no dose at all — any declared strength/quantity keeps the refusal.
+_ADHERENCE_STATEMENT_PATTERN = re.compile(
+    r"\btheo\s+(?:don|chi\s+dinh)\b", re.IGNORECASE)
+
+
+def _unsafe_clinical_input_detected(message_normalized: str) -> bool:
+    """Evaluate the unsafe-input gate with the adherence exemption.
+
+    A directive pattern hit is suppressed only when the message is a
+    dose-free adherence statement; any digit keeps the refusal so a
+    smuggled tail ("theo đơn, mỗi ngày 3 viên") cannot escape.
+    """
+    for variant in _policy_variants(message_normalized):
+        if not _UNSAFE_CLINICAL_INPUT_PATTERN.search(variant):
+            continue
+        if _ADHERENCE_STATEMENT_PATTERN.search(variant) and not re.search(
+            r"\d", variant
+        ):
+            continue
+        return True
+    return False
 _PUBLIC_BOOKING_SUPPORT_TERMS = (
     "dat lich",
     "lich hen",
@@ -1723,6 +1773,27 @@ _NEGATED_CLINICAL_REFUSAL_FRAMES = (
 # exactly the output the URL rule exists to reject.
 _SENTENCE_BOUNDARY_PATTERN = re.compile(r"[.!?;\n]")
 _CONTRASTIVE_WORD_PATTERN = re.compile(r"\b(?:nhung|tuy nhien|however|but|ngoai ra)\b", re.IGNORECASE)
+_DIRECT_MEDICATION_ACTION_PATTERN = re.compile(
+    r"\b(?:hay|ban\s+nen|nen)\s+(?:uong|dung|su\s+dung)\s+(?:thuoc|aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b|"
+    r"\byou\s+should\s+(?:take|use)\s+(?:(?:the|a|an|your)\s+)?(?:medicine|medication|drugs?|aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|antibiotic)\b|"
+    r"\b(?:uong|dung|su\s+dung|take|use)\s+(?:(?:thuoc|the|a|an|your)\s+)?(?:medicine|medication|drugs?|aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b",
+    re.IGNORECASE,
+)
+_CLINICAL_REFUSAL_PREFIX_PATTERN = re.compile(
+    r"\b(?:"
+    + "|".join(re.escape(frame) for frame in _NEGATED_CLINICAL_REFUSAL_FRAMES)
+    + r")\s+(?:(?:tu\s+y|nen|duoc)\s+)?"
+    + r"(?:(?:chan\s+doan|ke\s+don|ke\s+toa|ngung\s+thuoc|thay\s+doi\s+thuoc|diagnose|prescribe|stop\s+medication|change\s+your\s+medication)\s*(?:,\s*|(?:hoac|va|or|and)\s+))*$",
+    re.IGNORECASE,
+)
+_REFUSABLE_CLINICAL_ACTIONS = frozenset({
+    "ke don", "ke toa", "boc thuoc", "prescribe", "ngung thuoc",
+    "stop medication", "change your medication",
+})
+_DIAGNOSIS_LABEL_PATTERN = re.compile(
+    r"\b(?:chan\s+doan|diagnosis)(?:\s+(?:nghi\s+ngo|xac\s+dinh|suspected|confirmed))?\s*:",
+    re.IGNORECASE,
+)
 
 
 def _has_unnegated_forbidden_match(normalized: str) -> bool:
@@ -1736,19 +1807,16 @@ def _has_unnegated_forbidden_match(normalized: str) -> bool:
     nhưng hãy uống thuốc này".
     """
 
-    for sentence in _SENTENCE_BOUNDARY_PATTERN.split(normalized):
-        for match in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence):
-            preceding = [
-                sentence.find(frame)
-                for frame in _NEGATED_CLINICAL_REFUSAL_FRAMES
-                if frame in sentence
-            ]
-            preceding = [pos for pos in preceding if 0 <= pos < match.start()]
-            if not preceding:
-                return True
-            gap = sentence[max(preceding):match.start()]
-            if _CONTRASTIVE_WORD_PATTERN.search(gap):
-                return True
+    for variant in _policy_variants(normalized):
+        if _DIAGNOSIS_LABEL_PATTERN.search(variant) or _DIRECT_MEDICATION_ACTION_PATTERN.search(variant):
+            return True
+        for sentence in _SENTENCE_BOUNDARY_PATTERN.split(variant):
+            for match in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence):
+                phrase = " ".join(match.group(0).split())
+                if phrase not in _REFUSABLE_CLINICAL_ACTIONS:
+                    return True
+                if not _CLINICAL_REFUSAL_PREFIX_PATTERN.search(sentence[:match.start()]):
+                    return True
     return False
 
 
@@ -1983,7 +2051,12 @@ def chat_safety_response(
             cost_tier="local_free",
             routing_reason="safety_guardrail_shortcircuit",
         )
-    if any(_normalize_sensitive_text(term) in message_normalized for term in _UNSUPPORTED_CLINICAL_TERMS):
+    message_variants = _policy_variants(message_normalized)
+    if _unsafe_clinical_input_detected(message_normalized) or any(
+        _normalize_sensitive_text(term) in variant
+        for variant in message_variants
+        for term in _UNSUPPORTED_CLINICAL_TERMS
+    ):
         return ChatResponse(
             answer=SAFETY_REFUSAL_CLINICAL_ANSWER,
             provenance="local_fallback",
@@ -2007,11 +2080,17 @@ def _triage_requires_local(symptoms: str) -> bool:
 
     normalized = _normalize_sensitive_text(symptoms)
     protected_terms = (*_INJECTION_TERMS, *_EMERGENCY_TERMS, *_UNSUPPORTED_CLINICAL_TERMS)
+    variants = _policy_variants(normalized)
     return (
         chat_contains_sensitive_data(symptoms)
         or contains_prompt_injection(symptoms)
         or _crisis_detected(normalized)
-        or any(_normalize_sensitive_text(term) in normalized for term in protected_terms)
+        or _unsafe_clinical_input_detected(normalized)
+        or any(
+            _normalize_sensitive_text(term) in variant
+            for variant in variants
+            for term in protected_terms
+        )
     )
 
 
@@ -2176,6 +2255,15 @@ def build_llm_client(
     api_key = provider_secret(settings, provider)
     if provider not in REMOTE_CHAT_PROVIDERS or not api_key:
         return None
+    # Fail closed on the provider allowlist too: the resolved remote provider
+    # must be named by ``remote_ai_provider_allowlist`` or no egress client is
+    # built, even when a key and an allowlisted host are configured.
+    if not remote_provider_allowed(settings, provider):
+        logger.warning(
+            "remote chat provider %r denied by remote_ai_provider_allowlist; no client built",
+            provider,
+        )
+        return None
 
     model = string_setting(settings, "ai_chat_model")
     base_url = string_setting(settings, "ai_base_url")
@@ -2194,12 +2282,7 @@ def build_llm_client(
     # must be on it or no remote client is built. Real Settings always carry
     # the field (default api.deepseek.com); an explicitly empty value disables
     # the check rather than pretending every host is denied.
-    allowed_hosts = {
-        host.strip().casefold()
-        for host in string_setting(settings, "remote_ai_https_host_allowlist").split(",")
-        if host.strip()
-    }
-    if allowed_hosts and not remote_base_url_allowed(base_url, allowed_hosts):
+    if not remote_base_url_permitted(settings, base_url):
         return None
     return OpenAIChatClient(
         api_key=api_key,

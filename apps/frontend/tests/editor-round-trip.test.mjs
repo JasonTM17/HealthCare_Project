@@ -62,7 +62,9 @@ function extractConverters() {
   // The transpiler emits a CommonJS preamble, so the shim supplies `exports`;
   // the functions themselves are declared at the top level and returned here.
   const factory = new Function("exports", "module", `${outputText}
-    return { htmlToMarkdown, markdownToHtml, toStoredArticleBody };`);
+    return { htmlToMarkdown, markdownToHtml, toStoredArticleBody,
+      toMarkdownImageAlt, toMarkdownImageUrl, toMarkdownLinkText,
+      hasUnresolvedInlineUpload };`);
   const moduleShim = { exports: {} };
   return factory(moduleShim.exports, moduleShim);
 }
@@ -81,7 +83,7 @@ function findFunctionEnd(text, from) {
   return text.length;
 }
 
-const { htmlToMarkdown, markdownToHtml, toStoredArticleBody } = extractConverters();
+const { htmlToMarkdown, markdownToHtml, toStoredArticleBody, toMarkdownImageAlt, toMarkdownImageUrl, toMarkdownLinkText, hasUnresolvedInlineUpload } = extractConverters();
 
 // -- C4: underline ---------------------------------------------------------------
 
@@ -357,4 +359,81 @@ test("C12 a figure without a usable image degrades to its caption text", () => {
   const md = htmlToMarkdown(html);
 
   assert.ok(md.includes("Chú thích mồ côi"), md);
+});
+
+// -- C13: markdown image emission escaping ----------------------------------------
+//
+// A `]` inside the alt text and a literal `)` inside the URL both truncate the
+// `![alt](url)` token on the next parse, so emission escapes them: brackets are
+// stripped from the alt and raw parens in the URL are percent-encoded.
+
+test("C13 brackets in alt text and parens in the URL are escaped on emission", () => {
+  const md = htmlToMarkdown('<p><img src="/media/x(1).png" alt="Sơ đồ [A]" /></p>');
+
+  assert.ok(md.includes("![Sơ đồ A](/media/x%281%29.png)"), md);
+});
+
+test("C13 the escaped markdown image renders back with the encoded src", () => {
+  const html = markdownToHtml("![Sơ đồ A](/media/x%281%29.png)");
+
+  assert.ok(html.includes('<img src="/media/x%281%29.png"'), html);
+  assert.ok(html.includes('alt="Sơ đồ A"'), html);
+});
+
+test("C13 figure emission applies the same escaping", () => {
+  const md = htmlToMarkdown(
+    '<figure><img src="/media/x(2).png" alt="Sơ đồ [B]" /><figcaption>Chú thích</figcaption></figure>'
+  );
+
+  assert.ok(md.includes("![Sơ đồ B](/media/x%282%29.png)"), md);
+});
+
+test("C13 an already-encoded URL is not encoded twice", () => {
+  const md = htmlToMarkdown('<p><img src="/media/x%281%29.png" alt="a" /></p>');
+
+  assert.ok(md.includes("![a](/media/x%281%29.png)"), md);
+  assert.doesNotMatch(md, /%25/, `double-encoded: ${md}`);
+});
+
+test("C13 a raw-paren URL and bracketed alt survive the full round trip", () => {
+  const md = htmlToMarkdown('<p><img src="/media/x(1).png" alt="Sơ đồ [A]" /></p>');
+  const html = markdownToHtml(md);
+
+  assert.ok(html.includes('<img src="/media/x%281%29.png" alt="Sơ đồ A"'), html);
+});
+
+// -- C14: drop/paste + link-label emission ----------------------------------------
+//
+// The drag/drop and paste upload paths emit `![alt](url)` from a filename the
+// author does not control — `sơ đồ [v2].png` would close the alt group early —
+// and from a stored URL that may itself contain parens. The link dialog's
+// markdown branch has the same two hazards on its label and URL.
+
+test("C14 a filename-derived alt like 'sơ đồ [v2]' cannot break the image token", () => {
+  assert.equal(toMarkdownImageAlt("sơ đồ [v2]"), "sơ đồ v2");
+
+  const md = htmlToMarkdown('<img src="/media/sd-v2.png" alt="sơ đồ [v2]" />');
+  assert.ok(md.includes("![sơ đồ v2](/media/sd-v2.png)"), md);
+});
+
+test("C14 a stored upload URL containing parens is emitted percent-encoded", () => {
+  assert.equal(toMarkdownImageUrl("/media/uploads/x(1).png"), "/media/uploads/x%281%29.png");
+  assert.equal(toMarkdownImageUrl("/media/x%281%29.png"), "/media/x%281%29.png");
+});
+
+test("C14 a link label with brackets and a URL with parens survive intact", () => {
+  assert.equal(toMarkdownLinkText("Xem [mục] này"), "Xem mục này");
+
+  const emitted = `[${toMarkdownLinkText("Xem [mục] này")}](${toMarkdownImageUrl("/huong-dan/phac-do(v1).pdf")})`;
+  assert.equal(emitted, "[Xem mục này](/huong-dan/phac-do%28v1%29.pdf)");
+
+  const html = markdownToHtml(emitted);
+  assert.ok(html.includes('href="/huong-dan/phac-do%28v1%29.pdf"'), html);
+  assert.ok(html.includes(">Xem mục này</a>"), html);
+});
+
+test("C14 the guard still flags in-flight uploads after the escaping fixes", () => {
+  assert.equal(hasUnresolvedInlineUpload("![sơ đồ v2](blob:https://h/x)"), true);
+  assert.equal(hasUnresolvedInlineUpload('<img src="data:image/png;base64,AA==" />'), true);
+  assert.equal(hasUnresolvedInlineUpload("![sơ đồ v2](/media/x%281%29.png)"), false);
 });

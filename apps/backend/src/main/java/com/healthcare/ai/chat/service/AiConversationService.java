@@ -721,7 +721,7 @@ public class AiConversationService {
             List<Map<String, String>> turns,
             boolean chunkedDeliveryGeneration,
             ChatRequestCancellation cancellation) {
-        SanitizedAiResponse deterministicBranch = deterministicBranchResponse(mode, content);
+        SanitizedAiResponse deterministicBranch = deterministicBranchResponse(mode, content, turns);
         if (deterministicBranch != null) return deterministicBranch;
 
         Map<String, Object> request = new LinkedHashMap<>();
@@ -1144,7 +1144,8 @@ public class AiConversationService {
                 }
             }
             if (aiCreditService != null && !aiCreditService.hasPatientCreditBalance(userId)) {
-                freeAnswer = localProviderFreeAnswer(conversation.getMode(), content);
+                freeAnswer = localProviderFreeAnswer(
+                    conversation.getMode(), content, recentTurns(conversationId));
                 if (freeAnswer == null) {
                     aiCreditService.requirePatientCredits(userId);
                 }
@@ -1213,8 +1214,9 @@ public class AiConversationService {
      * patient is shown exactly the answer that was checked at the gate instead
      * of a second lookup that could disagree with the first.
      */
-    private SanitizedAiResponse localProviderFreeAnswer(ChatMode mode, String content) {
-        SanitizedAiResponse local = deterministicBranchResponse(mode, content);
+    private SanitizedAiResponse localProviderFreeAnswer(
+            ChatMode mode, String content, List<Map<String, String>> turns) {
+        SanitizedAiResponse local = deterministicBranchResponse(mode, content, turns);
         if (local == null
                 && mode == ChatMode.HOSPITAL_SUPPORT
                 && ChatSuggestedActionResolver.classify(content)
@@ -2037,15 +2039,80 @@ public class AiConversationService {
      * matches (Cơ sở 13 can look similar to Cơ sở 2), so an exact operational
      * lookup must be unique before any RAG/provider path is allowed.
      */
-    private SanitizedAiResponse deterministicBranchResponse(ChatMode mode, String content) {
-        if (mode != ChatMode.HOSPITAL_SUPPORT
-                || ChatSuggestedActionResolver.classify(content)
-                    != ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
-            return null;
+    private SanitizedAiResponse deterministicBranchResponse(
+            ChatMode mode, String content, List<Map<String, String>> turns) {
+        if (mode != ChatMode.HOSPITAL_SUPPORT) return null;
+
+        if (ChatSuggestedActionResolver.classify(content)
+                != ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
+            // A short attribute follow-up ("Còn số điện thoại thì sao?")
+            // does not itself name a branch; resolve its referent from
+            // stored history so it cannot drift into the numerically
+            // fragile RAG path.  Protected clinical input still goes to
+            // the provider safety gate first.
+            if (!sourceResolver.hasBranchAttributeCue(content)
+                    || ChatMedicalSafety.containsProtectedInputCue(content)) {
+                return null;
+            }
+            try {
+                // The current message may still name a specific branch by
+                // a noun classify() does not know ("chi nhánh", "phòng
+                // khám"); only a message without its own explicit identity
+                // may borrow the referent from history, and a named-but-
+                // unresolvable identity must fail closed.
+                boolean specific = sourceResolver.isSpecificBranchQuery(content);
+                List<AiChatSourceResolver.BranchDetails> contextual;
+                if (specific) {
+                    contextual = sourceResolver.branchDetails(content);
+                    if (contextual == null || contextual.isEmpty()) {
+                        return branchUnavailableResponse(content);
+                    }
+                } else {
+                    String referent = sourceResolver.latestSpecificBranchUserTurn(turns);
+                    if (referent == null) return null;
+                    contextual = sourceResolver.branchDetails(referent);
+                    if (contextual == null || contextual.isEmpty()) {
+                        return branchUnavailableResponse(content);
+                    }
+                }
+                List<AiChatSourceResolver.BranchDetails> bounded = contextual.stream()
+                    .filter(java.util.Objects::nonNull)
+                    .filter(value -> value.source() != null)
+                    .limit(3)
+                    .toList();
+                if (bounded.isEmpty()) return branchUnavailableResponse(content);
+                if (bounded.size() == 1) return branchDetailsResponse(content, bounded);
+                return ambiguousBranchResponse(content, bounded);
+            } catch (RuntimeException ex) {
+                return null;
+            }
         }
 
+        // Parity with the public lane's protectedInput gate: a message
+        // that mixes a clinical cue with a logistics question ("tôi
+        // đang sốt, địa chỉ cơ sở 4 là gì") must reach the provider
+        // safety screen, not bypass it via deterministic branch lookup.
+        if (ChatMedicalSafety.containsProtectedInputCue(content)) {
+            return null;
+        }
         try {
-            if (!sourceResolver.isSpecificBranchQuery(content)) return null;
+            if (!sourceResolver.isSpecificBranchQuery(content)) {
+                List<AiChatSourceResolver.BranchDetails> own =
+                    sourceResolver.branchDetails(content);
+                if (own != null && !own.isEmpty()) {
+                    List<AiChatSourceResolver.BranchDetails> boundedOwn = own.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .filter(value -> value.source() != null)
+                        .limit(3)
+                        .toList();
+                    if (!boundedOwn.isEmpty()) {
+                        return boundedOwn.size() == 1
+                            ? branchDetailsResponse(content, boundedOwn)
+                            : ambiguousBranchResponse(content, boundedOwn);
+                    }
+                }
+                return null;
+            }
             List<AiChatSourceResolver.BranchDetails> matches = sourceResolver.branchDetails(content);
             if (matches == null || matches.isEmpty()) return branchUnavailableResponse(content);
             List<AiChatSourceResolver.BranchDetails> bounded = matches.stream()
@@ -2087,6 +2154,9 @@ public class AiConversationService {
         String hours = branch.workingHours() == null
             ? "Giờ làm việc đang cập nhật; bạn nên kiểm tra lại trước khi đến."
             : "Giờ làm việc: " + branch.workingHours() + ".";
+        String phone = branch.phone() == null
+            ? "Điện thoại đang cập nhật."
+            : "Điện thoại: " + branch.phone() + ".";
         List<Map<String, String>> actions = sourceResolver.actions(List.of(source));
         if (actions == null || actions.isEmpty()) {
             actions = ChatSuggestedActionResolver.hospitalSupportFallback(content);
@@ -2094,7 +2164,7 @@ public class AiConversationService {
 
         return new SanitizedAiResponse(
             "Theo dữ liệu cơ sở đang hoạt động, " + source.title() + ". "
-                + address + " " + hours
+                + address + " " + phone + " " + hours
                 + " Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.",
             SAFE_DISCLAIMER,
             "local_fallback",

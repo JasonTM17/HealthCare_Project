@@ -160,6 +160,35 @@ public class AiCatalogIndexService {
         }
     }
 
+    /**
+     * Empty-index warm check. After an ai-service restart its in-memory index
+     * stays empty until the next fixed-delay sync tick (up to 30 minutes),
+     * during which every public question falls into the INSUFFICIENT_EVIDENCE
+     * window. When {@code /health} reports zero indexed documents, push the
+     * catalog right away. Same fail-soft contract as {@link #synchronizeCatalog()}.
+     */
+    @Scheduled(
+        initialDelayString = "${ai.rag-ingest.warm-check-initial-delay-ms:20000}",
+        fixedDelayString = "${ai.rag-ingest.warm-check-delay-ms:60000}"
+    )
+    public void warmEmptyCatalogIndex() {
+        if (!catalogSyncEnabled) return;
+        if (!aiService.isRagIngestConfigured()) return;
+        try {
+            // The probe itself can throw (malformed URL, IO misuse) — keep the
+            // whole check under the same fail-soft contract as the push below
+            // so a bad tick can never kill the 60s scheduler.
+            Map<String, Object> health = aiService.probeHealth();
+            if (health == null) return;
+            Object documents = health.get("rag_documents");
+            if (!(documents instanceof Number count) || count.longValue() != 0L) return;
+            int indexed = synchronizeCatalogNow();
+            log.info("AI catalog warm sync pushed {} documents into an empty index", indexed);
+        } catch (RuntimeException exception) {
+            log.warn("AI catalog warm sync deferred: {}", exception.getClass().getSimpleName());
+        }
+    }
+
     /** Runs a bounded synchronization and propagates failures to an authorized operator. */
     public int synchronizeCatalogNow() {
         if (!aiService.isRagIngestConfigured()) {
@@ -212,7 +241,7 @@ public class AiCatalogIndexService {
         Page<com.healthcare.hospital.entity.Package> packages = packageRepository.findAll(PageRequest.of(0, pageSize));
         completeTypes.put("package", !packages.hasNext());
         for (com.healthcare.hospital.entity.Package item : packages) {
-            currentSources.add(index("package", item.getId().toString(), item.getName(), text(labeled("Gói khám", item.getName()), item.getDescription()), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
+            currentSources.add(index("package", item.getId().toString(), item.getName(), packageContent(item), item.isActive(), true, item.getSlug(), syncRevision)); indexed++;
         }
         // ARTICLE and FAQ are governed clinical projections.  The old
         // periodic writer must never index them because it has no approval
@@ -220,8 +249,6 @@ public class AiCatalogIndexService {
         // the only source for HEALTH_EDUCATION.
         completeTypes.put("article", false);
         completeTypes.put("faq", false);
-        articleRepository.findAll(PageRequest.of(0, pageSize));
-        faqRepository.findAll(PageRequest.of(0, pageSize));
 
         for (Map<String, Object> source : aiService.listIndexedDocuments()) {
             String sourceType = source.get("source_type") instanceof String value ? value : null;
@@ -318,6 +345,25 @@ public class AiCatalogIndexService {
             labeled("Lộ trình", specialty.getCarePathway()),
             specialty.getClinicalOverview(),
             labeled("Khi nào cần đi khám", specialty.getWhenToSeekCare()));
+    }
+
+    /**
+     * Package price is a public catalog fact.  Without it the grounded lane
+     * can name the package and its contents but can never answer the most
+     * common question visitors ask — "giá bao nhiêu".
+     */
+    private String packageContent(com.healthcare.hospital.entity.Package item) {
+        return text(
+            labeled("Gói khám", item.getName()),
+            item.getDescription(),
+            labeled("Giá", formatPrice(item.getPrice())),
+            labeled("Đối tượng", item.getTargetAudience()),
+            item.getDurationDays() == null ? null : "Số ngày: " + item.getDurationDays());
+    }
+
+    private String formatPrice(java.math.BigDecimal price) {
+        if (price == null) return null;
+        return price.stripTrailingZeros().toPlainString() + " VND";
     }
 
     private String jsonText(JsonNode node) {

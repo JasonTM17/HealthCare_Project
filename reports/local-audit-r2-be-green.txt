@@ -1,0 +1,92 @@
+LOCAL AUDIT — ROUND 2 BACKEND GREEN EVIDENCE (2026-10-04)
+Scope: focused verification only. No full suite. Local disposable Testcontainers
+PostgreSQL; TEST_DB_* unset; no shared/production DB touched; no migrations.
+
+COMMAND
+  cd apps/backend && ./mvnw test \
+    -Dtest=DocumentServiceTest,DocumentGenerationIntegrationTest,DocumentObjectCleanupServiceTest,MinioDocumentObjectStoreTest
+
+RESULT: PASS — 44/44
+  com.healthcare.document.DocumentGenerationIntegrationTest ... Tests run: 10, Failures: 0, Errors: 0 (66.59 s)
+  com.healthcare.document.DocumentServiceTest ................ Tests run: 28, Failures: 0, Errors: 0
+  com.healthcare.document.service.DocumentObjectCleanupServiceTest ... Tests run: 3, Failures: 0, Errors: 0
+  com.healthcare.document.service.MinioDocumentObjectStoreTest ....... Tests run: 3, Failures: 0, Errors: 0
+  BUILD SUCCESS
+
+ENVIRONMENT NOTE
+  First attempt failed at test-class init with
+  "Could not find a valid Docker environment" (Docker Desktop engine API was
+  returning HTTP 500 during engine restart, ~14:25 local). Re-ran unchanged
+  after the engine recovered; healthcare-devin-local-audit stack untouched and
+  still UP (frontend 3330, backend 8180, PG 5540, MinIO 9010/9011, Mailpit
+  1125/8125). No stack rebuild/recreate.
+
+WHAT TURNED GREEN (previously execution-confirmed RED in
+reports/local-audit-be-r2-probes.txt)
+
+1. concurrentPoolSizedGenerationDoesNotStarveIndependentSideEffects
+   Previously: circular wait — generation winner held primary conn + advisory
+   lock, audit REQUIRES_NEW needed a 2nd conn while both losers held the other
+   two conns on the advisory lock -> Hikari acquisition timeout 30 s.
+   Now: audit + cleanup-marker writes run on the dedicated bounded pool
+   "HikariPool-1-clinical-effects" (max 2, minIdle 0, connTimeout 5 s). Log:
+   "HikariPool-1-clinical-effects - Starting... / Start completed." (PID-scoped
+   JVM log; no URL/credentials printed anywhere).
+   Test still asserts: primary pool maxPoolSize == 3 (unchanged), >= 2 lock
+   waiters observed on pg_advisory_xact_lock via an independent DriverManager
+   probe connection (loopback + healthcare_test asserted, TEST_DB_* absent,
+   query timeout 2 s, creds never logged), then all 3 futures HTTP 201 /
+   AVAILABLE / same document id, exactly 1 row and 1 object put.
+
+2. generationAfterAppointmentRescheduleProducesUpdatedReminder
+   Reminder identity is now content-derived: sourceVersion = 52-bit digest of
+   the base snapshot (max(1, 52-bit)), idempotency revision = FULL sha256 of
+   canonical snapshot. Verified end-to-end: second POST after mutating the
+   appointment (date/time/appointmentTime only; createdAt unchanged) returned
+   201 AVAILABLE with a DIFFERENT id, different sourceVersion, and a different
+   idempotency key matching APPOINTMENT_REMINDER:<id>:<64-hex>:*. The second
+   stored PDF parses (PDFBox) to the NEW date and new time range. The old row
+   is SUPERSEDED; its download is rejected 409 BEFORE any objectStore.get
+   (verified never()). Listing reports old row sourceCurrent=false /
+   sourceEligible=true and new row sourceCurrent=true.
+
+3. cancelledAppointmentReminderCannotBeDownloaded
+   After status -> CANCELLED, both /documents/{id}/download and
+   /by-booking/{code}/download deny 409; objectStore.get never invoked;
+   listing reports sourceCurrent=false / sourceEligible=false.
+
+NEW PROBES (all PASS)
+- independentSideEffectPoolWritesToTheSameDisposableDatabase: the side-effect
+  pool writes to current_database() == healthcare_test == the primary JdbcTemplate
+  database (fresh Testcontainers only; never a shared/production URL).
+- cleanupMarkerSurvivesPrimaryTransactionRollback: trackCandidate committed on
+  the side-effect pool survives a forced RuntimeException rollback of the
+  primary transaction (count == 1 for object_key 'documents/test/rollback-marker.pdf').
+
+OTHER BEHAVIOR CHANGES COVERED
+- cleanupService.trackCandidate(objectKey) now runs BEFORE objectStore.put in
+  storeAndFinalize; unit test cleanupMarkerFailurePreventsObjectWrite asserts a
+  marker failure yields 503 + FAILED row + DENY audit and put() is never called
+  (no untracked bytes can be uploaded).
+- MinioDocumentObjectStore.isConfigured now reflects configuration posture
+  (both credentials non-blank and neither equals the 'storage-not-configured'
+  sentinel); unit tests cover real/blank/sentinel values. No reachability
+  claim, no security-guard change.
+- DocumentService.capabilities: patient-scope authorization FIRST, then
+  returns { generationConfigured: objectStore.isConfigured() };
+  capabilitiesCheckDeniesBeforeObjectStorePosture asserts isConfigured() is
+  never reached for a foreign patient (AccessDeniedException).
+- GET /patients/{id}/documents/capabilities added, roles PATIENT/DOCTOR/ADMIN,
+  no-store.
+- DocumentResponse gained nullable sourceCurrent/sourceEligible at the END of
+  the record; null for non-reminders. listDocuments batches reminder source
+  loads via ONE findReminderSourcesWithDetails query (join fetch) — no N+1.
+
+RESIDUAL / NOT CLAIMED
+- Side-effect pool adds AT MOST 2 physical DB connections per backend instance
+  — recorded operator impact for production review; NOT deployed.
+- External writers bypassing DocumentService still unguarded by the advisory
+  lock (unchanged scope).
+- Historical VISIT_SUMMARY/PRESCRIPTION download semantics unchanged.
+- No production/live-provider/deployment claims; all evidence is synthetic
+  disposable-DB only.

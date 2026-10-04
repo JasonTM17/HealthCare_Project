@@ -1,0 +1,2 @@
+--agent 'advisor' not found. Available agents: claude, Explore, general-purpose, Plan, statusline-setup
+

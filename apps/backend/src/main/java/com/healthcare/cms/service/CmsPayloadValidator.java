@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -23,6 +24,9 @@ public class CmsPayloadValidator {
     private static final int MAX_FIELDS = 12;
     private static final int MAX_TEXT_LENGTH = 4_000;
     private static final int MAX_PAYLOAD_BYTES = 32_768;
+    // Matches the frontend CSP img-src hosts (images.unsplash.com, images.pexels.com, img.vietqr.io) in next.config.ts.
+    private static final Set<String> ALLOWED_IMAGE_HOSTS = Set.of(
+        "images.unsplash.com", "images.pexels.com", "img.vietqr.io");
 
     private final Map<CmsComponentType, PayloadSchema> schemas = new EnumMap<>(CmsComponentType.class);
 
@@ -84,6 +88,9 @@ public class CmsPayloadValidator {
             if (isLinkField(fieldName) && !isSafeLink(text)) {
                 throw new CmsPayloadValidationException("payload link must be a relative path or HTTPS URL: " + fieldName);
             }
+            if (isImageField(fieldName) && !isSafeImageSource(text)) {
+                throw new CmsPayloadValidationException("payload image must be a root-relative path or an HTTPS URL on an allowed image host: " + fieldName);
+            }
             sanitized.put(fieldName, text);
         });
 
@@ -111,6 +118,31 @@ public class CmsPayloadValidator {
             return "https".equalsIgnoreCase(uri.getScheme())
                 && uri.getHost() != null
                 && uri.getUserInfo() == null;
+        } catch (URISyntaxException ex) {
+            return false;
+        }
+    }
+
+    private boolean isImageField(String fieldName) {
+        return fieldName.equals("imageUrl") || fieldName.equals("src");
+    }
+
+    /**
+     * Image fields are stricter than generic links: the public CSP img-src
+     * only allows same-origin and a few HTTPS image hosts, so an external
+     * host that passes isSafeLink would still render as a broken image.
+     */
+    private boolean isSafeImageSource(String value) {
+        if (value.startsWith("/")) {
+            return !value.startsWith("//") && !value.contains("\\");
+        }
+        try {
+            URI uri = new URI(value);
+            return "https".equalsIgnoreCase(uri.getScheme())
+                && uri.getHost() != null
+                && uri.getUserInfo() == null
+                && (uri.getPort() == -1 || uri.getPort() == 443)
+                && ALLOWED_IMAGE_HOSTS.contains(uri.getHost().toLowerCase(Locale.ROOT));
         } catch (URISyntaxException ex) {
             return false;
         }

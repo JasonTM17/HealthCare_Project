@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ChangeEvent, type ReactElement } from "react";
+import { isSafeCmsImageUrl } from "../../lib/cms-client";
 import ImageUpload from "../ImageUpload";
 
 interface CmsImageFieldProps {
@@ -11,15 +12,11 @@ interface CmsImageFieldProps {
   id: string;
 }
 
+// Advisory mirror of the write-time rule in lib/cms-client (the backend
+// validator stays authoritative): root-relative /… paths or HTTPS on the
+// CSP img-src hosts (Unsplash, Pexels, VietQR).
 function isProbablySafeImageUrl(url: string): boolean {
-  const trimmed = url.trim();
-  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) return true;
-  try {
-    const parsed = new URL(trimmed);
-    return parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
+  return isSafeCmsImageUrl(url);
 }
 
 /**
@@ -63,7 +60,7 @@ export default function CmsImageField({
         }}
         purpose="GENERAL"
         aspectRatio="banner"
-        helperText="Tải ảnh lên hoặc dán đường dẫn /… hoặc HTTPS. PNG, JPG, WEBP, GIF tối đa 10 MB."
+        helperText="Tải ảnh lên hoặc dán đường dẫn /… hoặc HTTPS thuộc nguồn được phép (Unsplash, Pexels, VietQR). PNG, JPG, WEBP, GIF tối đa 5 MB."
       />
       <label className="block text-xs font-medium text-slate-600" htmlFor={`${id}-manual`}>
         <span>URL hình ảnh{required ? " (bắt buộc)" : ""}</span>
@@ -94,7 +91,7 @@ export default function CmsImageField({
       ) : null}
       {effectiveValue.length > 0 && !isProbablySafeImageUrl(effectiveValue) ? (
         <p className="text-xs font-medium text-amber-700" role="alert">
-          Đường dẫn phải là đường dẫn tương đối (/…) hoặc HTTPS.
+          Đường dẫn ảnh phải là /… trên hệ thống hoặc HTTPS thuộc nguồn được phép (Unsplash, Pexels, VietQR).
         </p>
       ) : null}
     </div>

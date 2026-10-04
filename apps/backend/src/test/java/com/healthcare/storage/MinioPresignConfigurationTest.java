@@ -51,4 +51,22 @@ class MinioPresignConfigurationTest {
                 .run(context -> assertThat(context).hasFailed());
         }
     }
+
+    @Test
+    void loopbackPublicEndpointIsExemptFromTheHostedHttpsRule() {
+        // Local compose runs uploads against the operator's loopback MinIO
+        // over HTTP; the hosted HTTPS-only rule must not refuse that runtime
+        // while it still refuses every public HTTP endpoint above.
+        runner.withPropertyValues("storage.public-endpoint=http://127.0.0.1:9000", "storage.region=us-east-1",
+                "storage.require-private-endpoint=true")
+            .run(context -> {
+                assertThat(context).hasNotFailed();
+                var presigner = context.getBean("consultationPresignClient", MinioClient.class);
+                URI url = URI.create(presigner.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.PUT).bucket("healthcare-files").object("synthetic/fixture")
+                    .expiry(300).build()));
+                assertThat(url.getHost()).isEqualTo("127.0.0.1");
+                assertThat(url.getPort()).isEqualTo(9000);
+            });
+    }
 }

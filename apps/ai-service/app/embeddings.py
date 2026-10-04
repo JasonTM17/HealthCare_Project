@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import math
 import unicodedata
 from dataclasses import dataclass
@@ -15,6 +16,8 @@ from app.providers import (
     ProviderUnavailable,
     bounded_timeout_setting,
     provider_secret,
+    remote_base_url_permitted,
+    remote_provider_allowed,
     remote_provider_requested,
     runtime_allows_local_fallback,
     string_setting,
@@ -23,6 +26,8 @@ from app.llm import contains_sensitive_or_injection, patient_chat_remote_enabled
 from app.schemas import EMBEDDING_DIMENSION, ProviderProvenance
 
 DIMENSION = EMBEDDING_DIMENSION
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -200,12 +205,21 @@ class OpenAIEmbeddingClient:
 def build_embedding_client(
     settings: Any,
     cancellation: ChatCancellation | None = None,
-) -> EmbeddingClient:
+) -> EmbeddingClient | None:
     """Resolve the configured provider without exposing credentials."""
 
     provider = string_setting(settings, "embedding_provider", "local").lower()
     api_key = provider_secret(settings, provider)
     if provider not in LOCAL_EMBEDDING_PROVIDERS and api_key:
+        # Embeddings are egress too: a remote provider outside
+        # ``remote_ai_provider_allowlist`` gets no client, exactly like the
+        # chat client boundary in ``build_llm_client``.
+        if not remote_provider_allowed(settings, provider):
+            logger.warning(
+                "remote embedding provider %r denied by remote_ai_provider_allowlist; no client built",
+                provider,
+            )
+            return None
         model = string_setting(settings, "ai_embedding_model") or "text-embedding-3-small"
         base_url = string_setting(settings, "ai_base_url")
         if provider == "deepseek":
@@ -214,6 +228,15 @@ def build_embedding_client(
             )
         else:
             base_url = base_url or "https://api.openai.com/v1"
+        # The egress host boundary applies to embeddings the same way it does
+        # to chat: a resolved host outside remote_ai_https_host_allowlist gets
+        # no client even when the provider itself is allowlisted.
+        if not remote_base_url_permitted(settings, base_url):
+            logger.warning(
+                "remote embedding provider %r base_url denied by remote_ai_https_host_allowlist; no client built",
+                provider,
+            )
+            return None
         return OpenAIEmbeddingClient(
             api_key=api_key,
             base_url=base_url,
@@ -279,6 +302,13 @@ def embed(
         raise ProviderUnavailable()
 
     client = build_embedding_client(settings, cancellation)
+    if client is None:
+        # The resolved remote provider was denied before a client could be
+        # built: same fail-closed contract as the other egress gates.
+        if allow_fallback:
+            local = LocalEmbeddingClient().embed(text)
+            return EmbeddingResult(local.vector, local.model, "local_fallback")
+        raise ProviderUnavailable()
     try:
         result = client.embed(text)
         if cancellation is not None:

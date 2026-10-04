@@ -50,7 +50,7 @@ test("consultation queues keep status and SLA cues safe across responsive states
   assert.match(admin, /slaFilter/);
   assert.match(admin, /isDue/);
   assert.match(admin, /statusLabel/);
-  assert.match(admin, /METADATA-ONLY/);
+  assert.match(admin, /CHỈ XEM SIÊU DỮ LIỆU/);
   assert.match(admin, /queueError/);
   assert.match(admin, /doctorsError/);
   assert.match(admin, /LoadingState/);

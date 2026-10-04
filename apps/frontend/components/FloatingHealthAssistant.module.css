@@ -457,6 +457,63 @@
   }
 }
 
+.threadMoreLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  width: fit-content;
+  margin: 0.15rem auto 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--assistant-line);
+  border-radius: var(--radius-sm);
+  background: var(--assistant-paper);
+  color: var(--assistant-deep);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.threadMoreLink:hover,
+.threadMoreLink:focus-visible {
+  border-color: var(--assistant-deep);
+  text-decoration: underline;
+}
+
+.citationStatus {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px dashed #b45309;
+  border-radius: var(--radius-sm, 4px);
+  background: #fffbeb;
+  color: #854d0e;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1.3;
+}
+
+/* A safety-outcome answer (REFUSE / HUMAN_HANDOFF) must not read like a
+ * normal reply: a quiet shield chip marks it without competing with the
+ * emergency alert that owns the strongest surface. */
+.safetyNotice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  margin: 0.45rem 0 0;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--assistant-line);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--assistant-paper);
+  color: var(--assistant-deep);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 .citations {
   display: grid;
   gap: 0.2rem;
@@ -678,6 +735,13 @@
   border-color: var(--assistant-deep);
 }
 
+/* Call CTAs do a different job than route links; the phone glyph plus a
+ * dashed outline keeps them visually distinct from navigation actions. */
+.suggestedActionTel {
+  border-style: dashed;
+  border-color: var(--assistant-deep);
+}
+
 .feedback {
   display: flex;
   flex-wrap: wrap;
@@ -797,6 +861,73 @@
   border-color: var(--assistant-deep);
 }
 
+/* Login gate replaces the composer for anonymous visitors: the assistant is
+   a signed-in surface, but emergency and booking channels stay reachable. */
+.loginGate {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.85rem 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--assistant-line);
+  border-radius: var(--radius-sm);
+  background: var(--assistant-paper);
+}
+
+.loginGate strong {
+  color: var(--assistant-deep);
+  font-size: 0.82rem;
+}
+
+.loginGate > span {
+  color: var(--assistant-deep);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.loginGateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+
+.loginGatePrimary,
+.loginGateSecondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.loginGatePrimary {
+  border: 1px solid var(--assistant-deep);
+  background: var(--assistant-deep);
+  color: #fff;
+}
+
+.loginGateSecondary {
+  border: 1px solid var(--assistant-line);
+  background: transparent;
+  color: var(--assistant-deep);
+}
+
+.loginGatePrimary:hover,
+.loginGatePrimary:focus-visible {
+  border-color: var(--assistant-deep);
+  filter: brightness(1.08);
+}
+
+.loginGateSecondary:hover,
+.loginGateSecondary:focus-visible {
+  border-color: var(--assistant-deep);
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
@@ -840,6 +971,18 @@
 .composer textarea:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.composerCredit {
+  margin: 0;
+  padding: 0 1rem 0.35rem;
+  color: #4a5f5c;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.composerCredit strong {
+  color: var(--assistant-deep);
 }
 
 .help {

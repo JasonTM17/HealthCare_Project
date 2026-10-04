@@ -39,15 +39,25 @@ function SafeImage({ alt, src }: { alt: string; src: string }): ReactElement | n
     return <p className="text-sm text-red-700" role="alert">Hình ảnh chưa được hiển thị vì URL không an toàn.</p>;
   }
   return (
-    // The URL was checked against the same relative/HTTPS rule as the backend.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      alt={alt}
-      className="cms-renderer__image"
-      decoding="async"
-      loading="lazy"
-      src={src}
-    />
+    <>
+      {/* The URL was checked against the same relative/HTTPS rule as the backend.
+          A valid-but-broken src (404, wrong type) would otherwise leave a bare
+          glyph: hide the img and reveal the sibling note via DOM mutation — no
+          state or hooks needed, and every importer is already a client module. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={alt}
+        className="cms-renderer__image"
+        decoding="async"
+        loading="lazy"
+        onError={(event) => {
+          event.currentTarget.hidden = true;
+          event.currentTarget.nextElementSibling?.removeAttribute("hidden");
+        }}
+        src={src}
+      />
+      <p className="text-sm text-red-700" hidden role="alert">Hình ảnh chưa được hiển thị.</p>
+    </>
   );
 }
 

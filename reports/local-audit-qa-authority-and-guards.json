@@ -1,0 +1,44 @@
+{
+  "schema": "healthcare.local-qa-boundary.v1",
+  "owner": "Team Lead",
+  "date": "2026-10-04",
+  "config": ".devin/qa/playwright.local-audit.config.cjs",
+  "configGitBlob": "4cbe122a1145aa658011c364d1f1391a7182efe5",
+  "configValidation": [
+    {"check":"Node syntax","result":"PASS","exitCode":0},
+    {"check":"Exact localhost:3330 frontend and same-origin /api/v1 BFF; one worker, zero retries, live-compose spec scope, no webServer, trace off","result":"PASS","exitCode":0},
+    {"check":"Wrong frontend port refused before test execution","result":"PASS","exitCode":0},
+    {"check":"Direct/non-audit API origin refused before test execution","result":"PASS","exitCode":0}
+  ],
+  "privateEnvironment": "The new QA config does not load root dotenv or copy a private BFF service token into test evidence. Program execution uses explicit isolated endpoints; no global configuration or credentials were changed.",
+  "browserOwnership": "A shared MCP page was observed on another local project; that unbound observation was rejected. Subsequent diagnostic requests used newly created owned browser contexts, explicit localhost:3330 origin checks, and closed only those owned contexts.",
+  "fixtureSql": {
+    "path":".devin/qa/local-pdf-fixtures.sql",
+    "state":"BLOCKED; do not execute again without a new authorized and reviewed plan",
+    "target":"Own newly created healthcare-devin-local-audit-postgres-1; compose project label checked before execution",
+    "observedError":"synthetic_fixture requires an active bounded allowlist",
+    "transaction":"Failed before COMMIT; client exited and rolled back",
+    "rollbackProbe":"SELECT count(*) FROM appointments WHERE id IN ('d0410000-0000-4000-8000-000000000001','d0410000-0000-4000-8000-000000000002');",
+    "rollbackProbeObservedCount":0,
+    "guardChanges":"None. No allowlist, release flag, synthetic marker, migration or security policy was changed to bypass the failure.",
+    "nextSafeRoute":"Normal local booking/clinical APIs with their own validation/governance, or a visible BLOCKED fixture result. No relabeling flags to evade a guard."
+  },
+  "localPersonaObservations": {
+    "patientLegacyPublishedPersona":"Login and own medical/prescription/appointment reads succeeded on baseline isolated stack",
+    "doctorLocalPersona":"Login/profile succeeded; no issuing/assigned relation to the inspected legacy patient sources",
+    "doctorLegacyPublishedPersona":"Login succeeded but profile returned 404 on local seed; this is a local catalog/persona binding discrepancy, not proof of a generic DoctorService defect",
+    "sameDaySlotObservation":{"date":"2026-10-04","endpointStatus":200,"availableTimes":["15:30:00","16:00:00","16:30:00","17:00:00"],"limit":"Baseline observation only. Journey must select a currently valid slot; no clock or time-gate override is authorized."}
+  },
+  "cleanupAuthority": {
+    "userDecision":"Explicitly approved through a focused question",
+    "allowed":"DELETE only the conversationId and consultationId created by the same live E2E run in the newly isolated audit stack",
+    "forbidden":"Pre-existing IDs, seeded/user data, other projects, production, database table/bulk cleanup or deleting PDF/source records without another approval",
+    "note":"New medical/appointment/PDF artifacts are retained for user inspection. Testcontainers cleanup permission remains limited to freshly created disposable test databases."
+  },
+  "qaReviewerLimitCorrections": [
+    "Failure of ignored-file glob search does not establish that .claude/agents/code-reviewer.md is absent; its actual source was loaded by other native contexts.",
+    "Test-created resource identity alone does not authorize hard DELETE. The controller obtained the exact user approval separately before live execution.",
+    "Hydration-only console filtering, API-only AI checks and a provisioned-or-503 attachment branch must not be presented as full browser/AV/live-PDF coverage."
+  ],
+  "remoteState":"No commit, push, CI dispatch, production migration, deployment or live paid-provider call authorized or performed"
+}

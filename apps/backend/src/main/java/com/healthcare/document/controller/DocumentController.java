@@ -1,5 +1,6 @@
 package com.healthcare.document.controller;
 
+import com.healthcare.document.dto.DocumentCapabilitiesResponse;
 import com.healthcare.document.dto.DocumentResponse;
 import com.healthcare.document.dto.GenerateDocumentRequest;
 import com.healthcare.document.service.DocumentService;
@@ -50,6 +51,16 @@ public class DocumentController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(documentService.listDocuments(patientId, userDetails));
+    }
+
+    @Operation(summary = "Khả năng kết xuất tài liệu đã cấu hình", description = "Báo cấu hình kho đối tượng cho chức năng kết xuất tài liệu")
+    @GetMapping("/capabilities")
+    public ResponseEntity<DocumentCapabilitiesResponse> capabilities(
+            @PathVariable UUID patientId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(documentService.capabilities(patientId, userDetails));
     }
 
     @Operation(summary = "Tạo tệp tài liệu y khoa PDF tổng hợp", description = "Khởi tạo kết xuất tệp tóm tắt bệnh án hoặc đơn thuốc dạng PDF có mã xác thực")
@@ -126,9 +137,12 @@ public class DocumentController {
 
     private String contentDisposition(DocumentService.DocumentDownload download) {
         String documentId = download.document().getId().toString();
-        String filename = "tai-lieu-tong-hop-demo-"
-            + download.document().getSourceType().name().toLowerCase(java.util.Locale.ROOT)
-            + "-" + documentId.substring(0, Math.min(8, documentId.length())) + ".pdf";
+        String prefix = switch (download.document().getSourceType()) {
+            case VISIT_SUMMARY -> "ho-so-kham";
+            case PRESCRIPTION -> "don-thuoc";
+            case APPOINTMENT_REMINDER -> "nhac-lich-hen";
+        };
+        String filename = prefix + "-" + documentId.substring(0, Math.min(8, documentId.length())) + ".pdf";
         return "attachment; filename=\"" + filename + "\"";
     }
 

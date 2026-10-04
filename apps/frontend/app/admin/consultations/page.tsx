@@ -235,7 +235,7 @@ export default function AdminConsultationsPage() {
     <div className="section-inner portal-page admin-page grid gap-6">
       <header className="portal-hero">
         <div>
-          <p className="section-note">CONSULTATION OPERATIONS</p>
+          <p className="section-note">VẬN HÀNH TƯ VẤN</p>
           <h1>Hàng đợi tư vấn riêng</h1>
           <p>Điều phối SLA và phân công bác sĩ mà không đọc chủ đề, nội dung tin nhắn, tệp hoặc danh tính bệnh nhân.</p>
           <div aria-label="Tóm tắt trang hiện tại" className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-teal-900">
@@ -257,7 +257,7 @@ export default function AdminConsultationsPage() {
       </header>
 
       <section aria-label="Phạm vi quyền" className="portal-panel grid gap-3">
-        <p className="section-note">METADATA-ONLY</p>
+        <p className="section-note">CHỈ XEM SIÊU DỮ LIỆU</p>
         <p className="portal-panel__intro">Quản trị viên chỉ theo dõi trạng thái, SLA, chuyên khoa và phân công bác sĩ. Không hiển thị tiêu đề, nội dung trao đổi, tệp đính kèm hay danh tính người bệnh trong màn hình này.</p>
         <p className="text-sm font-bold text-teal-900">Mã kênh nội bộ được giữ kín trên giao diện; chỉ số thứ tự dùng để điều phối.</p>
       </section>
@@ -265,7 +265,7 @@ export default function AdminConsultationsPage() {
       <section aria-labelledby="consultation-filter-title" className="grid gap-4 rounded-sm border border-teal-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="section-note">QUEUE FILTERS</p>
+            <p className="section-note">BỘ LỌC HÀNG ĐỢI</p>
             <h2 className="text-lg font-black text-teal-950" id="consultation-filter-title">Lọc ưu tiên vận hành</h2>
             <p className="mt-1 text-sm text-slate-600">Lọc trang hiện tại theo trạng thái và SLA. Dùng Trước/Sau để kiểm tra các trang khác.</p>
           </div>

@@ -226,7 +226,9 @@ test("patient chat offers a Stop control that resets the send machine synchronou
   assert.match(stopBlock[0], /sendInFlightRef\.current = false;/);
   assert.match(stopBlock[0], /setStreamingReply\(""\);/);
   assert.match(stopBlock[0], /setSending\(false\);/);
-  assert.match(stopBlock[0], /setNotice\("Đã dừng gửi tin nhắn\."\);/);
+  // Cancellation is cooperative, so the copy may only claim the wait stopped —
+  // a nearly-finished turn can still complete and resurface via history.
+  assert.match(stopBlock[0], /setNotice\("Đã dừng chờ\. Nếu trợ lý vẫn hoàn tất, câu trả lời sẽ hiện lại trong lịch sử\."\);/);
 
   const stopButton = page.match(/<button\s*\n\s*className=\{styles\.secondaryButton\}\s*\n\s*onClick=\{handleStopSend\}[\s\S]*?<\/button>/);
   assert.ok(stopButton, "the composer must render a Stop control while sending");

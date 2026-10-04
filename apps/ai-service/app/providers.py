@@ -110,6 +110,40 @@ def remote_provider_requested(settings: Any, name: str, local_values: frozenset[
     return provider not in local_values
 
 
+def remote_base_url_permitted(settings: Any, base_url: str) -> bool:
+    """Enforce the configured HTTPS host allowlist before egress.
+
+    ``remote_ai_https_host_allowlist`` is a comma-separated list of hosts.
+    Real ``Settings`` always carry the field (default ``api.deepseek.com``);
+    an explicitly empty value disables the check rather than pretending every
+    host is denied.
+    """
+
+    allowed_hosts = {
+        host.strip().casefold()
+        for host in string_setting(settings, "remote_ai_https_host_allowlist").split(",")
+        if host.strip()
+    }
+    return not allowed_hosts or remote_base_url_allowed(base_url, allowed_hosts)
+
+
+def remote_provider_allowed(settings: Any, provider: str) -> bool:
+    """Enforce the configured remote-provider allowlist before egress.
+
+    ``remote_ai_provider_allowlist`` is a comma-separated list of provider
+    names.  Real ``Settings`` always carry the field (default ``deepseek``);
+    like the HTTPS host allowlist, an explicitly empty value disables the
+    check rather than pretending every provider is denied.
+    """
+
+    allowed = {
+        name.strip().casefold()
+        for name in string_setting(settings, "remote_ai_provider_allowlist").split(",")
+        if name.strip()
+    }
+    return not allowed or provider.strip().casefold() in allowed
+
+
 def provider_configured(
     settings: Any,
     name: str,
@@ -118,6 +152,8 @@ def provider_configured(
     provider = string_setting(settings, name).casefold()
     if provider in local_values:
         return True
+    if not remote_provider_allowed(settings, provider):
+        return False
     if not provider_secret(settings, provider):
         return False
     if name == "ai_provider":

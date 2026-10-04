@@ -52,6 +52,14 @@ public class PaymentInvoice {
     @Column(name = "booking_code", nullable = false, length = 32)
     private String bookingCode;
 
+    /**
+     * The receipt-face payment status frozen at issuance (one of the
+     * {@code PaymentStatusSnapshot} names). Re-downloads replay it even after
+     * a refund moves the live payment on — an issued document never changes.
+     */
+    @Column(name = "status_snapshot", nullable = false, length = 32)
+    private String statusSnapshot;
+
     public UUID getId() {
         return id;
     }
@@ -126,5 +134,13 @@ public class PaymentInvoice {
 
     public void setBookingCode(String bookingCode) {
         this.bookingCode = bookingCode;
+    }
+
+    public String getStatusSnapshot() {
+        return statusSnapshot;
+    }
+
+    public void setStatusSnapshot(String statusSnapshot) {
+        this.statusSnapshot = statusSnapshot;
     }
 }

@@ -13,6 +13,7 @@ public class FailClosedStorageSettings {
     private final boolean allowUnscannedUpload;
     private final boolean consultationEnabled;
     private final boolean requirePrivateEndpoint;
+    private final String publicEndpoint;
     private final String accessKey;
     private final String secretKey;
 
@@ -22,6 +23,7 @@ public class FailClosedStorageSettings {
             @Value("${storage.allow-unscanned-upload:false}") boolean allowUnscannedUpload,
             @Value("${storage.consultation.enabled:false}") boolean consultationEnabled,
             @Value("${storage.require-private-endpoint:false}") boolean requirePrivateEndpoint,
+            @Value("${storage.public-endpoint:}") String publicEndpoint,
             @Value("${storage.access-key:}") String accessKey,
             @Value("${storage.secret-key:}") String secretKey) {
         this.uploadEnabled = uploadEnabled;
@@ -29,6 +31,7 @@ public class FailClosedStorageSettings {
         this.allowUnscannedUpload = allowUnscannedUpload;
         this.consultationEnabled = consultationEnabled;
         this.requirePrivateEndpoint = requirePrivateEndpoint;
+        this.publicEndpoint = publicEndpoint;
         this.accessKey = accessKey;
         this.secretKey = secretKey;
     }
@@ -36,11 +39,18 @@ public class FailClosedStorageSettings {
     @PostConstruct
     public void validate() {
         FailClosedStoragePolicy.validate(uploadEnabled, avRequired, allowUnscannedUpload);
-        FailClosedStoragePolicy.validateStorageEnabledPosture(
-            uploadEnabled || consultationEnabled,
-            requirePrivateEndpoint,
-            accessKey,
-            secretKey,
-            allowUnscannedUpload);
+        // The hosted posture demands STORAGE_REQUIRE_PRIVATE_ENDPOINT=true for
+        // any runtime that stores files. A loopback public endpoint is the
+        // operator's own machine (local compose), not a hosted surface, so the
+        // hosted posture does not apply to it — the AV rule above and every
+        // other fail-closed rule still do.
+        if (!FailClosedStoragePolicy.isLoopbackEndpoint(publicEndpoint)) {
+            FailClosedStoragePolicy.validateStorageEnabledPosture(
+                uploadEnabled || consultationEnabled,
+                requirePrivateEndpoint,
+                accessKey,
+                secretKey,
+                allowUnscannedUpload);
+        }
     }
 }

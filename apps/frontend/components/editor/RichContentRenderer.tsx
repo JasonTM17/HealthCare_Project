@@ -944,14 +944,15 @@ function stripTags(html: string): string {
 }
 
 /** Escapes text destined for an HTML text node. */
-function escapeHtmlText(value: string): string {
+export function escapeHtmlText(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
 
-function escapeHtmlAttribute(value: string): string {
+/** Escapes a value destined for a double-quoted HTML attribute. */
+export function escapeHtmlAttribute(value: string): string {
   return escapeHtmlText(value).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
@@ -962,6 +963,34 @@ function htmlAttribute(tag: string, name: string): string | null {
   const match = pattern.exec(tag);
   if (!match) return null;
   return match[1] ?? match[2] ?? match[3] ?? "";
+}
+
+/**
+ * Strips the characters that break the `![alt]` group on the way back in: a
+ * `]` inside the alt text closes the token early and turns the remainder into
+ * stray link-like text. Removing the brackets keeps the caption readable.
+ */
+export function toMarkdownImageAlt(alt: string): string {
+  return alt.replace(/[[\]]/g, "");
+}
+
+/**
+ * Same bracket-stripping rule as `toMarkdownImageAlt`, applied to a link
+ * label: a `]` inside `[label](url)` closes the label group early and turns
+ * the remainder into stray bracketed text on the next parse.
+ */
+export function toMarkdownLinkText(text: string): string {
+  return text.replace(/[[\]]/g, "");
+}
+
+/**
+ * Escapes a URL for markdown image/link emission: a literal `)` ends the
+ * destination group early, so `/media/x(1).png` used to store as the
+ * truncated `/media/x(1`. Only raw parens are encoded — an already-encoded
+ * `%28` is left alone, so the escaping never double-encodes.
+ */
+export function toMarkdownImageUrl(url: string): string {
+  return url.replace(/\(/g, "%28").replace(/\)/g, "%29");
 }
 
 /**
@@ -1300,8 +1329,8 @@ export function htmlToMarkdown(html: string): string {
   // renderer already shows as the image caption).
   md = md.replace(/<figure\b[^>]*>([\s\S]*?)<\/figure>/gi, (_m, inner: string) => {
     const imgMatch = /<img\b[^>]*\/?>/i.exec(inner);
-    const src = imgMatch ? htmlAttribute(imgMatch[0], "src") : "";
-    const alt = imgMatch ? htmlAttribute(imgMatch[0], "alt") ?? "" : "";
+    const src = imgMatch ? toMarkdownImageUrl(htmlAttribute(imgMatch[0], "src") ?? "") : "";
+    const alt = imgMatch ? toMarkdownImageAlt(htmlAttribute(imgMatch[0], "alt") ?? "") : "";
     const captionMatch = /<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i.exec(inner);
     const caption = captionMatch ? stripTags(captionMatch[1]).trim() : "";
     if (!src) {
@@ -1316,7 +1345,7 @@ export function htmlToMarkdown(html: string): string {
   md = md.replace(/<img\b[^>]*\/?>/gi, (tag) => {
     const src = htmlAttribute(tag, "src");
     if (!src) return "";
-    return `![${htmlAttribute(tag, "alt") ?? ""}](${src})`;
+    return `![${toMarkdownImageAlt(htmlAttribute(tag, "alt") ?? "")}](${toMarkdownImageUrl(src)})`;
   });
   md = md.replace(/<br\s*\/?>/gi, "\n");
 
@@ -1350,6 +1379,41 @@ export function toStoredArticleBody(content: string): string {
   return /<(?:p|div|h[1-6]|table|ul|ol|blockquote|figure|span|strong|em|a|img)\b[^>]*>/i.test(value)
     ? htmlToMarkdown(value)
     : value.trim();
+}
+
+/**
+ * True when the body still references an image that was never stored on the
+ * server.
+ *
+ * `blob:` is what an in-flight `images_upload_handler` leaves behind when the
+ * author saves before TinyMCE's upload promise resolves, and `data:` lands
+ * when pasted content bypasses the handler entirely. Either one serializes
+ * into the stored body as an image that can never load again — the blob dies
+ * with the tab and the renderer rejects `data:` URLs — so the submit callers
+ * treat this as a validation failure and tell the author to wait, rather than
+ * silently persisting a permanently dead image.
+ */
+export function hasUnresolvedInlineUpload(content: string): boolean {
+  if (!content) return false;
+
+  // HTML drafts (TinyMCE mode): read the src attribute instead of trusting
+  // quoting or attribute order.
+  const imgTagPattern = /<img\b[^>]*>/gi;
+  let tag: RegExpExecArray | null;
+  while ((tag = imgTagPattern.exec(content)) !== null) {
+    const src = htmlAttribute(tag[0], "src");
+    if (src && /^(?:blob|data):/i.test(src.trim())) return true;
+  }
+
+  // Markdown drafts: the destination group runs to the first `)`, matching
+  // the inline parser's own read of `![alt](url)`.
+  const markdownImagePattern = /!\[[^\]]*\]\(([^)]+)\)/g;
+  let image: RegExpExecArray | null;
+  while ((image = markdownImagePattern.exec(content)) !== null) {
+    if (/^(?:blob|data):/i.test(image[1].trim())) return true;
+  }
+
+  return false;
 }
 
 /** True when a markdown source line opens a list item. */

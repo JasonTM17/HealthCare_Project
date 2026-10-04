@@ -172,6 +172,26 @@ def _keyword_similarity(query: str, doc: "RagDocument") -> float:
     return len(query_tokens & document_tokens) / len(query_tokens)
 
 
+def _title_similarity(query: str, doc: "RagDocument") -> float:
+    """Fraction of the document's title tokens the query covers.
+
+    Query-length-normalized body overlap collapses for long natural-language
+    questions ("chuyên khoa tim mạch ở đâu" shares 5 of 6 tokens with the
+    Tim mạch document yet still loses to a shorter, luckier hash vector), and
+    the hash embedding itself carries no semantics. Coverage of the entity
+    title is the deterministic anchor: a question that names the whole title
+    is strong intent evidence regardless of embedding noise.
+    """
+
+    title_tokens = _tokens(doc.title)
+    if not title_tokens:
+        return 0.0
+    query_tokens = _tokens(query)
+    if not query_tokens:
+        return 0.0
+    return len(query_tokens & title_tokens) / len(title_tokens)
+
+
 @dataclass
 class RagDocument:
     id: str
@@ -360,8 +380,17 @@ class RagIndex:
                 if allowed_source_types and doc.source_type not in allowed_source_types:
                     continue
                 vector_score = max(0.0, _cosine_similarity(normalized_query, doc.embedding))
-                lexical_score = _keyword_similarity(query_text, doc) if query_text else 0.0
-                score = 0.75 * vector_score + 0.25 * lexical_score if query_text else vector_score
+                if query_text:
+                    # Take the stronger lexical signal: query-normalized body
+                    # overlap wins for symptom prose, title coverage wins when
+                    # the question names the entity itself.
+                    lexical_score = max(
+                        _keyword_similarity(query_text, doc),
+                        _title_similarity(query_text, doc),
+                    )
+                    score = 0.75 * vector_score + 0.25 * lexical_score
+                else:
+                    score = vector_score
                 scored.append((doc, score))
             scored.sort(key=lambda item: (item[1], item[0].id), reverse=True)
             return scored[:top_k]

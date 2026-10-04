@@ -423,7 +423,11 @@ def test_search_maps_rpc_rows_to_citations_without_needing_raw_vectors() -> None
     assert "::text" in search_cursor.executed[0][0]
     params = search_cursor.executed[0][1]
     assert params is not None
-    assert params[-1] == "đau tim"
+    # The fifth RPC slot is projection_filter, not query text. The user's
+    # message must never ride into that parameter: it made
+    # d.projection_kind = upper(message) unmatchable and forced an unfiltered
+    # retry on every filtered search.
+    assert params[-1] is None
 
 
 def test_search_bounds_limit_and_passes_similarity_threshold_to_rpc() -> None:
