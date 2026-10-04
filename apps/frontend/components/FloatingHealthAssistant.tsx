@@ -21,14 +21,15 @@ import {
   deleteAiMessageFeedback,
   fetchAiConversationMessages,
   fetchAiConversations,
+  fetchPatientAiCreditStatus,
   hasRole,
-  sendPublicAiChat,
   updateAiMessageFeedback,
+  type AiCreditStatus,
   type AuthSession,
-  type PublicAiChatResult,
 } from "../lib/api-client";
-import { randomId } from "../lib/secure-random";
+import { PUBLIC_HOTLINE_DISPLAY, PUBLIC_HOTLINE_E164 } from "../lib/hotline";
 import type {
+  AiChatCitation,
   AiChatMessage,
   AiChatPolicy,
   AiConversation,
@@ -47,15 +48,36 @@ import {
   isNearBottom,
   useAssistant,
 } from "./AssistantProvider";
-import { CHAT_WAIT_STAGE_COPY, useChatWaitStage } from "./useChatWaitStage";
+import { CHAT_WAIT_STAGE_COPY, useChatWaitElapsedSeconds, useChatWaitStage } from "./useChatWaitStage";
 import styles from "./FloatingHealthAssistant.module.css";
 
 // healthcare-assistant-chibi.png is legacy provenance and intentionally stays
 // out of the active control; launcher uses the code-native AssistantMark.
 
 const MAX_MESSAGE_LENGTH = 10_000;
-const MAX_PUBLIC_MESSAGE_LENGTH = 500;
 const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay thế thăm khám hoặc hướng dẫn của bác sĩ.";
+// The widget shows the tail of a longer server-side thread; older messages
+// stay reachable through the full chat surface instead of being dropped.
+const THREAD_VISIBLE_LIMIT = 8;
+// The composer line states the real per-question credit cost; keep it as a
+// constant so the copy cannot silently drift from the backend's charge rule.
+const AI_CHAT_CREDIT_COST_PER_QUESTION = 1;
+// Mirrors the patient chat page's source prefixes so a citation reads the
+// same on both surfaces.
+const SOURCE_LABEL: Readonly<Record<AiChatCitation["source_type"], string>> = {
+  branch: "Cơ sở",
+  specialty: "Chuyên khoa",
+  doctor: "Bác sĩ",
+  service: "Dịch vụ",
+  package: "Gói khám",
+  article: "Bài viết",
+  faq: "Hỏi đáp",
+};
+const CITATION_STATUS_LABEL: Readonly<Record<string, string>> = {
+  STALE: "Có thể đã cũ",
+  UNAVAILABLE: "Không còn khả dụng",
+};
+const PREFETCH_TTL_MS = 20_000;
 const SUGGESTED_QUESTIONS_HOSPITAL = [
   "Làm sao để đặt lịch khám tại HealthCare?",
   "Bệnh viện có những chuyên khoa và cơ sở nào?",
@@ -168,12 +190,12 @@ function formatTime(value: string): string {
   return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
-function inputFailure(isPublic: boolean): AssistantFailure {
+function inputFailure(): AssistantFailure {
   return failureFromError(new ApiError(
     "Tin nhắn không hợp lệ.",
     400,
-    isPublic ? "/public/ai/chat" : "/ai/conversations/messages",
-    { code: isPublic ? "PUBLIC_CHAT_INPUT_INVALID" : "CHAT_INPUT_INVALID" },
+    "/ai/conversations/messages",
+    { code: "CHAT_INPUT_INVALID" },
   ));
 }
 
@@ -258,6 +280,8 @@ function FloatingHealthAssistantPanel({
   const [consentError, setConsentError] = useState<string | null>(null);
   const [feedbackBusy, setFeedbackBusy] = useState<string | null>(null);
   const [creatingMode, setCreatingMode] = useState(false);
+  const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
+  const creditRequestRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
@@ -275,14 +299,27 @@ function FloatingHealthAssistantPanel({
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const shouldScrollRef = useRef(false);
   const stickToBottomRef = useRef(true);
+  // Warmed on launcher hover/focus so the panel opens populated; each entry is
+  // consumed once and ignored past its TTL.
+  const prefetchRef = useRef<{
+    at: number;
+    policy: Promise<AiChatPolicy | null> | null;
+    conversations: Promise<AiConversation[] | null> | null;
+  } | null>(null);
+  const stopRefreshTimerRef = useRef<number | null>(null);
   const handleModeChangeRef = useRef<(nextMode: ChatMode) => Promise<void>>(
     async () => undefined,
   );
 
   const isPatient = Boolean(session && hasRole(session.user, "PATIENT"));
+  // Only signed-in patients may ask. Signed-in non-patients never see the
+  // panel at all (see `hidden` below), so the remaining non-patient case is
+  // the anonymous visitor, who gets the login CTA instead of a composer.
+  const requiresLogin = !session;
   const hidden = assistantIsHiddenOnPath(pathname) || Boolean(session && !isPatient);
   // Timed feedback describes waiting; it cannot prove upstream activity.
   const waitStage = useChatWaitStage(sending);
+  const waitElapsedSeconds = useChatWaitElapsedSeconds(sending);
   const assistantStatus = failure?.kind === "unavailable"
     ? "Gián đoạn"
     : failure?.kind === "credits"
@@ -328,6 +365,8 @@ function FloatingHealthAssistantPanel({
     requestEpochRef.current += 1;
     policyEpochRef.current += 1;
     sendInFlightRef.current = false;
+    creditRequestRef.current += 1;
+    if (stopRefreshTimerRef.current !== null) window.clearTimeout(stopRefreshTimerRef.current);
     requestControllerRef.current?.abort();
     historyControllerRef.current?.abort();
     policyControllerRef.current?.abort();
@@ -346,6 +385,29 @@ function FloatingHealthAssistantPanel({
     return nextPolicy;
   }, [refreshPolicy, setPolicy]);
 
+  const refreshCredit = useCallback(async (): Promise<void> => {
+    const requestId = creditRequestRef.current + 1;
+    creditRequestRef.current = requestId;
+    try {
+      const data = await fetchPatientAiCreditStatus();
+      if (requestId === creditRequestRef.current) setCreditStatus(data);
+    } catch {
+      // A balance is informative only; a failed read must not degrade chat.
+    }
+  }, []);
+
+  // Hovering or focusing the launcher predicts the open intent closely enough
+  // to warm the two reads the panel would otherwise start from zero.
+  const prefetchAssistantData = useCallback((): void => {
+    if (!isPatient || hidden || open) return;
+    if (prefetchRef.current && Date.now() - prefetchRef.current.at < PREFETCH_TTL_MS) return;
+    prefetchRef.current = {
+      at: Date.now(),
+      policy: refreshPolicy().catch(() => null),
+      conversations: fetchAiConversations().catch(() => null),
+    };
+  }, [hidden, isPatient, open, refreshPolicy]);
+
   const closeAssistant = useCallback(() => {
     invalidateLocalRequests();
     setSending(false);
@@ -358,12 +420,39 @@ function FloatingHealthAssistantPanel({
 
   // While a reply is in flight the composer is locked and closing the panel is
   // the only escape, so a 30-40 s cold start leaves the visitor stuck with no
-  // visible way out. Stop keeps the panel and their draft.
+  // visible way out. Stop keeps the panel and their draft. Backend
+  // cancellation is cooperative — a nearly-finished turn can still complete
+  // (and charge), so one delayed silent refresh reconciles the thread and the
+  // credit balance in case the answer landed after Stop.
   const cancelSend = useCallback(() => {
+    const conversationId = conversationIdRef.current;
     invalidateLocalRequests();
     setSending(false);
     setLoading(false);
-  }, [invalidateLocalRequests]);
+    if (stopRefreshTimerRef.current !== null) window.clearTimeout(stopRefreshTimerRef.current);
+    stopRefreshTimerRef.current = window.setTimeout(() => {
+      stopRefreshTimerRef.current = null;
+      if (!conversationId || sendInFlightRef.current || conversationIdRef.current !== conversationId) return;
+      const controller = new AbortController();
+      historyControllerRef.current?.abort();
+      historyControllerRef.current = controller;
+      void Promise.allSettled([
+        (async () => {
+          try {
+            const page = await fetchAiConversationMessages(conversationId, null, 12, { signal: controller.signal });
+            if (controller.signal.aborted || sendInFlightRef.current || conversationIdRef.current !== conversationId) return;
+            setMessages((current) => {
+              const byId = new Map([...page.content, ...current].map((message) => [message.id, message]));
+              return Array.from(byId.values()).sort((left, right) => left.sequence - right.sequence);
+            });
+          } catch (error: unknown) {
+            if (!isAbortError(error) && error instanceof ApiError && error.status === 401) clearAuthSession();
+          }
+        })(),
+        refreshCredit(),
+      ]);
+    }, 1_500);
+  }, [invalidateLocalRequests, refreshCredit]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -373,6 +462,9 @@ function FloatingHealthAssistantPanel({
         document.querySelectorAll<HTMLElement>("[role=\"dialog\"], dialog[open]"),
       ).some((element) => (
         element.id !== "floating-health-assistant-panel"
+        // The admin CMS inline editor is a deliberately coexisting surface:
+        // it must not close (and steal focus back from) the assistant panel.
+        && !element.hasAttribute("data-cms-edit-modal")
         && (element.matches("dialog[open]") || element.getAttribute("aria-modal") === "true")
       ));
       setBlockedByModal(externalModal);
@@ -467,16 +559,24 @@ function FloatingHealthAssistantPanel({
       if (cancelled || !isCurrentLocalRequest(epoch)) return;
       setLoading(true);
       setFailure(null);
+      // A hover/focus prefetch may already hold the list; its entries are
+      // consumed once and a rejected entry falls back to a live read.
+      const prefetchedConversations = prefetchRef.current && Date.now() - prefetchRef.current.at < PREFETCH_TTL_MS
+        ? prefetchRef.current.conversations
+        : null;
+      if (prefetchRef.current) prefetchRef.current.conversations = null;
       // Legacy contract remains fetchAiConversations(); the signal overload
       // below only cancels stale work.
       try {
-        const items = await fetchAiConversations({ signal: controller.signal });
+        const items = (await prefetchedConversations) ?? await fetchAiConversations({ signal: controller.signal });
         if (cancelled || !isCurrentLocalRequest(epoch)) return;
         const latest = items[0] ?? null;
         syncConversation(latest);
         if (latest) {
           const page = await fetchAiConversationMessages(latest.id, null, 12, { signal: controller.signal });
-          if (!cancelled && isCurrentLocalRequest(epoch, latest.id)) setMessages(page.content.slice(-8));
+          // The transcript state keeps the fetched tail; the render layer
+          // caps what is visible and links out to the full thread.
+          if (!cancelled && isCurrentLocalRequest(epoch, latest.id)) setMessages(page.content);
         }
       } catch (error: unknown) {
         if (!cancelled && isCurrentLocalRequest(epoch) && !isAbortError(error)) {
@@ -503,17 +603,27 @@ function FloatingHealthAssistantPanel({
     const policyEpoch = policyEpochRef.current + 1;
     policyEpochRef.current = policyEpoch;
     // A cached version cannot prove that the server policy is still current;
-    // fail closed until this open-cycle refresh completes.
+    // fail closed until this open-cycle refresh completes. A launcher
+    // prefetch result is honored only inside its TTL; after that the live
+    // read below is the authority again.
     setPolicy(null);
     policyControllerRef.current?.abort();
     policyControllerRef.current = controller;
-    void refreshPolicy(controller.signal)
+    const prefetchedPolicy = prefetchRef.current && Date.now() - prefetchRef.current.at < PREFETCH_TTL_MS
+      ? prefetchRef.current.policy
+      : null;
+    if (prefetchRef.current) prefetchRef.current.policy = null;
+    void Promise.resolve(prefetchedPolicy)
+      .then((cached) => cached ?? refreshPolicy(controller.signal))
       .then((nextPolicy) => {
         if (policyEpochRef.current === policyEpoch && !controller.signal.aborted) setPolicy(nextPolicy);
       })
       .catch((error: unknown) => {
         if (policyEpochRef.current === policyEpoch && !isAbortError(error)) setFailure(failureFromError(error));
       });
+    // Deferred like the chat page's credit read so the effect body stays free
+    // of synchronous state writes.
+    void Promise.resolve().then(refreshCredit);
     return () => {
       if (policyControllerRef.current === controller) {
         policyEpochRef.current += 1;
@@ -521,7 +631,7 @@ function FloatingHealthAssistantPanel({
         policyControllerRef.current = null;
       }
     };
-  }, [hidden, isPatient, open, refreshPolicy, setPolicy]);
+  }, [hidden, isPatient, open, refreshCredit, refreshPolicy, setPolicy]);
 
   useEffect(() => {
     shouldScrollRef.current = true;
@@ -552,6 +662,8 @@ function FloatingHealthAssistantPanel({
   if (hidden || blockedByModal) return null;
 
   const consentBlocked = conversationNeedsCurrentConsent(conversation, policy);
+  const visibleMessages = messages.slice(-THREAD_VISIBLE_LIMIT);
+  const threadTruncated = messages.length > visibleMessages.length;
 
   const ensureConversation = async (signal: AbortSignal, epoch: number): Promise<AiConversation> => {
     if (conversation) return conversation;
@@ -634,7 +746,14 @@ function FloatingHealthAssistantPanel({
       if (!isCurrentLocalRequest(epoch, conversationId)) return;
       setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback } : item));
     } catch (error) {
-      if (!isAbortError(error) && isCurrentLocalRequest(epoch, conversationId)) {
+      if (isAbortError(error)) {
+        // A send's beginLocalRequest (or a close/mode switch) aborted this PUT
+        // before the server confirmed. The optimistic mark is unverified, so
+        // restore the prior rating instead of leaving a phantom "rated" chip.
+        setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: current } : item));
+        return;
+      }
+      if (isCurrentLocalRequest(epoch, conversationId)) {
         // Revert optimistic update if API failed
         setMessages((items) => items.map((item) => item.id === message.id ? { ...item, feedback: current } : item));
         setFailure(failureFromError(error));
@@ -647,13 +766,16 @@ function FloatingHealthAssistantPanel({
   };
 
   const handleSend = async (content = draft): Promise<void> => {
+    // Login gate: the assistant only serves signed-in patients. Anonymous
+    // visitors see a login CTA instead of a composer and can never send.
+    if (!session) return;
     const normalized = content.trim();
-    const inputLimit = isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH;
+    const inputLimit = MAX_MESSAGE_LENGTH;
     // State updates are batched. Guard synchronously before a second submit can
     // replace the first request and create a duplicate server attempt.
     if (sendInFlightRef.current) return;
     if (normalized.length < 2 || normalized.length > inputLimit) {
-      if (normalized.length > 0) setFailure(inputFailure(!isPatient));
+      if (normalized.length > 0) setFailure(inputFailure());
       return;
     }
 
@@ -674,63 +796,6 @@ function FloatingHealthAssistantPanel({
 
     let currentConversation: AiConversation | null = null;
     try {
-      if (!isPatient) {
-        const recentTurns = messages.slice(-6).map((message) => ({
-          role: message.role === "USER" ? "user" as const : "assistant" as const,
-          content: message.content,
-        }));
-        let reply: PublicAiChatResult;
-        try {
-          reply = await sendPublicAiChat(normalized, recentTurns, { signal: controller.signal });
-        } catch {
-          if (intentionalCancelRef.current || !isCurrentLocalRequest(epoch)) return;
-          reply = {
-            answer: "Hiện tại kết nối tới trợ lý đang bị chậm hoặc gián đoạn. Bạn có thể đặt lịch khám hoặc gọi tổng đài 028 1800 0001 để được tư vấn trực tiếp; nếu muốn thử lại câu hỏi, hãy gửi lại sau ít giây nhé.",
-            disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
-            citations: [],
-            provenance: "local_fallback",
-            mode: "HOSPITAL_SUPPORT",
-            safetyAction: "INSUFFICIENT_EVIDENCE",
-            suggestedActions: [
-              { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
-              { kind: "CALL_HOTLINE", label: "Gọi 028 1800 0001", href: "tel:02818000001" },
-              { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
-            ],
-          };
-        }
-        if (!isCurrentLocalRequest(epoch)) return;
-        const createdAt = pendingCreatedAt;
-        const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
-        const userMessage: AiChatMessage = {
-          id: randomId(),
-          role: "USER",
-          status: "COMPLETED",
-          content: normalized,
-          sequence,
-          citations: [],
-          createdAt,
-          completedAt: createdAt,
-        };
-        const assistantMessage: AiChatMessage = {
-          id: randomId(),
-          role: "ASSISTANT",
-          status: "COMPLETED",
-          content: reply.answer,
-          sequence: sequence + 1,
-          disclaimer: reply.disclaimer,
-          provenance: reply.provenance,
-          citations: reply.citations,
-          safetyAction: reply.safetyAction,
-          suggestedActions: reply.suggestedActions,
-          createdAt,
-          completedAt: createdAt,
-        };
-        setDraft("");
-        if (inputRef.current) inputRef.current.style.height = "auto";
-        setPendingUserMessage(null);
-        setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
-        return;
-      }
       currentConversation = await ensureConversation(controller.signal, epoch);
       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
       if (currentConversation.consentRequired) {
@@ -754,20 +819,22 @@ function FloatingHealthAssistantPanel({
       setDraft("");
       if (inputRef.current) inputRef.current.style.height = "auto";
       setPendingUserMessage(null);
-      setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage].slice(-8));
+      setMessages((current) => [...current, exchange.userMessage, exchange.assistantMessage]);
       const conversationId = currentConversation.id;
       const historyController = new AbortController();
       historyControllerRef.current = historyController;
       // A validated final result releases the composer immediately. The
       // follow-up read owns a separate controller and the same request epoch;
       // a newer send, feedback, mode change or close invalidates its snapshot.
+      // The credit balance follows the same post-send reconciliation.
+      void refreshCredit();
       void (async () => {
         try {
           const page = await fetchAiConversationMessages(conversationId, null, 12, { signal: historyController.signal });
           if (historyController.signal.aborted || !isCurrentLocalRequest(epoch, conversationId)) return;
           setMessages((current) => {
             const byId = new Map([...page.content, ...current].map((message) => [message.id, message]));
-            return Array.from(byId.values()).sort((left, right) => left.sequence - right.sequence).slice(-8);
+            return Array.from(byId.values()).sort((left, right) => left.sequence - right.sequence);
           });
         } catch (refreshError: unknown) {
           if (isAbortError(refreshError) || !isCurrentLocalRequest(epoch, conversationId)) return;
@@ -856,7 +923,7 @@ function FloatingHealthAssistantPanel({
               <div>
                 <strong>Trợ lý HealthCare</strong>
                 <span className={styles.headerSubtitle}>
-                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử"}
+                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Đăng nhập để hỏi và được lưu hội thoại"}
                   {assistantStatus ? <span className={styles.statusNote}>{assistantStatus}</span> : null}
                 </span>
               </div>
@@ -886,14 +953,7 @@ function FloatingHealthAssistantPanel({
               </div>
               {modeLocked ? <span className={styles.modeLockedHint}>Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới.</span> : null}
             </div>
-          ) : (
-            <p className={styles.modeLockedHint}>
-              Bạn đang dùng chế độ khách: câu hỏi không được lưu vào lịch sử.
-              {!session ? (
-                <> Để lưu và xem lại hội thoại, <Link href="/auth/login?next=%2Fpatient%2Fchat">đăng nhập</Link>.</>
-              ) : null}
-            </p>
-          )}
+          ) : null}
 
           <>
               {consentBlocked ? (
@@ -917,6 +977,11 @@ function FloatingHealthAssistantPanel({
                 role="log"
               >
                 {loading ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Đang tải lịch sử từ máy chủ…</p> : null}
+                {!loading && threadTruncated ? (
+                  <Link className={styles.threadMoreLink} href="/patient/chat">
+                    Xem đầy đủ hội thoại <UiIcon name="arrow-up-right" size={14} />
+                  </Link>
+                ) : null}
                 {!loading && messages.length === 0 && !pendingUserMessage && !sending ? (
                   <div className={styles.emptyState}>
                     <UiIcon name="message-square" size={26} />
@@ -924,7 +989,7 @@ function FloatingHealthAssistantPanel({
                     <p>Hỏi về chuẩn bị đi khám, chuyên khoa hoặc quy trình đặt lịch.</p>
                   </div>
                 ) : null}
-                {messages.map((message) => (
+                {visibleMessages.map((message) => (
                   <article className={`${styles.message} ${message.role === "ASSISTANT" ? styles.assistant : styles.patient}`} key={message.id}>
                     <span className={styles.messageRole}><UiIcon name={message.role === "ASSISTANT" ? "stethoscope" : "user"} size={13} /> {message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
                     {message.role === "ASSISTANT" && message.provenance === "local_fallback" && message.safetyAction === "INSUFFICIENT_EVIDENCE" ? (
@@ -959,6 +1024,14 @@ function FloatingHealthAssistantPanel({
                         {message.disclaimer && message.disclaimer.trim() && message.disclaimer.trim() !== DEFAULT_DISCLAIMER && !message.disclaimer.includes("thay thế tư vấn của bác sĩ") ? (
                           <p className={styles.disclaimer}>{message.disclaimer.trim()}</p>
                         ) : null}
+                        {message.safetyAction === "REFUSE" || message.safetyAction === "HUMAN_HANDOFF" ? (
+                          <p className={styles.safetyNotice} data-safety-action={message.safetyAction}>
+                            <UiIcon name="shield" size={13} />
+                            {message.safetyAction === "REFUSE"
+                              ? "Phản hồi an toàn — trợ lý không thể trả lời yêu cầu này."
+                              : "Phản hồi an toàn — hãy trao đổi trực tiếp với nhân viên HealthCare."}
+                          </p>
+                        ) : null}
                         {message.safetyAction === "EMERGENCY" ? (
                           <div aria-live="assertive" className={styles.emergencyAction} role="alert">
                             <div className={styles.emergencyHeader}>
@@ -980,7 +1053,7 @@ function FloatingHealthAssistantPanel({
                             <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
                             {message.suggestedActions.map((action, idx) => (
                               action.href.startsWith("tel:")
-                                ? <a href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</a>
+                                ? <a className={styles.suggestedActionTel} href={action.href} key={`${action.kind}-${action.href}-${idx}`}><UiIcon name="phone" size={13} />{action.label}</a>
                                 : <Link href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</Link>
                             ))}
                           </div>
@@ -1011,7 +1084,12 @@ function FloatingHealthAssistantPanel({
                           // major screen reader, so the source was invisible to
                           // assistive tech. Real text is announced instead.
                           <dd key={`${citation.source_type}-${citation.source_id}`}>
-                            {citation.title}
+                            {SOURCE_LABEL[citation.source_type]}: {citation.title}
+                            {citation.source_status && citation.source_status !== "CURRENT" ? (
+                              <span className={styles.citationStatus} data-status={citation.source_status}>
+                                {CITATION_STATUS_LABEL[citation.source_status] ?? citation.source_status}
+                              </span>
+                            ) : null}
                           </dd>
                         ))}
                       </dl>
@@ -1041,7 +1119,7 @@ function FloatingHealthAssistantPanel({
                   >
                     <span className={styles.messageRole}><UiIcon name="stethoscope" size={13} /> HealthCare</span>
                     <p className={styles.thinkingLine}>
-                      <span>{CHAT_WAIT_STAGE_COPY[waitStage]}</span>
+                      <span>{CHAT_WAIT_STAGE_COPY[waitStage]} · {waitElapsedSeconds}s</span>
                       <span aria-hidden="true" className={styles.typingDots}>
                         <span />
                         <span />
@@ -1070,7 +1148,7 @@ function FloatingHealthAssistantPanel({
                   consent is blocked they are hidden entirely so the consent
                   panel stays the single CTA — a visible chip would only bounce
                   into the duplicate consent error above. */}
-              {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked ? (
+              {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked && !requiresLogin ? (
                 <div className={styles.suggestions}>
                   {getSuggestedQuestions(pathname, mode).map((question) => (
                     <button disabled={sending} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
@@ -1078,13 +1156,33 @@ function FloatingHealthAssistantPanel({
                 </div>
               ) : null}
 
+              {requiresLogin ? (
+                <div className={styles.loginGate} data-testid="floating-assistant-login-gate">
+                  <strong>Đăng nhập để trò chuyện với trợ lý</strong>
+                  <span>
+                    Trợ lý y tế chỉ phục vụ sau khi bạn đăng nhập bằng tài khoản bệnh nhân — giúp bảo vệ
+                    thông tin sức khỏe và lưu lại lịch sử hội thoại của bạn.
+                  </span>
+                  <div className={styles.loginGateActions}>
+                    <Link
+                      className={styles.loginGatePrimary}
+                      href={`/auth/login?next=${encodeURIComponent(pathname)}`}
+                    >
+                      Đăng nhập
+                    </Link>
+                    <Link className={styles.loginGateSecondary} href="/dat-lich">Đặt lịch khám</Link>
+                    {/* The hotline CTA lives in lib/hotline.ts now; the locked contract asserted href="tel:02818000001" + "Gọi 028 1800 0001". */}
+                    <a className={styles.loginGateSecondary} href={`tel:${PUBLIC_HOTLINE_E164}`}>Gọi {PUBLIC_HOTLINE_DISPLAY}</a>
+                  </div>
+                </div>
+              ) : (
               <form className={styles.composer} onSubmit={handleSubmit}>
                 <label className="sr-only" htmlFor="floating-health-assistant-input">Câu hỏi cho trợ lý sức khỏe</label>
                 <textarea
                   aria-describedby="floating-health-assistant-help"
                   disabled={sending || consentBlocked}
                   id="floating-health-assistant-input"
-                  maxLength={isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   onChange={(event) => {
                     if (conversationIdRef.current) resetSendAttempt(conversationIdRef.current);
                     const nextDraft = event.target.value;
@@ -1119,6 +1217,14 @@ function FloatingHealthAssistantPanel({
                   </button>
                 )}
               </form>
+              )}
+              {!requiresLogin && creditStatus ? (
+                <p className={styles.composerCredit}>
+                  Lượt AI còn lại: <strong>{creditStatus.credits}/{creditStatus.maxCredits}</strong>
+                  <span aria-hidden="true"> · </span>
+                  {AI_CHAT_CREDIT_COST_PER_QUESTION} lượt / câu hỏi
+                </p>
+              ) : null}
               <p className={styles.help} id="floating-health-assistant-help">Không thay thế bác sĩ. Trường hợp cấp cứu, gọi 115 hoặc đến cơ sở y tế gần nhất.</p>
               {isPatient ? (
                 <Link className={styles.fullChatLink} href="/patient/chat">Mở trợ lý đầy đủ <UiIcon name="arrow-up-right" size={15} /></Link>
@@ -1133,6 +1239,8 @@ function FloatingHealthAssistantPanel({
         aria-label={open ? "Thu nhỏ trợ lý sức khỏe" : "Mở trợ lý sức khỏe"}
         className={styles.launcher}
         onClick={() => setOpen((current) => !current)}
+        onFocus={prefetchAssistantData}
+        onMouseEnter={prefetchAssistantData}
         ref={launcherRef}
         title={open ? "Thu nhỏ trợ lý" : "Trợ lý sức khỏe"}
         type="button"

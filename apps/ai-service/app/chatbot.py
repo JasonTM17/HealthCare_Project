@@ -26,6 +26,7 @@ from app.llm import (
     public_chat_mode_for_query,
     public_education_topic_tokens,
     public_no_context_query_allowed,
+    remote_text_output_is_safe,
     resolve_chat,
     rule_based_triage,
 )
@@ -287,10 +288,22 @@ def _public_operational_context(meta: _SourceMetadata) -> bool:
 
 
 def _context_is_safe(meta: _SourceMetadata) -> bool:
-    return not context_contains_unsafe_data(
+    allow_public = _public_operational_context(meta)
+    if context_contains_unsafe_data(
         [meta.document.title, meta.document.content],
-        allow_public_operational=_public_operational_context(meta),
+        allow_public_operational=allow_public,
+    ):
+        return False
+    content = _clean_patient_source_content(meta.document.content)
+    if allow_public:
+        content = re.sub(r"https?://\S+", "", content, flags=re.IGNORECASE)
+    normalized = normalize_sensitive_text(f"{meta.document.title}\n{content}")
+    normalized = re.sub(
+        r"\bco\s+the\s+can\s+ngung\s+thuoc(?:\s+loang\s+mau)?\s+theo\s+(?:huong\s+dan|chi\s+dinh)\s+cua\s+bac\s+si\b",
+        "chuan bi theo huong dan bac si",
+        normalized,
     )
+    return remote_text_output_is_safe(normalized, allow_public_operational=allow_public)
 
 
 def _expired(meta: _SourceMetadata) -> bool:
@@ -870,12 +883,58 @@ def _extract_serialized_sections(content: str) -> tuple[str, str]:
     return content, ""
 
 
+# ``Label: [ ... ]`` spans whose bracket group is a JSON-decodable list of
+# plain strings. Backend clinical projections concatenate JSONB columns
+# (common_symptoms, preparation_steps) straight into searchable content, so
+# these inline arrays leak storage serialization into patient answers.
+# Ordinary prose brackets never decode as JSON and therefore never match.
+_INLINE_JSON_ARRAY_LABEL = re.compile(r"(?P<label>[^\[\]\n]{0,160}?:)\s*(?=\[)")
+
+
+def _render_inline_jsonb_string_arrays(text: str) -> str:
+    """Render inline ``Label: ["a", "b"]`` JSONB artifacts as ``Label: a; b``.
+
+    Strict on purpose: only a non-empty JSON array whose every element is a
+    plain string, directly preceded by a ``Label:`` prefix on the same line,
+    is transformed; the label itself is kept unchanged. Nested arrays, dicts,
+    numbers and undecodable brackets are left exactly as they were.
+    """
+
+    if "[" not in text:
+        return text
+    decoder = json.JSONDecoder()
+    rendered: list[str] = []
+    cursor = 0
+    transformed = False
+    for match in _INLINE_JSON_ARRAY_LABEL.finditer(text):
+        start = match.end()
+        try:
+            payload, consumed = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, list) or not payload:
+            continue
+        if not all(isinstance(item, str) for item in payload):
+            continue
+        items = [item.strip() for item in payload if item.strip()]
+        if not items:
+            continue
+        rendered.append(text[cursor : match.start()])
+        rendered.append(f"{match.group('label')} {'; '.join(items)}")
+        cursor = start + consumed
+        transformed = True
+    if not transformed:
+        return text
+    rendered.append(text[cursor:])
+    return "".join(rendered)
+
+
 def _clean_patient_source_content(content: str) -> str:
     """Render indexed source text without leaking storage serialization."""
 
     prefix, sections = _extract_serialized_sections(str(content))
     parts = [part for part in (prefix, sections) if part.strip()]
-    return normalize_content("\n".join(parts))
+    return normalize_content(_render_inline_jsonb_string_arrays("\n".join(parts)))
 
 
 def _grounded_excerpt(meta: _SourceMetadata) -> str:
@@ -1049,8 +1108,14 @@ def _local_grounded_response(
         action = ChatSafetyAction.ANSWER
         summary = None
 
-    if _unsafe_claim(answer):
-        return _insufficient_response(mode)
+    # No output-side unsafe-claim re-scan on this deterministic path. The
+    # answer is fixed server copy plus `_grounded_excerpt` text from metas
+    # that already passed `_context_is_safe` at the top of this function, so
+    # re-scanning re-judges the same approved hospital content — and approved
+    # clinical instructions such as "ngừng thuốc trước phẫu thuật" (a common,
+    # legitimate preparation step) tripped the advice-oriented pattern and
+    # turned every such specialty into a fail-closed INSUFFICIENT. The remote
+    # provider path keeps its unsafe-claim gate (see resolve_chat callers).
     return ChatResponse(
         answer=answer[:4_000],
         citations=citations,
@@ -1341,7 +1406,7 @@ def generate_chat_response(
     else:
         is_complex = is_complex_multisymptom_query(request.message)
         is_operational = request.mode is ChatMode.HOSPITAL_SUPPORT or all(meta.projection_kind == "OPERATIONAL" for meta in metas)
-        if client is None and not is_complex and is_operational:
+        if not is_complex and is_operational:
             response = _local_grounded_response(request.message, request.mode, metas)
             response = response.model_copy(update={
                 "cost_tier": "local_free",

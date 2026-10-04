@@ -100,7 +100,7 @@ export default function DoctorHealthQuestionsPage() {
       <div className="portal-content grid gap-6">
         <header className="portal-hero">
           <div>
-            <p className="section-note">PATIENT Q&amp;A</p>
+            <p className="section-note">HỎI ĐÁP BỆNH NHÂN</p>
             <h1>Hỏi đáp bệnh phổ biến</h1>
             <p>Câu hỏi đã được ban quản trị kiểm duyệt và bảo vệ quyền riêng tư. Trả lời là một bản sửa đổi bất biến; bác sĩ khác phải duyệt độc lập trước khi xuất bản.</p>
           </div>

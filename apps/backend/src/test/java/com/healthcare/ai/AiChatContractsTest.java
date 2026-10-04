@@ -467,7 +467,8 @@ class AiChatContractsTest {
             "/branches/co-so-2-quan-3", "/dat-lich?branchId=00000000-0000-0000-0000-000000000003");
         when(resolver.branchDetails(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of(
             new AiChatSourceResolver.BranchDetails(
-                branch, "2 Đường số 3, Quận 3, TP. Hồ Chí Minh", "06:30–20:00, tất cả các ngày")));
+                branch, "2 Đường số 3, Quận 3, TP. Hồ Chí Minh", "06:30–20:00, tất cả các ngày",
+                "028 38000002")));
         when(resolver.citations(List.of(branch))).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", branch.id(), "title", branch.title())));
         when(resolver.actions(List.of(branch))).thenReturn(List.of(
@@ -492,6 +493,7 @@ class AiChatContractsTest {
             .isEqualTo(ChatSafetyAction.ANSWER);
         assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
             .contains("2 Đường số 3, Quận 3, TP. Hồ Chí Minh")
+            .contains("028 38000002")
             .contains("06:30–20:00, tất cả các ngày");
         assertThat((Object) ReflectionTestUtils.invokeMethod(response, "sourceStatus"))
             .isEqualTo("CURRENT");
@@ -516,8 +518,8 @@ class AiChatContractsTest {
             "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
         when(resolver.isSpecificBranchQuery(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
         when(resolver.branchDetails(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of(
-            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00"),
-            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null)));
+            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00", null),
+            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null, null)));
         when(resolver.citations(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", district3.id(), "title", district3.title()),
             Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())));
@@ -547,6 +549,188 @@ class AiChatContractsTest {
             .isEqualTo(ChatSafetyAction.ANSWER);
         assertThat((Object) ReflectionTestUtils.invokeMethod(response, "finalSources"))
             .isEqualTo(List.of(district3, district7));
+        verify(upstream, never()).retrieveChat(org.mockito.ArgumentMatchers.any());
+        verify(upstream, never()).generateChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void branchAttributeFollowUpResolvesReferentFromStoredTurns() {
+        AiService upstream = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource branch17 = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000017",
+            "Bệnh viện Đa khoa HealthCare — Cơ sở 17", "co-so-17",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-17", "/dat-lich?branchId=00000000-0000-0000-0000-000000000017");
+        when(resolver.hasBranchAttributeCue("Còn số điện thoại thì sao?")).thenReturn(true);
+        when(resolver.latestSpecificBranchUserTurn(org.mockito.ArgumentMatchers.any()))
+            .thenReturn("Cơ sở 17 ở đâu?");
+        when(resolver.branchDetails("Cơ sở 17 ở đâu?")).thenReturn(List.of(
+            new AiChatSourceResolver.BranchDetails(
+                branch17, "17 Đường Số 17, Quận Bình Tân", "06:30–20:00", "028 38000017")));
+        when(resolver.citations(List.of(branch17))).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", branch17.id(), "title", branch17.title())));
+        when(resolver.actions(List.of(branch17))).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", branch17.title(), "href", branch17.viewHref())));
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        List<Map<String, String>> turns = List.of(
+            Map.of("role", "user", "content", "Cơ sở 17 ở đâu?"),
+            Map.of("role", "assistant", "content", "Theo dữ liệu cơ sở đang hoạt động, Cơ sở 17."));
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "Còn số điện thoại thì sao?", turns);
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.ANSWER);
+        assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
+            .contains("Cơ sở 17")
+            .contains("Điện thoại: 028 38000017");
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "finalSources"))
+            .isEqualTo(List.of(branch17));
+        verify(upstream, never()).retrieveChat(org.mockito.ArgumentMatchers.any());
+        verify(upstream, never()).generateChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void attributeCueMessageNamingOwnBranchResolvesItInsteadOfBorrowingReferent() {
+        AiService upstream = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource branch5 = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000005",
+            "Bệnh viện Đa khoa HealthCare — Cơ sở 5", "co-so-5",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-5", "/dat-lich?branchId=00000000-0000-0000-0000-000000000005");
+        // "chi nhánh" is not a classify() branch noun, so the message
+        // enters the referent path — but it names its own identity and
+        // must resolve it instead of borrowing the historical branch.
+        when(resolver.hasBranchAttributeCue("Số điện thoại chi nhánh 5?")).thenReturn(true);
+        when(resolver.isSpecificBranchQuery("Số điện thoại chi nhánh 5?")).thenReturn(true);
+        when(resolver.branchDetails("Số điện thoại chi nhánh 5?")).thenReturn(List.of(
+            new AiChatSourceResolver.BranchDetails(
+                branch5, "5 Đường Số 5, Quận 5", "06:30–20:00", "028 38000005")));
+        when(resolver.citations(List.of(branch5))).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", branch5.id(), "title", branch5.title())));
+        when(resolver.actions(List.of(branch5))).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", branch5.title(), "href", branch5.viewHref())));
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "Số điện thoại chi nhánh 5?",
+            List.of(Map.of("role", "user", "content", "Cơ sở 17 ở đâu?")));
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
+            .contains("Cơ sở 5")
+            .contains("028 38000005");
+        verify(resolver, never()).latestSpecificBranchUserTurn(org.mockito.ArgumentMatchers.any());
+        verify(upstream, never()).retrieveChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void attributeCueMessageNamingUnresolvableBranchFailsClosed() {
+        AiService upstream = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.hasBranchAttributeCue("sđt chi nhánh 99")).thenReturn(true);
+        when(resolver.isSpecificBranchQuery("sđt chi nhánh 99")).thenReturn(true);
+        when(resolver.branchDetails("sđt chi nhánh 99")).thenReturn(List.of());
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "sđt chi nhánh 99",
+            List.of(Map.of("role", "user", "content", "Cơ sở 17 ở đâu?")));
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        verify(resolver, never()).latestSpecificBranchUserTurn(org.mockito.ArgumentMatchers.any());
+        verify(upstream, never()).retrieveChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void branchAttributeFollowUpWithoutReferentFallsThroughToProvider() {
+        AiService upstream = mock(AiService.class);
+        when(upstream.retrieveChat(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.hasBranchAttributeCue("Còn số điện thoại thì sao?")).thenReturn(true);
+        when(resolver.latestSpecificBranchUserTurn(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(null);
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "Còn số điện thoại thì sao?",
+            List.of(Map.of("role", "user", "content", "Xin chào")));
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        verify(upstream).retrieveChat(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void branchAttributeFollowUpWithUnresolvableReferentFailsClosed() {
+        AiService upstream = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.hasBranchAttributeCue("Số điện thoại của nó?")).thenReturn(true);
+        when(resolver.latestSpecificBranchUserTurn(org.mockito.ArgumentMatchers.any()))
+            .thenReturn("Cơ sở 99 ở đâu?");
+        when(resolver.branchDetails("Cơ sở 99 ở đâu?")).thenReturn(List.of());
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            upstream,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "groundedResponse", UUID.randomUUID(), ChatMode.HOSPITAL_SUPPORT,
+            "Số điện thoại của nó?",
+            List.of(Map.of("role", "user", "content", "Cơ sở 99 ở đâu?")));
+
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        assertThat((Object) ReflectionTestUtils.invokeMethod(response, "sourceStatus"))
+            .isEqualTo("UNAVAILABLE");
         verify(upstream, never()).retrieveChat(org.mockito.ArgumentMatchers.any());
         verify(upstream, never()).generateChat(org.mockito.ArgumentMatchers.any());
     }

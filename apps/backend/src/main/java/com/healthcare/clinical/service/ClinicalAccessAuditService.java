@@ -1,12 +1,10 @@
 package com.healthcare.clinical.service;
 
+import com.healthcare.database.IndependentClinicalTransactions;
 import com.healthcare.security.HealthcareUserPrincipal;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -41,10 +39,10 @@ public class ClinicalAccessAuditService {
     public static final String DECISION_ALLOW = "ALLOW";
     public static final String DECISION_DENY = "DENY";
 
-    private final JdbcTemplate jdbcTemplate;
+    private final IndependentClinicalTransactions sideEffects;
 
-    public ClinicalAccessAuditService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public ClinicalAccessAuditService(IndependentClinicalTransactions sideEffects) {
+        this.sideEffects = sideEffects;
     }
 
     /**
@@ -52,7 +50,6 @@ public class ClinicalAccessAuditService {
      * reads are intentionally marked read-only, but their allow/deny audit row
      * is still a required append-only side effect.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void record(
             UserDetails principal,
             UUID patientId,
@@ -60,7 +57,7 @@ public class ClinicalAccessAuditService {
             String targetId,
             String action,
             String decision) {
-        jdbcTemplate.update(
+        sideEffects.write(jdbc -> jdbc.update(
             """
             insert into clinical_access_audit
                 (id, actor_user_id, actor_email, actor_role, patient_id, target_type, target_id, action, decision)
@@ -75,7 +72,7 @@ public class ClinicalAccessAuditService {
             bound(targetId, 128),
             bound(action, 32),
             bound(decision, 16)
-        );
+        ));
     }
 
     private UUID actorUserId(UserDetails principal) {

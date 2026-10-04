@@ -1,12 +1,11 @@
 package com.healthcare.document.service;
 
+import com.healthcare.database.IndependentClinicalTransactions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
@@ -30,23 +29,25 @@ public class DocumentObjectCleanupService {
     private final TransactionTemplate transactions;
     private final boolean enabled;
     private final int leaseSeconds;
+    private final IndependentClinicalTransactions sideEffects;
 
     public DocumentObjectCleanupService(
             JdbcTemplate jdbc,
             DocumentObjectStore objectStore,
             PlatformTransactionManager transactionManager,
             @Value("${storage.document.cleanup-worker-enabled:true}") boolean enabled,
-            @Value("${storage.document.cleanup-lease-seconds:120}") int leaseSeconds) {
+            @Value("${storage.document.cleanup-lease-seconds:120}") int leaseSeconds,
+            IndependentClinicalTransactions sideEffects) {
         this.jdbc = jdbc;
         this.objectStore = objectStore;
         this.transactions = new TransactionTemplate(transactionManager);
         this.enabled = enabled;
         this.leaseSeconds = Math.max(30, Math.min(900, leaseSeconds));
+        this.sideEffects = sideEffects;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void trackCandidate(String objectKey) {
-        jdbc.update("""
+        sideEffects.write(jdbc -> jdbc.update("""
             INSERT INTO patient_document_object_cleanup(object_key, status, attempts, next_attempt_at,
                 lease_token, lease_expires_at, last_failure_code, completed_at)
             VALUES (?, 'PENDING', 0, CURRENT_TIMESTAMP + (? * INTERVAL '1 second'),
@@ -59,17 +60,16 @@ public class DocumentObjectCleanupService {
                    lease_expires_at = NULL,
                    last_failure_code = NULL,
                    completed_at = NULL
-            """, objectKey, INITIAL_GRACE_SECONDS, INITIAL_GRACE_SECONDS);
+            """, objectKey, INITIAL_GRACE_SECONDS, INITIAL_GRACE_SECONDS));
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void resolveCandidate(String objectKey) {
-        jdbc.update("""
+        sideEffects.write(jdbc -> jdbc.update("""
             UPDATE patient_document_object_cleanup
                SET status = 'DONE', lease_token = NULL, lease_expires_at = NULL,
                    completed_at = CURRENT_TIMESTAMP, last_failure_code = NULL
              WHERE object_key = ? AND status <> 'DONE'
-            """, objectKey);
+            """, objectKey));
     }
 
     @Scheduled(fixedDelayString = "${storage.document.cleanup-poll-ms:5000}")

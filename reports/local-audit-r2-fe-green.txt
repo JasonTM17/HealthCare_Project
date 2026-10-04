@@ -1,0 +1,66 @@
+LOCAL AUDIT — ROUND 2 FRONTEND GREEN EVIDENCE (2026-10-04)
+Scope: document capability decoupling + reminder freshness UX. Mocked API
+routes only; no live backend/MinIO touched; audit stack untouched.
+
+COMMANDS (all in apps/frontend)
+  node --test tests/documents-retry.test.mjs tests/patient-documents.test.mjs
+  npx eslint app/patient/documents/page.tsx lib/api-client.ts types/hospital.ts \
+    tests/e2e/patient-documents.spec.ts
+  npm run typecheck            # next typegen && tsc --noEmit
+  npm run build
+  PLAYWRIGHT_PORT=3331 npx playwright test tests/e2e/patient-documents.spec.ts --reporter=list
+
+RESULTS
+  Unit tests  : 6/6 PASS (documents-retry 3, patient-documents 3)
+  ESLint      : clean (0 findings on the 4 touched files)
+  Typecheck   : route types generated, tsc --noEmit exit 0
+  next build  : BUILD SUCCESS (exit 0)
+  Playwright  : 6/6 PASS (24.1 s, 1 worker, built app on :3331)
+    - responsive PDF states ........................... ok
+    - generate + download synthetic PDFs .............. ok
+    - reminder card renders + downloads ............... ok
+    - server generationConfigured:false -> all generate
+      and retry controls disabled + disabled-message
+      banner; existing download stays enabled ......... ok
+    - capability 503 -> ErrorState, "Thử lại" refetches
+      -> controls recover ............................. ok
+    - stale reminder (sourceCurrent=false/
+      sourceEligible=true) -> "Cần tạo giấy nhắc mới"
+      label, Tải PDF disabled, "Tạo giấy nhắc mới"
+      POSTs once, refresh shows new AVAILABLE +
+      old SUPERSEDED rows, new file downloads with the
+      expected filename ............................... ok
+
+WHAT CHANGED
+- api-client: PatientDocumentCapabilities { generationConfigured: boolean } +
+  fetchPatientDocumentCapabilities -> GET /patients/{id}/documents/capabilities
+  via getAuthenticatedJson (same-origin BFF only).
+- types/hospital.ts: PatientDocument +sourceCurrent?/sourceEligible?:
+  boolean|null.
+- documents page: capability fetched inside the existing profile-first
+  Promise.allSettled sequence; 401 still clears auth. Local const
+  DOCUMENT_GENERATION_ENABLED = capabilities.status==="success" &&
+  capabilities.data.generationConfigured (server-sourced; the static
+  media-uploads export is no longer imported — the disable-message export is
+  retained). Capability error -> ErrorState with retry; loading/error keeps
+  generation disabled; configured=false shows the existing disabled copy.
+- AVAILABLE summary count and Tải PDF guard now exclude sourceCurrent===false.
+  Stale AVAILABLE reminder labels: "Cần tạo giấy nhắc mới" (eligible) /
+  "Giấy nhắc không còn hiệu lực" (ineligible); persisted status labels kept for
+  all other cases. "Tạo giấy nhắc mới" button only on REMINDER + AVAILABLE +
+  sourceCurrent===false + sourceEligible===true, same generation gate +
+  single-flight; no regen control for cancelled/ineligible sources.
+- handleGenerate now refreshes the document list from the server after a
+  successful POST (single POST; upsert retained while refreshing; refresh
+  failure surfaces a truthful notice without calling generation failed) and is
+  guarded by the existing loadRun counter against cross-session overwrites.
+- documents-retry.test.mjs: download-guard regex extended to include
+  document.sourceCurrent === false; all other assertions preserved.
+- patient-documents.test.mjs: api-client/type contract assertions extended
+  for fetchPatientDocumentCapabilities + sourceCurrent.
+
+LIMITATIONS
+  Mocked routes only — no live MinIO/backend verification in this pass; a
+  configured store can still be unreachable (capability is posture, not a
+  health check). 3331 server was Playwright's own webServer and exited with
+  the run.

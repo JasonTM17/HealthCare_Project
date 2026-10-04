@@ -222,6 +222,69 @@ public class AiClinicalProjectionIndexService {
         }
     }
 
+    /**
+     * Empty-index warm check for the governed clinical projection. After an
+     * ai-service restart its in-memory index is empty and the APPROVED
+     * specialty/article/faq projections stay unreachable until the next
+     * 30-minute reconciliation tick, during which every clinical question
+     * falls into the INSUFFICIENT_EVIDENCE window. When the live approved
+     * snapshot holds more eligible rows than the index holds CLINICAL
+     * documents, push the snapshot right away. Same warm-check cadence and
+     * fail-soft contract as the catalog warm check
+     * ({@link AiCatalogIndexService#warmEmptyCatalogIndex}).
+     */
+    @Scheduled(
+        initialDelayString = "${ai.rag-ingest.warm-check-initial-delay-ms:20000}",
+        fixedDelayString = "${ai.rag-ingest.warm-check-delay-ms:60000}"
+    )
+    public void warmEmptyClinicalProjectionIndex() {
+        if (!aiService.isRagIngestConfigured()) return;
+        try {
+            int eligible = 0;
+            for (Map<String, Object> row : jdbc.queryForList(CURRENT_APPROVED_SOURCES)) {
+                if (isPushableClinicalRow(row)) eligible++;
+            }
+            // Nothing is currently eligible: a warm push could only run the
+            // tombstone sweep, which the periodic tick already owns.
+            if (eligible == 0) return;
+            if (countIndexedClinicalDocuments() >= eligible) return;
+            // synchronizeClinicalNow is serialized by the same sync lock as
+            // the periodic tick, so this cannot run concurrently with a full
+            // reconciliation pass.
+            synchronizeClinicalNow();
+            log.info("AI clinical projection warm check pushed the approved snapshot into a depleted index");
+        } catch (RuntimeException exception) {
+            // Same deferral posture as the periodic tick: the next warm check
+            // re-resolves the same database-owned snapshot. Do not mark a
+            // source eligible or emit provider-facing error payloads.
+            log.warn("AI clinical projection warm check deferred: {}", exception.getClass().getSimpleName());
+        }
+    }
+
+    /** Mirror the push-eligibility checks {@link #synchronizeClinicalNow()} applies per row. */
+    private boolean isPushableClinicalRow(Map<String, Object> row) {
+        return text(row.get("source_type")) != null
+            && text(row.get("source_id")) != null
+            && text(row.get("title")) != null
+            && text(row.get("content")) != null
+            && text(row.get("content_hash")) != null
+            && text(row.get("approval_expires_at")) != null;
+    }
+
+    /** Count only rows this projection owns: CLINICAL docs of a clinical source type. */
+    private int countIndexedClinicalDocuments() {
+        int count = 0;
+        for (Map<String, Object> indexed : aiService.listIndexedDocuments()) {
+            String type = text(indexed.get("source_type"));
+            Object projection = indexed.get("projection_kind");
+            if (type == null || text(indexed.get("source_id")) == null) continue;
+            if (!"CLINICAL".equalsIgnoreCase(String.valueOf(projection))) continue;
+            if (!CLINICAL_SOURCE_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) continue;
+            count++;
+        }
+        return count;
+    }
+
     /** Run one bounded, database-authoritative reconciliation. */
     public int synchronizeClinicalNow() {
         if (!aiService.isRagIngestConfigured()) {

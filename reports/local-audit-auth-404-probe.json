@@ -1,0 +1,656 @@
+{
+  "probe": "auth-404-initiator",
+  "base": "http://localhost:3330",
+  "generatedAt": "2026-10-04T14:15:58.623Z",
+  "credentials": "demo principals; password redacted (env HC_PASSWORD)",
+  "journeys": {
+    "unauth_admin": {
+      "errors": [],
+      "requestCount": 38
+    },
+    "unauth_patient_dashboard": {
+      "errors": [],
+      "requestCount": 36
+    },
+    "unauth_legacy_login": {
+      "errors": [],
+      "requestCount": 71
+    },
+    "admin_login_journey_logout": {
+      "errors": [],
+      "requestCount": 133
+    },
+    "patient_login_journey_logout": {
+      "errors": [],
+      "requestCount": 225
+    }
+  },
+  "observations": [
+    {
+      "journey": "unauth_admin",
+      "url": "http://localhost:3330/auth/login?next=%2Fadmin&_rsc=xFVjKFL12UrVWmwy",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/admin",
+      "frameId": "A70C457D3CD255D0C3B4DC1E3A2F20F9",
+      "requestId": "40056.93",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?next=%2Fadmin&_rsc=xFVjKFL12UrVWmwy",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_admin",
+      "url": "http://localhost:3330/auth/login?next=%2Fadmin&_rsc=ix2GYEvEbsIS-ap2",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/admin",
+      "frameId": "A70C457D3CD255D0C3B4DC1E3A2F20F9",
+      "requestId": "40056.96",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?next=%2Fadmin&_rsc=ix2GYEvEbsIS-ap2",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_admin",
+      "url": "http://localhost:3330/auth/login?_rsc=xFVjKFL12UrVWmwy",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/admin",
+      "frameId": "A70C457D3CD255D0C3B4DC1E3A2F20F9",
+      "requestId": "40056.99",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?_rsc=xFVjKFL12UrVWmwy",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_patient_dashboard",
+      "url": "http://localhost:3330/auth/login?next=%2Fpatient%2Fdashboard&_rsc=PB5OEU8hdtvKBj3j",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/patient/dashboard",
+      "frameId": "3C88E1CC77BDB4C2919588870D22BB89",
+      "requestId": "34672.95",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?next=%2Fpatient%2Fdashboard&_rsc=PB5OEU8hdtvKBj3j",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_patient_dashboard",
+      "url": "http://localhost:3330/auth/login?next=%2Fpatient%2Fdashboard&_rsc=5a5H4S4BtxxTYdRj",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/patient/dashboard",
+      "frameId": "3C88E1CC77BDB4C2919588870D22BB89",
+      "requestId": "34672.97",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?next=%2Fpatient%2Fdashboard&_rsc=5a5H4S4BtxxTYdRj",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_patient_dashboard",
+      "url": "http://localhost:3330/auth/login?_rsc=PB5OEU8hdtvKBj3j",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/patient/dashboard",
+      "frameId": "3C88E1CC77BDB4C2919588870D22BB89",
+      "requestId": "34672.99",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?_rsc=PB5OEU8hdtvKBj3j",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_legacy_login",
+      "url": "http://localhost:3330/auth/login",
+      "method": "GET",
+      "resourceType": "Document",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "L@http://localhost:3330/_next/static/chunks/0a37caasaw7-7.js:0",
+          "aS@http://localhost:3330/_next/static/chunks/0a37caasaw7-7.js:30",
+          "o1@http://localhost:3330/_next/static/chunks/0a37caasaw7-7.js:30",
+          "id@http://localhost:3330/_next/static/chunks/0a37caasaw7-7.js:30",
+          "sh@http://localhost:3330/_next/static/chunks/0a37caasaw7-7.js:30",
+          "(anon)@http://localhost:3330/_next/static/chunks/0a37caasaw7-7.js:30"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "CA49942C74F57995C5633F073A6A0F59",
+      "requestId": "550F278FDE5857C3E279B57908D58C22",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login",
+      "mimeType": "text/html"
+    },
+    {
+      "journey": "unauth_legacy_login",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "CA49942C74F57995C5633F073A6A0F59",
+      "requestId": "40092.178",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_legacy_login",
+      "url": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "CA49942C74F57995C5633F073A6A0F59",
+      "requestId": "40092.179",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_legacy_login",
+      "url": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "CA49942C74F57995C5633F073A6A0F59",
+      "requestId": "40092.180",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "unauth_legacy_login",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "CA49942C74F57995C5633F073A6A0F59",
+      "requestId": "40092.182",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/login",
+      "method": "GET",
+      "resourceType": "Document",
+      "initiator": {
+        "type": "other"
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "73E8616B15CFE419519E1094F7DFF827",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login",
+      "mimeType": "text/html"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.92",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.93",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.95",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.96",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/login?_rsc=ZUhtVewNHgn9LJlY",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/admin",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.240",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?_rsc=ZUhtVewNHgn9LJlY",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/login?next=%2Fadmin&_rsc=xFVjKFL12UrVWmwy",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/admin",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.241",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?next=%2Fadmin&_rsc=xFVjKFL12UrVWmwy",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.246",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.247",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.248",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "admin_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "5703DF0CAF8E78559AF26C24A0C6D085",
+      "requestId": "27116.249",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/login",
+      "method": "GET",
+      "resourceType": "Document",
+      "initiator": {
+        "type": "other"
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "7FC5074EF800A5328A8FEDE7540FAE77",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login",
+      "mimeType": "text/html"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.92",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.93",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.95",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.96",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/login?_rsc=_YIA-ikRehTYgn_I",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/patient/documents",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.362",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?_rsc=_YIA-ikRehTYgn_I",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/login?next=%2Fpatient%2Fdocuments&_rsc=SDv2EMiybfWerBZ0",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/patient/documents",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.363",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/login?next=%2Fpatient%2Fdocuments&_rsc=SDv2EMiybfWerBZ0",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.369",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.370",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=n5hqsW7r31npIJSZ",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.372",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/register?_rsc=-YIeDcqvbLlQ3PxM",
+      "mimeType": "text/x-component"
+    },
+    {
+      "journey": "patient_login_journey_logout",
+      "url": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "method": "GET",
+      "resourceType": "Fetch",
+      "initiator": {
+        "type": "script",
+        "stack": [
+          "n@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:1",
+          "C@http://localhost:3330/_next/static/chunks/2bjqkxr2ndg1l.js:0"
+        ]
+      },
+      "documentURL": "http://localhost:3330/auth/login",
+      "frameId": "92F6BC1A4BF575A8EEEB35AF42F18BB9",
+      "requestId": "33440.373",
+      "status": 200,
+      "responseUrl": "http://localhost:3330/auth/forgot-password?_rsc=eHTo1lo2BcN5r9Mm",
+      "mimeType": "text/x-component"
+    }
+  ],
+  "verdict": "BOUNDED-NEGATIVE",
+  "details": "No request for exact path /auth observed in any journey. 33 request(s) to /auth* paths were all Next.js navigation/prefetch fetches for existing routes (/auth/login, /auth/register, /auth/forgot-password) returning 200. 0 responses with status 404 across 5 journeys (unauth /admin, unauth /patient/dashboard, legacy /login redirect, admin login->journey->logout, patient login->dashboard->documents->logout). Logout verified live: DELETE /api/v1/auth/browser-sessions/current -> 204 then navigation to /auth/login. /api/v1/auth/* XHRs go through the BFF prefix and are not bare /auth hits. Static source check: no bare \"/auth\" href, redirect(), router.push/replace, or window.location target exists; app/auth/ has no page.tsx so bare /auth 404s by design if anything ever navigates there, but nothing observed does.",
+  "notFoundResponses": []
+}

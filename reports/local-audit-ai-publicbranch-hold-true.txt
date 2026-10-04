@@ -1,0 +1,1061 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\HealthCare_Project\apps\ai-service
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 68 items / 53 deselected / 15 selected
+
+tests\test_chatbot_contract.py .FFFFFFFFFFFFF.                           [100%]
+
+================================== FAILURES ===================================
+___ test_marked_public_branch_uses_local_answer_and_exact_contact_grounding ___
+
+    def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {
+            "answer": "C\u01a1 s\u1edf Trung t\xe2m \u1edf 1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe, s\u1ed1 \u0111i\u1ec7n tho\u1ea1i 028 1234 5678."
+        }
+    
+        exact_answer = "C\u01a1 s\u1edf Trung t\xe2m \u1edf 1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe, s\u1ed1 \u0111i\u1ec7n tho\u1ea1i 028 1234 5678."
+        assert remote_answer_is_grounded(
+            exact_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678"],
+            allow_public_operational=True,
+        )
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+>       assert response.provenance == "local_provider"
+E       AssertionError: assert 'remote_provider' == 'local_provider'
+E         
+E         - local_provider
+E         + remote_provider
+
+tests\test_chatbot_contract.py:331: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...u1eddng Sai.' not in 'C\u01a1 s\u...u1eddng Sai.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...dng Kh\xe1c.' not in 'C\u01a1 s\u...dng Kh\xe1c.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+>       assert response.safety_action is ChatSafetyAction.ANSWER
+E       AssertionError: assert <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> is <ChatSafetyAction.ANSWER: 'ANSWER'>
+E        +  where <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatResponse(answer='T\xf4i ch\u01b0a t\xecm th\u1ea5y ngu\u1ed3n th\xf4ng tin ph\xf9 h\u1ee3p v\xe0 \u0111\xe3 d\u1eebng tr\u1ea3 l\u1eddi \u0111\u1ec3 tr\xe1nh suy \u0111o\xe1n. B\u1ea1n c\xf3 th\u1ec3 ch\u1ecdn m...'INSUFFICIENT_EVIDENCE'>, used_sources=[], triage=None, cost_tier='local_free', routing_reason='insufficient_evidence').safety_action
+E        +  and   <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatSafetyAction.ANSWER
+
+tests\test_chatbot_contract.py:404: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  app.llm:llm.py:2805 public provider answer rejected output_safe=True grounded=False answer_sha256_12=7dcfcc6211a5 len=30
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.] _
+
+fabricated_answer = 'S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+>       assert response.safety_action is ChatSafetyAction.ANSWER
+E       AssertionError: assert <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> is <ChatSafetyAction.ANSWER: 'ANSWER'>
+E        +  where <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatResponse(answer='T\xf4i ch\u01b0a t\xecm th\u1ea5y ngu\u1ed3n th\xf4ng tin ph\xf9 h\u1ee3p v\xe0 \u0111\xe3 d\u1eebng tr\u1ea3 l\u1eddi \u0111\u1ec3 tr\xe1nh suy \u0111o\xe1n. B\u1ea1n c\xf3 th\u1ec3 ch\u1ecdn m...'INSUFFICIENT_EVIDENCE'>, used_sources=[], triage=None, cost_tier='local_free', routing_reason='insufficient_evidence').safety_action
+E        +  and   <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatSafetyAction.ANSWER
+
+tests\test_chatbot_contract.py:404: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  app.llm:llm.py:2805 public provider answer rejected output_safe=True grounded=False answer_sha256_12=ffb73b625e8a len=51
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...ea3 ng\xe0y.' not in 'C\u01a1 s\u...ea3 ng\xe0y.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...d3 b\u01a1i.' not in 'C\u01a1 s\u...d3 b\u01a1i.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...f3 khoa nhi.' not in 'C\u01a1 s\u...f3 khoa nhi.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...ee5 kh\xe1c.' not in 'C\u01a1 s\u...ee5 kh\xe1c.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...d1c t\u1ebf.' not in 'C\u01a1 s\u...d1c t\u1ebf.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u...7 nh\u1eadt.' not in 'C\u01a1 s\u...7 nh\u1eadt.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.] _
+
+fabricated_answer = 'C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+        assert response.safety_action is ChatSafetyAction.ANSWER
+>       assert fabricated_answer not in response.answer
+E       AssertionError: assert 'C\u01a1 s\u... s\xe2n bay.' not in 'C\u01a1 s\u... s\xe2n bay.'
+E         
+E         'C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.' is contained here:
+E           C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.
+
+tests\test_chatbot_contract.py:405: AssertionError
+_ test_marked_public_branch_remote_output_rejects_fabricated_contact_data[Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.] _
+
+fabricated_answer = 'Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.'
+
+    @pytest.mark.parametrize(
+        "fabricated_answer",
+        [
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.",
+            "S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.",
+            "C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.",
+            "C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.",
+            "C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.",
+            "C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.",
+            "C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.",
+            "Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.",
+        ],
+    )
+    def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+        fabricated_answer: str,
+    ) -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "remote-central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+        local = _settings()
+        local.ai_provider = "deepseek"
+        local.ai_patient_chat_remote_enabled = True
+        local.ai_chat_remote_provider_enabled = True
+        local.ai_service_runtime = "synthetic-beta"
+        local.remote_ai_synthetic_only = True
+        local.rag_storage_backend = "supabase"
+        local.supabase_rag_fallback_to_memory = False
+        local.ai_base_url = "https://api.deepseek.com"
+        local.remote_ai_provider_allowlist = "deepseek"
+        local.remote_ai_https_host_allowlist = "api.deepseek.com"
+        provider = MagicMock()
+        provider.complete_json.return_value = {"answer": fabricated_answer}
+    
+        assert remote_answer_is_grounded(
+            fabricated_answer,
+            ["C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\n08:00-17:00"],
+            allow_public_operational=True,
+        ) is False
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?",
+                mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[
+                    AuthorizedSource(
+                        source_type="branch",
+                        source_id="remote-central",
+                        projection_kind="OPERATIONAL",
+                    )
+                ],
+                synthetic_beta=True,
+            ),
+            local,
+            service,
+            client=provider,
+        )
+    
+>       assert response.safety_action is ChatSafetyAction.ANSWER
+E       AssertionError: assert <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> is <ChatSafetyAction.ANSWER: 'ANSWER'>
+E        +  where <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatResponse(answer='T\xf4i ch\u01b0a t\xecm th\u1ea5y ngu\u1ed3n th\xf4ng tin ph\xf9 h\u1ee3p v\xe0 \u0111\xe3 d\u1eebng tr\u1ea3 l\u1eddi \u0111\u1ec3 tr\xe1nh suy \u0111o\xe1n. B\u1ea1n c\xf3 th\u1ec3 ch\u1ecdn m...'INSUFFICIENT_EVIDENCE'>, used_sources=[], triage=None, cost_tier='local_free', routing_reason='insufficient_evidence').safety_action
+E        +  and   <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatSafetyAction.ANSWER
+
+tests\test_chatbot_contract.py:404: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  app.llm:llm.py:2805 public provider answer rejected output_safe=True grounded=False answer_sha256_12=fe528a05cea9 len=35
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+app\main.py:123
+  D:\HealthCare_Project\apps\ai-service\app\main.py:123: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+.venv\Lib\site-packages\fastapi\applications.py:4681
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\fastapi\applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_uses_local_answer_and_exact_contact_grounding
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u1edf \u0110\u01b0\u1eddng Sai.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u1edf Ph\u01b0\u1eddng Kh\xe1c.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u1edf 9 \u0110\u01b0\u1eddng Sai.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[S\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 028 9999 9999.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m m\u1edf c\u1eeda c\u1ea3 ng\xe0y.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m c\xf3 h\u1ed3 b\u01a1i.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m c\xf3 khoa nhi.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m cung c\u1ea5p d\u1ecbch v\u1ee5 kh\xe1c.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u0111\u01b0\u1ee3c ch\u1ee9ng nh\u1eadn qu\u1ed1c t\u1ebf.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m \u0111\xf3ng c\u1eeda v\xe0o Ch\u1ee7 nh\u1eadt.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[C\u01a1 s\u1edf Trung t\xe2m g\u1ea7n s\xe2n bay.]
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_remote_output_rejects_fabricated_contact_data[Hotline c\u1ee7a C\u01a1 s\u1edf Trung t\xe2m l\xe0 115.]
+=========== 13 failed, 2 passed, 53 deselected, 4 warnings in 4.28s ===========

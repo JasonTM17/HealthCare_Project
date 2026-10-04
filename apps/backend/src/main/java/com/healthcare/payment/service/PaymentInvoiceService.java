@@ -56,8 +56,10 @@ public class PaymentInvoiceService {
     private byte[] receiptFor(BankTransferPayment payment, String actor) {
         PaymentInvoice invoice = invoiceRepository.findByPaymentId(payment.getId())
             .orElseGet(() -> issue(payment, actor));
+        // The stored snapshot wins over the live status: a receipt issued
+        // while PAID must still read "paid" after a refund moves the row on.
         return renderer.render(invoice, payment.getTransferContent(), payment.getTransactionReference(),
-            payment.getVerifiedAt(), statusSnapshot(payment.getStatus()));
+            payment.getVerifiedAt(), storedStatusSnapshot(invoice));
     }
 
     private PaymentInvoice issue(BankTransferPayment payment, String actor) {
@@ -78,6 +80,9 @@ public class PaymentInvoiceService {
         invoice.setPatientName(appointment.getPatient().getFullName());
         invoice.setDoctorName(appointment.getDoctor().getFullName());
         invoice.setBookingCode(appointment.getBookingCode());
+        // Freeze the receipt-face status at issuance alongside the other
+        // snapshot columns.
+        invoice.setStatusSnapshot(statusSnapshot(payment.getStatus()).name());
         return invoiceRepository.saveAndFlush(invoice);
     }
 
@@ -95,6 +100,11 @@ public class PaymentInvoiceService {
             return PaymentReceiptPdfRenderer.PaymentStatusSnapshot.REFUND_PENDING;
         }
         return PaymentReceiptPdfRenderer.PaymentStatusSnapshot.PAID;
+    }
+
+    /** Maps the issuance-time snapshot column back to the renderer enum. */
+    private PaymentReceiptPdfRenderer.PaymentStatusSnapshot storedStatusSnapshot(PaymentInvoice invoice) {
+        return PaymentReceiptPdfRenderer.PaymentStatusSnapshot.valueOf(invoice.getStatusSnapshot());
     }
 
     private String actorOf(UserDetails principal) {

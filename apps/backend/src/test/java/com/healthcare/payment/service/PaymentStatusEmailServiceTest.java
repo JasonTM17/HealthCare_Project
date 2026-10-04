@@ -28,7 +28,6 @@ class PaymentStatusEmailServiceTest {
     @BeforeEach
     void setUp() {
         reset(emailSender);
-        when(emailSender.isDeliveryAvailable()).thenReturn(true);
         PatientProfile patient = new PatientProfile();
         patient.setEmail(" Patient@Example.com ");
         Appointment appointment = new Appointment();
@@ -67,6 +66,45 @@ class PaymentStatusEmailServiceTest {
         new PaymentStatusEmailService(emailSender, false).paymentConfirmed(payment);
 
         verifyNoInteractions(emailSender);
+    }
+
+    @Test
+    void delegateUnavailabilityStillAttemptsBestEffortDelivery() {
+        // isDeliveryAvailable() reports only the delegate sender's reachability;
+        // with an API-only sender configured it returns false even though the
+        // send path is live, so the service must not consult it at all.
+        when(emailSender.isDeliveryAvailable()).thenReturn(false);
+
+        service.paymentConfirmed(payment);
+
+        org.mockito.Mockito.verify(emailSender).sendTemplateBestEffort(
+            org.mockito.ArgumentMatchers.eq(com.healthcare.auth.mail.EmailTemplateKey.PAYMENT_STATUS),
+            org.mockito.ArgumentMatchers.eq("patient@example.com"),
+            org.mockito.ArgumentMatchers.anyMap());
+    }
+
+    @Test
+    void successiveRejectionsProduceDistinctTransitionKeys() {
+        org.springframework.test.util.ReflectionTestUtils.setField(payment, "id",
+            java.util.UUID.fromString("cccccccc-3333-3333-3333-333333333333"));
+
+        service.paymentRejected(payment);
+        // A resubmission then a second rejection bumps updatedAt, so the
+        // transition key — and therefore the outbox idempotency key — differs.
+        org.springframework.test.util.ReflectionTestUtils.setField(payment, "updatedAt",
+            java.time.OffsetDateTime.now().plusSeconds(1));
+        service.paymentRejected(payment);
+
+        ArgumentCaptor<Map<String, String>> variables = ArgumentCaptor.forClass(Map.class);
+        org.mockito.Mockito.verify(emailSender, org.mockito.Mockito.times(2)).sendTemplateBestEffort(
+            org.mockito.ArgumentMatchers.eq(com.healthcare.auth.mail.EmailTemplateKey.PAYMENT_STATUS),
+            org.mockito.ArgumentMatchers.eq("patient@example.com"), variables.capture());
+
+        Map<String, String> first = variables.getAllValues().get(0);
+        Map<String, String> second = variables.getAllValues().get(1);
+        assertThat(first.get("message")).isEqualTo(second.get("message"));
+        assertThat(first.get("transitionKey")).isNotEqualTo(second.get("transitionKey"));
+        assertThat(first).isNotEqualTo(second);
     }
 
     @Test

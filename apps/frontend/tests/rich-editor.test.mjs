@@ -239,6 +239,58 @@ test("parseMarkdownBlocks supports multi-line indented continuation list items a
   assert.equal(hrBlocks[0].type, "hr");
 });
 
+test("RichTextEditor insert dialogs validate URLs, escape HTML, and restore the TinyMCE selection", async () => {
+  const editor = await read("components/editor/RichTextEditor.tsx");
+
+  // The link/image dialogs share one scheme allowlist (http(s) or
+  // root-relative) instead of interpolating whatever was typed.
+  assert.match(editor, /function normalizedInsertUrl\(/);
+  assert.match(editor, /normalizedInsertUrl\(linkUrl\)/);
+  assert.match(editor, /normalizedInsertUrl\(imageUrl\)/);
+
+  // href/src/alt/caption are escaped before they reach insertContent, reusing
+  // the renderer's helpers rather than a second escaping implementation.
+  assert.match(editor, /escapeHtmlAttribute/);
+  assert.match(editor, /escapeHtmlText/);
+
+  // The modal steals the editor's selection, so a bookmark is taken on open
+  // and restored before insertContent.
+  assert.match(editor, /getBookmark\(\)/);
+  assert.match(editor, /moveToBookmark/);
+
+  // Markdown image emission escapes bracket alts and paren URLs.
+  assert.match(editor, /toMarkdownImageAlt/);
+  assert.match(editor, /toMarkdownImageUrl/);
+});
+
+test("article submit paths block saving while an inline upload is unresolved", async () => {
+  const [doctorArticles, adminCatalog, renderer] = await Promise.all([
+    read("app/doctor/articles/page.tsx"),
+    read("app/admin/catalog/page.tsx"),
+    read("components/editor/RichContentRenderer.tsx"),
+  ]);
+
+  // The fail-closed guard is exported once from the renderer and consumed by
+  // both submit paths before the body is converted/stored.
+  assert.match(renderer, /export function hasUnresolvedInlineUpload\(content: string\): boolean/);
+  assert.match(doctorArticles, /hasUnresolvedInlineUpload\(body\)/);
+  assert.match(adminCatalog, /hasUnresolvedInlineUpload\(articleForm\.body\)/);
+
+  const doctorGuard = doctorArticles.indexOf("hasUnresolvedInlineUpload(body)");
+  const doctorStore = doctorArticles.indexOf("toStoredArticleBody(body)");
+  assert.ok(doctorGuard > 0 && doctorGuard < doctorStore,
+    "doctor submit must run the upload guard before toStoredArticleBody");
+
+  const adminGuard = adminCatalog.indexOf("hasUnresolvedInlineUpload(articleForm.body)");
+  const adminStore = adminCatalog.indexOf("toStoredArticleBody(articleForm.body)");
+  assert.ok(adminGuard > 0 && adminGuard < adminStore,
+    "admin submit must run the upload guard before toStoredArticleBody");
+
+  // The block surfaces the existing error UI with the Vietnamese wait message.
+  assert.match(doctorArticles, /Ảnh đang được tải lên, vui lòng chờ hoàn tất trước khi lưu/);
+  assert.match(adminCatalog, /Ảnh đang được tải lên, vui lòng chờ hoàn tất trước khi lưu/);
+});
+
 test("RichTextEditor preserves undo baseline on initial edits and supports consecutive list numbering", async () => {
   const editor = await read("components/editor/RichTextEditor.tsx");
 
@@ -530,10 +582,12 @@ test("RichTextEditor derives statistics and Markdown source from markup-free con
     read("components/editor/RichContentRenderer.tsx"),
   ]);
 
-  // htmlToMarkdown is wired into the editor alongside markdownToHtml
+  // htmlToMarkdown is wired into the editor alongside markdownToHtml (the
+  // import also carries the shared escaping helpers, so the assertion pins
+  // the module and the two converter names rather than the whole list).
   assert.match(
     editor,
-    /import RichContentRenderer,\s*\{\s*htmlToMarkdown,\s*markdownToHtml\s*\}\s*from "\.\/RichContentRenderer"/
+    /import RichContentRenderer,\s*\{[^}]*htmlToMarkdown[^}]*markdownToHtml[^}]*\}\s*from "\.\/RichContentRenderer"/
   );
 
   // Same HTML detection contract as the renderer's normalization path

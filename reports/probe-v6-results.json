@@ -1,0 +1,116 @@
+[
+ {
+  "tag": "adh-punct",
+  "action": "ANSWER",
+  "answer": "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?",
+  "citations": []
+ },
+ {
+  "tag": "adh-longtail",
+  "action": "ANSWER",
+  "answer": "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?",
+  "citations": []
+ },
+ {
+  "tag": "adh-comma",
+  "action": "ANSWER",
+  "answer": "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?",
+  "citations": []
+ },
+ {
+  "tag": "adh-midmsg",
+  "action": "ANSWER",
+  "answer": "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?",
+  "citations": []
+ },
+ {
+  "tag": "dose-before-verb",
+  "action": "REFUSE",
+  "answer": "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá an toàn.",
+  "citations": []
+ },
+ {
+  "tag": "dose-drug-order",
+  "action": "REFUSE",
+  "answer": "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá an toàn.",
+  "citations": []
+ },
+ {
+  "tag": "amenity-parking",
+  "action": "ANSWER",
+  "answer": "Theo dữ liệu cơ sở đang hoạt động, hiện HealthCare có các cơ sở sau: Bệnh viện Đa khoa An Tâm – Trung tâm; Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 10 — Quận 11; Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 11 — Quận 12; Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 12 — Quận 1. Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.",
+  "citations": [
+   {
+    "source_id": "95000000-0000-0000-0002-000000000001",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa An Tâm – Trung tâm"
+   },
+   {
+    "source_id": "7e0b9ff7-9df7-8e06-fd86-f4456c9a35d2",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 10 — Quận 11"
+   },
+   {
+    "source_id": "890d18bd-1881-12e9-ff66-a5bd8a8dc5d0",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 11 — Quận 12"
+   },
+   {
+    "source_id": "566e252d-b253-e515-5969-467b3d3a2b77",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 12 — Quận 1"
+   }
+  ]
+ },
+ {
+  "tag": "amenity-pharmacy",
+  "action": "HUMAN_HANDOFF",
+  "answer": "Câu này cần người có chuyên môn nhé. Mình không đưa chẩn đoán hay hướng xử lý tình trạng sức khỏe, nhưng bạn có thể đặt lịch khám để được bác sĩ xem trực tiếp; nếu đang khó chịu nhiều, hãy gọi tổng đài 028 1800 0001 để được hỗ trợ ngay.",
+  "citations": []
+ },
+ {
+  "tag": "or-districts",
+  "action": "ANSWER",
+  "answer": "Mình tìm thấy nhiều cơ sở phù hợp với yêu cầu này: Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 12 — Quận 1; Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 16 — Quận 5; Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 4 — Quận 5. Bạn cho mình biết quận/thành phố hoặc chọn đúng cơ sở để mình tra giờ làm việc chính xác.",
+  "citations": [
+   {
+    "source_id": "566e252d-b253-e515-5969-467b3d3a2b77",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 12 — Quận 1"
+   },
+   {
+    "source_id": "f2738a9b-b915-9f55-8060-c825d70bfd1e",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 16 — Quận 5"
+   },
+   {
+    "source_id": "7765688c-354a-229a-6704-e4e460ccf3fa",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 4 — Quận 5"
+   }
+  ]
+ },
+ {
+  "tag": "anchor-referent",
+  "action": "ANSWER",
+  "answer": "Mình tìm thấy nhiều cơ sở phù hợp với yêu cầu này: Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 18 — Quận 7; Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 6 — Quận 7. Bạn cho mình biết quận/thành phố hoặc chọn đúng cơ sở để mình tra giờ làm việc chính xác.",
+  "citations": [
+   {
+    "source_id": "6eb091fd-ba5b-86dc-d21d-7ba22e7c7689",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 18 — Quận 7"
+   },
+   {
+    "source_id": "c90115d2-40e8-79a1-75b9-dd233cd6d7ed",
+    "source_type": "branch",
+    "title": "Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 6 — Quận 7"
+   }
+  ]
+ },
+ {
+  "tag": "protected-mix",
+  "action": "HUMAN_HANDOFF",
+  "answer": "Câu này cần người có chuyên môn nhé. Mình không đưa chẩn đoán hay hướng xử lý tình trạng sức khỏe, nhưng bạn có thể đặt lịch khám để được bác sĩ xem trực tiếp; nếu đang khó chịu nhiều, hãy gọi tổng đài 028 1800 0001 để được hỗ trợ ngay.",
+  "citations": []
+ }
+]

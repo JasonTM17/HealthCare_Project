@@ -34,7 +34,7 @@ import { resolveArticleCoverImage, resolveArticleAlt } from "../lib/article-visu
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
-const DEFAULT_HERO_TITLE = "Đồng hành cùng sức khỏe gia đình";
+const DEFAULT_QUICK_CHIPS = ["Tim mạch", "Nhi khoa", "Tiêu hóa", "Khám tổng quát"];
 // Retain fallback reference for test compatibility: /media/about-care-poster.jpg
 
 const PUBLIC_CARE_IMAGES = [
@@ -337,10 +337,17 @@ interface HomeHeroCopyProps {
   onBooking: () => void;
   onTriage: () => void;
   cmsHero?: CmsHeroPayload;
+  /** Live specialty names for the hero search suggestions; falls back while the catalog loads. */
+  quickChips?: string[];
 }
 
 const PLACEHOLDER_HERO_COPY_PATTERN = /(?:Live Compose|Live CMS|demo|test)/i;
 
+// CmsLiveSlot only hands renderContent a PUBLISHED row, so a payload that
+// reaches this component is content an admin chose to publish — it always
+// wins over the hand-set hero. The single remaining guard hides payloads
+// that are themselves placeholder fixtures (live-compose/demo/test markers
+// left behind by seeded or E2E rows), never ordinary published copy.
 function isPlaceholderCmsHeroPayload(cmsHero?: CmsHeroPayload): boolean {
   if (!cmsHero) return false;
 
@@ -357,27 +364,22 @@ function HomeHeroCopy({
   onBooking,
   onTriage,
   cmsHero,
+  quickChips,
 }: HomeHeroCopyProps): React.ReactElement {
   const activeCmsHero = cmsHero && !isPlaceholderCmsHeroPayload(cmsHero) ? cmsHero : null;
   const cmsCta = activeCmsHero?.ctaLabel && activeCmsHero.ctaHref && isSafeCmsUrl(activeCmsHero.ctaHref)
     ? { label: activeCmsHero.ctaLabel, href: activeCmsHero.ctaHref }
     : null;
+  const chips = quickChips?.length ? quickChips : DEFAULT_QUICK_CHIPS;
 
   return (
     <div className="hero-copy" data-cms-managed={activeCmsHero ? "hero-copy" : undefined}>
       <p className="hero-kicker">
         <span className="hero-kicker__line" aria-hidden="true" />
-        {activeCmsHero?.eyebrow && activeCmsHero.eyebrow !== "Hệ thống y tế HealthCare"
-          ? activeCmsHero.eyebrow
-          : "Bệnh viện đa khoa HealthCare"}
+        {activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"}
       </p>
       <h1 id="hero-title">
-        {activeCmsHero?.title &&
-        activeCmsHero.title !== DEFAULT_HERO_TITLE &&
-        activeCmsHero.title !== "Chăm sóc sức khỏe toàn diện cho cả gia đình bạn" &&
-        activeCmsHero.title !== "Tìm chuyên khoa, bác sĩ và đặt lịch khám" ? (
-          activeCmsHero.title
-        ) : (
+        {activeCmsHero?.title ?? (
           <>
             Đồng hành<br />
             cùng <span className="hero-teal-accent">sức khỏe</span><br />
@@ -386,10 +388,7 @@ function HomeHeroCopy({
         )}
       </h1>
       <p className="hero-description !text-slate-700 !opacity-100" style={{ color: "#334155" }}>
-        {activeCmsHero?.body &&
-        activeCmsHero.body !== "Đội ngũ hơn 40 bác sĩ chuyên khoa giàu kinh nghiệm, trang thiết bị hiện đại và quy trình đặt khám trực tuyến chỉ trong 2 phút. Đồng hành cùng sức khỏe của bạn từ tầm soát đến điều trị."
-          ? activeCmsHero.body
-          : "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
+        {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
       </p>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
@@ -413,7 +412,7 @@ function HomeHeroCopy({
       </p>
       <div className="hero-quick-chips" aria-label="Gợi ý tìm kiếm phổ biến">
         <span>Gợi ý:</span>
-        {["Tim mạch", "Nhi khoa", "Tiêu hóa", "Khám tổng quát"].map((chip) => (
+        {chips.map((chip) => (
           <button
             className="hero-quick-chip"
             key={chip}
@@ -425,7 +424,7 @@ function HomeHeroCopy({
         ))}
       </div>
       <div className="hero-actions">
-        {cmsCta && cmsCta.href !== "/dat-lich" ? (
+        {cmsCta ? (
           <a className="button button--amber" href={cmsCta.href}>
             {cmsCta.label}
             <Icon name="arrow-up-right" size={18} />
@@ -527,7 +526,7 @@ function HomeHeroComposition({
   return (
     <>
       <HomeHeroCopy {...heroProps} cmsHero={cmsHero} />
-      <HomeHeroVisual imageUrl={cmsHero?.imageUrl} />
+      <HomeHeroVisual key={cmsHero?.imageUrl ?? HERO_IMAGE} imageUrl={cmsHero?.imageUrl} />
     </>
   );
 }
@@ -694,12 +693,17 @@ export default function Home(): React.ReactElement {
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
   const contactHref = safeTelephoneHref(contactPhone);
   const homeDoctors = filteredDoctors.slice(0, 4);
+  const heroQuickChips = useMemo(
+    () => (catalog?.specialties ?? []).slice(0, 4).map((specialty) => specialty.name),
+    [catalog?.specialties],
+  );
   const homeHeroProps: HomeHeroCopyProps = {
     searchQuery,
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
     onTriage: () => setIsAiTriageOpen(true),
+    quickChips: heroQuickChips,
   };
 
   const handleAiSpecialtySelect = (specialtyName: string, specialtyId?: string): void => {

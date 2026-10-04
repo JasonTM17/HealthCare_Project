@@ -1,0 +1,15 @@
+{
+  "kind": "local-audit-advisor-initial.v1",
+  "status": "BLOCKED_CAPABILITY",
+  "command": "claude --agent advisor --restricted --tools Read,Grep,Glob --permission-mode plan --permission-prompts none --strict-mcp-config --mcp-config '{\"mcpServers\":{}}' --no-chrome --no-session-persistence --model opus --output-format stream-json --verbose -p <lead-authored prompt file>",
+  "wallClockLimitSec": 180,
+  "result": "cli exited immediately: --agent 'advisor' not found",
+  "availableAgents": ["claude", "Explore", "general-purpose", "Plan", "statusline-setup"],
+  "evidence": "reports/local-audit-advisor-initial.txt",
+  "prompt": "scratch/local-audit-advisor-prompt.txt (exact lead-authored text, unchanged)",
+  "notes": [
+    "No inference ran; zero tokens consumed beyond CLI arg validation.",
+    "Project catalog advertises 51 agents (harness-doctor), but the claude CLI runtime only exposes the 5 built-ins - the AgentKit 'advisor' role is not registered under that name for --agent dispatch in this project runtime.",
+    "No fallback agent substituted and no config changed, per handoff bounds. Lead decision needed: approve a substitute agent (--agent Plan or general-purpose), install/register the advisor agent, or accept BLOCKED for this gate."
+  ]
+}

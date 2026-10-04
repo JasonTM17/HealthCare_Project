@@ -58,6 +58,11 @@ const CHAT_LEASE_OPEN_TIMEOUT_MS = 3_000;
 const CHAT_LEASE_RENEW_INTERVAL_MS = 2_000;
 const CHAT_LEASE_RENEW_TIMEOUT_MS = 5_000;
 const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
+// The fallback answer must still work when every upstream is down, so the
+// hotline cannot be resolved from branch data here — it is env-overridable
+// instead (PUBLIC_HOTLINE_DISPLAY / PUBLIC_HOTLINE_TEL on the BFF host).
+const PUBLIC_HOTLINE_DISPLAY = process.env.PUBLIC_HOTLINE_DISPLAY?.trim() || "028 1800 0001";
+const PUBLIC_HOTLINE_TEL = process.env.PUBLIC_HOTLINE_TEL?.trim() || "tel:02818000001";
 const EMERGENCY_FALLBACK_TERMS = [
   "dau nguc du doi",
   "that nguc",
@@ -206,7 +211,7 @@ function publicAiChatFallbackResponse(message = ""): Response {
     {
       answer: emergency
         ? "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
-        : "Tôi chưa có đủ thông tin đã xác thực để trả lời chính xác câu này. Bạn có thể thử: • Xem Chuyên khoa để chọn hướng khám • Đặt lịch khám trực tiếp • Gọi tổng đài 028 1800 0001 nếu cần hỗ trợ ngay.",
+        : `Tôi chưa có đủ thông tin đã xác thực để trả lời chính xác câu này. Bạn có thể thử: • Xem Chuyên khoa để chọn hướng khám • Đặt lịch khám trực tiếp • Gọi tổng đài ${PUBLIC_HOTLINE_DISPLAY} nếu cần hỗ trợ ngay.`,
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
       provenance: "local_fallback",
@@ -218,7 +223,7 @@ function publicAiChatFallbackResponse(message = ""): Response {
             { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
             { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
             { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
-            { kind: "CALL_HOTLINE", label: "Gọi 028 1800 0001", href: "tel:02818000001" },
+            { kind: "CALL_HOTLINE", label: `Gọi ${PUBLIC_HOTLINE_DISPLAY}`, href: PUBLIC_HOTLINE_TEL },
           ],
     },
     {
@@ -789,8 +794,22 @@ function createBrowserResponse(
       || apiPath.startsWith("/api/v1/hospital/faqs")
     );
 
+  // GET /api/v1/media/{id} serves public immutable bytes whose TTL the
+  // backend already owns (CacheControl.maxAge in MediaAssetController), so
+  // forward the allowlisted upstream value instead of flattening to no-store.
+  // /upload stays a plain POST and is unaffected.
+  const isPublicMediaRead =
+    requestMethod === "GET"
+    && upstream.status === 200
+    && !hasSetCookie
+    && typeof apiPath === "string"
+    && apiPath.startsWith("/api/v1/media/");
+  const upstreamCacheControl = headers.get("cache-control");
+
   if (isPublicCatalogPath) {
     headers.set("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=600");
+  } else if (isPublicMediaRead && upstreamCacheControl) {
+    headers.set("Cache-Control", upstreamCacheControl);
   } else {
     headers.set("Cache-Control", "no-store");
   }
@@ -1043,7 +1062,10 @@ export async function proxyHealthcareRequest(
     else request.signal.addEventListener("abort", abortFromBrowser, { once: true });
     const requestTimeoutMs = apiPath === PUBLIC_AI_CHAT_PATH
       ? runtime.publicAiRequestTimeoutMs ?? runtime.requestTimeoutMs
-      : apiPath.endsWith("/messages/stream") || apiPath.endsWith("/cms/content/events")
+      // The whole patient-chat turn (not only the chunked stream path) needs
+      // the 30s budget: lease-open <=3s + upstream pipeline + commit cannot
+      // fit the general 25s deadline on the non-chunked fallback lane.
+      : PATIENT_AI_CHAT_PATTERN.test(apiPath) || apiPath.endsWith("/cms/content/events")
       ? runtime.streamRequestTimeoutMs ?? runtime.requestTimeoutMs
       : runtime.requestTimeoutMs;
     // The retry shares this single absolute deadline: it is measured from the

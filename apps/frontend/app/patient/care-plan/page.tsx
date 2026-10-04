@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import { EmptyState, ErrorState, ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { ApiError, completePatientCarePlanItem, fetchPatientCarePlans, hasRole } from "../../../lib/api-client";
+import { formatBusinessDate } from "../../../lib/business-time";
 import { presentApiError } from "../../../lib/present-api-error";
 import { useAuthSession } from "../../../components/useAuthSession";
 import type { CarePlan } from "../../../types/hospital";
@@ -31,10 +32,14 @@ function statusLabel(status: string, labels: Record<string, string>): string {
 // instead until the API ships a booking code.
 const RELATED_APPOINTMENT_PLACEHOLDER = "—";
 
+// Dates are clinical business dates, so they render in the hospital's business
+// zone (Asia/Ho_Chi_Minh) rather than whatever timezone the viewer's device
+// happens to be in.
 function dateLabel(value?: string | null): string {
   if (!value) return "Chưa đặt ngày";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Chưa đặt ngày" : date.toLocaleDateString("vi-VN", { dateStyle: "medium" });
+  return Number.isNaN(new Date(value).getTime())
+    ? "Chưa đặt ngày"
+    : formatBusinessDate(value);
 }
 
 function isOverdue(item: CarePlan["items"][number]): boolean {
@@ -86,7 +91,7 @@ export default function PatientCarePlanPage() {
   const progress = totalItems === 0 ? 0 : Math.round((completedItems.length / totalItems) * 100);
 
   return <PortalChrome role="PATIENT" user={session.user}><div className="section-inner portal-page">
-    <header className="portal-hero"><div><p className="section-note">FOLLOW-UP CARE</p><h1>Kế hoạch chăm sóc</h1><p>Các mục tiêu và lời nhắc do bác sĩ tạo từ lịch hẹn. Đây là checklist theo dõi, không phải toa thuốc và không do AI tự sinh.</p></div><button className="outline-button min-h-11" disabled={loading} onClick={() => setRetry((value) => value + 1)} type="button">{loading ? "Đang tải…" : "Tải lại"}</button></header>
+    <header className="portal-hero"><div><p className="section-note">CHĂM SÓC SAU KHÁM</p><h1>Kế hoạch chăm sóc</h1><p>Các mục tiêu và lời nhắc do bác sĩ tạo từ lịch hẹn. Đây là checklist theo dõi, không phải toa thuốc và không do AI tự sinh.</p></div><button className="outline-button min-h-11" disabled={loading} onClick={() => setRetry((value) => value + 1)} type="button">{loading ? "Đang tải…" : "Tải lại"}</button></header>
     {loading ? <LoadingState label="Đang tải kế hoạch…" /> : null}
     {error ? <ErrorState message="Không thể tải kế hoạch chăm sóc." status={status} onRetry={() => setRetry((value) => value + 1)} /> : null}
     {actionError ? <p className="portal-panel text-sm text-rose-700" role="alert">{presentApiError(actionError instanceof ApiError ? actionError.code : undefined, actionError instanceof ApiError ? actionError.status : undefined)}</p> : null}

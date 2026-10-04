@@ -1,0 +1,885 @@
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::staticFieldBase has been called by com.google.inject.internal.aop.HiddenClassDefiner (file:/<USER_HOME>/.m2/wrapper/dists/apache-maven-3.9.11/03d7e36a140982eea48e22c1dcac01d8862b2550b2939e09a0809bbc5182a5bc/lib/guice-5.1.0-classes.jar)
+WARNING: Please consider reporting this to the maintainers of class com.google.inject.internal.aop.HiddenClassDefiner
+WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -----------------< com.healthcare:healthcare-backend >------------------
+[INFO] Building healthcare-backend 0.1.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ healthcare-backend ---
+[INFO] Copying 3 resources from src\main\resources to target\classes
+[INFO] Copying 123 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.14.0:compile (default-compile) @ healthcare-backend ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ healthcare-backend ---
+[INFO] Copying 3 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.14.0:testCompile (default-testCompile) @ healthcare-backend ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 183 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/appointment/AppointmentBookingIntegrationTest.java: Some input files use or override a deprecated API.
+[INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/appointment/AppointmentBookingIntegrationTest.java: Recompile with -Xlint:deprecation for details.
+[INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/ai/AiChatContractsTest.java: Some input files use unchecked or unsafe operations.
+[INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/ai/AiChatContractsTest.java: Recompile with -Xlint:unchecked for details.
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ healthcare-backend ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.healthcare.document.DocumentGenerationIntegrationTest
+12:39:34.285 [main] INFO org.testcontainers.images.PullPolicy -- Image pull policy will be performed by: DefaultPullPolicy()
+12:39:34.295 [main] INFO org.testcontainers.utility.ImageNameSubstitutor -- Image name substitution will be performed by: DefaultImageNameSubstitutor (composite of 'ConfigurationFileImageNameSubstitutor' and 'PrefixingImageNameSubstitutor')
+12:39:34.382 [main] INFO org.testcontainers.DockerClientFactory -- Testcontainers version: 1.20.4
+12:39:35.087 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Found Docker environment with Environment variables, system properties and defaults. Resolved dockerHost=npipe:////./pipe/dockerDesktopLinuxEngine
+12:39:35.090 [main] INFO org.testcontainers.DockerClientFactory -- Docker host IP address is localhost
+12:39:35.127 [main] INFO org.testcontainers.DockerClientFactory -- Connected to docker: 
+  Server Version: 29.8.1
+  API Version: 1.56
+  Operating System: Docker Desktop
+  Total Memory: 15862 MB
+  Labels: 
+    com.docker.desktop.address=npipe://\\.\pipe\docker_cli
+12:39:35.554 [main] INFO tc.testcontainers/ryuk:0.11.0 -- Creating container for image: testcontainers/ryuk:0.11.0
+12:39:35.953 [main] INFO tc.testcontainers/ryuk:0.11.0 -- Container testcontainers/ryuk:0.11.0 is starting: 0f5d7d9eb3d90d512072f667023598b038b2e6c24b8a1085242778c7af99b85a
+12:39:36.422 [main] INFO tc.testcontainers/ryuk:0.11.0 -- Container testcontainers/ryuk:0.11.0 started in PT0.8673S
+12:39:36.432 [main] INFO org.testcontainers.utility.RyukResourceReaper -- Ryuk started - will monitor and terminate Testcontainers containers on JVM exit
+12:39:36.432 [main] INFO org.testcontainers.DockerClientFactory -- Checking the system...
+12:39:36.433 [main] INFO org.testcontainers.DockerClientFactory -- ?? Docker server version should be at least 1.6.0
+12:39:36.433 [main] INFO tc.postgres:16-alpine -- Creating container for image: postgres:16-alpine
+12:39:36.544 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine is starting: db32a57f682df3ce1feae9028a3cd85273060c090dc708914a9313e8ec4253c2
+12:39:38.596 [main] INFO tc.postgres:16-alpine -- Container postgres:16-alpine started in PT2.1633965S
+12:39:38.598 [main] INFO tc.postgres:16-alpine -- Container is started (JDBC URL: jdbc:postgresql://localhost:59817/healthcare_test?loggerLevel=OFF)
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.5.4)
+
+2026-10-04T12:39:39.255+07:00  INFO 24916 --- [           main] c.h.d.DocumentGenerationIntegrationTest  : Starting DocumentGenerationIntegrationTest using Java 24.0.2 with PID 24916 (started by Admin in D:\HealthCare_Project\apps\backend)
+2026-10-04T12:39:39.257+07:00  INFO 24916 --- [           main] c.h.d.DocumentGenerationIntegrationTest  : The following 1 profile is active: "test"
+2026-10-04T12:39:42.488+07:00  INFO 24916 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-10-04T12:39:42.491+07:00  INFO 24916 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-10-04T12:39:43.136+07:00  INFO 24916 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 626 ms. Found 46 JPA repository interfaces.
+2026-10-04T12:39:43.163+07:00  INFO 24916 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Multiple Spring Data modules found, entering strict repository configuration mode
+2026-10-04T12:39:43.165+07:00  INFO 24916 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data Redis repositories in DEFAULT mode.
+2026-10-04T12:39:43.287+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.ai.chat.repository.AiConversationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.288+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.ai.chat.repository.AiMessageFeedbackRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.289+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.ai.chat.repository.AiMessageRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.289+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.ai.repository.AiCreditTransactionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.289+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.appointment.repository.AppointmentAccountClaimRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.290+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.appointment.repository.AppointmentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.290+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.appointment.repository.DoctorAppointmentRangeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.290+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.appointment.repository.DoctorScheduleRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.291+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.appointment.repository.PatientProfileRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.293+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.auth.mail.EmailOutboxRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.294+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.auth.repository.AuthOtpChallengeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.294+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.auth.repository.BrowserSessionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.294+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.career.repository.JobApplicationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.295+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.career.repository.JobPositionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.295+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.clinical.repository.DiagnosticOrderRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.296+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.clinical.repository.DiagnosticResultRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.296+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.clinical.repository.MedicalRecordRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.297+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.clinical.repository.PrescriptionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.297+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.cms.repository.CmsContentChangeRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.298+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.cms.repository.CmsContentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.298+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.document.repository.PatientDocumentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.298+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.ArticleCommentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.298+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.ArticleRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.298+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.BranchRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.301+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.DoctorBranchRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.302+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.DoctorRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.302+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.DoctorSpecialtyRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.302+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.FaqRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.302+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.PackageRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.304+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.ServiceRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.304+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.hospital.repository.SpecialtyRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.304+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.media.repository.MediaAssetRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.306+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.notification.repository.NotificationPreferenceRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.307+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.notification.repository.NotificationRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.307+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.payment.repository.BankTransferPaymentRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.309+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.payment.repository.PaymentInvoiceRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.310+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.scheduling.repository.DoctorScheduleExceptionPortalRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.311+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.scheduling.repository.DoctorScheduleExceptionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.311+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.scheduling.repository.DoctorSchedulePortalRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.311+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.scheduling.repository.DoctorScheduleRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.312+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.storage.repository.StoredFileRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.312+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.user.repository.PermissionRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.312+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.user.repository.RefreshTokenRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.312+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.user.repository.RoleRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.313+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.user.repository.UserPreferencesRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.313+07:00  INFO 24916 --- [           main] .RepositoryConfigurationExtensionSupport : Spring Data Redis - Could not safely identify store assignment for repository candidate interface com.healthcare.user.repository.UserRepository; If you want this repository to be a Redis repository, consider annotating your entities with one of these annotations: org.springframework.data.redis.core.RedisHash (preferred), or consider extending one of the following types with your repository: org.springframework.data.keyvalue.repository.KeyValueRepository
+2026-10-04T12:39:43.313+07:00  INFO 24916 --- [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 129 ms. Found 0 Redis repository interfaces.
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (<USER_HOME>\.m2\repository\net\bytebuddy\byte-buddy-agent\1.17.6\byte-buddy-agent-1.17.6.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+2026-10-04T12:39:46.340+07:00  INFO 24916 --- [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:59817/healthcare_test?loggerLevel=OFF (PostgreSQL 16.15)
+2026-10-04T12:39:46.538+07:00  INFO 24916 --- [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Schema history table "public"."flyway_schema_history" does not exist yet
+2026-10-04T12:39:46.548+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbValidate     : Successfully validated 111 migrations (execution time 00:00.153s)
+2026-10-04T12:39:46.575+07:00  INFO 24916 --- [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" ...
+2026-10-04T12:39:46.663+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Current version of schema "public": << Empty Schema >>
+2026-10-04T12:39:46.690+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "1 - identity rbac baseline"
+2026-10-04T12:39:46.790+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "2 - hospital domain"
+2026-10-04T12:39:46.889+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "3 - doctor scheduling"
+2026-10-04T12:39:46.940+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "4 - appointments"
+2026-10-04T12:39:46.999+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "5 - clinical records and authorization"
+2026-10-04T12:39:47.086+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "6 - notifications"
+2026-10-04T12:39:47.123+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "7 - appointment slot exclusivity"
+2026-10-04T12:39:47.152+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "8 - appointment pending slot exclusivity"
+2026-10-04T12:39:47.184+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "9 - normalize scheduling and interval booking"
+2026-10-04T12:39:47.311+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "10 - enforce branch aware scheduling integrity"
+2026-10-04T12:39:47.361+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "10.4 - guard pending conflicts before repair"
+2026-10-04T12:39:47.395+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "10.5 - repair pending slot conflicts before constraints"
+2026-10-04T12:39:47.423+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "11 - branch aware active booking constraints"
+2026-10-04T12:39:47.460+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "12 - cms content realtime"
+2026-10-04T12:39:47.500+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "13 - repair legacy pending slot duplicates"
+2026-10-04T12:39:47.540+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "14 - bound appointment otp attempts"
+2026-10-04T12:39:47.568+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "15 - expand stitch content contracts"
+2026-10-04T12:39:47.605+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "16 - cms content audit snapshots"
+2026-10-04T12:39:47.637+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "17 - enforce published article content"
+2026-10-04T12:39:47.660+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "18 - hash appointment otp codes"
+2026-10-04T12:39:47.686+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "19 - secure file metadata"
+2026-10-04T12:39:47.722+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "20 - appointment reminder delivery"
+2026-10-04T12:39:47.745+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "21 - patient profile details"
+2026-10-04T12:39:47.767+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "22 - careers and job applications"
+2026-10-04T12:39:47.806+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "23 - restrict public cms slot keys"
+2026-10-04T12:39:47.837+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "24 - cms slot component contract"
+2026-10-04T12:39:47.866+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "25 - restful auth verification otp preferences"
+2026-10-04T12:39:47.902+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "26 - patient ai conversations"
+2026-10-04T12:39:47.949+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "27 - patient ai conversation processing lease"
+2026-10-04T12:39:47.972+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "28 - appointment insurance consent"
+2026-10-04T12:39:47.994+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "29 - fence patient ai processing lease"
+2026-10-04T12:39:48.020+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "30 - sync outbox persistence"
+2026-10-04T12:39:48.069+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "31 - bank transfer payments"
+2026-10-04T12:39:48.113+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "32 - payment operations hardening"
+2026-10-04T12:39:48.158+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "33 - appointment account claims"
+2026-10-04T12:39:48.197+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "34 - patient ai chat and clinical review"
+2026-10-04T12:39:48.349+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "35 - ai catalog db owned sync revision"
+2026-10-04T12:39:48.371+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "36 - rich clinical content fields"
+2026-10-04T12:39:48.427+07:00  INFO 24916 --- [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: trigger "trg_articles_rich_content_touch" for relation "articles" does not exist, skipping
+2026-10-04T12:39:48.431+07:00  INFO 24916 --- [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: trigger "trg_faqs_rich_content_touch" for relation "faqs" does not exist, skipping
+2026-10-04T12:39:48.488+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "37 - patient consultation threads"
+2026-10-04T12:39:48.655+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "38 - health questions answers reports"
+2026-10-04T12:39:48.798+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "39 - synthetic guard and patient care plans"
+2026-10-04T12:39:48.918+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "40 - consultation audit retention boundary"
+2026-10-04T12:39:48.957+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "41 - consultation appointment status contract"
+2026-10-04T12:39:48.980+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "42 - browser sessions"
+2026-10-04T12:39:49.017+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "43 - consultation attachment lifecycle"
+2026-10-04T12:39:49.071+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "44 - email outbox"
+2026-10-04T12:39:49.123+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "45 - notification preference categories"
+2026-10-04T12:39:49.160+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "46 - appointment otp issue timestamp"
+2026-10-04T12:39:49.188+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "47 - consultation async scan queue"
+2026-10-04T12:39:49.218+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "48 - email payload binding and delivery id"
+2026-10-04T12:39:49.247+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "49 - email outbox retention index"
+2026-10-04T12:39:49.272+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "50 - consultation object cleanup queue"
+2026-10-04T12:39:49.329+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "51 - consultation verified object identity"
+2026-10-04T12:39:49.362+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "52 - clinical access audit"
+2026-10-04T12:39:49.392+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "53 - update doctor photos and bios"
+2026-10-04T12:39:49.430+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "54 - patient doctor profile enhancements"
+2026-10-04T12:39:49.457+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "55 - article community comments and ai credits"
+2026-10-04T12:39:49.520+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "56 - seed rich health qa consultations and articles"
+2026-10-04T12:39:49.608+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "57 - production media assets"
+2026-10-04T12:39:49.639+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "58 - seed healthcare com demo users"
+2026-10-04T12:39:49.667+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "59 - expand rich medical articles"
+2026-10-04T12:39:49.700+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "60 - seed rich patient clinical data and community articles"
+2026-10-04T12:39:49.743+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "61 - seed doctor schedules and link demo doctor"
+2026-10-04T12:39:49.783+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "62 - seed all remaining role data and doctor articles"
+2026-10-04T12:39:49.839+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "63 - update patient avatar asset"
+2026-10-04T12:39:49.883+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "64 - anonymize pii health question aliases"
+2026-10-04T12:39:49.910+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "65 - notification email queue state"
+2026-10-04T12:39:49.951+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "66 - payment webhook recovery payload"
+2026-10-04T12:39:49.982+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "67 - expand branch demo doctor catalog"
+2026-10-04T12:39:50.018+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "68 - media asset object storage metadata"
+2026-10-04T12:39:50.048+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "69 - fix article cover url control char check"
+2026-10-04T12:39:50.071+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "70 - demo boundary foundation"
+2026-10-04T12:39:50.099+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "71 - patient synthetic documents"
+2026-10-04T12:39:50.143+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "72 - catalog display order"
+2026-10-04T12:39:50.181+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "73 - fix notification event types"
+2026-10-04T12:39:50.210+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "74 - sync consultation participants for demo doctor"
+2026-10-04T12:39:50.242+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "75 - allow document target in clinical access audit"
+2026-10-04T12:39:50.264+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "76 - diagnostic orders"
+2026-10-04T12:39:50.304+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "77 - prescribe audit action"
+2026-10-04T12:39:50.330+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "78 - expand catalog revision source types"
+2026-10-04T12:39:50.365+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "79 - seed demo patient clinical history"
+2026-10-04T12:39:50.390+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "80 - enrich big data articles and clinical catalog"
+2026-10-04T12:39:50.421+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "81 - remediate broken external image urls"
+2026-10-04T12:39:50.524+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "82 - reconcile doctor specialties and clean data"
+2026-10-04T12:39:51.160+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "83 - seed big data doctor schedules and avatars"
+2026-10-04T12:39:51.195+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "84 - enrich article covers and detailed images"
+2026-10-04T12:39:51.219+07:00  INFO 24916 --- [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: V84 Migration completed successfully! 0 Unsplash URLs, 0 Package URLs, 2 illustrated articles.
+2026-10-04T12:39:51.239+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "85 - strict database constraints and clinical integrity"
+2026-10-04T12:39:51.599+07:00  INFO 24916 --- [           main] c.h.database.CatalogFixtureCallback      : Applied db/catalog/v86-catalog-prerequisites.sql before migration V86 (fresh-database catalog fixture)
+2026-10-04T12:39:51.850+07:00  INFO 24916 --- [           main] c.h.c.V86CatalogPrerequisitesCallback    : Applied db/catalog/v86-catalog-prerequisites.sql before migration V86 (fresh-database catalog fixture)
+2026-10-04T12:39:51.850+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "86 - seed comprehensive clinical tables and empty tables"
+2026-10-04T12:39:52.171+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "87 - enrich clinical enterprise big data"
+2026-10-04T12:39:52.788+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "88 - dedupe suffixed service and package rows"
+2026-10-04T12:39:52.815+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "89 - diversify synthetic seed password hashes"
+2026-10-04T12:39:52.859+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "90 - appointment hold idempotency"
+2026-10-04T12:39:52.894+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "91 - appointment cancel audit"
+2026-10-04T12:39:52.952+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "92 - seed faq and disease guides"
+2026-10-04T12:39:53.066+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "93 - article author doctor id"
+2026-10-04T12:39:53.324+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "94 - notification role matrix event types"
+2026-10-04T12:39:53.358+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "95 - seed catalog for all profiles"
+2026-10-04T12:39:53.480+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "96 - article doctor review gate"
+2026-10-04T12:39:53.532+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "97 - unique ai chat refund per attempt"
+2026-10-04T12:39:53.555+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "98 - unique article and doctor images"
+2026-10-04T12:39:53.662+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "99 - enrich final doctor bios and photos"
+2026-10-04T12:39:53.687+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "100 - hide demo and e2e public content"
+2026-10-04T12:39:53.690+07:00  INFO 24916 --- [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: V100: no active "B?c s? m?u" doctor rows present; skipping demo-doctor hiding.
+2026-10-04T12:39:53.694+07:00  INFO 24916 --- [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: V100: no published "e2e-*" fixture articles present; skipping unpublish.
+2026-10-04T12:39:53.716+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "101 - correct seed document availability"
+2026-10-04T12:39:53.737+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "102 - allow document actions in clinical audit"
+2026-10-04T12:39:53.760+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "103 - align doctor account display names"
+2026-10-04T12:39:53.763+07:00  INFO 24916 --- [           main] o.f.c.i.s.DefaultSqlScriptExecutor       : DB: V101: no placeholder doctor display names to align
+2026-10-04T12:39:53.793+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "104 - payment webhook dead letter"
+2026-10-04T12:39:53.824+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "105 - payment invoices"
+2026-10-04T12:39:53.870+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "106 - bank statement imports"
+2026-10-04T12:39:53.906+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "107 - user chat assistant preferences"
+2026-10-04T12:39:53.933+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "108 - patient ai credit refill"
+2026-10-04T12:39:53.966+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "109 - allow appointment reminder document source"
+2026-10-04T12:39:53.995+07:00  INFO 24916 --- [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 111 migrations to schema "public", now at version v109 (execution time 00:04.965s)
+2026-10-04T12:39:54.311+07:00  INFO 24916 --- [           main] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-10-04T12:39:54.430+07:00  INFO 24916 --- [           main] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.22.Final
+2026-10-04T12:39:54.534+07:00  INFO 24916 --- [           main] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-10-04T12:39:54.782+07:00  INFO 24916 --- [           main] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-10-04T12:39:54.846+07:00  INFO 24916 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-04T12:39:54.912+07:00  INFO 24916 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@2cbc0224
+2026-10-04T12:39:54.919+07:00  INFO 24916 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-04T12:39:55.077+07:00  INFO 24916 --- [           main] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 16.15
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-10-04T12:39:57.854+07:00  INFO 24916 --- [           main] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-10-04T12:39:57.984+07:00  INFO 24916 --- [           main] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-10-04T12:39:58.651+07:00  INFO 24916 --- [           main] o.s.d.j.r.query.QueryEnhancerFactory     : Hibernate is in classpath; If applicable, HQL parser will be used.
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::allocateMemory has been called by io.netty.util.internal.PlatformDependent0$2 (file:/<USER_HOME>/.m2/repository/io/netty/netty-common/4.1.123.Final/netty-common-4.1.123.Final.jar)
+WARNING: Please consider reporting this to the maintainers of class io.netty.util.internal.PlatformDependent0$2
+WARNING: sun.misc.Unsafe::allocateMemory will be removed in a future release
+2026-10-04T12:40:05.343+07:00  INFO 24916 --- [           main] r$InitializeUserDetailsManagerConfigurer : Global AuthenticationManager configured with UserDetailsService bean with name customUserDetailsService
+2026-10-04T12:40:07.637+07:00  INFO 24916 --- [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-10-04T12:40:08.537+07:00  INFO 24916 --- [           main] o.s.b.t.m.w.SpringBootMockServletContext : Initializing Spring TestDispatcherServlet ''
+2026-10-04T12:40:08.537+07:00  INFO 24916 --- [           main] o.s.t.web.servlet.TestDispatcherServlet  : Initializing Servlet ''
+2026-10-04T12:40:08.538+07:00  INFO 24916 --- [           main] o.s.t.web.servlet.TestDispatcherServlet  : Completed initialization in 1 ms
+2026-10-04T12:40:09.337+07:00  INFO 24916 --- [           main] c.h.d.DocumentGenerationIntegrationTest  : Started DocumentGenerationIntegrationTest in 30.678 seconds (process running for 36.748)
+2026-10-04T12:40:09.450+07:00  INFO 24916 --- [           main] c.h.s.DemoBoundaryStartupInvariant       : Demo boundary: mode=ENFORCE, demo login allowed. Identity/security admin mutations are denied server-side for demo principals; simulated payment decisions stay available.
+2026-10-04T12:40:15.385+07:00  WARN 24916 --- [pool-4-thread-2] o.h.engine.jdbc.spi.SqlExceptionHelper   : SQL Error: 0, SQLState: 23505
+2026-10-04T12:40:15.386+07:00 ERROR 24916 --- [pool-4-thread-2] o.h.engine.jdbc.spi.SqlExceptionHelper   : ERROR: duplicate key value violates unique constraint "patient_documents_idempotency_key_key"
+  Detail: Key (idempotency_key)=(APPOINTMENT_REMINDER:1e2821a0-4dd4-496b-a870-7ceb9772ceb7:1791092414882:1.0) already exists.
+2026-10-04T12:40:15.401+07:00  WARN 24916 --- [pool-4-thread-2] o.h.engine.jdbc.spi.SqlExceptionHelper   : SQL Error: 0, SQLState: 25P02
+2026-10-04T12:40:15.401+07:00 ERROR 24916 --- [pool-4-thread-2] o.h.engine.jdbc.spi.SqlExceptionHelper   : ERROR: current transaction is aborted, commands ignored until end of transaction block
+2026-10-04T12:40:15.409+07:00 ERROR 24916 --- [pool-4-thread-2] c.h.exception.GlobalExceptionHandler     : Unhandled exception while processing request /api/v1/patients/1b54cf75-3aff-49a9-88a7-642486a2ca10/documents
+
+org.springframework.orm.jpa.JpaSystemException: could not execute statement [ERROR: current transaction is aborted, commands ignored until end of transaction block] [insert into patient_documents (byte_size,generated_at,generated_by,idempotency_key,object_key,patient_id,revoked_at,sha256,source_record_id,source_type,source_version,status,template_version,id) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)]
+	at org.springframework.orm.jpa.vendor.HibernateJpaDialect.convertHibernateAccessException(HibernateJpaDialect.java:348) ~[spring-orm-6.2.9.jar:6.2.9]
+	at org.springframework.orm.jpa.vendor.HibernateJpaDialect.convertHibernateAccessException(HibernateJpaDialect.java:256) ~[spring-orm-6.2.9.jar:6.2.9]
+	at org.springframework.orm.jpa.vendor.HibernateJpaDialect.translateExceptionIfPossible(HibernateJpaDialect.java:241) ~[spring-orm-6.2.9.jar:6.2.9]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.translateExceptionIfPossible(AbstractEntityManagerFactoryBean.java:560) ~[spring-orm-6.2.9.jar:6.2.9]
+	at org.springframework.dao.support.ChainedPersistenceExceptionTranslator.translateExceptionIfPossible(ChainedPersistenceExceptionTranslator.java:61) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.dao.support.DataAccessUtils.translateIfNecessary(DataAccessUtils.java:343) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.dao.support.PersistenceExceptionTranslationInterceptor.invoke(PersistenceExceptionTranslationInterceptor.java:160) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.data.jpa.repository.support.CrudMethodMetadataPostProcessor$CrudMethodMetadataPopulatingMethodInterceptor.invoke(CrudMethodMetadataPostProcessor.java:136) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.JdkDynamicAopProxy.invoke(JdkDynamicAopProxy.java:223) ~[spring-aop-6.2.9.jar:6.2.9]
+	at jdk.proxy2/jdk.proxy2.$Proxy298.findByIdempotencyKey(Unknown Source) ~[na:na]
+	at com.healthcare.document.service.DocumentService.generateDocument(DocumentService.java:191) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728) ~[spring-aop-6.2.9.jar:6.2.9]
+	at com.healthcare.document.service.DocumentService$$SpringCGLIB$$0.generateDocument(<generated>) ~[classes/:na]
+	at com.healthcare.document.controller.DocumentController.generateDocument(DocumentController.java:63) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.invokeJoinpoint(ReflectiveMethodInvocation.java:196) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:163) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor.proceed(AuthorizationManagerBeforeMethodInterceptor.java:268) ~[spring-security-core-6.5.2.jar:6.5.2]
+	at org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor.attemptAuthorization(AuthorizationManagerBeforeMethodInterceptor.java:263) ~[spring-security-core-6.5.2.jar:6.5.2]
+	at org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor.invoke(AuthorizationManagerBeforeMethodInterceptor.java:196) ~[spring-security-core-6.5.2.jar:6.5.2]
+	at org.springframework.security.config.annotation.method.configuration.DeferringMethodInterceptor.invoke(DeferringMethodInterceptor.java:44) ~[spring-security-config-6.5.2.jar:6.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.CglibAopProxy$DynamicAdvisedInterceptor.intercept(CglibAopProxy.java:728) ~[spring-aop-6.2.9.jar:6.2.9]
+	at com.healthcare.document.controller.DocumentController$$SpringCGLIB$$0.generateDocument(<generated>) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:258) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:191) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:991) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:896) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590) ~[tomcat-embed-core-10.1.43.jar:6.0]
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.TestDispatcherServlet.service(TestDispatcherServlet.java:72) ~[spring-test-6.2.9.jar:6.2.9]
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.43.jar:6.0]
+	at org.springframework.mock.web.MockFilterChain$ServletFilterProxy.doFilter(MockFilterChain.java:165) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:110) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:108) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.FilterChainProxy.lambda$doFilterInternal$3(FilterChainProxy.java:231) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$FilterObservation$SimpleFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:479) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$1(ObservationFilterChainDecorator.java:340) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator.lambda$wrapSecured$0(ObservationFilterChainDecorator.java:82) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:128) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.access.intercept.AuthorizationFilter.doFilter(AuthorizationFilter.java:101) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:125) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.access.ExceptionTranslationFilter.doFilter(ExceptionTranslationFilter.java:119) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:131) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.session.SessionManagementFilter.doFilter(SessionManagementFilter.java:85) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.authentication.AnonymousAuthenticationFilter.doFilter(AnonymousAuthenticationFilter.java:100) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.servletapi.SecurityContextHolderAwareRequestFilter.doFilter(SecurityContextHolderAwareRequestFilter.java:179) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.savedrequest.RequestCacheAwareFilter.doFilter(RequestCacheAwareFilter.java:63) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at com.healthcare.security.DemoMutationBoundaryFilter.doFilterInternal(DemoMutationBoundaryFilter.java:89) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at com.healthcare.auth.security.BrowserCsrfFilter.doFilterInternal(BrowserCsrfFilter.java:65) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at com.healthcare.auth.security.BrowserSessionAuthenticationFilter.doFilterInternal(BrowserSessionAuthenticationFilter.java:36) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at com.healthcare.security.JwtAuthenticationFilter.doFilterInternal(JwtAuthenticationFilter.java:64) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at com.healthcare.security.RequestRateLimitFilter.doFilterInternal(RequestRateLimitFilter.java:136) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at com.healthcare.auth.security.BffRequiredFilter.doFilterInternal(BffRequiredFilter.java:55) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:107) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.authentication.logout.LogoutFilter.doFilter(LogoutFilter.java:93) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.CorsFilter.doFilterInternal(CorsFilter.java:91) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.header.HeaderWriterFilter.doHeadersAfter(HeaderWriterFilter.java:90) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.header.HeaderWriterFilter.doFilterInternal(HeaderWriterFilter.java:75) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:82) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.context.SecurityContextHolderFilter.doFilter(SecurityContextHolderFilter.java:69) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.context.request.async.WebAsyncManagerIntegrationFilter.doFilterInternal(WebAsyncManagerIntegrationFilter.java:62) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:227) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.session.DisableEncodeUrlFilter.doFilterInternal(DisableEncodeUrlFilter.java:42) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.wrapFilter(ObservationFilterChainDecorator.java:240) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$AroundFilterObservation$SimpleAroundFilterObservation.lambda$wrap$0(ObservationFilterChainDecorator.java:323) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$ObservationFilter.doFilter(ObservationFilterChainDecorator.java:224) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.ObservationFilterChainDecorator$VirtualFilterChain.doFilter(ObservationFilterChainDecorator.java:137) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.FilterChainProxy.doFilterInternal(FilterChainProxy.java:233) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.security.web.FilterChainProxy.doFilter(FilterChainProxy.java:191) ~[spring-security-web-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.ServletRequestPathFilter.doFilter(ServletRequestPathFilter.java:52) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.config.annotation.web.configuration.WebSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebSecurityConfiguration.java:319) ~[spring-security-config-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.servlet.handler.HandlerMappingIntrospector.lambda$createCacheFilter$4(HandlerMappingIntrospector.java:267) ~[spring-webmvc-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CompositeFilter$VirtualFilterChain.doFilter(CompositeFilter.java:113) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CompositeFilter.doFilter(CompositeFilter.java:74) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.security.config.annotation.web.configuration.WebMvcSecurityConfiguration$CompositeFilterChainProxy.doFilter(WebMvcSecurityConfiguration.java:240) ~[spring-security-config-6.5.2.jar:6.5.2]
+	at org.springframework.web.filter.DelegatingFilterProxy.invokeDelegate(DelegatingFilterProxy.java:362) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.DelegatingFilterProxy.doFilter(DelegatingFilterProxy.java:278) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at com.healthcare.observability.RequestTraceFilter.doFilterInternal(RequestTraceFilter.java:29) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:110) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at com.healthcare.config.Utf8Filter.doFilterInternal(Utf8Filter.java:31) ~[classes/:na]
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.setup.MockMvcFilterDecorator.doFilter(MockMvcFilterDecorator.java:162) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.mock.web.MockFilterChain.doFilter(MockFilterChain.java:132) ~[spring-test-6.2.9.jar:6.2.9]
+	at org.springframework.test.web.servlet.MockMvc.perform(MockMvc.java:201) ~[spring-test-6.2.9.jar:6.2.9]
+	at com.healthcare.document.DocumentGenerationIntegrationTest.lambda$concurrentSameSourceGenerationReusesOneRowAndObject$1(DocumentGenerationIntegrationTest.java:233) ~[test-classes/:na]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:328) ~[na:na]
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1095) ~[na:na]
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:619) ~[na:na]
+	at java.base/java.lang.Thread.run(Thread.java:1447) ~[na:na]
+Caused by: org.hibernate.exception.GenericJDBCException: could not execute statement [ERROR: current transaction is aborted, commands ignored until end of transaction block] [insert into patient_documents (byte_size,generated_at,generated_by,idempotency_key,object_key,patient_id,revoked_at,sha256,source_record_id,source_type,source_version,status,template_version,id) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)]
+	at org.hibernate.exception.internal.StandardSQLExceptionConverter.convert(StandardSQLExceptionConverter.java:63) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.spi.SqlExceptionHelper.convert(SqlExceptionHelper.java:108) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.internal.ResultSetReturnImpl.executeUpdate(ResultSetReturnImpl.java:197) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.mutation.internal.AbstractMutationExecutor.performNonBatchedMutation(AbstractMutationExecutor.java:134) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.mutation.internal.MutationExecutorSingleNonBatched.performNonBatchedOperations(MutationExecutorSingleNonBatched.java:55) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.mutation.internal.AbstractMutationExecutor.execute(AbstractMutationExecutor.java:55) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.persister.entity.mutation.InsertCoordinatorStandard.doStaticInserts(InsertCoordinatorStandard.java:194) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.persister.entity.mutation.InsertCoordinatorStandard.coordinateInsert(InsertCoordinatorStandard.java:132) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.persister.entity.mutation.InsertCoordinatorStandard.insert(InsertCoordinatorStandard.java:104) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.action.internal.EntityInsertAction.execute(EntityInsertAction.java:110) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.spi.ActionQueue.executeActions(ActionQueue.java:644) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.spi.ActionQueue.executeActions(ActionQueue.java:511) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.event.internal.AbstractFlushingEventListener.performExecutions(AbstractFlushingEventListener.java:414) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.event.internal.DefaultAutoFlushEventListener.onAutoFlush(DefaultAutoFlushEventListener.java:67) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.event.service.internal.EventListenerGroupImpl.fireEventOnEachListener(EventListenerGroupImpl.java:127) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.internal.SessionImpl.autoFlushIfRequired(SessionImpl.java:1379) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.query.sqm.internal.ConcreteSqmSelectQueryPlan.lambda$new$1(ConcreteSqmSelectQueryPlan.java:142) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.query.sqm.internal.ConcreteSqmSelectQueryPlan.withCacheableSqmInterpretation(ConcreteSqmSelectQueryPlan.java:439) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.query.sqm.internal.ConcreteSqmSelectQueryPlan.performList(ConcreteSqmSelectQueryPlan.java:359) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.query.sqm.internal.QuerySqmImpl.doList(QuerySqmImpl.java:380) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.query.spi.AbstractSelectionQuery.list(AbstractSelectionQuery.java:143) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.query.spi.AbstractSelectionQuery.getSingleResult(AbstractSelectionQuery.java:275) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.springframework.data.jpa.repository.query.JpaQueryExecution$SingleEntityExecution.doExecute(JpaQueryExecution.java:224) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.data.jpa.repository.query.JpaQueryExecution.execute(JpaQueryExecution.java:93) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.data.jpa.repository.query.AbstractJpaQuery.doExecute(AbstractJpaQuery.java:160) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.data.jpa.repository.query.AbstractJpaQuery.execute(AbstractJpaQuery.java:148) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryMethodInvoker.doInvoke(RepositoryMethodInvoker.java:170) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryMethodInvoker.invoke(RepositoryMethodInvoker.java:158) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.QueryExecutorMethodInterceptor.doInvoke(QueryExecutorMethodInterceptor.java:170) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.QueryExecutorMethodInterceptor.invoke(QueryExecutorMethodInterceptor.java:149) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.data.projection.DefaultMethodInvokingMethodInterceptor.invoke(DefaultMethodInvokingMethodInterceptor.java:69) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.dao.support.PersistenceExceptionTranslationInterceptor.invoke(PersistenceExceptionTranslationInterceptor.java:138) ~[spring-tx-6.2.9.jar:6.2.9]
+	... 197 common frames omitted
+Caused by: org.postgresql.util.PSQLException: ERROR: current transaction is aborted, commands ignored until end of transaction block
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2734) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2421) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:372) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:518) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:435) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgPreparedStatement.executeUpdate(PgPreparedStatement.java:157) ~[postgresql-42.7.7.jar:42.7.7]
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61) ~[HikariCP-6.3.1.jar:na]
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java) ~[HikariCP-6.3.1.jar:na]
+	at org.hibernate.engine.jdbc.internal.ResultSetReturnImpl.executeUpdate(ResultSetReturnImpl.java:194) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	... 231 common frames omitted
+Caused by: org.postgresql.util.PSQLException: ERROR: duplicate key value violates unique constraint "patient_documents_idempotency_key_key"
+  Detail: Key (idempotency_key)=(APPOINTMENT_REMINDER:1e2821a0-4dd4-496b-a870-7ceb9772ceb7:1791092414882:1.0) already exists.
+	at org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2734) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2421) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:372) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:518) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgStatement.execute(PgStatement.java:435) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgPreparedStatement.executeWithFlags(PgPreparedStatement.java:196) ~[postgresql-42.7.7.jar:42.7.7]
+	at org.postgresql.jdbc.PgPreparedStatement.executeUpdate(PgPreparedStatement.java:157) ~[postgresql-42.7.7.jar:42.7.7]
+	at com.zaxxer.hikari.pool.ProxyPreparedStatement.executeUpdate(ProxyPreparedStatement.java:61) ~[HikariCP-6.3.1.jar:na]
+	at com.zaxxer.hikari.pool.HikariProxyPreparedStatement.executeUpdate(HikariProxyPreparedStatement.java) ~[HikariCP-6.3.1.jar:na]
+	at org.hibernate.engine.jdbc.internal.ResultSetReturnImpl.executeUpdate(ResultSetReturnImpl.java:194) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.mutation.internal.AbstractMutationExecutor.performNonBatchedMutation(AbstractMutationExecutor.java:134) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.mutation.internal.MutationExecutorSingleNonBatched.performNonBatchedOperations(MutationExecutorSingleNonBatched.java:55) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.jdbc.mutation.internal.AbstractMutationExecutor.execute(AbstractMutationExecutor.java:55) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.persister.entity.mutation.InsertCoordinatorStandard.doStaticInserts(InsertCoordinatorStandard.java:194) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.persister.entity.mutation.InsertCoordinatorStandard.coordinateInsert(InsertCoordinatorStandard.java:132) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.persister.entity.mutation.InsertCoordinatorStandard.insert(InsertCoordinatorStandard.java:104) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.action.internal.EntityInsertAction.execute(EntityInsertAction.java:110) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.spi.ActionQueue.executeActions(ActionQueue.java:644) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.engine.spi.ActionQueue.executeActions(ActionQueue.java:511) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.event.internal.AbstractFlushingEventListener.performExecutions(AbstractFlushingEventListener.java:414) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.event.internal.DefaultFlushEventListener.onFlush(DefaultFlushEventListener.java:41) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.event.service.internal.EventListenerGroupImpl.fireEventOnEachListener(EventListenerGroupImpl.java:127) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.internal.SessionImpl.doFlush(SessionImpl.java:1429) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at org.hibernate.internal.SessionImpl.flush(SessionImpl.java:1415) ~[hibernate-core-6.6.22.Final.jar:6.6.22.Final]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.springframework.orm.jpa.SharedEntityManagerCreator$SharedEntityManagerInvocationHandler.invoke(SharedEntityManagerCreator.java:320) ~[spring-orm-6.2.9.jar:6.2.9]
+	at jdk.proxy2/jdk.proxy2.$Proxy239.flush(Unknown Source) ~[na:na]
+	at org.springframework.data.jpa.repository.support.SimpleJpaRepository.flush(SimpleJpaRepository.java:699) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.data.jpa.repository.support.SimpleJpaRepository.saveAndFlush(SimpleJpaRepository.java:666) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565) ~[na:na]
+	at org.springframework.aop.support.AopUtils.invokeJoinpointUsingReflection(AopUtils.java:360) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.data.repository.core.support.RepositoryMethodInvoker$RepositoryFragmentMethodInvoker.lambda$new$0(RepositoryMethodInvoker.java:277) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryMethodInvoker.doInvoke(RepositoryMethodInvoker.java:170) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryMethodInvoker.invoke(RepositoryMethodInvoker.java:158) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryComposition$RepositoryFragments.invoke(RepositoryComposition.java:515) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryComposition.invoke(RepositoryComposition.java:284) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.RepositoryFactorySupport$ImplementationMethodExecutionInterceptor.invoke(RepositoryFactorySupport.java:734) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.data.repository.core.support.QueryExecutorMethodInterceptor.doInvoke(QueryExecutorMethodInterceptor.java:174) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.data.repository.core.support.QueryExecutorMethodInterceptor.invoke(QueryExecutorMethodInterceptor.java:149) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.data.projection.DefaultMethodInvokingMethodInterceptor.invoke(DefaultMethodInvokingMethodInterceptor.java:69) ~[spring-data-commons-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.transaction.interceptor.TransactionAspectSupport.invokeWithinTransaction(TransactionAspectSupport.java:380) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.transaction.interceptor.TransactionInterceptor.invoke(TransactionInterceptor.java:119) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.dao.support.PersistenceExceptionTranslationInterceptor.invoke(PersistenceExceptionTranslationInterceptor.java:138) ~[spring-tx-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.data.jpa.repository.support.CrudMethodMetadataPostProcessor$CrudMethodMetadataPopulatingMethodInterceptor.invoke(CrudMethodMetadataPostProcessor.java:165) ~[spring-data-jpa-3.5.2.jar:3.5.2]
+	at org.springframework.aop.framework.ReflectiveMethodInvocation.proceed(ReflectiveMethodInvocation.java:184) ~[spring-aop-6.2.9.jar:6.2.9]
+	at org.springframework.aop.framework.JdkDynamicAopProxy.invoke(JdkDynamicAopProxy.java:223) ~[spring-aop-6.2.9.jar:6.2.9]
+	at jdk.proxy2/jdk.proxy2.$Proxy298.saveAndFlush(Unknown Source) ~[na:na]
+	at com.healthcare.document.service.DocumentService.generateDocument(DocumentService.java:187) ~[classes/:na]
+	... 191 common frames omitted
+
+
+MockHttpServletRequest:
+      HTTP Method = POST
+      Request URI = /api/v1/patients/717445d6-7e12-42aa-9c26-697778b24c81/documents
+       Parameters = {}
+          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer <REDACTED-JWT>", Content-Length:"94"]
+             Body = {"sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"e3484d03-06d8-42a2-8b24-3b63db1b6b29"}
+
+    Session Attrs = {}
+
+Handler:
+             Type = com.healthcare.document.controller.DocumentController
+           Method = com.healthcare.document.controller.DocumentController#generateDocument(UUID, GenerateDocumentRequest, UserDetails)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 201
+    Error message = null
+          Headers = [X-Request-ID:"8ad764fa-02ab-4e8f-afb2-78669b640161", Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Cache-Control:"no-store", Content-Type:"application/json;charset=UTF-8", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", X-Frame-Options:"DENY"]
+     Content type = application/json;charset=UTF-8
+             Body = {"id":"adeb93ad-2621-4fd6-8c6a-92ea4666b59e","patientId":"717445d6-7e12-42aa-9c26-697778b24c81","sourceRecordId":"e3484d03-06d8-42a2-8b24-3b63db1b6b29","sourceType":"APPOINTMENT_REMINDER","sourceVersion":1791092417121,"templateVersion":"1.0","status":"AVAILABLE","sha256":"2068d498d322990441a8e20ab6c3ca5866dffbfbd5d69505687ab114f05fe849","byteSize":660011,"generatedBy":"a47ab469-d4ce-4391-b12e-a1328f644efb","generatedAt":"2026-10-04T12:40:17.2766071+07:00","revokedAt":null}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/patients/717445d6-7e12-42aa-9c26-697778b24c81/documents
+       Parameters = {}
+          Headers = [Authorization:"Bearer <REDACTED-JWT>"]
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = com.healthcare.document.controller.DocumentController
+           Method = com.healthcare.document.controller.DocumentController#listDocuments(UUID, UserDetails)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = null
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 200
+    Error message = null
+          Headers = [X-Request-ID:"1881619d-69b1-4374-b150-01a43c0d0c68", Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Cache-Control:"no-store", Content-Type:"application/json;charset=UTF-8", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", X-Frame-Options:"DENY"]
+     Content type = application/json;charset=UTF-8
+             Body = []
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+
+MockHttpServletRequest:
+      HTTP Method = GET
+      Request URI = /api/v1/patients/717445d6-7e12-42aa-9c26-697778b24c81/documents/adeb93ad-2621-4fd6-8c6a-92ea4666b59e/download
+       Parameters = {}
+          Headers = [Authorization:"Bearer <REDACTED-JWT>"]
+             Body = null
+    Session Attrs = {}
+
+Handler:
+             Type = com.healthcare.document.controller.DocumentController
+           Method = com.healthcare.document.controller.DocumentController#downloadDocument(UUID, UUID, UserDetails)
+
+Async:
+    Async started = false
+     Async result = null
+
+Resolved Exception:
+             Type = org.springframework.security.access.AccessDeniedException
+
+ModelAndView:
+        View name = null
+             View = null
+            Model = null
+
+FlashMap:
+       Attributes = null
+
+MockHttpServletResponse:
+           Status = 403
+    Error message = null
+          Headers = [X-Request-ID:"abc24a7e-dad1-447e-af05-c59182bfc739", Vary:"Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers", Content-Type:"application/json;charset=UTF-8", X-Content-Type-Options:"nosniff", X-XSS-Protection:"0", Cache-Control:"no-cache, no-store, max-age=0, must-revalidate", Pragma:"no-cache", Expires:"0", X-Frame-Options:"DENY"]
+     Content type = application/json;charset=UTF-8
+             Body = {"timestamp":"2026-10-04T05:40:17.394787100Z","status":403,"error":"Forbidden","message":"Access denied","path":"/api/v1/patients/717445d6-7e12-42aa-9c26-697778b24c81/documents/adeb93ad-2621-4fd6-8c6a-92ea4666b59e/download","fieldErrors":[],"code":"ACCESS_DENIED"}
+    Forwarded URL = null
+   Redirected URL = null
+          Cookies = []
+[ERROR] Tests run: 5, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 44.22 s <<< FAILURE! -- in com.healthcare.document.DocumentGenerationIntegrationTest
+[ERROR] com.healthcare.document.DocumentGenerationIntegrationTest.concurrentSameSourceGenerationReusesOneRowAndObject -- Time elapsed: 1.015 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 201
+ but was: 500
+	at com.healthcare.document.DocumentGenerationIntegrationTest.concurrentSameSourceGenerationReusesOneRowAndObject(DocumentGenerationIntegrationTest.java:263)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.healthcare.document.DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder -- Time elapsed: 1.190 s <<< FAILURE!
+org.assertj.core.error.AssertJMultipleFailuresError: 
+
+Multiple Failures (6 failures)
+-- failure 1 --
+[doctor list includes generated id] 
+Expecting actual:
+  "[]"
+to contain:
+  "adeb93ad-2621-4fd6-8c6a-92ea4666b59e" 
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:313)
+-- failure 2 --
+[doctor download status] 
+expected: 200
+ but was: 403
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:317)
+-- failure 3 --
+[download content type] 
+Expecting actual:
+  "application/json;charset=UTF-8"
+to start with:
+  "application/pdf"
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:319)
+-- failure 4 --
+[downloaded length equals stored object length] 
+expected: 660011
+ but was: 264
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:321)
+-- failure 5 --
+[downloaded sha256 equals stored object sha256] 
+expected: "2068d498d322990441a8e20ab6c3ca5866dffbfbd5d69505687ab114f05fe849"
+ but was: "cfe99097acb8f5cfbd17807cf684f6dd6cfdcad2267987d80a082ca3f4e1df80"
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:323)
+-- failure 6 --
+[downloaded payload is a PDF] 
+expected: "%PDF-"
+ but was: "{"tim"
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:325)
+	at com.healthcare.document.DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:326)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[INFO] Running com.healthcare.document.DocumentServiceTest
+[ERROR] Tests run: 25, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 2.517 s <<< FAILURE! -- in com.healthcare.document.DocumentServiceTest
+[ERROR] com.healthcare.document.DocumentServiceTest.nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization -- Time elapsed: 0.011 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual throwable to be an instance of:
+  org.springframework.security.access.AccessDeniedException
+but was:
+  com.healthcare.exception.ResourceNotFoundException: No appointment found for booking code: FOREIGN-BOOKING
+	at com.healthcare.document.service.DocumentService.lambda$downloadAppointmentReminderByBookingCode$0(DocumentService.java:373)
+	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+	at com.healthcare.document.service.DocumentService.downloadAppointmentReminderByBookingCode(DocumentService.java:373)
+	...(80 remaining lines not displayed - this can be changed with Assertions.setMaxStackTraceElementsDisplayed)
+	at com.healthcare.document.DocumentServiceTest.nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization(DocumentServiceTest.java:738)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.healthcare.document.DocumentServiceTest.patientCannotResolveBookingBeforePatientScopeAuthorization -- Time elapsed: 0.010 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual throwable to be an instance of:
+  org.springframework.security.access.AccessDeniedException
+but was:
+  com.healthcare.exception.ResourceNotFoundException: No appointment found for booking code: FOREIGN-BOOKING
+	at com.healthcare.document.service.DocumentService.lambda$downloadAppointmentReminderByBookingCode$0(DocumentService.java:373)
+	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+	at com.healthcare.document.service.DocumentService.downloadAppointmentReminderByBookingCode(DocumentService.java:373)
+	...(80 remaining lines not displayed - this can be changed with Assertions.setMaxStackTraceElementsDisplayed)
+	at com.healthcare.document.DocumentServiceTest.patientCannotResolveBookingBeforePatientScopeAuthorization(DocumentServiceTest.java:728)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder:326 
+Multiple Failures (6 failures)
+-- failure 1 --
+[doctor list includes generated id] 
+Expecting actual:
+  "[]"
+to contain:
+  "adeb93ad-2621-4fd6-8c6a-92ea4666b59e" 
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:313)
+-- failure 2 --
+[doctor download status] 
+expected: 200
+ but was: 403
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:317)
+-- failure 3 --
+[download content type] 
+Expecting actual:
+  "application/json;charset=UTF-8"
+to start with:
+  "application/pdf"
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:319)
+-- failure 4 --
+[downloaded length equals stored object length] 
+expected: 660011
+ but was: 264
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:321)
+-- failure 5 --
+[downloaded sha256 equals stored object sha256] 
+expected: "2068d498d322990441a8e20ab6c3ca5866dffbfbd5d69505687ab114f05fe849"
+ but was: "cfe99097acb8f5cfbd17807cf684f6dd6cfdcad2267987d80a082ca3f4e1df80"
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:323)
+-- failure 6 --
+[downloaded payload is a PDF] 
+expected: "%PDF-"
+ but was: "{"tim"
+at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:325)
+[ERROR]   DocumentGenerationIntegrationTest.concurrentSameSourceGenerationReusesOneRowAndObject:263 
+expected: 201
+ but was: 500
+[ERROR]   DocumentServiceTest.nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization:738 
+Expecting actual throwable to be an instance of:
+  org.springframework.security.access.AccessDeniedException
+but was:
+  com.healthcare.exception.ResourceNotFoundException: No appointment found for booking code: FOREIGN-BOOKING
+	at com.healthcare.document.service.DocumentService.lambda$downloadAppointmentReminderByBookingCode$0(DocumentService.java:373)
+	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+	at com.healthcare.document.service.DocumentService.downloadAppointmentReminderByBookingCode(DocumentService.java:373)
+	...(80 remaining lines not displayed - this can be changed with Assertions.setMaxStackTraceElementsDisplayed)
+[ERROR]   DocumentServiceTest.patientCannotResolveBookingBeforePatientScopeAuthorization:728 
+Expecting actual throwable to be an instance of:
+  org.springframework.security.access.AccessDeniedException
+but was:
+  com.healthcare.exception.ResourceNotFoundException: No appointment found for booking code: FOREIGN-BOOKING
+	at com.healthcare.document.service.DocumentService.lambda$downloadAppointmentReminderByBookingCode$0(DocumentService.java:373)
+	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+	at com.healthcare.document.service.DocumentService.downloadAppointmentReminderByBookingCode(DocumentService.java:373)
+	...(80 remaining lines not displayed - this can be changed with Assertions.setMaxStackTraceElementsDisplayed)
+[INFO] 
+[ERROR] Tests run: 30, Failures: 4, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  01:09 min
+[INFO] Finished at: 2026-10-04T12:40:21+07:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project healthcare-backend: There are test failures.
+[ERROR] 
+[ERROR] See D:\HealthCare_Project\apps\backend\target\surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

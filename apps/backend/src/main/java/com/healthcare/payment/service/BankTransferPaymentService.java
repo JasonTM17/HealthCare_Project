@@ -137,8 +137,16 @@ public class BankTransferPaymentService {
     public BankTransferPaymentResponse getForPatient(UUID appointmentId, UserDetails principal) {
         requireConfigured();
         Appointment appointment = ownAppointmentForUpdate(appointmentId, principal);
-        ensurePayable(appointment);
-        return toResponse(initialize(appointment));
+        // A committed payment row is the record of whatever state the payment
+        // reached — including refunds queued by a cancellation — so it is
+        // returned in any status. The payable check only gates the FIRST
+        // creation of a payment for a visit that can still be paid.
+        return paymentRepository.findByAppointmentId(appointmentId)
+            .map(this::toResponse)
+            .orElseGet(() -> {
+                ensurePayable(appointment);
+                return toResponse(initialize(appointment));
+            });
     }
 
     @Transactional
@@ -166,6 +174,18 @@ public class BankTransferPaymentService {
                 && payment.getStatus() != PaymentStatus.REJECTED) {
             if (requestHash.equals(payment.getSubmissionRequestHash())) return toResponse(payment);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Idempotency-Key đã được dùng cho yêu cầu khác");
+        }
+
+        // The same key bound to a DIFFERENT payment row is cross-appointment
+        // reuse: the partial unique index would surface it as a generic 500,
+        // so it is answered here with a real conflict instead.
+        if (!normalizedKey.equals(payment.getSubmissionIdempotencyKey())) {
+            paymentRepository.findBySubmissionIdempotencyKey(normalizedKey)
+                .filter(other -> !java.util.Objects.equals(other.getId(), payment.getId()))
+                .ifPresent(other -> {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Idempotency-Key đã được dùng cho yêu cầu thanh toán khác");
+                });
         }
 
         if (payment.getStatus() == PaymentStatus.PAID) return toResponse(payment);
@@ -212,6 +232,15 @@ public class BankTransferPaymentService {
             UUID paymentId,
             ReviewBankTransferRequest request,
             UserDetails principal) {
+        // Canonical lock order is appointment → payment, the same order the
+        // cancellation sweeps take. The unlocked probe only resolves the
+        // appointment id — every state check below runs on the locked
+        // appointment, so a stale unlocked copy can never be evaluated.
+        UUID appointmentId = paymentRepository.findById(paymentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"))
+            .getAppointment().getId();
+        appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
         BankTransferPayment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
         User reviewer = userRepository.findByEmail(principal.getUsername())
@@ -270,6 +299,13 @@ public class BankTransferPaymentService {
 
     @Transactional
     public BankTransferPaymentResponse refund(UUID paymentId, RefundBankTransferRequest request, UserDetails principal) {
+        // Same canonical lock order as review and the cancellation sweeps:
+        // appointment → payment. The unlocked probe resolves the id only.
+        UUID appointmentId = paymentRepository.findById(paymentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"))
+            .getAppointment().getId();
+        appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
         BankTransferPayment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
         String reference = normalizeReference(request.refundReference());
@@ -301,7 +337,16 @@ public class BankTransferPaymentService {
     @Transactional
     public BankTransferPaymentResponse confirmFromWebhook(BankTransferWebhookRequest request, String eventId) {
         requireConfigured();
-        BankTransferPayment payment = paymentRepository.findByTransferContentForUpdate(request.transferContent().trim())
+        // Canonical lock order is appointment → payment, matching review,
+        // refund and the cancellation sweeps. The scalar probe resolves the
+        // appointment id without managing the appointment entity, so the
+        // locked load below is the first read of that row and every state
+        // check on payment.getAppointment() runs on the locked state.
+        UUID appointmentId = paymentRepository.findAppointmentIdByTransferContent(request.transferContent().trim())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nội dung chuyển khoản"));
+        appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nội dung chuyển khoản"));
+        BankTransferPayment payment = paymentRepository.findByAppointmentIdForUpdate(appointmentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nội dung chuyển khoản"));
         if (payment.getAmount().compareTo(request.amount()) != 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Số tiền webhook không khớp");
@@ -410,14 +455,21 @@ public class BankTransferPaymentService {
             }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã bị hủy nên không thể thanh toán");
         }
-        if (appointment.getStatus() == AppointmentStatus.NO_SHOW) {
+        if (appointment.getStatus() == AppointmentStatus.NO_SHOW
+                || appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            // An ended appointment must never become PAID. CHECKED_IN and
+            // IN_PROGRESS stay payable on purpose: payment at the counter is
+            // allowed while the visit is still active.
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã kết thúc nên không thể thanh toán");
         }
     }
 
     private void ensureAppointmentCanBePaid(Appointment appointment) {
+        // Same "ended appointment" invariant as ensurePayable: an ended visit
+        // must never take a payment, whatever the submission channel.
         if (appointment.getStatus() == AppointmentStatus.CANCELLED
-                || appointment.getStatus() == AppointmentStatus.NO_SHOW) {
+                || appointment.getStatus() == AppointmentStatus.NO_SHOW
+                || appointment.getStatus() == AppointmentStatus.COMPLETED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã kết thúc và không thể ghi nhận thanh toán");
         }
     }

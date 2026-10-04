@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchSpecialtyBySlug } from "../../../lib/api-client";
+import { safeSiteOrigin } from "../../../lib/site-url";
 import type { Specialty } from "../../../types/hospital";
 import { ClinicalIcon } from "../../../components/ClinicalIcon";
 import {
@@ -56,7 +57,7 @@ export default function SpecialtyDetailPage() {
         "@type": "MedicalSpecialty",
         name: specialty.name,
         description: specialty.description || `Khám và điều trị chuyên khoa ${specialty.name} tại Hệ thống Bệnh viện HealthCare`,
-        url: `https://www.healthcare.id.vn/specialties/${params?.slug || ""}`,
+        url: `${safeSiteOrigin()}/specialties/${params?.slug || ""}`,
       }
     : null;
 

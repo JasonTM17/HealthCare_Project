@@ -1,0 +1,26 @@
+{
+  "schema":"healthcare.ai-corrected-snapshot.v3",
+  "frozen":true,
+  "scope":"Four fixed AI source/test members and directly required source helpers only; other product files, runtime rebuilding and backend checks are outside this review",
+  "sourceManifest":[
+    {"path":"apps/ai-service/app/chatbot.py","gitBlob":"3cca937c6b91187fed5711eb02ac8e12d9cd5058"},
+    {"path":"apps/ai-service/app/llm.py","gitBlob":"0ce45962bb2dc9e1789352b178bea82f47652d2c"},
+    {"path":"apps/ai-service/tests/test_chatbot_contract.py","gitBlob":"3a48b1b2a61a080f7b58b62dd8111dfa2095ec65"},
+    {"path":"apps/ai-service/tests/test_llm.py","gitBlob":"8ad285a982681c8783ac93b8d6811106a53d4ef6"}
+  ],
+  "identity":"Controller-executed Git blob SHA-1 manifest; HEAD bbba6935851cdb630f5fd87717c47458a69e2d4e plus dirty AI working source",
+  "authority":"R0 read-only source and captured evidence; no writes, commands, services, credentials, DB queries, peer spawning, publication or production sign-off",
+  "modelRoute":"Separate native Explore context; resolved underlying model unknown and no provider-family independence/qualified production route claimed",
+  "profilePolicy":"Read the exact original description paths natively before claiming loaded. A blocked read or ignored-file glob miss is a capability limitation, not proof that a project profile/skill is absent. Do not relay denied/private files or use another registry to evade controls.",
+  "falsifiableClaim":"The corrected deterministic-source gate rejects the three confirmed comma/refusal personal-diagnosis or bare-dose counterexamples and a generic-negation stop directive, while ordinary refusal, enumerated refusal, negated caution, conditional doctor-directed preparation and generic hydration remain usable. No claim covers every medication vocabulary, remote provider or production.",
+  "previousFailure":"reports/local-audit-ai-refusal-boundary-probe.json: Team Lead executed real helper and generate_chat_response on three synthetic operational sources; each returned ANSWER, original unsafe text, citation, no provider call",
+  "repair":"Replace whole-sentence prior-refusal excusal with a bounded recognized clinical-refusal prefix. Structured URL/ID, personal-diagnosis subject matches and dose-bearing matches never inherit an earlier negation. Keep raw PII/injection checks, renderer-aligned URL handling, conditional preparation mask, operational local routing, clinical approval and remote egress boundaries unchanged.",
+  "primaryEvidence":[
+    {"path":"reports/local-audit-v3-ai-pytest.txt","result":"876 passed, 8 deprecation warnings; actual offline framework stdout"},
+    {"path":"reports/local-audit-v3-ai-ruff.txt","result":"All checks passed on changed AI members"},
+    {"path":"reports/local-audit-ai-refusal-boundary-probe.json","result":"Pre-repair actual deterministic failures and positive controls, frozen inputs"}
+  ],
+  "budget":{"maximumStaticProbes":7,"requireCompetingHypotheses":true,"highSeverityFreshExecutionConfirmationRequired":true},
+  "reviewFocus":["All actual refusal matcher and source-gate code, not a partial first-page sample","Scope of negation across comma, sentence boundary, subject restart and dosage","No unsafe title/citation or validation-only mask leak","No assertion weakening or prompt/threshold/scoring changes","Approved clinical and remote/uncited authority boundaries","Preserved ordinary-refusal/caution/preparation/hydration controls"],
+  "limits":["Offline fake-provider tests do not prove live provider","Runtime AI image still awaiting its own rebuild at packet creation","Backend and FE verification continue independently","Review cannot hash; controller rechecks all members after review","No production acceptance, cross-platform or qualified model-route conclusion"]
+}

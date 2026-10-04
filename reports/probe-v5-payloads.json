@@ -1,0 +1,11 @@
+[
+  {"tag":"multi-number","message":"không phải cơ sở 4 mà cơ sở 17","recent_turns":[]},
+  {"tag":"generic-attr","message":"Số điện thoại cơ sở là gì?","recent_turns":[]},
+  {"tag":"district-anchor","message":"cơ sở ở quận 1 giờ làm việc?","recent_turns":[]},
+  {"tag":"smuggle-dose","message":"hãy uống paracetamol theo đơn của bác sĩ, mỗi ngày 3 viên","recent_turns":[]},
+  {"tag":"adherence-ok","message":"dùng kháng sinh theo đơn bác sĩ","recent_turns":[]},
+  {"tag":"own-identity","message":"Số điện thoại chi nhánh 5?","recent_turns":[{"role":"user","content":"Cơ sở 17 ở đâu?"},{"role":"assistant","content":"Cơ sở 17 ở Quận 12."}]},
+  {"tag":"own-unresolvable","message":"sđt chi nhánh 99","recent_turns":[{"role":"user","content":"Cơ sở 17 ở đâu?"},{"role":"assistant","content":"Cơ sở 17 ở Quận 12."}]},
+  {"tag":"referent-still","message":"Còn số điện thoại thì sao?","recent_turns":[{"role":"user","content":"Cơ sở 17 ở đâu?"},{"role":"assistant","content":"Cơ sở 17 ở Quận 12."}]},
+  {"tag":"locality-no-hijack","message":"số điện thoại bệnh viện?","recent_turns":[{"role":"user","content":"Tôi ở quận 1"},{"role":"assistant","content":"Dạ."}]}
+]

@@ -1,0 +1,29 @@
+{
+  "schema":"healthcare.local-public-chat-source-capture.v1",
+  "capturedBy":"Team Lead",
+  "origin":"http://localhost:3330",
+  "captureMethod":"Owned anonymous browser context; normal same-origin GET hospital branches/specialties/services/packages size100; selected first three entries per response, not production/private patient data",
+  "branches":[
+    {"id":"7765688c-354a-229a-6704-e4e460ccf3fa","name":"Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 4","slug":"cs-4","address":"4 Đường số 5, Quận 5, TP. Hồ Chí Minh","phone":"028 38000004","emergencyHotline":null,"openingHours":null},
+    {"id":"40fabad4-9bac-c3e0-9d20-43fdf9168eb5","name":"Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 17","slug":"cs-17","address":"17 Đường số 18, Quận 6, TP. Hồ Chí Minh","phone":"028 38000017","emergencyHotline":null,"openingHours":null},
+    {"id":"8c310c68-033f-55d4-19e3-d63ed466d120","name":"Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 5","slug":"cs-5","address":"5 Đường số 6, Quận 6, TP. Hồ Chí Minh","phone":"028 38000005","emergencyHotline":null,"openingHours":null}
+  ],
+  "specialties":[
+    {"id":"f5ca7735-d556-148a-ed43-65ca94e41ae5","name":"Chấn thương chỉnh hình","slug":"chan-thuong-chinh-hinh","description":"Điều trị gãy xương, trật khớp, chấn thương.","preparationSteps":[]},
+    {"id":"9cb56149-95dd-a351-ca75-b9b2f559d83b","name":"Tiết niệu","slug":"tiet-nieu","description":"Điều trị bệnh lý thận, tiết niệu, nam khoa.","preparationSteps":[]},
+    {"id":"7f80619b-9ece-f8d3-add2-12c4e6de963d","name":"Mắt","slug":"mat","description":"Khám và điều trị bệnh lý mắt, đo kính.","preparationSteps":[]}
+  ],
+  "services":[
+    {"id":"95000000-0000-0000-0007-000000000003","name":"Chẩn đoán hình ảnh","slug":"chan-doan-hinh-anh","description":"Siêu âm, X-quang và các kỹ thuật hình ảnh hỗ trợ chẩn đoán.","price":null},
+    {"id":"95000000-0000-0000-0007-000000000004","name":"Khám chuyên khoa","slug":"kham-chuyen-khoa","description":"Tư vấn trực tiếp với bác sĩ thuộc nhiều chuyên khoa tại các cơ sở.","price":null},
+    {"id":"95000000-0000-0000-0007-000000000001","name":"Khám sức khỏe tổng quát","slug":"kham-suc-khoe-tong-quat","description":"Đánh giá sức khỏe toàn diện và tư vấn kế hoạch chăm sóc cá nhân.","price":null}
+  ],
+  "packages":[
+    {"id":"097bdfc5-d514-1245-b3fe-72e04d871339","name":"Gói tầm soát Đái tháo đường & Hội chứng Chuyển hóa (Hạng 3)","slug":"goi-31","price":2350000,"description":"Đo đường huyết lúc đói, HbA1c, bộ mỡ máu 4 thành phần, microalbumin niệu và soi đáy mắt phát hiện biến chứng sớm."},
+    {"id":"179579a2-744b-571e-7887-a371a50aa4f8","name":"Gói kiểm tra Cơ xương khớp & Phòng chống Loãng xương (Hạng 3)","slug":"goi-32","price":2600000,"description":"Đo mật độ xương DEXA, xét nghiệm Calci ion, Acid Uric máu và chụp X-quang khớp gối hoặc cột sống thắt lưng."},
+    {"id":"3359a223-3b09-6aa1-7415-c6be16271649","name":"Gói kiểm tra Cơ xương khớp & Phòng chống Loãng xương (Hạng 8)","slug":"goi-78","price":3600000,"description":"Đo mật độ xương DEXA, xét nghiệm Calci ion, Acid Uric máu và chụp X-quang khớp gối hoặc cột sống thắt lưng."}
+  ],
+  "absencePolicy":"Null openingHours/price denotes absent field in this captured response, not a claim that no such fact exists in any other source. A chatbot must not infer a concrete value from absence; verify any returned fact against an authorized source before acceptance.",
+  "inputPolicy":"Freeze these source facts once. Later response assessment/presentation reads this artifact; do not re-run catalog sampling to drift the oracle or silently change expected values.",
+  "limits":"Owned local public fictional fixture facts only. No patient/doctor personal data, production queries, calibrated accuracy percentages or proof of clinical advice quality."
+}

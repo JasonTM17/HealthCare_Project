@@ -222,11 +222,6 @@ const VI_VN_DISPLAY_ALLOWLIST = [
   { file: "app/doctor/articles/page.tsx", receiver: "ARTICLE_BODY_MAX_CHARS.toLocaleString(\"vi-VN\")", reason: "numeric char limit, not a date" },
   { file: "app/doctor/articles/page.tsx", receiver: "storedBody.length.toLocaleString(\"vi-VN\")", reason: "numeric char count, not a date" },
   { file: "app/patient/chat/page.tsx", receiver: "draft.length.toLocaleString(\"vi-VN\")", reason: "numeric char count, not a date" },
-  {
-    file: "app/patient/care-plan/page.tsx",
-    receiver: "date.toLocaleDateString(\"vi-VN\", { dateStyle: \"medium\" })",
-    reason: "OUT OF SCOPE for the B6 P1 nine-page batch: still a host-zone date site, needs the same formatDate migration in a follow-up",
-  },
 ];
 
 function appAndComponentSources(dir) {

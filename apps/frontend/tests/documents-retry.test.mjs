@@ -45,8 +45,8 @@ test("FAILED document card exposes a retry control that reuses handleGenerate", 
   );
   assert.match(
     page,
-    /document\.status === "FAILED" \? \(\s*<button/,
-    "nhánh retry phải là conditional JSX trên FAILED",
+    /document\.status === "FAILED" && !\(document\.sourceType === "APPOINTMENT_REMINDER" && document\.sourceEligible === false\) \? \(\s*<button/,
+    "nhánh retry phải là conditional JSX trên FAILED và chặn reminder không còn hiệu lực",
   );
   const copyAt = page.indexOf("Tệp tạo lỗi đã được ghi nhận để thử lại an toàn");
   const retryAt = page.indexOf("Thử tạo lại");
@@ -93,8 +93,8 @@ test("retry never unlocks download for a row that is not AVAILABLE", async () =>
   const download = buttonBlock(page, '"Tải PDF"');
   assert.match(
     download,
-    /disabled=\{document\.status !== "AVAILABLE" \|\| downloadingId === document\.id\}/,
-    "nút Tải PDF phải giữ nguyên guard status !== AVAILABLE",
+    /disabled=\{document\.status !== "AVAILABLE" \|\| document\.sourceCurrent === false \|\| downloadingId === document\.id\}/,
+    "nút Tải PDF phải giữ guard status !== AVAILABLE và chặn tệp đã lỗi thời nguồn",
   );
   assert.doesNotMatch(
     download,

@@ -6,6 +6,7 @@ import { getDoctorInitials, getDoctorPhoto } from "../../../lib/doctor-portrait"
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchDoctorBySlug, fetchSpecialties } from "../../../lib/api-client";
+import { safeSiteOrigin } from "../../../lib/site-url";
 import type { Doctor, Specialty } from "../../../types/hospital";
 import { specialtyIdForDoctor } from "../../../components/BookingModal";
 import {
@@ -75,11 +76,11 @@ export default function DoctorDetailPage() {
         jobTitle: doctor.title || "Bác sĩ chuyên khoa",
         medicalSpecialty: doctor.specialtyName || "Y đa khoa",
         description: doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm tại Hệ thống Bệnh viện Đa khoa HealthCare",
-        image: getDoctorPhoto(doctor) ? `https://www.healthcare.id.vn${getDoctorPhoto(doctor)}` : undefined,
+        image: getDoctorPhoto(doctor) ? `${safeSiteOrigin()}${getDoctorPhoto(doctor)}` : undefined,
         worksFor: {
           "@type": "MedicalOrganization",
           name: "Hệ thống Bệnh viện Đa khoa HealthCare",
-          url: "https://www.healthcare.id.vn",
+          url: safeSiteOrigin(),
         },
       }
     : null;

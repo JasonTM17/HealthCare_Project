@@ -51,13 +51,27 @@ public class AiChatSourceResolver {
     private static final Pattern SLUG = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9-]{0,219}$");
     private static final int MAX_CATALOG_SAMPLES = 3;
     private static final int MAX_BRANCH_LOOKUP_ROWS = 100;
+    private static final int MAX_DOCTOR_LOOKUP_ROWS = 100;
+    /** Intent words that describe "find a doctor" but name no specialty. */
+    private static final Set<String> DOCTOR_QUERY_STOPWORDS = Set.of(
+        "bac", "si", "nao", "gioi", "ve", "tim", "danh", "sach", "thong", "tin",
+        "muon", "xem", "doi", "ngu", "tot", "hay", "cho", "toi", "minh", "co",
+        "khong", "benh", "vien", "o", "dau", "chuyen", "khoa", "gi"
+    );
     private static final Pattern BRANCH_NUMBER = Pattern.compile(
         "\\b(?:co\\s+so|chi\\s+nhanh)(?:\\s+thu)?\\s+(?:so\\s+){0,2}(\\d+)\\b");
     private static final Pattern DISTRICT_ANCHOR = Pattern.compile("\\b(?:quan|huyen|phuong)\\s+[a-z0-9]+\\b");
+    // Stopwords are limited to particles and attribute nouns that can
+    // never be part of a branch name or address.  Place-name-capable
+    // tokens (dien/thoai/la/dau/sao/dong/chu/tuan/nhat — e.g. "Sao Mai",
+    // "La Khê", "Dầu Tiếng", "Điện Bàn") stay as identity terms on
+    // purpose: dropping them would turn a toponym query like
+    // "Cơ sở Sao Mai" into a single residual token that substring-matches
+    // an unrelated branch on "Mai Chí Thọ".
     private static final Set<String> BRANCH_LOOKUP_STOPWORDS = Set.of(
         "bao", "benh", "chi", "cho", "co", "cua", "da", "den", "dia", "duoc", "gio",
         "healthcare", "hoat", "hoi", "kham", "lam", "may", "mo", "nhanh", "nhieu", "o", "so", "tai", "the",
-        "thoi", "thu", "toi", "viec", "vien", "xem", "nao", "dong", "gi", "chu", "nhat", "tuan", "ngay"
+        "thoi", "thu", "toi", "viec", "vien", "xem", "nao", "gi", "khong", "ngay"
     );
     private static final Set<String> SUPPORT_TYPES = Set.of(
         "branch", "specialty", "doctor", "service", "package"
@@ -428,13 +442,67 @@ public class AiChatSourceResolver {
                 result.add(new BranchDetails(
                     source,
                     cleanBranchField(branch.getAddress(), 500),
-                    cleanBranchField(branch.getWorkingHours(), 255)));
+                    cleanBranchField(branch.getWorkingHours(), 255),
+                    cleanBranchField(branch.getPhone(), 100)));
                 if (result.size() >= boundedLimit) break;
             }
             return List.copyOf(result);
         } catch (RuntimeException ex) {
             return List.of();
         }
+    }
+
+    /**
+     * Bounded live doctor list for degraded doctor-navigation answers.  The
+     * optional specialty query is normalized and reduced to its non-intent
+     * tokens ("Bác sĩ nào giỏi về da liễu?" → "da lieu"), then matched
+     * conservatively against each active doctor's own name, bio and
+     * achievements text: a doctor that never mentions the specialty is not
+     * claimed as a match.  With no keyword left after normalization, the
+     * bounded list is returned unfiltered.  An unavailable catalog yields an
+     * empty list so the caller keeps its fail-closed fallback.
+     */
+    public List<ResolvedSource> activeDoctorOverview(int limit, String specialtyQuery) {
+        int boundedLimit = Math.max(1, limit);
+        try {
+            Page<Doctor> doctors = doctorRepository.findByActiveTrue(PageRequest.of(
+                0, MAX_DOCTOR_LOOKUP_ROWS, Sort.by(Sort.Direction.ASC, "fullName")));
+            if (doctors == null || doctors.getContent() == null) return List.of();
+            String keyword = doctorSpecialtyKeyword(specialtyQuery);
+
+            List<ResolvedSource> result = new ArrayList<>();
+            for (Doctor doctor : doctors.getContent()) {
+                if (doctor == null || !doctor.isActive()) continue;
+                if (keyword != null && !doctorMentionsKeyword(doctor, keyword)) continue;
+                ResolvedSource source = catalogSource(
+                    "doctor", doctor.getId(), doctorDisplayTitle(doctor), doctor.getSlug());
+                if (source == null) continue;
+                result.add(source);
+                if (result.size() >= boundedLimit) break;
+            }
+            return List.copyOf(result);
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+
+    private String doctorSpecialtyKeyword(String specialtyQuery) {
+        String normalized = normalizeLookupText(specialtyQuery);
+        if (normalized.isBlank()) return null;
+        List<String> tokens = new ArrayList<>();
+        for (String token : normalized.split(" ")) {
+            if (token.isBlank() || DOCTOR_QUERY_STOPWORDS.contains(token)) continue;
+            tokens.add(token);
+        }
+        return tokens.isEmpty() ? null : String.join(" ", tokens);
+    }
+
+    private boolean doctorMentionsKeyword(Doctor doctor, String keyword) {
+        String identity = normalizeLookupText(
+            (doctor.getFullName() == null ? "" : doctor.getFullName()) + " "
+                + (doctor.getBio() == null ? "" : doctor.getBio()) + " "
+                + (doctor.getAchievements() == null ? "" : doctor.getAchievements()));
+        return identity.contains(keyword);
     }
 
     /**
@@ -447,10 +515,14 @@ public class AiChatSourceResolver {
         String normalizedQuery = normalizeLookupText(query);
         if (normalizedQuery.isBlank()) return List.of();
 
-        Integer requestedNumber = branchNumber(normalizedQuery);
+        Set<Integer> requestedNumbers = branchNumbers(normalizedQuery);
         Set<String> locationAnchors = branchLocationAnchors(normalizedQuery);
-        Set<String> identityTerms = branchIdentityTerms(normalizedQuery, locationAnchors, requestedNumber);
-        if (requestedNumber == null && locationAnchors.isEmpty() && identityTerms.isEmpty()) {
+        Set<String> identityTerms = branchIdentityTerms(normalizedQuery, locationAnchors, requestedNumbers);
+        if (requestedNumbers.isEmpty() && locationAnchors.isEmpty()
+                && (identityTerms.size() < 2 || GENERIC_BRANCH_ATTRIBUTE_TERMS.containsAll(identityTerms))) {
+            // A lone residual token is too weak to name a branch: "Cơ sở
+            // ở đâu?" reduces to "dau", which must defer rather than
+            // substring-match an unrelated branch on "Đầu Mối".
             return List.of();
         }
 
@@ -462,7 +534,7 @@ public class AiChatSourceResolver {
             List<BranchDetails> matches = new ArrayList<>();
             for (Branch branch : branches.getContent()) {
                 if (branch == null || !branch.isActive() || !matchesBranch(
-                        branch, requestedNumber, locationAnchors, identityTerms)) {
+                        branch, requestedNumbers, locationAnchors, identityTerms)) {
                     continue;
                 }
                 ResolvedSource source = catalogSource(
@@ -471,7 +543,8 @@ public class AiChatSourceResolver {
                 matches.add(new BranchDetails(
                     source,
                     cleanBranchField(branch.getAddress(), 500),
-                    cleanBranchField(branch.getWorkingHours(), 255)));
+                    cleanBranchField(branch.getWorkingHours(), 255),
+                    cleanBranchField(branch.getPhone(), 100)));
                 if (matches.size() >= MAX_BRANCH_LOOKUP_ROWS) break;
             }
             return List.copyOf(matches);
@@ -500,43 +573,165 @@ public class AiChatSourceResolver {
     public boolean isSpecificBranchQuery(String query) {
         String normalizedQuery = normalizeLookupText(query);
         if (normalizedQuery.isBlank()) return false;
-        Integer requestedNumber = branchNumber(normalizedQuery);
+        Set<Integer> requestedNumbers = branchNumbers(normalizedQuery);
         Set<String> locationAnchors = branchLocationAnchors(normalizedQuery);
-        if (requestedNumber != null || !locationAnchors.isEmpty()) {
+        if (!requestedNumbers.isEmpty() || !locationAnchors.isEmpty()) {
             return true;
         }
         if (!containsBranchNoun(normalizedQuery)) {
             return false;
         }
         Set<String> identityTerms = branchIdentityTerms(
-            normalizedQuery, locationAnchors, requestedNumber);
-        return !identityTerms.isEmpty();
+            normalizedQuery, locationAnchors, requestedNumbers);
+        return identityTerms.size() >= 2
+            && !GENERIC_BRANCH_ATTRIBUTE_TERMS.containsAll(identityTerms);
     }
+
+    /**
+     * Attribute cues for a branch question that does not itself carry an
+     * identity — the marker for a follow-up ("Còn số điện thoại thì
+     * sao?") whose referent must come from conversation history.
+     */
+    private static final String[] BRANCH_ATTRIBUTE_CUES = {
+        "dien thoai", "so dt", "sdt", "hotline", "lien lac", "lien he",
+        "dia chi", "o dau", "gio lam", "gio kham", "gio hoat dong",
+        "lam viec", "mo cua", "may gio",
+    };
+
+    /**
+     * Return whether the message asks for a branch attribute (phone,
+     * address, opening hours) without necessarily naming a branch.
+     */
+    public boolean hasBranchAttributeCue(String query) {
+        String normalized = normalizeLookupText(query);
+        for (String cue : BRANCH_ATTRIBUTE_CUES) {
+            if (normalized.contains(cue)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Walk conversation history backwards and return the content of the
+     * most recent user turn that carried an explicit branch identity, or
+     * {@code null}.  Assistant turns are ignored so an earlier generic
+     * navigation reply cannot become the referent.  The caller resolves
+     * the returned turn itself so a named-but-unresolvable referent can
+     * still fail closed instead of silently picking an older branch.
+     */
+    public String latestSpecificBranchUserTurn(List<Map<String, String>> turns) {
+        if (turns == null || turns.isEmpty()) return null;
+        int scanned = 0;
+        for (int i = turns.size() - 1; i >= 0 && scanned < 8; i--) {
+            Map<String, String> turn = turns.get(i);
+            if (turn == null || !"user".equalsIgnoreCase(turn.get("role"))) continue;
+            scanned++;
+            String content = turn.get("content");
+            if (content == null || content.isBlank()) continue;
+            try {
+                // A bare locality mention ("Tôi ở quận 1") is not a
+                // branch question and must not become a referent —
+                // but an anchor-bearing question about branch facts
+                // ("Quận 7 mở cửa mấy giờ?") is a valid referent even
+                // without a branch noun.
+                if (isSpecificBranchQuery(content)
+                        && (containsBranchNoun(normalizeLookupText(content))
+                            || hasBranchAttributeCue(content))) {
+                    return content;
+                }
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Words that only describe the asked attribute (phone, address,
+     * hours, contact, schedule) or the question itself — never a branch
+     * name.  When every residual identity term is one of these, the
+     * question is generic ("Số điện thoại cơ sở là gì?") and must defer
+     * instead of hard-failing as a specific-but-unresolvable lookup.
+     */
+    private static final Set<String> GENERIC_BRANCH_ATTRIBUTE_TERMS = Set.of(
+        "dien", "thoai", "dt", "sdt", "hotline", "la", "dia", "chi", "gio",
+        "lam", "viec", "mo", "cua", "lien", "he", "nhat", "chu", "tuan",
+        "cuoi", "dau", "phong", "may", "thu", "hen", "truc",
+        // Amenity/service nouns — "cơ sở có bãi xe/nhà thuốc không" is a
+        // generic facilities question, not a specific branch lookup.
+        "bai", "xe", "nha", "thuoc", "wifi", "san", "bay", "gan",
+        // Connectives and schedule nouns that never name a branch.
+        "hay", "phai", "ma", "va", "hoac", "dong", "hoat");
 
     private boolean matchesBranch(
             Branch branch,
-            Integer requestedNumber,
+            Set<Integer> requestedNumbers,
             Set<String> locationAnchors,
             Set<String> identityTerms) {
         String identity = normalizeLookupText(
             (branch.getName() == null ? "" : branch.getName()) + " "
                 + (branch.getAddress() == null ? "" : branch.getAddress()));
-        if (requestedNumber != null && !branchHasNumber(identity, requestedNumber)) return false;
-        if (locationAnchors.stream().anyMatch(anchor -> !identity.contains(anchor))) return false;
+        if (!requestedNumbers.isEmpty() && !branchHasAnyNumber(identity, requestedNumbers)) return false;
+        // Multiple anchors are disjunctive ("quận 1 hay quận 7" lists
+        // both districts' branches) while a number plus an anchor stays
+        // conjunctive across dimensions ("cơ sở 2 ở Quận 3").
+        if (!locationAnchors.isEmpty()
+                && locationAnchors.stream()
+                    .noneMatch(anchor -> identityMatchesAnchor(identity, anchor))) {
+            return false;
+        }
+        if (!requestedNumbers.isEmpty()) {
+            // Explicit branch numbers are the identity by themselves —
+            // connective/attribute words in the same question ("không
+            // phải cơ sở 4 mà cơ sở 17") must not be required inside
+            // the branch name.
+            return true;
+        }
+        if (!locationAnchors.isEmpty()) {
+            // A locality anchor is the identity; attribute words and
+            // copulas are ignored — but a residual NON-attribute token
+            // still identifies ("Sài Gòn Xanh" rewrites to a city anchor
+            // and keeps "xanh" as its real name term).
+            return identityTerms.stream()
+                .filter(term -> !GENERIC_BRANCH_ATTRIBUTE_TERMS.contains(term))
+                .allMatch(identity::contains);
+        }
         return identityTerms.stream().allMatch(identity::contains);
     }
 
-    private boolean branchHasNumber(String normalizedIdentity, int requestedNumber) {
+    private boolean branchHasAnyNumber(String normalizedIdentity, Set<Integer> requestedNumbers) {
         var matcher = BRANCH_NUMBER.matcher(normalizedIdentity);
         while (matcher.find()) {
-            if (Integer.parseInt(matcher.group(1)) == requestedNumber) return true;
+            String group = matcher.group(1);
+            if (group.length() <= 9
+                    && requestedNumbers.contains(Integer.parseInt(group))) return true;
         }
         return false;
     }
 
-    private Integer branchNumber(String normalizedQuery) {
+    /**
+     * Extract every branch number the question names.  A question that
+     * names two different numbers ("cơ sở 4 hay cơ sở 17", "không phải
+     * cơ sở 4 mà cơ sở 17") is ambiguous by construction — the caller
+     * must see both candidates instead of silently taking the first.
+     */
+    private Set<Integer> branchNumbers(String normalizedQuery) {
+        Set<Integer> numbers = new LinkedHashSet<>();
         var matcher = BRANCH_NUMBER.matcher(normalizedQuery);
-        return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+        while (matcher.find()) {
+            String group = matcher.group(1);
+            if (group.length() <= 9) numbers.add(Integer.valueOf(group));
+        }
+        return numbers;
+    }
+
+    /**
+     * Word-boundary anchor match so "quan 1" does not substring-match
+     * inside "quan 11" or "quan 12".
+     */
+    private boolean identityMatchesAnchor(String normalizedIdentity, String anchor) {
+        return Pattern.compile("\\b" + Pattern.quote(anchor) + "\\b")
+            .matcher(normalizedIdentity)
+            .find();
     }
 
     private Set<String> branchLocationAnchors(String normalizedQuery) {
@@ -552,14 +747,16 @@ public class AiChatSourceResolver {
     private Set<String> branchIdentityTerms(
             String normalizedQuery,
             Set<String> locationAnchors,
-            Integer requestedNumber) {
+            Set<Integer> requestedNumbers) {
         Set<String> locationTokens = new HashSet<>();
         for (String anchor : locationAnchors) locationTokens.addAll(List.of(anchor.split(" ")));
         Set<String> terms = new LinkedHashSet<>();
         for (String token : normalizedQuery.split(" ")) {
             if (token.isBlank() || token.length() < 2 || BRANCH_LOOKUP_STOPWORDS.contains(token)
                     || locationTokens.contains(token)
-                    || (requestedNumber != null && token.equals(Integer.toString(requestedNumber)))) {
+                    || (requestedNumbers != null && token.length() <= 9
+                        && token.chars().allMatch(Character::isDigit)
+                        && requestedNumbers.contains(Integer.valueOf(token)))) {
                 continue;
             }
             terms.add(token);
@@ -587,8 +784,13 @@ public class AiChatSourceResolver {
     private String cleanBranchField(String value, int maxLength) {
         if (value == null) return null;
         String clean = value.strip();
+        // Bracket/angle markup never legitimately appears in catalog
+        // contact fields; without this an admin-entered value like
+        // "[Gọi](tel:1900X)" would survive into the composed chat answer
+        // and render as a live link in the frontend markdown renderer.
         if (clean.isEmpty() || clean.length() > maxLength
-                || clean.chars().anyMatch(Character::isISOControl)) {
+                || clean.chars().anyMatch(Character::isISOControl)
+                || clean.matches(".*[\\[\\]<>`].*")) {
             return null;
         }
         return clean;
@@ -603,8 +805,12 @@ public class AiChatSourceResolver {
     private String cleanCatalogTitle(String value) {
         if (value == null) return null;
         String clean = value.strip();
+        // The title is embedded verbatim into composed chat answers and
+        // rendered as inline markdown, so bracket/angle markup in an
+        // admin-entered catalog name would otherwise become a live link.
         if (clean.isEmpty() || clean.length() > 300
-                || clean.chars().anyMatch(Character::isISOControl)) {
+                || clean.chars().anyMatch(Character::isISOControl)
+                || clean.matches(".*[\\[\\]<>`].*")) {
             return null;
         }
         return clean;
@@ -678,29 +884,34 @@ public class AiChatSourceResolver {
         }
         return switch (type) {
             case "branch" -> branchRepository.findByIdAndActiveTrue(uuid)
-                .map(value -> source(type, id, branchDisplayTitle(value), value.getSlug(), true, true))
+                .map(value -> catalogSource(type, uuid, branchDisplayTitle(value), value.getSlug()))
                 .orElse(null);
             case "specialty" -> specialtyRepository.findByIdAndActiveTrue(uuid)
-                .map(value -> source(type, id, value.getName(), value.getSlug(), true, true))
+                .map(value -> catalogSource(type, uuid, value.getName(), value.getSlug()))
                 .orElse(null);
             case "doctor" -> doctorRepository.findById(uuid)
                 .filter(Doctor::isActive)
-                .map(value -> source(type, id, doctorDisplayTitle(value), value.getSlug(), true, true))
+                .map(value -> catalogSource(type, uuid, doctorDisplayTitle(value), value.getSlug()))
                 .orElse(null);
             case "service" -> serviceRepository.findById(uuid)
                 .filter(MedicalService::isActive)
-                .map(value -> source(type, id, value.getName(), value.getSlug(), true, true))
+                .map(value -> catalogSource(type, uuid, value.getName(), value.getSlug()))
                 .orElse(null);
             case "package" -> packageRepository.findByIdAndActiveTrue(uuid)
-                .map(value -> source(type, id, value.getName(), value.getSlug(), true, true))
+                .map(value -> catalogSource(type, uuid, value.getName(), value.getSlug()))
                 .orElse(null);
             case "article" -> articleRepository.findById(uuid)
                 .filter(Article::isActive)
-                .map(value -> source(type, id, value.getTitle(), value.getSlug(), true, value.getPublishedAt() != null))
+                .map(value -> {
+                    String cleanTitle = cleanCatalogTitle(value.getTitle());
+                    if (cleanTitle == null) return null;
+                    return source(type, id, cleanTitle, value.getSlug(), true,
+                        value.getPublishedAt() != null);
+                })
                 .orElse(null);
             case "faq" -> faqRepository.findById(uuid)
                 .filter(Faq::isActive)
-                .map(value -> source(type, id, value.getQuestion(), null, true, true))
+                .map(value -> catalogSource(type, uuid, value.getQuestion(), null))
                 .orElse(null);
             default -> null;
         };
@@ -975,7 +1186,8 @@ public class AiChatSourceResolver {
     public record BranchDetails(
         ResolvedSource source,
         String address,
-        String workingHours
+        String workingHours,
+        String phone
     ) { }
 
     private record ReviewHead(

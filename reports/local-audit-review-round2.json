@@ -1,0 +1,21 @@
+{
+  "schema":"healthcare.review-round.v2",
+  "round":2,
+  "packet":"reports/local-audit-review-packet-v2.json",
+  "scope":"Post-rework frozen 15-member product-source review; full/live checks still in progress at review time",
+  "rolesExecuted":["Kongming","Wukong","Independent code reviewer"],
+  "runtime":"Genuine separate native read-only Explore contexts; actual underlying model unknown. No provider-family independence or production qualification established.",
+  "controllerIdentityCheck":{"result":"PASS","detail":"Controller reran git hash-object for all 15 listed members after reviews; every observed blob exactly matched v2 manifest. Tests/harness are outside this product-only frozen scope."},
+  "counsel":{"Kongming":"Favorable static architecture counsel, HOLD pending verification; AI file inspection was partial","Wukong":"Bounded claims not falsified by source inspection; raised unconfirmed storage-corruption scenario; declared limited profile/reference access","CodeReviewer":"Source repairs compliant within inspected scope; raised cleanup-retention hypothesis and held live evidence gate"},
+  "controllerAdjudication":[
+    {"finding":"Missing server-side hash verification on every MinIO download","state":"RESIDUAL THREAT / NOT EXECUTION-CONFIRMED","judgment":"A source-derived corrupted-object scenario is not a falsification of the normal-download observation or QA requirement to measure real file size/hash. No corrupted-object probe ran and the v2 invariants do not claim universal server-side bitrot/tamper prevention. Keep this unverified threat explicit; do not label it a confirmed reproduced regression or change the streaming API merely to satisfy the mistaken grade."},
+    {"finding":"Persisted FAILED row after database finalization failure makes object permanently unreclaimable","state":"NOT_CONFIRMED; cited failure sequence is incorrect","judgment":"The actual finalization catch cleans up and rethrows RuntimeException, so the outer transaction rolls back; it does not commit a FAILED row through that path. The independently persisted pre-upload marker survives rollback. A FAILED row after uncertain PUT failure is a referenced retry artifact under the current retention contract, not an unreferenced orphan. Do not clear a NOT NULL protected object_key or delete retained user artifacts without a settled retention decision."},
+    {"finding":"Built-in source/skill profiles absent because glob returned nothing","state":"REJECTED inference","judgment":"Other runtime contexts loaded the exact original descriptions and Wukong references. Ignore/read-surface discovery failure does not prove absence. Individual reviews with limited profile/reference access remain degraded; no qualified full AgentKit/model route is claimed."},
+    {"finding":"Hikari hard-unwrap and two extra connections per instance","state":"OBSERVED operator limitation","judgment":"Committed runtime and fresh integration tests use Hikari. Non-Hikari datasource compatibility, extra production quota, monitoring and capacity remain unverified and must be checked before deployment."},
+    {"finding":"Lock contention before per-source authorization and >300s in-flight object cleanup window","state":"BOUNDED residual hypotheses","judgment":"Patient scope is checked before locking, but finer source authorization follows it. Long-stall and hostile contention cases are not executed in this gate. No universal capacity/recovery claim is made."}
+  ],
+  "supportedRepairs":"Typed authority, booking-code ordering, independent side-effect pool, status priority, content-derived reminder currentness, configuredness capability and async UI guards were supported by corrected-source inspection plus captured focused tests.",
+  "pendingEvidence":["Full affected-package output","Actual repaired-build normal-API clinical and all-class PDF journey","Real downloaded PDF parsing and hash manifest","Healthy or explicitly blocked ClamAV/attachment path","Final evidence review after running checks finish"],
+  "acceptance":"NOT_ACCEPTED as a complete delivery yet; source review completed with explicit bounds, final verification and Team Lead evidence verdict remain open",
+  "authority":"No reviewer code edits, commands, DB/service access, credentials, peer spawning, commits, push, production migration or deployment"
+}

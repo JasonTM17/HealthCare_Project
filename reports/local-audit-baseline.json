@@ -1,0 +1,246 @@
+{
+  "head": "bbba6935851cdb630f5fd87717c47458a69e2d4e",
+  "branch": "main",
+  "capturedAt": "2026-10-04T11:45:05.5429280+07:00",
+  "statusPorcelainAll": [
+    " M .env.example",
+    " M .github/workflows/render-keep-alive.yml",
+    " M .github/workflows/render-warm.yml",
+    " M apps/ai-service/app/chatbot.py",
+    " M apps/ai-service/app/config.py",
+    " M apps/ai-service/app/main.py",
+    " M apps/ai-service/app/rag.py",
+    " M apps/ai-service/app/schemas.py",
+    " M apps/ai-service/app/supabase_rag.py",
+    " M apps/ai-service/tests/test_chat.py",
+    " M apps/ai-service/tests/test_chat_cancellation.py",
+    " M apps/ai-service/tests/test_chatbot_contract.py",
+    " M apps/ai-service/tests/test_rag.py",
+    " M apps/ai-service/tests/test_supabase_rag.py",
+    " M apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java",
+    " M apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java",
+    " M apps/backend/src/main/java/com/healthcare/ai/service/AiCatalogIndexService.java",
+    " M apps/backend/src/main/java/com/healthcare/ai/service/AiClinicalProjectionIndexService.java",
+    " M apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java",
+    " M apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java",
+    " M apps/backend/src/main/java/com/healthcare/storage/config/MinioConfig.java",
+    " M apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java",
+    " M apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java",
+    " M apps/backend/src/test/java/com/healthcare/ai/service/AiClinicalProjectionIndexServiceTest.java",
+    " M apps/backend/src/test/java/com/healthcare/storage/MinioPresignConfigurationTest.java",
+    " M apps/frontend/app/layout.tsx",
+    " M apps/frontend/components/FloatingHealthAssistant.module.css",
+    " M apps/frontend/components/FloatingHealthAssistant.tsx",
+    " M apps/frontend/components/cms/CmsLiveSlot.tsx",
+    " M apps/frontend/tests/chat-ui-recovery.behavior.test.mjs",
+    " M apps/frontend/tests/cms-realtime.test.mjs",
+    " M apps/frontend/tests/e2e/floating-assistant.spec.ts",
+    " M apps/frontend/tests/floating-assistant.test.mjs",
+    " M infrastructure/docker-compose.yml",
+    " M render-free-beta.yaml",
+    " M render.yaml",
+    " M supabase/tools/ingest_clinical_knowledge.py",
+    "?? apps/ai-service/app/public_chat_acceleration.py",
+    "?? apps/ai-service/tests/test_public_chat_acceleration.py",
+    "?? apps/backend/src/test/java/com/healthcare/ai/service/AiCatalogIndexWarmCheckTest.java",
+    "?? apps/backend/src/test/java/com/healthcare/storage/FailClosedStorageSettingsTest.java",
+    "?? apps/frontend/components/cms/CmsInlineEditor.tsx",
+    "?? apps/frontend/lib/cms-edit-mode.ts",
+    "?? apps/frontend/tests/cms-inline-editor.test.mjs",
+    "?? docs/local-postgres-rag.md",
+    "?? pom.xml",
+    "?? reports/local-audit-baseline.patch",
+    "?? reports/local-audit-preflight.json",
+    "?? scripts/seed-local-review-heads-topup.sql",
+    "?? scripts/verify-local-db.py"
+  ],
+  "appsDirtyOrUntracked": [
+    {
+      "path": "apps/ai-service/app/chatbot.py",
+      "status": " M",
+      "sha256": "DFF19F3E7FAFFFCB37B2B12211EE7580E8A44AB472D345ECF9E360A62E2C0D6D"
+    },
+    {
+      "path": "apps/ai-service/app/config.py",
+      "status": " M",
+      "sha256": "9D7F04E20B63306464724E38C38716DD0B61A1601701E65691ED86293B426BCF"
+    },
+    {
+      "path": "apps/ai-service/app/main.py",
+      "status": " M",
+      "sha256": "F6603B03DD0B0A7E160637EECB345E2ECFA07F8B23831588234566025744D93A"
+    },
+    {
+      "path": "apps/ai-service/app/rag.py",
+      "status": " M",
+      "sha256": "F2BB87493CCA0E049C7D753AE815CCA3D0A0F0877A4847BBF41C2E7A4149F70F"
+    },
+    {
+      "path": "apps/ai-service/app/schemas.py",
+      "status": " M",
+      "sha256": "B79EEA22479D9145AAC35B5716D90248668B88C48EE6495C19A0B95FB46CE313"
+    },
+    {
+      "path": "apps/ai-service/app/supabase_rag.py",
+      "status": " M",
+      "sha256": "4941E992E5FE70EBE18EBD72F26CBB9DAC99CBB74AA74EF2F72C9274846442A4"
+    },
+    {
+      "path": "apps/ai-service/tests/test_chat.py",
+      "status": " M",
+      "sha256": "A9ED74283BA1CA2415539C83BE758A21597F3734F9AACD83E45FDDEEAFFEC010"
+    },
+    {
+      "path": "apps/ai-service/tests/test_chat_cancellation.py",
+      "status": " M",
+      "sha256": "588BC217C0C80AED03881E7B5EE2DBD46A4F4516A323CA4CECF8E9E8F48EA22A"
+    },
+    {
+      "path": "apps/ai-service/tests/test_chatbot_contract.py",
+      "status": " M",
+      "sha256": "53BF7EEC071B7CFBCAB6C717C2C978645EDB7FD5011FE5AD0669B60FF2858E00"
+    },
+    {
+      "path": "apps/ai-service/tests/test_rag.py",
+      "status": " M",
+      "sha256": "37B9FC4937204C8A20DA337DE475A8825FB82EED107C22B247B1E7DC13C6FB6F"
+    },
+    {
+      "path": "apps/ai-service/tests/test_supabase_rag.py",
+      "status": " M",
+      "sha256": "081F68AE62052A53A80C9A691446407FD3F4E6A30D383FC5248FA157534A254E"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java",
+      "status": " M",
+      "sha256": "1B8DEA35EC02C2A78C477DC6D81357F059FA811174489F588A5586414858BF68"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java",
+      "status": " M",
+      "sha256": "CBA257E54F97CA82F51E263E11D3D396D467594B0CFE2B9736803E248D6D52EC"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/service/AiCatalogIndexService.java",
+      "status": " M",
+      "sha256": "A8F9C80687237CD1B28E006A01692CC85FA3BB4740A7EEBAC58F63D03B128562"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/service/AiClinicalProjectionIndexService.java",
+      "status": " M",
+      "sha256": "856783A4DC773F0E53DA26BF3F39C49B976DD55F34B229E225BB08989BD6933E"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java",
+      "status": " M",
+      "sha256": "A3C6DAE7BC73488B3817557125A286AF20DC962181A220AAA8C1CB8345D10868"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java",
+      "status": " M",
+      "sha256": "F449D4E131C0C875FA9200BBEBCE58DAEB9DD19064D6C9EDABCA12E9AD1C2101"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/storage/config/MinioConfig.java",
+      "status": " M",
+      "sha256": "66A17AF406AF25A955C6E1855DF4585A638ACB5E7E171C749E8B9CF3226876E5"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java",
+      "status": " M",
+      "sha256": "DCBBBF125517B04897B602B4D1ADC126E6B57085EF3BEC2C3D9F8AFF66B4716C"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java",
+      "status": " M",
+      "sha256": "E26FE466B26821EDDCDABF92F60FD95067C18810148886F840941DEF9F149E99"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/service/AiClinicalProjectionIndexServiceTest.java",
+      "status": " M",
+      "sha256": "F8AA67844BD8DB20656A0C9F9696B49824A9443985EC97AA008A7D2F5FE33858"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/storage/MinioPresignConfigurationTest.java",
+      "status": " M",
+      "sha256": "2162B19EAEE63D5A6DA75DDF112965DE507739ED8AC65209CF58B4CC4DDD99E8"
+    },
+    {
+      "path": "apps/frontend/app/layout.tsx",
+      "status": " M",
+      "sha256": "99516B49429D10D1006C4045600D30DDE0B5377373F4D38A7E24EC43E0D1F44A"
+    },
+    {
+      "path": "apps/frontend/components/FloatingHealthAssistant.module.css",
+      "status": " M",
+      "sha256": "DC9B1CF0E00DE9695EFB738DCC73FFFB17E039D12776D7F2F4EC7083F99736DC"
+    },
+    {
+      "path": "apps/frontend/components/FloatingHealthAssistant.tsx",
+      "status": " M",
+      "sha256": "73710AA350DF2E53098A06C1DCAB1DB273F17E0989F2E2D782D17D234B5A384E"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsLiveSlot.tsx",
+      "status": " M",
+      "sha256": "7BD30E111CAA5D9EC73AF6C518B2FF3D8F3C1C2C48B39299A82B5D80A0B24616"
+    },
+    {
+      "path": "apps/frontend/tests/chat-ui-recovery.behavior.test.mjs",
+      "status": " M",
+      "sha256": "DE8D84B06F03C0026FABAEF79F21A73708A1EBA521A453D0240867D2C3A07356"
+    },
+    {
+      "path": "apps/frontend/tests/cms-realtime.test.mjs",
+      "status": " M",
+      "sha256": "FF62D646FDB41BB40ABF749C74F20148127D5E5216E547A316DDF53048754AA7"
+    },
+    {
+      "path": "apps/frontend/tests/e2e/floating-assistant.spec.ts",
+      "status": " M",
+      "sha256": "A2A403632308D9C6B35E08097C3FB5FD99F36100CE9DA0C6A96BB9634132C40B"
+    },
+    {
+      "path": "apps/frontend/tests/floating-assistant.test.mjs",
+      "status": " M",
+      "sha256": "8370A067AE43097BCCF5684529728621B10530B67C06461C3D2A15191008BEE1"
+    },
+    {
+      "path": "apps/ai-service/app/public_chat_acceleration.py",
+      "status": "??",
+      "sha256": "777C71F0A8E60BC5242A2C8B1F23C54AF72D6D3DF4A289948926CA04C146EF11"
+    },
+    {
+      "path": "apps/ai-service/tests/test_public_chat_acceleration.py",
+      "status": "??",
+      "sha256": "16449EF5E50FD1E41F6BB34345BE3F5603F6C455684E48861621D93041907BCC"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/service/AiCatalogIndexWarmCheckTest.java",
+      "status": "??",
+      "sha256": "4D9ED23434340CCB1BF6446D15EA5A145F8511A65EE021DAF285630120B29CDA"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/storage/FailClosedStorageSettingsTest.java",
+      "status": "??",
+      "sha256": "12D3C833E29D33249935CDE7F09DCD78092F888738BDA659BB1B23972A0DD946"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsInlineEditor.tsx",
+      "status": "??",
+      "sha256": "44F7AAE60285079BC85134A2B704EC481E455F0D9686C9F6FEECA63D63DE9C68"
+    },
+    {
+      "path": "apps/frontend/lib/cms-edit-mode.ts",
+      "status": "??",
+      "sha256": "DE058D0DE8ABFF1BE0A14AE42408EA49FA24CE76EB0E065C6B593D4F701162BF"
+    },
+    {
+      "path": "apps/frontend/tests/cms-inline-editor.test.mjs",
+      "status": "??",
+      "sha256": "B6028135FDC02B80FA01448353158F2263DDFDD928109BCA76EE271638154836"
+    }
+  ],
+  "patchFile": "reports/local-audit-baseline.patch",
+  "note": "Dirty snapshot manifest - identifies working tree, NOT clean/release provenance"
+}

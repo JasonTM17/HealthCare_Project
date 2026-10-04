@@ -120,7 +120,7 @@ function VerifyEmailForm() {
             </div>
             <div className="auth-form__field">
               <label htmlFor="verify-code">Mã xác minh</label>
-              <input aria-describedby={fieldErrors.code ? "verify-code-error" : "verify-code-help"} aria-invalid={Boolean(fieldErrors.code)} autoComplete="one-time-code" id="verify-code" inputMode="numeric" maxLength={8} minLength={4} name="code" onChange={(event) => setCode(event.target.value)} pattern="[0-9A-Za-z-]+" placeholder="••••••" required type="password" value={code} />
+              <input aria-describedby={fieldErrors.code ? "verify-code-error" : "verify-code-help"} aria-invalid={Boolean(fieldErrors.code)} autoComplete="one-time-code" id="verify-code" inputMode="numeric" maxLength={8} minLength={4} name="code" onChange={(event) => setCode(event.target.value)} pattern="[0-9A-Za-z\-]+" placeholder="••••••" required type="password" value={code} />
               {fieldErrors.code ? <small className="auth-form__field-error" id="verify-code-error">{fieldErrors.code}</small> : <small id="verify-code-help">Mã gồm 6 chữ số đã được gửi qua hòm thư email của bạn (kiểm tra cả mục Hộp thư đến và Spam).</small>}
             </div>
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">

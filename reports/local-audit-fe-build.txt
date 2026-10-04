@@ -1,0 +1,109 @@
+
+> healthcare-frontend@0.1.1 build
+> next build
+
+Γû▓ Next.js 16.3.8 (Turbopack)
+- Environments: .env.local
+Γ£ô Running next.config.ts took 174ms
+- Experiments (use with caution):
+  ┬╖ cpus: 1
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 6.9s
+  Running TypeScript ...
+  Finished TypeScript in 12.6s ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/67) ...
+  Generating static pages using 1 worker (16/67) 
+  Generating static pages using 1 worker (33/67) 
+  Generating static pages using 1 worker (50/67) 
+Γ£ô Generating static pages using 1 worker (67/67) in 2.7s
+  Finalizing page optimization ...
+
+Route (app)                      Revalidate  Expire
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ Γùï /about
+Γö£ Γùï /admin
+Γö£ Γùï /admin/ai-content-reviews
+Γö£ Γùï /admin/ai-credits
+Γö£ Γùï /admin/appointments
+Γö£ Γùï /admin/branches
+Γö£ Γùï /admin/careers
+Γö£ Γùï /admin/catalog
+Γö£ Γùï /admin/consultations
+Γö£ Γùï /admin/content
+Γö£ Γùï /admin/doctors
+Γö£ Γùï /admin/health-questions
+Γö£ Γùï /admin/payments
+Γö£ Γùï /admin/schedules
+Γö£ Γùï /admin/services
+Γö£ Γùï /admin/specialties
+Γö£ ╞Æ /api/v1/[...path]
+Γö£ Γùï /articles
+Γö£ ╞Æ /articles/[slug]
+Γö£ Γùï /auth/forgot-password
+Γö£ Γùï /auth/login
+Γö£ Γùï /auth/register
+Γö£ Γùï /auth/reset-password
+Γö£ Γùï /auth/verify-email
+Γö£ ╞Æ /bac-si/[slug]
+Γö£ Γùï /benh-pho-bien
+Γö£ ╞Æ /benh-pho-bien/[slug]
+Γö£ Γùï /branches
+Γö£ ╞Æ /branches/[slug]
+Γö£ Γùï /careers
+Γö£ Γùï /chinh-sach-bao-mat
+Γö£ ╞Æ /chuyen-khoa/[slug]
+Γö£ Γùï /contact
+Γö£ Γùï /dat-lich
+Γö£ Γùï /doctor
+Γö£ Γùï /doctor/ai-content-reviews
+Γö£ Γùï /doctor/appointments
+Γö£ Γùï /doctor/articles
+Γö£ Γùï /doctor/care-plans
+Γö£ Γùï /doctor/consultations
+Γö£ ╞Æ /doctor/consultations/[id]
+Γö£ Γùï /doctor/dashboard
+Γö£ Γùï /doctor/health-questions
+Γö£ Γùï /doctor/notifications
+Γö£ Γùï /doctor/profile
+Γö£ Γùï /doctors                             5m      1y
+Γö£ ╞Æ /doctors/[slug]
+Γö£ Γùï /faq
+Γö£ ╞Æ /goi-kham/[slug]
+Γö£ Γùï /huong-dan
+Γö£ Γùï /icon.svg
+Γö£ ╞Æ /login
+Γö£ Γùï /packages
+Γö£ ╞Æ /packages/[slug]
+Γö£ Γùï /patient
+Γö£ Γùï /patient/appointments
+Γö£ ╞Æ /patient/appointments/[id]
+Γö£ Γùï /patient/care-plan
+Γö£ Γùï /patient/chat
+Γö£ Γùï /patient/community
+Γö£ Γùï /patient/consultations
+Γö£ ╞Æ /patient/consultations/[id]
+Γö£ Γùï /patient/dashboard
+Γö£ Γùï /patient/diagnostic-results
+Γö£ Γùï /patient/documents
+Γö£ Γùï /patient/health-questions
+Γö£ Γùï /patient/medical-records
+Γö£ Γùï /patient/notifications
+Γö£ Γùï /patient/preferences
+Γö£ Γùï /patient/prescriptions
+Γö£ Γùï /patient/profile
+Γö£ Γùï /robots.txt
+Γö£ ╞Æ /search
+Γö£ Γùï /services
+Γö£ ╞Æ /services/[slug]
+Γö£ ╞Æ /sitemap.xml
+Γö£ Γùï /specialties
+Γö£ ╞Æ /specialties/[slug]
+Γöö Γùï /tra-cuu
+
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

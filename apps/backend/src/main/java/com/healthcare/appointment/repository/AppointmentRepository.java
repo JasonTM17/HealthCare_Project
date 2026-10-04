@@ -30,6 +30,12 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
     Optional<Appointment> findByBookingCode(String bookingCode);
 
+    @Query("select a.id from Appointment a where a.patient.id = :patientId and a.doctor.id = :doctorId")
+    List<UUID> findDocumentSourceIdsForDoctor(@Param("patientId") UUID patientId, @Param("doctorId") UUID doctorId);
+
+    @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch where a.patient.id = :patientId and a.id in :ids")
+    List<Appointment> findReminderSourcesWithDetails(@Param("patientId") UUID patientId, @Param("ids") java.util.Collection<UUID> ids);
+
     @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.bookingCode = :bookingCode")
     Optional<Appointment> findByBookingCodeWithDetails(@Param("bookingCode") String bookingCode);
 

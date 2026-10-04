@@ -1,0 +1,109 @@
+
+> healthcare-frontend@0.1.1 build
+> next build
+
+▲ Next.js 16.3.8 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 103ms
+- Experiments (use with caution):
+  · cpus: 1
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.4s
+  Running TypeScript ...
+  Finished TypeScript in 4.8s ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/67) ...
+  Generating static pages using 1 worker (16/67) 
+  Generating static pages using 1 worker (33/67) 
+  Generating static pages using 1 worker (50/67) 
+✓ Generating static pages using 1 worker (67/67) in 2.4s
+  Finalizing page optimization ...
+
+Route (app)                      Revalidate  Expire
+┌ ○ /
+├ ○ /_not-found
+├ ○ /about
+├ ○ /admin
+├ ○ /admin/ai-content-reviews
+├ ○ /admin/ai-credits
+├ ○ /admin/appointments
+├ ○ /admin/branches
+├ ○ /admin/careers
+├ ○ /admin/catalog
+├ ○ /admin/consultations
+├ ○ /admin/content
+├ ○ /admin/doctors
+├ ○ /admin/health-questions
+├ ○ /admin/payments
+├ ○ /admin/schedules
+├ ○ /admin/services
+├ ○ /admin/specialties
+├ ƒ /api/v1/[...path]
+├ ○ /articles
+├ ƒ /articles/[slug]
+├ ○ /auth/forgot-password
+├ ○ /auth/login
+├ ○ /auth/register
+├ ○ /auth/reset-password
+├ ○ /auth/verify-email
+├ ƒ /bac-si/[slug]
+├ ○ /benh-pho-bien
+├ ƒ /benh-pho-bien/[slug]
+├ ○ /branches
+├ ƒ /branches/[slug]
+├ ○ /careers
+├ ○ /chinh-sach-bao-mat
+├ ƒ /chuyen-khoa/[slug]
+├ ○ /contact
+├ ○ /dat-lich
+├ ○ /doctor
+├ ○ /doctor/ai-content-reviews
+├ ○ /doctor/appointments
+├ ○ /doctor/articles
+├ ○ /doctor/care-plans
+├ ○ /doctor/consultations
+├ ƒ /doctor/consultations/[id]
+├ ○ /doctor/dashboard
+├ ○ /doctor/health-questions
+├ ○ /doctor/notifications
+├ ○ /doctor/profile
+├ ○ /doctors                             5m      1y
+├ ƒ /doctors/[slug]
+├ ○ /faq
+├ ƒ /goi-kham/[slug]
+├ ○ /huong-dan
+├ ○ /icon.svg
+├ ƒ /login
+├ ○ /packages
+├ ƒ /packages/[slug]
+├ ○ /patient
+├ ○ /patient/appointments
+├ ƒ /patient/appointments/[id]
+├ ○ /patient/care-plan
+├ ○ /patient/chat
+├ ○ /patient/community
+├ ○ /patient/consultations
+├ ƒ /patient/consultations/[id]
+├ ○ /patient/dashboard
+├ ○ /patient/diagnostic-results
+├ ○ /patient/documents
+├ ○ /patient/health-questions
+├ ○ /patient/medical-records
+├ ○ /patient/notifications
+├ ○ /patient/preferences
+├ ○ /patient/prescriptions
+├ ○ /patient/profile
+├ ○ /robots.txt
+├ ƒ /search
+├ ○ /services
+├ ƒ /services/[slug]
+├ ƒ /sitemap.xml
+├ ○ /specialties
+├ ƒ /specialties/[slug]
+└ ○ /tra-cuu
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

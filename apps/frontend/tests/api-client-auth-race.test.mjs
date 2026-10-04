@@ -6,6 +6,7 @@ import ts from "typescript";
 
 const apiClientPath = new URL("../lib/api-client.ts", import.meta.url);
 const publicCatalogPath = new URL("../lib/public-catalog.ts", import.meta.url);
+const capabilityPath = new URL("../lib/chat-chunked-capability.ts", import.meta.url);
 
 function deferred() {
   let resolve;
@@ -112,8 +113,21 @@ async function loadApiClient(fetchImplementation, runtime = {}) {
   loadPublicCatalog(publicCatalogModule.exports, (specifier) => {
     throw new Error(`Unexpected public-catalog runtime import: ${specifier}`);
   }, publicCatalogModule);
+  // The chunked-delivery flag module is also loaded for real in this context.
+  const capabilityModule = { exports: {} };
+  const capabilityTranspiled = ts.transpileModule(await readFile(capabilityPath, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: "chat-chunked-capability.ts",
+  });
+  new vm.Script(
+    `(function (exports, require, module) {${capabilityTranspiled.outputText}\n})`,
+    { filename: "chat-chunked-capability.compiled.cjs" },
+  ).runInContext(context)(capabilityModule.exports, () => {
+    throw new Error("capability module has no runtime imports");
+  }, capabilityModule);
   loadModule(compiledModule.exports, (specifier) => {
     if (specifier === "./public-catalog") return publicCatalogModule.exports;
+    if (specifier === "./chat-chunked-capability") return capabilityModule.exports;
     if (specifier === "./secure-random") {
       return { randomId: () => "test-random-id" };
     }

@@ -292,8 +292,15 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             return new LimitRule("ai-chat-lease-control", aiCancellationLimit);
         }
 
-        // 7. AI chat, conversation streaming and intelligence services
+        // 7. AI chat, conversation streaming and intelligence services.
+        // Read calls (conversation list, policy, quota) must not burn the send
+        // bucket: opening the chat panel costs several GETs and would false-429
+        // a legitimate sender sharing one NAT address. Mutations keep the
+        // shared "ai" bucket.
         if (path.startsWith("/api/v1/ai/") || path.equals("/api/v1/public/ai/chat")) {
+            if ("GET".equals(method) || "HEAD".equals(method)) {
+                return null;
+            }
             return new LimitRule("ai", aiLimit);
         }
 

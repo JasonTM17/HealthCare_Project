@@ -33,6 +33,17 @@ public interface BankTransferPaymentRepository extends JpaRepository<BankTransfe
     @EntityGraph(attributePaths = {"appointment", "appointment.patient", "appointment.doctor", "appointment.medicalPackage"})
     Optional<BankTransferPayment> findByTransferContent(String transferContent);
 
+    /**
+     * Scalar probe for the webhook writer: resolves the owning appointment id
+     * without managing the appointment entity, so the subsequent locked load
+     * is the first read of the row and cannot be a stale unlocked copy.
+     */
+    @Query("select p.appointment.id from BankTransferPayment p where p.transferContent = :transferContent")
+    Optional<UUID> findAppointmentIdByTransferContent(@Param("transferContent") String transferContent);
+
+    /** Cheap existence check for cross-appointment reuse of a submission key. */
+    Optional<BankTransferPayment> findBySubmissionIdempotencyKey(String submissionIdempotencyKey);
+
     @EntityGraph(attributePaths = {"appointment", "appointment.patient", "appointment.doctor", "appointment.medicalPackage"})
     @Query("select p from BankTransferPayment p")
     Page<BankTransferPayment> findAllWithAppointment(Pageable pageable);

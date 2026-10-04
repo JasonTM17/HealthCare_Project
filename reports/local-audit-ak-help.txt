@@ -1,0 +1,105 @@
+                                  _    _  __                            
+                                 / \  | |/ /                            
+                                / _ \ | ' /                             
+                               / ___ \| . \                             
+                              /_/   \_\_|\_\                            
+                                 AgentKit                               
+
+What it does:
+  ak: multi-agent toolkit. Start with the project lifecycle commands, then use expert kit/skill commands when you need finer control. Scripted --json output is wrapped in a versioned success envelope (schema_version + kind + data); see docs/specs/ux-contract.md.
+
+Who it's for:
+  Both power devs (CLI scripting) and non-technical users (TUI / GUI).
+
+When to use it:
+  Use as your daily driver for AgentKit onboarding, updates, diagnostics, and agent operations.
+
+Examples:
+  ak init                                      # onboard the current project
+  ak update                                    # preview project refreshes; add --yes to apply
+  ak doctor                                    # check setup and get the next command
+  ak uninstall                                 # preview removal of AK-owned project files
+  ak gui                                       # open the desktop UI
+  ak kit list-kits                             # advanced: inspect available kits
+
+What changes on disk:
+  Read-only at the root; subcommands document their own disk effects.
+
+Output modes:
+  pretty   default on TTY (colors, ASCII markers)
+  plain    auto when stdout piped or --no-interactive
+  json     --json (single-object envelope, NDJSON-safe)
+
+Exit codes:
+  0  success
+  1  runtime error
+  2  invalid flags
+  3  user-cancel (SIGINT, prompt-cancel)
+
+Docs / feedback: https://github.com/bestagentkits/agentkit
+
+Usage:
+  ak [command]
+
+Examples:
+  ak init                           # onboard the current project
+  ak kit init engineer --remote    # install the paid engineer kit
+  ak doctor               # check setup and get the next command
+
+Project lifecycle:
+  gui                 Launch the AgentKit desktop GUI
+  init                Initialize an AgentKit project
+  journal             Manage technical journal entries under plans/journals
+  new                 Bootstrap a new AgentKit project
+  plan                Manage AgentKit plan directories
+  projects            Manage the global AK project registry
+  self-update         Check or apply signed AgentKit binary updates
+  setup               Guided first-run configuration wizard for AgentKit
+  uninstall           Remove an AK-managed project
+  update              Preview or apply AgentKit-owned project refreshes
+
+Kits, skills & agents:
+  agents              Per-agent management commands
+  content             Publish content to channels
+  kit                 Kit management commands
+  run                 Run a skill via the configured agent adapter
+  skill               Manage per-skill runtime envs
+  skills              Browse and install kit skills
+
+Runtime adapters:
+  codex-agent-runtime Codex agent MCP dispatch runtime.
+  mcp                 Inspect local MCP server configuration
+  migrate             Migrate an existing ClaudeKit install to AgentKit
+
+Inspect & diagnose:
+  activity            Inspect the local AgentKit activity feed
+  analytics           Control the private local analytics index
+  audit               Check installed kits for drift
+  backups             Manage rollback snapshots
+  changelog           Show verified CLI, app, and kit release changelogs
+  commands            Per-slash-command management commands
+  content-search      Opt-in local project content search (plaintext shards)
+  data                Inspect derived-data retention and run bounded ingest
+  diagnostics         Export redacted support diagnostics
+  doctor              Run health checks on the AgentKit installation
+  feedback            Send or export product feedback
+  help                Help about any command
+  recover             Recover AgentKit state from a snapshot
+  sessions            Inspect and maintain local coding-agent sessions
+  versions            List local versions for ak, kits, and skills
+  watch               Watch a GitHub repository and auto-respond to issues
+
+Account & advanced:
+  api                 Run a local API + proxy server for AgentKit
+  config              Open the local AgentKit dashboard
+  licenses            Show licensed AgentKit kits
+  login               Log in to AgentKit
+  logout              Clear local AgentKit credentials
+  whoami              Show current AgentKit login and licensed kits
+
+Flags:
+  -h, --help      help for ak
+  -v, --version   version for ak
+
+Use "ak [command] --help" for more info.
+

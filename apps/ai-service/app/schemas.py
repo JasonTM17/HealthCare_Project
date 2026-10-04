@@ -77,6 +77,10 @@ class HealthResponse(BaseModel):
     fallback_allowed: bool = False
     remote_probe_required: bool = False
     rag_ready: bool = True
+    # Live document count of the searchable index. Callers use it to detect a
+    # freshly booted (empty) index and push a warm-up sync instead of letting
+    # public questions fall into the INSUFFICIENT_EVIDENCE window.
+    rag_documents: int = 0
     # Which RAG store this process is answering from and whether it is the
     # configured backend. "memory" is the configured choice for local/test
     # runtimes; it is a *fallback* only when Supabase was configured but the

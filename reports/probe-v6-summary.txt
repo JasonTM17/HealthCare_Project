@@ -1,0 +1,11 @@
+[adh-punct] action=ANSWER cites=0: Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm m
+[adh-longtail] action=ANSWER cites=0: Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm m
+[adh-comma] action=ANSWER cites=0: Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm m
+[adh-midmsg] action=ANSWER cites=0: Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm m
+[dose-before-verb] action=REFUSE cites=0: Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá
+[dose-drug-order] action=REFUSE cites=0: Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc. Hãy trao đổi trực tiếp với bác sĩ hoặc dược sĩ đang theo dõi để được đánh giá
+[amenity-parking] action=ANSWER cites=4: Theo dữ liệu cơ sở đang hoạt động, hiện HealthCare có các cơ sở sau: Bệnh viện Đa khoa An Tâm – Trung tâm; Bệnh viện Đa khoa Quốc 
+[amenity-pharmacy] action=HUMAN_HANDOFF cites=0: Câu này cần người có chuyên môn nhé. Mình không đưa chẩn đoán hay hướng xử lý tình trạng sức khỏe, nhưng bạn có thể đặt lịch khám 
+[or-districts] action=ANSWER cites=3: Mình tìm thấy nhiều cơ sở phù hợp với yêu cầu này: Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 12 — Quận 1; Bệnh viện Đa khoa Quố
+[anchor-referent] action=ANSWER cites=2: Mình tìm thấy nhiều cơ sở phù hợp với yêu cầu này: Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 18 — Quận 7; Bệnh viện Đa khoa Quố
+[protected-mix] action=HUMAN_HANDOFF cites=0: Câu này cần người có chuyên môn nhé. Mình không đưa chẩn đoán hay hướng xử lý tình trạng sức khỏe, nhưng bạn có thể đặt lịch khám 

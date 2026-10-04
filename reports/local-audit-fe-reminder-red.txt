@@ -1,0 +1,45 @@
+
+Running 1 test using 1 worker
+
+  x  1 [chromium] ΓÇ║ tests\e2e\patient-documents.spec.ts:358:5 ΓÇ║ patient document center renders and downloads an appointment reminder PDF (18.8s)
+
+
+  1) [chromium] ΓÇ║ tests\e2e\patient-documents.spec.ts:358:5 ΓÇ║ patient document center renders and downloads an appointment reminder PDF 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('article.portal-record').filter({ hasText: 'Giß║Ñy nhß║»c hß║╣n' }).locator('h3')
+    Expected: "Giß║Ñy nhß║»c lß╗ïch hß║╣n ─æ├ú kß║┐t xuß║Ñt"
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveText" with timeout 10000ms
+      - waiting for locator('article.portal-record').filter({ hasText: 'Giß║Ñy nhß║»c hß║╣n' }).locator('h3')
+
+
+      380 |
+      381 |   const card = page.locator("article.portal-record").filter({ hasText: "Giß║Ñy nhß║»c hß║╣n" });
+    > 382 |   await expect(card.locator("h3")).toHaveText("Giß║Ñy nhß║»c lß╗ïch hß║╣n ─æ├ú kß║┐t xuß║Ñt");
+          |                                    ^
+      383 |   await expect(card.locator("h3")).not.toContainText("Hß╗ô s╞í kh├ím");
+      384 |
+      385 |   const downloadPromise = page.waitForEvent("download");
+        at D:\HealthCare_Project\apps\frontend\tests\e2e\patient-documents.spec.ts:382:36
+
+    attachment #1: screenshot (image/png) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\patient-documents-patient--1b755-an-appointment-reminder-PDF-chromium\test-failed-1.png
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+    Error Context: test-results\patient-documents-patient--1b755-an-appointment-reminder-PDF-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+    test-results\patient-documents-patient--1b755-an-appointment-reminder-PDF-chromium\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\patient-documents-patient--1b755-an-appointment-reminder-PDF-chromium\trace.zip
+
+    ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+  1 failed
+    [chromium] ΓÇ║ tests\e2e\patient-documents.spec.ts:358:5 ΓÇ║ patient document center renders and downloads an appointment reminder PDF 

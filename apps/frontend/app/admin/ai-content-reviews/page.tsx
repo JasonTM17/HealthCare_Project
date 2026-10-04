@@ -216,7 +216,7 @@ export default function AdminAiContentReviewsPage() {
     <section aria-labelledby="ai-review-admin-title" className="grid gap-6">
       <header className="portal-hero">
         <div>
-          <p className="section-note">CLINICAL CONTENT GOVERNANCE</p>
+          <p className="section-note">QUẢN TRỊ NỘI DUNG LÂM SÀNG</p>
           <h1 className="mt-2 text-3xl font-black text-teal-950" id="ai-review-admin-title">
             Kho revision nội dung AI
           </h1>
@@ -244,7 +244,7 @@ export default function AdminAiContentReviewsPage() {
       <section aria-labelledby="ai-review-filters-title" className="grid gap-4 rounded-sm border border-teal-100 bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="section-note">INVENTORY FILTERS</p>
+            <p className="section-note">BỘ LỌC KHO REVISION</p>
             <h2 className="text-lg font-black text-teal-950" id="ai-review-filters-title">Lọc theo nguồn và trạng thái</h2>
             <p className="mt-1 text-sm text-slate-600">Bộ lọc chỉ thay đổi inventory hiện tại; không thay đổi dữ liệu nguồn.</p>
           </div>
@@ -374,7 +374,7 @@ export default function AdminAiContentReviewsPage() {
         <section aria-labelledby="selected-revision-title" className="grid gap-4 rounded-sm border border-amber-200 bg-amber-50 p-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="section-note">SUBMIT EXACT REVISION</p>
+              <p className="section-note">GỬI ĐÚNG REVISION</p>
               <h2 className="text-xl font-black text-teal-950" id="selected-revision-title">{selected.title || "Nguồn chưa đặt tên"}</h2>
               <p className="mt-1 text-sm text-slate-700">{typeLabel(selected.sourceType)} · revision {selected.revision}</p>
             </div>

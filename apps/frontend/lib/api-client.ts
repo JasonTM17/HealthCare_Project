@@ -73,6 +73,7 @@ import type {
   CarePlanItem,
 } from "../types/hospital";
 import { randomId } from "./secure-random";
+import { isChunkedChatDisabled, markChunkedChatDisabled } from "./chat-chunked-capability";
 
 export type {
   AuthUser,
@@ -2487,6 +2488,43 @@ export async function sendAiConversationMessage(
   return parseAiChatExchange(response, path);
 }
 
+// Chunked-delivery capability cache lives in lib/chat-chunked-capability.ts so
+// this file stays free of every web-storage surface (portal secret gate).
+
+/**
+ * A non-streamed answer arrives as one JSON payload; replaying the persisted
+ * text through the caller's onDelta gives it the same progressive reveal the
+ * SSE path produces. The chunk size scales with length so a long answer keeps
+ * the ~50 chars/s feel for short replies yet never stretches the wait past a
+ * few seconds.
+ */
+async function revealAssistantReply(
+  content: string,
+  onDelta: (delta: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const chunkSize = Math.max(3, Math.ceil(content.length / 120));
+  for (let index = 0; index < content.length; index += chunkSize) {
+    if (signal?.aborted) throw new DOMException("The operation was aborted.", "AbortError");
+    onDelta(content.slice(index, index + chunkSize));
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+async function sendAiConversationMessageRevealed(
+  conversationId: string,
+  content: string,
+  idempotencyKey: string,
+  options: { signal?: AbortSignal; onDelta?: (delta: string) => void } = {},
+): Promise<AiChatExchange> {
+  const exchange = await sendAiConversationMessage(conversationId, content, idempotencyKey, options);
+  const reply = exchange.assistantMessage?.content ?? "";
+  if (reply && options.onDelta && !options.signal?.aborted) {
+    await revealAssistantReply(reply, options.onDelta, options.signal);
+  }
+  return exchange;
+}
+
 /**
  * Validated chunked delivery of an authenticated chat exchange (D-02): the
  * backend finishes generation and validation first, then emits content
@@ -2501,6 +2539,11 @@ export async function sendAiConversationMessageChunked(
   options: { signal?: AbortSignal; onDelta?: (delta: string) => void } = {},
 ): Promise<AiChatExchange> {
   const path = `/ai/conversations/${encodeURIComponent(conversationId)}/messages/stream`;
+  // A previous empty-404 (or a pre-seeded session flag) already proved this
+  // backend serves only the plain JSON contract; go straight there.
+  if (isChunkedChatDisabled()) {
+    return sendAiConversationMessageRevealed(conversationId, content, idempotencyKey, options);
+  }
   return withAuthenticatedSession(path, async () => {
     const requestController = new AbortController();
     const callerSignal = options.signal;
@@ -2531,7 +2574,8 @@ export async function sendAiConversationMessageChunked(
         // the real AI_CONVERSATION_NOT_FOUND contract error and must surface.
         const notFoundBody = await res.text();
         if (!notFoundBody.trim()) {
-          return await sendAiConversationMessage(conversationId, content, idempotencyKey, {
+          markChunkedChatDisabled();
+          return await sendAiConversationMessageRevealed(conversationId, content, idempotencyKey, {
             ...options,
             signal: requestController.signal,
           });
@@ -3193,6 +3237,18 @@ export interface GeneratePatientDocumentPayload {
   sourceRecordId: string;
 }
 
+export interface PatientDocumentCapabilities {
+  generationConfigured: boolean;
+}
+
+export async function fetchPatientDocumentCapabilities(
+  patientId: string,
+): Promise<PatientDocumentCapabilities> {
+  return getAuthenticatedJson<PatientDocumentCapabilities>(
+    `/patients/${encodeURIComponent(patientId)}/documents/capabilities`,
+  );
+}
+
 export async function fetchPatientDocuments(patientId: string): Promise<PatientDocument[]> {
   return getAuthenticatedJson<PatientDocument[]>(
     `/patients/${encodeURIComponent(patientId)}/documents`,
@@ -3403,7 +3459,7 @@ export async function downloadProtectedFile(fileUrl: string, filename = "ket-qua
 export async function downloadPatientDocument(
   patientId: string,
   documentId: string,
-  filename = "tai-lieu-tong-hop-demo.pdf",
+  filename = "tai-lieu-tong-hop.pdf",
 ): Promise<void> {
   const path = `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/download`;
   const response = await withAuthenticatedSession(path, async () => {
@@ -3424,7 +3480,9 @@ export async function downloadPatientDocument(
   const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = blobUrl;
-  anchor.download = filename;
+  // Same naming rule as downloadProtectedFile: a Content-Disposition filename
+  // from the server wins over the caller's display-only fallback.
+  anchor.download = filenameFromContentDisposition(response.headers.get("Content-Disposition")) ?? filename;
   anchor.rel = "noopener";
   document.body.append(anchor);
   anchor.click();

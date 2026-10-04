@@ -4,6 +4,8 @@ import com.healthcare.document.entity.DocumentSourceType;
 import com.healthcare.document.entity.DocumentStatus;
 import com.healthcare.document.entity.PatientDocument;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -40,4 +42,7 @@ public interface PatientDocumentRepository extends JpaRepository<PatientDocument
             DocumentSourceType sourceType,
             UUID sourceRecordId,
             DocumentStatus status);
+
+    @Query(value = "SELECT pg_advisory_xact_lock(hashtextextended(CAST(:lockKey AS text), 0))", nativeQuery = true)
+    void acquireGenerationLock(@Param("lockKey") String lockKey);
 }

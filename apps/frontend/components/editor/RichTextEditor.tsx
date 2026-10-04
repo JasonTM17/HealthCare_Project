@@ -11,11 +11,19 @@ import React, {
   type ReactElement,
 } from "react";
 import dynamic from "next/dynamic";
-import type { Editor as TinyMCEEditor } from "tinymce";
+import type { Editor as TinyMCEEditor, Bookmark as TinyMCEBookmark } from "tinymce";
 import type { IAllProps } from "@tinymce/tinymce-react";
 import UiIcon, { type IconName } from "../UiIcon";
 import ConfirmActionDialog from "../ui/ConfirmActionDialog";
-import RichContentRenderer, { htmlToMarkdown, markdownToHtml } from "./RichContentRenderer";
+import RichContentRenderer, {
+  escapeHtmlAttribute,
+  escapeHtmlText,
+  htmlToMarkdown,
+  markdownToHtml,
+  toMarkdownImageAlt,
+  toMarkdownImageUrl,
+  toMarkdownLinkText,
+} from "./RichContentRenderer";
 import { uploadMediaAsset, ApiError } from "../../lib/api-client";
 import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../../lib/media-uploads";
 import { presentApiError } from "../../lib/present-api-error";
@@ -56,6 +64,20 @@ const HTML_TAG_PATTERN = /<[a-z][\s\S]*>/i;
 
 function containsHtml(value: string): boolean {
   return HTML_TAG_PATTERN.test(value);
+}
+
+/**
+ * The insert dialogs may only store absolute http(s) URLs or root-relative
+ * paths. `javascript:`/`data:` targets would be rejected by the renderer
+ * anyway, a protocol-relative `//host` silently leaves the hospital origin,
+ * and an empty or bare-relative target resolves against wherever the reader
+ * happens to be. Returns the trimmed URL when allowed, otherwise null.
+ */
+function normalizedInsertUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed || trimmed.startsWith("//")) return null;
+  if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")) return trimmed;
+  return null;
 }
 
 /**
@@ -257,6 +279,7 @@ export function RichTextEditor({
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
   const [showImageModal, setShowImageModal] = useState(false);
   const [imageAlt, setImageAlt] = useState("");
@@ -279,6 +302,12 @@ export function RichTextEditor({
   const lastExternalValueRef = useRef<string>(safeValue);
   const lastTypingTimeRef = useRef<number>(0);
   const savedSelectionRef = useRef<{ start: number; end: number } | null>(null);
+  // The custom link/image modals take focus away from TinyMCE, which collapses
+  // its selection; the bookmark taken when the modal opens is restored just
+  // before insertContent so the markup replaces the author's selection instead
+  // of landing at a stale caret. The textarea path uses savedSelectionRef and
+  // is deliberately untouched.
+  const tinyBookmarkRef = useRef<TinyMCEBookmark | null>(null);
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -1005,6 +1034,16 @@ export function RichTextEditor({
   // Open Link modal preserving current selection range
   const handleOpenLinkModal = useCallback(() => {
     if (disabled || viewMode === "preview") return;
+    tinyBookmarkRef.current = null;
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      try {
+        tinyBookmarkRef.current = tinyEditorInstanceRef.current.selection.getBookmark();
+      } catch {
+        // A bookmark is a nicety, not a precondition; the insert falls back to
+        // the caret if the editor could not describe its selection.
+        tinyBookmarkRef.current = null;
+      }
+    }
     const textarea = textareaRef.current;
     const start = textarea?.selectionStart ?? 0;
     const end = textarea?.selectionEnd ?? 0;
@@ -1012,12 +1051,21 @@ export function RichTextEditor({
     const selected = textarea ? safeValue.slice(start, end) : "";
     setLinkText(selected || "Xem hướng dẫn");
     setLinkUrl("https://");
+    setLinkError(null);
     setShowLinkModal(true);
   }, [disabled, viewMode, safeValue]);
 
   // Open Image modal preserving current selection range
   const handleOpenImageModal = useCallback(() => {
     if (disabled || viewMode === "preview") return;
+    tinyBookmarkRef.current = null;
+    if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      try {
+        tinyBookmarkRef.current = tinyEditorInstanceRef.current.selection.getBookmark();
+      } catch {
+        tinyBookmarkRef.current = null;
+      }
+    }
     const textarea = textareaRef.current;
     const start = textarea?.selectionStart ?? safeValue.length;
     const end = textarea?.selectionEnd ?? safeValue.length;
@@ -1127,16 +1175,32 @@ export function RichTextEditor({
 
   // Link dialog submit (restores exact saved selection range)
   const handleInsertLink = () => {
-    if (!linkUrl.trim()) return;
+    const href = normalizedInsertUrl(linkUrl);
+    if (!href) {
+      setLinkError("Đường dẫn không hợp lệ. Chỉ chấp nhận liên kết http://, https:// hoặc đường dẫn nội bộ bắt đầu bằng \"/\".");
+      return;
+    }
+    setLinkError(null);
     if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
-      const text = linkText.trim() || linkUrl.trim();
-      tinyEditorInstanceRef.current.insertContent(`<a href="${linkUrl.trim()}">${text}</a>`);
+      const editor = tinyEditorInstanceRef.current;
+      const bookmark = tinyBookmarkRef.current;
+      tinyBookmarkRef.current = null;
+      if (bookmark) {
+        try {
+          editor.selection.moveToBookmark(bookmark);
+        } catch {
+          // A bookmark taken before the content changed is stale, not fatal:
+          // fall back to wherever the caret is now.
+        }
+      }
+      const text = linkText.trim() || href;
+      editor.insertContent(`<a href="${escapeHtmlAttribute(href)}">${escapeHtmlText(text)}</a>`);
       setShowLinkModal(false);
       setLinkText("");
       setLinkUrl("");
       return;
     }
-    const markdown = `[${linkText.trim() || linkUrl.trim()}](${linkUrl.trim()})`;
+    const markdown = `[${toMarkdownLinkText(linkText.trim() || href)}](${toMarkdownImageUrl(href)})`;
     const sel = savedSelectionRef.current;
     savedSelectionRef.current = null;
     if (sel) {
@@ -1162,11 +1226,25 @@ export function RichTextEditor({
 
   // Image dialog submit (restores exact saved selection range)
   const handleInsertImage = () => {
-    if (!imageUrl.trim()) return;
+    const src = normalizedInsertUrl(imageUrl);
+    if (!src) {
+      setImageUploadError("Đường dẫn ảnh không hợp lệ. Chỉ chấp nhận liên kết http://, https:// hoặc đường dẫn nội bộ bắt đầu bằng \"/\".");
+      return;
+    }
     if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const editor = tinyEditorInstanceRef.current;
+      const bookmark = tinyBookmarkRef.current;
+      tinyBookmarkRef.current = null;
+      if (bookmark) {
+        try {
+          editor.selection.moveToBookmark(bookmark);
+        } catch {
+          // See handleInsertLink: a stale bookmark falls back to the caret.
+        }
+      }
       const alt = imageAlt.trim() || "Hình ảnh y khoa";
-      tinyEditorInstanceRef.current.insertContent(
-        `<figure style="margin: 14px 0; text-align: center;"><img src="${imageUrl.trim()}" alt="${alt}" style="max-width: 100%; border-radius: 4px;" /><figcaption style="font-size: 12px; color: #64748b; font-style: italic; margin-top: 6px;">${alt}</figcaption></figure><p>&nbsp;</p>`
+      editor.insertContent(
+        `<figure style="margin: 14px 0; text-align: center;"><img src="${escapeHtmlAttribute(src)}" alt="${escapeHtmlAttribute(alt)}" style="max-width: 100%; border-radius: 4px;" /><figcaption style="font-size: 12px; color: #64748b; font-style: italic; margin-top: 6px;">${escapeHtmlText(alt)}</figcaption></figure><p>&nbsp;</p>`
       );
       setShowImageModal(false);
       setImageAlt("");
@@ -1174,7 +1252,7 @@ export function RichTextEditor({
       setImageUploadError(null);
       return;
     }
-    const markdown = `\n![${imageAlt.trim() || "Hình ảnh y khoa"}](${imageUrl.trim()})\n`;
+    const markdown = `\n![${toMarkdownImageAlt(imageAlt.trim() || "Hình ảnh y khoa")}](${toMarkdownImageUrl(src)})\n`;
     const sel = savedSelectionRef.current;
     savedSelectionRef.current = null;
     if (sel) {
@@ -1205,8 +1283,8 @@ export function RichTextEditor({
       setImageUploadError("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP, GIF).");
       return null;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setImageUploadError("Dung lượng ảnh vượt quá giới hạn 10 MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      setImageUploadError("Dung lượng ảnh vượt quá giới hạn 5 MB.");
       return null;
     }
 
@@ -1260,7 +1338,7 @@ export function RichTextEditor({
         for (const file of files) {
           const res = await uploadMediaAsset(file, purpose);
           const alt = file.name.replace(/\.[^/.]+$/, "") || "Hình ảnh y khoa";
-          snippets.push(`\n![${alt}](${res.url})\n`);
+          snippets.push(`\n![${toMarkdownImageAlt(alt)}](${toMarkdownImageUrl(res.url)})\n`);
         }
         if (snippets.length > 0) {
           insertAtCursor(snippets.join(""));
@@ -1296,7 +1374,7 @@ export function RichTextEditor({
         const snippets: string[] = [];
         for (const file of imageFiles) {
           const res = await uploadMediaAsset(file, purpose);
-          snippets.push(`\n![Ảnh chụp đính kèm](${res.url})\n`);
+          snippets.push(`\n![Ảnh chụp đính kèm](${toMarkdownImageUrl(res.url)})\n`);
         }
         if (snippets.length > 0) {
           insertAtCursor(snippets.join(""));
@@ -2063,6 +2141,10 @@ export function RichTextEditor({
                   value={linkUrl}
                 />
               </div>
+
+              {linkError && (
+                <p className="text-xs text-red-600 font-semibold">{linkError}</p>
+              )}
             </div>
 
             <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-3">
@@ -2139,7 +2221,7 @@ export function RichTextEditor({
                   <span>{isUploadingImage ? "Đang tải ảnh lên..." : "Tải ảnh từ máy tính hoặc Kéo thả vào đây"}</span>
                 </button>
                 <p className="mt-2 text-xs text-slate-500">
-                  Hỗ trợ PNG, JPG, WEBP, GIF (Tối đa 10 MB). Kéo thả ảnh trực tiếp hoặc chọn tệp.
+                  Hỗ trợ PNG, JPG, WEBP, GIF (Tối đa 5 MB). Kéo thả ảnh trực tiếp hoặc chọn tệp.
                 </p>
                 {imageUploadError && (
                   <p className="mt-2 text-xs text-red-600 font-semibold">{imageUploadError}</p>

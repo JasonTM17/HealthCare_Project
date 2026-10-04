@@ -36,6 +36,8 @@ test("patient documents route is a real PDF workflow, not a dashboard alias", as
   // than offer a control that can only return 503.
   assert.match(page, /DOCUMENT_GENERATION_ENABLED/);
   assert.match(page, /DOCUMENT_GENERATION_DISABLED_MESSAGE/);
+  assert.match(page, /fetchPatientDocumentCapabilities/);
+  assert.match(page, /sourceCurrent/);
 });
 
 test("patient documents page fails closed and never renders raw caught errors", async () => {
@@ -62,6 +64,8 @@ test("api client exposes patient document APIs through same-origin BFF only", as
   assert.match(apiClient, /fetchPatientDocuments\(patientId: string\): Promise<PatientDocument\[\]>/);
   assert.match(apiClient, /generatePatientDocument\(\s*patientId: string,[\s\S]*payload: GeneratePatientDocumentPayload,[\s\S]*\): Promise<PatientDocument>/);
   assert.match(apiClient, /downloadPatientDocument\(\s*patientId: string,[\s\S]*documentId: string/);
+  assert.match(apiClient, /fetchPatientDocumentCapabilities\(\s*patientId: string[\s\S]*documents\/capabilities/);
+  assert.match(hospitalTypes, /sourceCurrent\?: boolean \| null/);
   assert.match(apiClient, /`\/patients\/\$\{encodeURIComponent\(patientId\)\}\/documents`/);
   assert.match(apiClient, /\/documents\/\$\{encodeURIComponent\(documentId\)\}\/download/);
   assert.match(apiClient, /credentials: "same-origin"/);

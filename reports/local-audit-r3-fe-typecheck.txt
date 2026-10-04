@@ -1,0 +1,6 @@
+
+> healthcare-frontend@0.1.1 typecheck
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully

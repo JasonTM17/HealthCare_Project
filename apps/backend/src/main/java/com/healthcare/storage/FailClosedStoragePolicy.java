@@ -1,5 +1,8 @@
 package com.healthcare.storage;
 
+import java.net.URI;
+import java.util.Locale;
+
 /**
  * Unpackaged defaults must not enable generic upload without AV.
  * The explicit {@code storage.allow-unscanned-upload} escape is for disposable
@@ -8,6 +11,35 @@ package com.healthcare.storage;
 public final class FailClosedStoragePolicy {
 
     private FailClosedStoragePolicy() {
+    }
+
+    /**
+     * Whether the endpoint targets the operator's own machine. A loopback
+     * public endpoint is a local compose/dev runtime, not a hosted surface:
+     * the hosted-only guards (HTTPS-only browser signing, hosted posture) do
+     * not apply to it, while every other fail-closed rule still does.
+     */
+    public static boolean isLoopbackEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) {
+            return false;
+        }
+        try {
+            URI parsed = URI.create(endpoint.trim());
+            String host = parsed.getHost();
+            if (host == null) {
+                return false;
+            }
+            if (host.startsWith("[") && host.endsWith("]")) {
+                host = host.substring(1, host.length() - 1);
+            }
+            String normalized = host.toLowerCase(Locale.ROOT);
+            return "localhost".equals(normalized)
+                || "127.0.0.1".equals(normalized)
+                || "0.0.0.0".equals(normalized)
+                || "::1".equals(normalized);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public static void validate(boolean uploadEnabled, boolean avRequired, boolean allowUnscannedUpload) {

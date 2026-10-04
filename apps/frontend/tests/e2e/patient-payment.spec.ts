@@ -183,6 +183,28 @@ test("mobile patient payment keeps QR actions accessible and waits for admin app
   await expect(page.getByAltText(/VietQR thanh toán 200\.000.*APT-PAY-E2E/)).toBeVisible();
   await expect(page.getByText("HEALTHCARE E2E")).toBeVisible();
 
+  const paymentPattern = await page.locator("#payment-reference").evaluate((input) => {
+    const field = input as HTMLInputElement;
+    const pattern = field.getAttribute("pattern") ?? "";
+    let compiled: RegExp | null = null;
+    try {
+      compiled = new RegExp(`^(?:${pattern})$`, "v");
+    } catch {
+      compiled = null;
+    }
+    const check = (value: string) => {
+      field.value = value;
+      return field.checkValidity() && compiled !== null && compiled.test(value);
+    };
+    const accepted = ["FT123456789", "FT/12-3_ABC.4", "BANK 123456"].map(check);
+    const rejected = ["FT@123456", "FT(123456)", "FT|123456", "éT123456"].map(check);
+    field.value = "";
+    return { compiles: compiled !== null, accepted, rejected };
+  });
+  expect(paymentPattern.compiles).toBe(true);
+  expect(paymentPattern.accepted).toEqual([true, true, true]);
+  expect(paymentPattern.rejected).toEqual([false, false, false, false]);
+
   await page.getByRole("button", { name: /Sao chép nội dung chuyển khoản/ }).click();
   await expect(page.getByRole("button", { name: /Sao chép nội dung chuyển khoản/ })).toHaveText("Đã chép");
   await expect(page.getByRole("status").filter({ hasText: "Đã sao chép nội dung chuyển khoản." })).toBeAttached();

@@ -1,0 +1,14 @@
+services:
+  backend:
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      APP_SELF_WARMER_ENABLED: "false"
+      AI_CHAT_SYNTHETIC_BETA_ASSERTED: "false"
+  ai-service:
+    environment:
+      BACKEND_WARM_URL: ""
+      REMOTE_AI_RELEASE_HOLD: "true"
+      REMOTE_AI_KILL_SWITCH: "true"
+      AI_API_KEY: ""
+      DEEPSEEK_API_KEY: ""
+      SUPABASE_DB_URL: ""

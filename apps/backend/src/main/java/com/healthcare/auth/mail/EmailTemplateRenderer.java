@@ -21,7 +21,10 @@ public class EmailTemplateRenderer {
         "Nếu bạn không mong đợi email này, hãy bỏ qua và đăng nhập cổng bệnh nhân nếu cần kiểm tra.";
     private static final Set<String> OTP_VARIABLES = Set.of("code", "minutes", "portalUrl");
     private static final Set<String> BOOKING_OTP_VARIABLES = Set.of("code", "minutes", "portalUrl", "bookingCode");
-    private static final Set<String> MESSAGE_VARIABLES = Set.of("message", "portalUrl");
+    // "transitionKey" is allowed-but-optional: it is never rendered into the
+    // email, it only lets the outbox idempotency key distinguish successive
+    // business transitions (e.g. two separate payment rejections).
+    private static final Set<String> MESSAGE_VARIABLES = Set.of("message", "portalUrl", "transitionKey");
     private final URI portalOrigin;
 
     /** Test-friendly constructor uses the documented synthetic portal origin. */

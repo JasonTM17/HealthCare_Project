@@ -1,0 +1,14 @@
+{
+  "schema":"healthcare.ui-source-reproduction.v1",
+  "observer":"Team Lead",
+  "source":{"path":"apps/frontend/app/page.tsx","gitBlob":"23b918b9ada462c272e6c63ec5d98a155cc13129"},
+  "origin":"http://localhost:3330",
+  "authority":"New owned public browser context only; isolated mocked hero GET responses and real same-origin image bytes, no server CMS write or data deletion",
+  "fixture":{"negativeImageUrl":"/media/qa-deliberately-missing-hero.jpg","positiveImageUrl":"/media/about-care-poster.jpg","positiveAssetHttpStatus":200,"heroVersions":[101,102]},
+  "observations":{"receivedHeroVersions":[101,102],"afterBad":{"domVersion":"101","renderedImage":"static hospital-team fallback"},"afterValidReplacement":{"domVersion":"102","renderedImage":"same static hospital-team fallback","renderedNaturalWidth":588,"validReplacementDisplayed":false}},
+  "mechanism":"HomeHeroVisual retains imageError=true after the earlier image error; a subsequent changed CMS imageUrl updates the source/DOM version but does not reset the component error state, so the valid replacement is not rendered until remount.",
+  "result":"FAIL: reproduced visible valid-image replacement failure, not merely a source hypothesis",
+  "control":"Positive asset exists and returns200; the CMS re-read actually occurred after a simulated visible-tab return, so this is not a missed60s poll or missing positive image.",
+  "repairDesign":"Key only HomeHeroVisual by cmsHero.imageUrl or default HERO_IMAGE so a changed image source resets its local error latch without changing public polling, server schema, CSP, layout or unrelated input state.",
+  "nextGate":"Cause-aligned one-line composition change plus mocked browser regression bad->good and validA->validB; then actual persisted owned CMS/image/public render journey. Current probe alone does not prove persistence or anonymous uploaded asset availability."
+}

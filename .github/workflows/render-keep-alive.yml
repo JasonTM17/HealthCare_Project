@@ -1,14 +1,15 @@
 name: Supabase Keep-Alive (Prevent Auto-Pause) & Render Health
 
 on:
-  schedule:
+  # Schedule disabled to prevent Supabase egress and log quota drain
+  # schedule:
     # Runs every 4 hours (UTC) to keep Supabase active 24/7 and prevent the 7-day
     # inactivity pause. Cadence note: Render Free idles a web service after ~15
     # minutes, so a 4-hourly cron cannot keep the backend or the AI service warm —
     # this job is a health canary plus Supabase activity, not a warmer. Real
     # visitor traffic (and the frontend's own bounded warm-up request) is what
     # keeps cold starts rare.
-    - cron: '0 */4 * * *'
+    # - cron: '0 */4 * * *'
   workflow_dispatch:
 
 permissions:

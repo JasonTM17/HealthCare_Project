@@ -46,6 +46,7 @@ htmlcov/
 *.log
 logs/
 .tmp/
+**/.tmp-*
 tmp/
 temp/
 .cache/
@@ -118,3 +119,4 @@ scripts/local-dev-repair/
 
 # Junction compensating npm --prefix double-path in workflow gate commands (build-fix session 2026-10-01)
 apps/frontend/apps/
+.playwright-mcp/

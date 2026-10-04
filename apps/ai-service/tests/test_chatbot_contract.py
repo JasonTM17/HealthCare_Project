@@ -141,6 +141,116 @@ def test_local_grounded_answer_is_extractive_and_cites_its_sources() -> None:
     provider.complete_json.assert_not_called()
 
 
+def test_local_grounded_answer_survives_approved_clinical_instructions() -> None:
+    """Regression: approved prep instructions must not fail the output scan.
+
+    Hospital-approved specialty content routinely contains legitimate clinical
+    instructions such as "ngừng thuốc trước phẫu thuật". The local grounded
+    path is deterministic (no model output), and each source already passed
+    `_context_is_safe` inside `_local_grounded_response`, so the advice-shaped
+    output pattern must not re-judge the same approved text into a
+    fail-closed INSUFFICIENT.
+    """
+
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "tim-mach",
+        "Tim mạch",
+        "Khám và điều trị bệnh lý tim, mạch máu. Chuẩn bị: có thể cần ngừng thuốc "
+        "loãng máu theo hướng dẫn của bác sĩ trước thủ thuật.",
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+    )
+    provider = MagicMock()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="chuyên khoa tim mạch",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[
+                AuthorizedSource(source_type="specialty", source_id="tim-mach"),
+            ],
+        ),
+        _settings(),
+        service,
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert response.provenance == "local_provider"
+    assert "ngừng thuốc" in response.answer
+    provider.complete_json.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "unsafe_content",
+    [
+        "Bạn nên uống paracetamol 500mg mỗi ngày để hết đau.",
+        "## Lời khuyên\nBạn nên uống paracetamol 500mg khi đau.",
+        "Bạn nên uống p a r a c e t a m o l mỗi ngày.",
+        "Bạn nên uống pаrаcеtаmоl 500mg mỗi ngày.",
+        "<b>Chẩn đoán:</b> bạn bị viêm. <i>Kê đơn</i> amoxicillin 250mg.",
+        'Hướng dẫn chung\n[{"heading":"Liều dùng","body":"Uống paracetamol 500mg x 3 lần/ngày"}]',
+    ],
+    ids=["plain-dose", "markdown-heading", "letter-spaced", "homoglyph", "html-wrap", "json-sections"],
+)
+def test_unsafe_source_content_never_echoes_in_grounded_answer(unsafe_content: str) -> None:
+    """Regression: unsafe source text must fail closed before deterministic echo.
+
+    The grounded answer quotes `_grounded_excerpt` verbatim, so a source row
+    carrying a diagnosis/prescription direction — plain, markup-wrapped,
+    letter-spaced, or homoglyph-obfuscated — must trip `_context_is_safe`
+    (which re-runs `remote_text_output_is_safe` on normalized content) and
+    degrade to INSUFFICIENT_EVIDENCE instead of echoing the claim.
+    """
+
+    service = RagService()
+    service.ingest(
+        "article",
+        "unsafe-article",
+        "Hướng dẫn sức khỏe",
+        unsafe_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata={
+            "projection_kind": "CLINICAL",
+            "content_revision": "1",
+            "eligibility_revision": "1",
+            "approval_id": "round-1",
+            "approval_state": "APPROVED",
+            "approval_expires_at": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+            "content_hash": "b" * 64,
+        },
+    )
+    provider = MagicMock()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="tôi bị đau đầu",
+            mode=ChatMode.HEALTH_EDUCATION,
+            authorized_sources=[
+                AuthorizedSource(
+                    source_type="article",
+                    source_id="unsafe-article",
+                    projection_kind="CLINICAL",
+                    content_revision=1,
+                    eligibility_revision=1,
+                    content_hash="b" * 64,
+                    approval_id="round-1",
+                ),
+            ],
+        ),
+        _settings(),
+        service,
+        client=provider,
+    )
+
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert "paracetamol" not in response.answer.casefold()
+    assert "amoxicillin" not in response.answer.casefold()
+    assert "500mg" not in response.answer
+    assert "kê đơn" not in response.answer.casefold()
+
+
 def test_local_generation_without_chunks_keeps_honest_insufficient_fallback() -> None:
     """Remote disabled + no chunks = unchanged honest insufficient evidence."""
 
@@ -236,7 +346,10 @@ def test_marked_public_branch_context_allows_contact_data_but_stays_grounded() -
     assert generated.used_sources[0].source_id == "central"
 
 
-def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() -> None:
+@pytest.mark.parametrize("release_hold", [False, True])
+def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding(
+    release_hold: bool,
+) -> None:
     service = RagService()
     service.ingest(
         "branch",
@@ -248,6 +361,7 @@ def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() ->
         metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
     )
     local = _settings()
+    local.remote_ai_release_hold = release_hold
     local.ai_provider = "deepseek"
     local.ai_patient_chat_remote_enabled = True
     local.ai_chat_remote_provider_enabled = True
@@ -310,8 +424,10 @@ def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() ->
         "Hotline của Cơ sở Trung tâm là 115.",
     ],
 )
+@pytest.mark.parametrize("release_hold", [False, True])
 def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
     fabricated_answer: str,
+    release_hold: bool,
 ) -> None:
     service = RagService()
     service.ingest(
@@ -324,6 +440,7 @@ def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
         metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
     )
     local = _settings()
+    local.remote_ai_release_hold = release_hold
     local.ai_provider = "deepseek"
     local.ai_patient_chat_remote_enabled = True
     local.ai_chat_remote_provider_enabled = True
@@ -563,6 +680,52 @@ def test_grounded_article_excerpt_hides_serialized_sections_and_stays_compact() 
     assert "Quy tắc 20-20-20" in answer
     assert "Nghỉ mắt thường xuyên" in answer
     assert len(answer) <= 760
+
+
+def test_grounded_specialty_excerpt_renders_inline_jsonb_string_arrays() -> None:
+    """Clinical JSONB arrays concatenated mid-content render as plain prose.
+
+    Backend clinical projections concatenate ``common_symptoms`` /
+    ``preparation_steps`` JSONB columns straight into the searchable content
+    (SQL ``concat_ws``), so string arrays appear inline between prose. The
+    excerpt must never show storage serialization to a patient.
+    """
+
+    document = RagDocument(
+        id="specialty:tim-mach",
+        source_type="specialty",
+        source_id="tim-mach",
+        title="Tim mạch",
+        content=(
+            "Tim mạch\n"
+            'Trieu chung thuong gap: ["Dau nguc", "Kho tho", "Hoi hop"]. '
+            'Chuan bi truoc kham: ["Nghi ngo", "Nhin ket qua mau"].'
+        ),
+    )
+
+    answer = grounded_source_excerpt(document)
+
+    assert "[" not in answer
+    assert "]" not in answer
+    assert '"' not in answer
+    assert "Trieu chung thuong gap: Dau nguc; Kho tho; Hoi hop" in answer
+    assert "Chuan bi truoc kham: Nghi ngo; Nhin ket qua mau" in answer
+
+
+def test_grounded_excerpt_leaves_plain_prose_brackets_untouched() -> None:
+    """A non-JSON bracket group in prose is never rewritten."""
+
+    document = RagDocument(
+        id="specialty:da-lieu",
+        source_type="specialty",
+        source_id="da-lieu",
+        title="Da liễu",
+        content="Benh ly [chua ro nguyen nhan] can duoc theo doi dinh ky.",
+    )
+
+    answer = grounded_source_excerpt(document)
+
+    assert "[chua ro nguyen nhan]" in answer
 
 
 def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer(
@@ -1468,4 +1631,130 @@ def test_uncited_lane_stays_closed_when_the_remote_gate_is_off(
     )
 
     assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    provider.complete_json.assert_not_called()
+
+
+@pytest.mark.parametrize("content", [
+    "Bạn bị viêm phổi.",
+    "Hãy uống paracetamol 500mg mỗi ngày.",
+    "Take aspirin.",
+    "Tôi không thể kê đơn, nhưng hãy uống paracetamol 500mg.",
+    "Tôi không thể kê đơn, hãy uống aspirin.",
+    "Bạn không có dị ứng, hãy uống aspirin.",
+    "Tôi không thể chẩn đoán, bạn bị viêm phổi.",
+    "Bạn không có dị ứng, bạn bị viêm phổi.",
+    "Tôi không thể kê đơn, paracetamol 500mg mỗi ngày.",
+    "Tôi không thể kê đơn, liều thuốc là 500mg mỗi ngày.",
+    "I cannot prescribe, dosage 500mg daily.",
+    "I cannot prescribe, I diagnose pneumonia.",
+    "Bạn không có dị ứng, hãy ngừng thuốc.",
+    "Hãy ngừng thuốc theo chỉ định của bác sĩ.",
+    "Ngừng thuốc loãng máu theo hướng dẫn của bác sĩ.",
+    "Chẩn đoán: viêm phổi.",
+    "Chẩn đoán nghi ngờ: viêm phổi.",
+    "Hãy uống pаrаcetamol 500mg.",
+    "d o s a g e 500mg daily.",
+])
+def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
+    service = RagService()
+    service.ingest(
+        "specialty", "unsafe-local-medical", "Nội tổng hợp", content,
+        [1.0] + [0.0] * 383, embedding_model="local-hash",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    provider = MagicMock()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Thông tin chuyên khoa này?", mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[AuthorizedSource(
+                source_type="specialty", source_id="unsafe-local-medical",
+                projection_kind="OPERATIONAL",
+            )],
+        ), _settings(), service, client=provider,
+    )
+    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert response.citations == []
+    assert response.used_sources == []
+    provider.complete_json.assert_not_called()
+
+
+def test_local_grounded_source_keeps_negated_stop_medication_caution() -> None:
+    service = RagService()
+    service.ingest(
+        "specialty", "safe-local-medical", "Nội tổng hợp",
+        "Không tự ý ngừng thuốc trước khi khám.",
+        [1.0] + [0.0] * 383, embedding_model="local-hash",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    provider = MagicMock()
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Thông tin chuyên khoa này?", mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[AuthorizedSource(
+                source_type="specialty", source_id="safe-local-medical",
+                projection_kind="OPERATIONAL",
+            )],
+        ), _settings(), service, client=provider,
+    )
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert "Không tự ý ngừng thuốc trước khi khám" in response.answer
+    provider.complete_json.assert_not_called()
+
+
+def test_marked_public_branch_url_in_title_is_quarantined() -> None:
+    service = RagService()
+    service.ingest(
+        "branch", "unsafe-title",
+        "Cơ sở Trung tâm https://unsafe.example.test",
+        "Giờ tiếp đón theo lịch công bố.",
+        [1.0] + [0.0] * 383, embedding_model="local-hash",
+        metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+    )
+    retrieved = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Giờ tiếp đón?", mode=ChatMode.HOSPITAL_SUPPORT,
+        ),
+        _settings(), service,
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+    assert retrieved.candidates == []
+    provider = MagicMock()
+    generated = generate_chat_response(
+        ChatGenerateRequest(
+            message="Giờ tiếp đón?", mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[AuthorizedSource(
+                source_type="branch", source_id="unsafe-title",
+                projection_kind="OPERATIONAL",
+            )],
+        ), _settings(), service, client=provider,
+    )
+    assert generated.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+    assert generated.citations == []
+    assert generated.used_sources == []
+    provider.complete_json.assert_not_called()
+
+
+def test_marked_public_branch_body_url_stripped_but_contact_grounded() -> None:
+    service = RagService()
+    service.ingest(
+        "branch", "central-maps",
+        "Cơ sở Trung tâm",
+        "Cơ sở Trung tâm\n1 Đường Sức Khỏe\n028 1234 5678\nhttps://maps.example/central",
+        [1.0] + [0.0] * 383, embedding_model="local-hash",
+        metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+    )
+    provider = MagicMock()
+    generated = generate_chat_response(
+        ChatGenerateRequest(
+            message="Địa chỉ và số điện thoại cơ sở?", mode=ChatMode.HOSPITAL_SUPPORT,
+            authorized_sources=[AuthorizedSource(
+                source_type="branch", source_id="central-maps",
+                projection_kind="OPERATIONAL",
+            )],
+        ), _settings(), service, client=provider,
+    )
+    assert generated.safety_action is ChatSafetyAction.ANSWER
+    assert "028 1234 5678" in generated.answer
+    assert "maps.example" not in generated.answer
+    assert "https://" not in generated.answer
     provider.complete_json.assert_not_called()

@@ -1,0 +1,176 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\HealthCare_Project\apps\ai-service
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 68 items / 63 deselected / 5 selected
+
+tests\test_chatbot_contract.py .FFFF                                     [100%]
+
+================================== FAILURES ===================================
+_ test_local_grounded_source_cannot_echo_diagnosis_or_medication[B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.] _
+
+content = 'B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.'
+
+    @pytest.mark.parametrize("content", [
+        "B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.",
+        "H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.",
+        "Take aspirin.",
+        "T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.",
+    ])
+    def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
+        service = RagService()
+        service.ingest(
+            "specialty", "unsafe-local-medical", "N\u1ed9i t\u1ed5ng h\u1ee3p", content,
+            [1.0] + [0.0] * 383, embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL"},
+        )
+        provider = MagicMock()
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="Th⌠ng tin chuyΩn khoa nαy?", mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[AuthorizedSource(
+                    source_type="specialty", source_id="unsafe-local-medical",
+                    projection_kind="OPERATIONAL",
+                )],
+            ), _settings(), service, client=provider,
+        )
+>       assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+E       AssertionError: assert <ChatSafetyAction.ANSWER: 'ANSWER'> is <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'>
+E        +  where <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatResponse(answer='D\u1ef1a tr\xean ngu\u1ed3n th\xf4ng tin \u0111\xe3 \u0111\u01b0\u1ee3c ki\u1ec3m duy\u1ec7t, N\u1ed9i t\u1ed5ng h\u1ee3p: B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i. N\u1ebfu c\u1ea7n quy\u1ebft \u0111\u1ecbnh p...ntent_hash=None, approval_id=None)], triage=None, cost_tier='local_free', routing_reason='high_similarity_internal_kb').safety_action
+E        +  and   <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatSafetyAction.INSUFFICIENT_EVIDENCE
+
+tests\test_chatbot_contract.py:1584: AssertionError
+_ test_local_grounded_source_cannot_echo_diagnosis_or_medication[H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.] _
+
+content = 'H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.'
+
+    @pytest.mark.parametrize("content", [
+        "B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.",
+        "H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.",
+        "Take aspirin.",
+        "T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.",
+    ])
+    def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
+        service = RagService()
+        service.ingest(
+            "specialty", "unsafe-local-medical", "N\u1ed9i t\u1ed5ng h\u1ee3p", content,
+            [1.0] + [0.0] * 383, embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL"},
+        )
+        provider = MagicMock()
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="Th⌠ng tin chuyΩn khoa nαy?", mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[AuthorizedSource(
+                    source_type="specialty", source_id="unsafe-local-medical",
+                    projection_kind="OPERATIONAL",
+                )],
+            ), _settings(), service, client=provider,
+        )
+>       assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+E       AssertionError: assert <ChatSafetyAction.ANSWER: 'ANSWER'> is <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'>
+E        +  where <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatResponse(answer='D\u1ef1a tr\xean ngu\u1ed3n th\xf4ng tin \u0111\xe3 \u0111\u01b0\u1ee3c ki\u1ec3m duy\u1ec7t, N\u1ed9i t\u1ed5ng h\u1ee3p: H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y. N...ntent_hash=None, approval_id=None)], triage=None, cost_tier='local_free', routing_reason='high_similarity_internal_kb').safety_action
+E        +  and   <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatSafetyAction.INSUFFICIENT_EVIDENCE
+
+tests\test_chatbot_contract.py:1584: AssertionError
+_ test_local_grounded_source_cannot_echo_diagnosis_or_medication[Take aspirin.] _
+
+content = 'Take aspirin.'
+
+    @pytest.mark.parametrize("content", [
+        "B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.",
+        "H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.",
+        "Take aspirin.",
+        "T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.",
+    ])
+    def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
+        service = RagService()
+        service.ingest(
+            "specialty", "unsafe-local-medical", "N\u1ed9i t\u1ed5ng h\u1ee3p", content,
+            [1.0] + [0.0] * 383, embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL"},
+        )
+        provider = MagicMock()
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="Th⌠ng tin chuyΩn khoa nαy?", mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[AuthorizedSource(
+                    source_type="specialty", source_id="unsafe-local-medical",
+                    projection_kind="OPERATIONAL",
+                )],
+            ), _settings(), service, client=provider,
+        )
+>       assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+E       AssertionError: assert <ChatSafetyAction.ANSWER: 'ANSWER'> is <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'>
+E        +  where <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatResponse(answer='D\u1ef1a tr\xean ngu\u1ed3n th\xf4ng tin \u0111\xe3 \u0111\u01b0\u1ee3c ki\u1ec3m duy\u1ec7t, N\u1ed9i t\u1ed5ng h\u1ee3p: Take aspirin. N\u1ebfu c\u1ea7n quy\u1ebft \u0111\u1ecbnh ph\xf9 h...ntent_hash=None, approval_id=None)], triage=None, cost_tier='local_free', routing_reason='high_similarity_internal_kb').safety_action
+E        +  and   <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatSafetyAction.INSUFFICIENT_EVIDENCE
+
+tests\test_chatbot_contract.py:1584: AssertionError
+_ test_local_grounded_source_cannot_echo_diagnosis_or_medication[T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.] _
+
+content = 'T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.'
+
+    @pytest.mark.parametrize("content", [
+        "B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.",
+        "H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.",
+        "Take aspirin.",
+        "T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.",
+    ])
+    def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
+        service = RagService()
+        service.ingest(
+            "specialty", "unsafe-local-medical", "N\u1ed9i t\u1ed5ng h\u1ee3p", content,
+            [1.0] + [0.0] * 383, embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL"},
+        )
+        provider = MagicMock()
+        response = generate_chat_response(
+            ChatGenerateRequest(
+                message="Th⌠ng tin chuyΩn khoa nαy?", mode=ChatMode.HOSPITAL_SUPPORT,
+                authorized_sources=[AuthorizedSource(
+                    source_type="specialty", source_id="unsafe-local-medical",
+                    projection_kind="OPERATIONAL",
+                )],
+            ), _settings(), service, client=provider,
+        )
+>       assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+E       AssertionError: assert <ChatSafetyAction.ANSWER: 'ANSWER'> is <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'>
+E        +  where <ChatSafetyAction.ANSWER: 'ANSWER'> = ChatResponse(answer='D\u1ef1a tr\xean ngu\u1ed3n th\xf4ng tin \u0111\xe3 \u0111\u01b0\u1ee3c ki\u1ec3m duy\u1ec7t, N\u1ed9i t\u1ed5ng h\u1ee3p: T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng p...ntent_hash=None, approval_id=None)], triage=None, cost_tier='local_free', routing_reason='high_similarity_internal_kb').safety_action
+E        +  and   <ChatSafetyAction.INSUFFICIENT_EVIDENCE: 'INSUFFICIENT_EVIDENCE'> = ChatSafetyAction.INSUFFICIENT_EVIDENCE
+
+tests\test_chatbot_contract.py:1584: AssertionError
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+app\main.py:123
+  D:\HealthCare_Project\apps\ai-service\app\main.py:123: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+.venv\Lib\site-packages\fastapi\applications.py:4681
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\fastapi\applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_chatbot_contract.py::test_local_grounded_source_cannot_echo_diagnosis_or_medication[B\u1ea1n b\u1ecb vi\xeam ph\u1ed5i.]
+FAILED tests/test_chatbot_contract.py::test_local_grounded_source_cannot_echo_diagnosis_or_medication[H\xe3y u\u1ed1ng paracetamol 500mg m\u1ed7i ng\xe0y.]
+FAILED tests/test_chatbot_contract.py::test_local_grounded_source_cannot_echo_diagnosis_or_medication[Take aspirin.]
+FAILED tests/test_chatbot_contract.py::test_local_grounded_source_cannot_echo_diagnosis_or_medication[T\xf4i kh\xf4ng th\u1ec3 k\xea \u0111\u01a1n, nh\u01b0ng h\xe3y u\u1ed1ng paracetamol 500mg.]
+=========== 4 failed, 1 passed, 63 deselected, 4 warnings in 1.00s ============

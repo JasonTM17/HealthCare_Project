@@ -51,7 +51,7 @@ import {
   provenanceLabel,
   useAssistant,
 } from "../../../components/AssistantProvider";
-import { CHAT_WAIT_STAGE_COPY, useChatWaitStage } from "../../../components/useChatWaitStage";
+import { CHAT_WAIT_STAGE_COPY, useChatWaitElapsedSeconds, useChatWaitStage } from "../../../components/useChatWaitStage";
 import styles from "./chat.module.css";
 
 const MESSAGE_LIMIT = 30;
@@ -95,6 +95,11 @@ const SOURCE_LABEL: Readonly<Record<AiChatCitation["source_type"], string>> = {
   package: "Gói khám",
   article: "Bài viết",
   faq: "Hỏi đáp",
+};
+
+const CITATION_STATUS_LABEL: Readonly<Record<string, string>> = {
+  STALE: "Có thể đã cũ",
+  UNAVAILABLE: "Không còn khả dụng",
 };
 
 function toFailure(error: unknown): ChatFailure {
@@ -215,6 +220,11 @@ function MessageItem({
               <li key={`${citation.source_type}-${citation.source_id}`}>
                 <span>
                   {SOURCE_LABEL[citation.source_type]}: {citation.title}
+                  {citation.source_status && citation.source_status !== "CURRENT" ? (
+                    <em className={styles.provenance} data-status={citation.source_status}>
+                      {" "}· {CITATION_STATUS_LABEL[citation.source_status] ?? citation.source_status}
+                    </em>
+                  ) : null}
                 </span>
               </li>
             ))}
@@ -223,6 +233,13 @@ function MessageItem({
       ) : null}
       {assistant && message.disclaimer ? (
         <p className={styles.messageDisclaimer}>{message.disclaimer}</p>
+      ) : null}
+      {assistant && (message.safetyAction === "REFUSE" || message.safetyAction === "HUMAN_HANDOFF") ? (
+        <p className={styles.provenance} data-safety-action={message.safetyAction}>
+          <UiIcon name="shield" size={13} /> {message.safetyAction === "REFUSE"
+            ? "Phản hồi an toàn — trợ lý không thể trả lời yêu cầu này."
+            : "Phản hồi an toàn — hãy trao đổi trực tiếp với nhân viên HealthCare."}
+        </p>
       ) : null}
       {assistant && message.safetyAction === "EMERGENCY" ? (
         <div aria-live="assertive" className={styles.emergencyMessage} role="alert">
@@ -248,7 +265,7 @@ function MessageItem({
           <span className={styles.suggestedActionsLabel}>Bước tiếp theo</span>
           {message.suggestedActions.map((action, idx) => (
             action.href.startsWith("tel:")
-              ? <a href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</a>
+              ? <a href={action.href} key={`${action.kind}-${action.href}-${idx}`}><UiIcon name="phone" size={14} />{action.label}</a>
               : <Link href={action.href} key={`${action.kind}-${action.href}-${idx}`}>{action.label}</Link>
           ))}
         </div>
@@ -299,6 +316,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   const [streamingReply, setStreamingReply] = useState("");
   // Bounded staged feedback while the validated chunked answer is prepared.
   const waitStage = useChatWaitStage(sending);
+  const waitElapsedSeconds = useChatWaitElapsedSeconds(sending);
   const [sendFailure, setSendFailure] = useState<ChatFailure | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -368,6 +386,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   const modeCreateInFlightRef = useRef(false);
   const consentRequestRef = useRef(0);
   const lastSentDraftRef = useRef("");
+  const stopRefreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (selectedConversationId && workspaceRef.current) {
@@ -564,6 +583,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
     listRequestRef.current += 1;
     consentRequestRef.current += 1;
     creditRequestRef.current += 1;
+    if (stopRefreshTimerRef.current !== null) window.clearTimeout(stopRefreshTimerRef.current);
   }, []);
 
   useEffect(() => () => {
@@ -922,6 +942,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   // aborted send still cleans up after itself silently in sendContent.
   const handleStopSend = (): void => {
     if (!sendInFlightRef.current) return;
+    const conversationId = activeIdRef.current;
     intentionalCancelRef.current = true;
     requestControllerRef.current?.abort();
     invalidateSendRequest();
@@ -932,7 +953,20 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
       setDraft(lastSentDraftRef.current);
       setMessages((current) => current.filter((message) => message.status !== "PENDING"));
     }
-    setNotice("Đã dừng gửi tin nhắn.");
+    // Backend cancellation is cooperative: a nearly-finished turn can still
+    // complete (and charge), so the copy may only claim the *wait* stopped.
+    // One delayed silent refresh reconciles the thread and the balance in
+    // case the answer landed after Stop.
+    setNotice("Đã dừng chờ. Nếu trợ lý vẫn hoàn tất, câu trả lời sẽ hiện lại trong lịch sử.");
+    if (stopRefreshTimerRef.current !== null) window.clearTimeout(stopRefreshTimerRef.current);
+    stopRefreshTimerRef.current = window.setTimeout(() => {
+      stopRefreshTimerRef.current = null;
+      if (!conversationId || activeIdRef.current !== conversationId || sendInFlightRef.current) return;
+      void Promise.allSettled([
+        loadThread(conversationId, { background: true }),
+        refreshCredit(),
+      ]);
+    }, 1_500);
     requestAnimationFrame(() => composerInputRef.current?.focus());
   };
 
@@ -1329,7 +1363,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                     data-testid="chat-waiting"
                     role="status"
                   >
-                    {CHAT_WAIT_STAGE_COPY[waitStage]}
+                    {CHAT_WAIT_STAGE_COPY[waitStage]} · {waitElapsedSeconds}s
                   </p>
                 ) : null}
               </div>

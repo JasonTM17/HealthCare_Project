@@ -1519,7 +1519,7 @@ export default function PatientDashboardPage() {
                     <UiIcon name="sparkles" size={13} className="text-teal-700" />
                     <span>
                       {typeof profile.data.aiCredits === "number"
-                        ? `${profile.data.aiCredits} AI Credits`
+                        ? `${profile.data.aiCredits} lượt trợ lý AI`
                         : "Chưa có thông tin lượt"}
                     </span>
                   </span>
@@ -1952,7 +1952,7 @@ export default function PatientDashboardPage() {
                     <form className={paymentStyles.form} onSubmit={handleSubmitPayment}>
                       <label htmlFor="payment-reference">Mã giao dịch từ ứng dụng ngân hàng</label>
                       <p id="payment-reference-help">Chỉ nhập mã giao dịch sau khi ngân hàng báo chuyển khoản thành công.</p>
-                      <input aria-describedby="payment-reference-help" autoComplete="off" id="payment-reference" maxLength={100} minLength={6} onChange={(event) => setPaymentReference(event.target.value)} pattern="[A-Za-z0-9._\-/ ]+" placeholder="Ví dụ: FT123456789" required spellCheck={false} type="text" value={paymentReference} />
+                      <input aria-describedby="payment-reference-help" autoComplete="off" id="payment-reference" maxLength={100} minLength={6} onChange={(event) => setPaymentReference(event.target.value)} pattern="[A-Za-z0-9._\-\/ ]+" placeholder="Ví dụ: FT123456789" required spellCheck={false} type="text" value={paymentReference} />
                       <button className="button button--primary" disabled={paymentSubmitting} type="submit">{paymentSubmitting ? "Đang gửi…" : payment.data.status === "REJECTED" ? "Gửi lại để đối soát" : "Tôi đã chuyển khoản"}</button>
                     </form>
                   ) : null}
@@ -2224,7 +2224,7 @@ export default function PatientDashboardPage() {
                     <div className="mb-6 max-w-xl">
                       <ImageUpload
                         aspectRatio="square"
-                        helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 10 MB)"
+                        helperText="Tải lên tệp ảnh chân dung bệnh nhân (PNG, JPG, WEBP tối đa 5 MB)"
                         label="Ảnh chân dung đại diện"
                         onChange={(url) => setProfileForm((v) => ({ ...v, avatarUrl: url }))}
                         purpose="PATIENT_AVATAR"

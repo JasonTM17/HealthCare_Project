@@ -7,6 +7,7 @@ import "./branches/maps.css";
 import "./brand-experience.css";
 import "./catalog-directory.css";
 import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
+import { CmsEditModeToolbar } from "../components/cms/CmsInlineEditor";
 import BackendWarmup from "../components/BackendWarmup";
 import OfflineNetworkIndicator from "../components/OfflineNetworkIndicator";
 
@@ -86,6 +87,7 @@ export default function RootLayout({
         {children}
         <OfflineNetworkIndicator />
         <FloatingHealthAssistant />
+        <CmsEditModeToolbar />
         <BackendWarmup />
       </body>
     </html>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
 import {
   CmsApiError,
   CmsClient,
@@ -11,6 +11,17 @@ import {
   type CmsSlotKey,
 } from "../../lib/cms-client";
 import { CmsReconciliationLedger } from "../../lib/cms-reconciliation.mjs";
+import { hasRole } from "../../lib/api-client";
+import { useAuthSession } from "../useAuthSession";
+import {
+  isCmsEditModeEnabled,
+  isClientMounted,
+  markClientMounted,
+  publishCmsSaveFlash,
+  subscribeCmsEditMode,
+  subscribeClientMounted,
+} from "../../lib/cms-edit-mode";
+import { CmsSlotEditModal } from "./CmsInlineEditor";
 import { CmsSlotRenderer } from "./CmsRenderer";
 
 export interface CmsLiveSlotProps {
@@ -106,7 +117,62 @@ export function CmsLiveSlot({
   const [transport, setTransport] = useState<LiveTransport>("connecting");
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const latestVersion = useRef(0);
+  // Dedupe for the hideOnError outage warn: one console.warn per slot
+  // instance per distinct (slotKey, status) — never the error payload.
+  const warnedSlotErrorKeys = useRef(new Set<string>());
   const suppressTechnicalCopy = publicQuiet && content !== null && containsPublicTechnicalCopy(content);
+
+  // Inline edit affordance: ADMIN-only and only while the edit-mode toolbar
+  // switch is on. Hooks stay above every early return below.
+  const session = useAuthSession();
+  const editModeOn = useSyncExternalStore(subscribeCmsEditMode, isCmsEditModeEnabled, isCmsEditModeEnabled);
+  const [inlineEditing, setInlineEditing] = useState(false);
+  // Bumped right after an inline save so the main effect below re-runs and
+  // the author sees the published change immediately instead of waiting for
+  // the next poll tick.
+  const [inlineSaveTick, setInlineSaveTick] = useState(0);
+  // Mount gate: the affordance depends on client-only session state, so it
+  // must not exist in the server HTML. The external mount store keeps the
+  // hydration output byte-identical — an admin-only button (or a changed
+  // className) appearing mid-tree during hydration wedges that subtree on
+  // its SSR HTML: React keeps the server nodes, the store flips never apply,
+  // and the slot stops updating entirely.
+  const mounted = useSyncExternalStore(subscribeClientMounted, isClientMounted, isClientMounted);
+  useEffect(() => {
+    markClientMounted();
+  }, []);
+  const canInlineEdit = mounted && editModeOn && Boolean(session && hasRole(session.user, "ADMIN"));
+  const editAffordance = canInlineEdit ? (
+    <button
+      className="absolute right-2 top-2 z-40 rounded-md border border-teal-800 bg-white px-2 py-1 text-[11px] font-semibold text-teal-900 hover:border-teal-600"
+      data-testid="cms-inline-edit-open"
+      onClick={(event) => {
+        event.preventDefault();
+        setInlineEditing(true);
+      }}
+      title={`Sửa nội dung ${backendSlotKey}`}
+      type="button"
+    >
+      ✏️ Sửa
+    </button>
+  ) : null;
+  const editRootClassName = canInlineEdit ? `${className ?? ""} relative`.trim() : className;
+  // The dialog must follow the affordance in EVERY branch that can show it,
+  // not just the generic section branch: /about and the homepage mount this
+  // slot through renderContent/fallback branches.
+  const inlineEditDialog = inlineEditing ? (
+    <CmsSlotEditModal
+      client={client}
+      onClose={() => setInlineEditing(false)}
+      onSaved={() => {
+        setInlineEditing(false);
+        setInlineSaveTick((tick) => tick + 1);
+        publishCmsSaveFlash(backendSlotKey);
+      }}
+      slotAlias={slotKey}
+      slotKey={backendSlotKey}
+    />
+  ) : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -505,7 +571,22 @@ export function CmsLiveSlot({
         document.removeEventListener("visibilitychange", handleVisibilityChange);
       }
     };
-  }, [backendSlotKey, client, pollIntervalMs, liveFeed]);
+  }, [backendSlotKey, client, pollIntervalMs, liveFeed, inlineSaveTick]);
+
+  // In the hideOnError branch only a genuinely unpublished slot may hide
+  // silently. Every other failure is a real outage, so emit exactly one
+  // content-free console.warn per slot instance per distinct (slotKey,
+  // status) — never the error payload — before the empty fragment or the
+  // designed fallback renders. No error UI is added to public slots.
+  useEffect(() => {
+    if (!hideOnError || loading || content || !error) return;
+    if (error instanceof CmsApiError && error.kind === "not-found") return;
+    const status = error instanceof CmsApiError ? error.status : 0;
+    const warnKey = `${backendSlotKey}:${status}`;
+    if (warnedSlotErrorKeys.current.has(warnKey)) return;
+    warnedSlotErrorKeys.current.add(warnKey);
+    console.warn("cms_live_slot_error", { slotKey: backendSlotKey, status });
+  }, [hideOnError, loading, content, error, backendSlotKey]);
 
   if (hideWhileLoading && loading && !content && !error) return <></>;
 
@@ -525,7 +606,7 @@ export function CmsLiveSlot({
       return (
         <div
           aria-busy={loading}
-          className={className}
+          className={editRootClassName}
           data-cms-backend-slot={backendSlotKey}
           data-cms-live-slot={slotKey}
           data-cms-live-source="live-backend"
@@ -535,6 +616,8 @@ export function CmsLiveSlot({
               {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
             </p>
           ) : null}
+          {editAffordance}
+          {inlineEditDialog}
           {fallback}
         </div>
       );
@@ -547,7 +630,7 @@ export function CmsLiveSlot({
       <div
         aria-busy={loading}
         aria-label={slotAriaLabel}
-        className={className}
+        className={editRootClassName}
         data-cms-backend-slot={backendSlotKey}
         data-cms-live-slot={slotKey}
         data-cms-live-source="live-backend"
@@ -557,6 +640,8 @@ export function CmsLiveSlot({
             {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
           </p>
         ) : null}
+        {editAffordance}
+        {inlineEditDialog}
         {fallback}
       </div>
     );
@@ -568,12 +653,14 @@ export function CmsLiveSlot({
         <div
           aria-busy={loading}
           aria-label={slotAriaLabel}
-          className={className}
+          className={editRootClassName}
           data-cms-backend-slot={backendSlotKey}
           data-cms-live-slot={slotKey}
           data-cms-live-source="live-backend"
           data-cms-suppressed="technical-copy"
         >
+          {editAffordance}
+          {inlineEditDialog}
           {fallback}
         </div>
       );
@@ -586,7 +673,7 @@ export function CmsLiveSlot({
       <div
         aria-busy={loading}
         aria-label={slotAriaLabel}
-        className={className}
+        className={editRootClassName}
         data-cms-backend-slot={backendSlotKey}
         data-cms-live-slot={slotKey}
         data-cms-live-source="live-backend"
@@ -604,6 +691,8 @@ export function CmsLiveSlot({
           </p>
         ) : null}
         {!publicQuiet && liveNotice ? <p className="mb-4 rounded-sm border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
+        {editAffordance}
+        {inlineEditDialog}
         {renderContent(content)}
       </div>
     );
@@ -613,7 +702,7 @@ export function CmsLiveSlot({
     <section
       aria-busy={loading}
       aria-label={slotAriaLabel}
-      className={`rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
+      className={`rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${editRootClassName}`}
       data-cms-live-source="live-backend"
       data-cms-live-slot={slotKey}
       data-cms-backend-slot={backendSlotKey}
@@ -651,6 +740,8 @@ export function CmsLiveSlot({
 
       {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
       {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}
+      {editAffordance}
+      {inlineEditDialog}
     </section>
   );
 }

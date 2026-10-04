@@ -1,0 +1,26 @@
+{
+  "schema":"healthcare.frozen-local-clinical-fixture.v1",
+  "capturedBy":"Team Lead",
+  "origin":"http://localhost:3330",
+  "state":"PASS_FROZEN_TEST_FIXTURE_IDENTITY",
+  "provenance":"Normal public UI booking and Mailpit OTP, assigned-doctor CHECKED_IN/IN_PROGRESS transition and clinical-record/prescription API in earlier live run5. That complete test still FAILed its later console gate; do not relabel it PASS.",
+  "fixtureMarker":"ISOLATED-LOCAL-PDF-AUDIT",
+  "fixtureMarkerMatched":true,
+  "patientId":"90000000-0000-0000-0000-000000000004",
+  "doctorId":"30000000-0000-0000-0000-000000000001",
+  "appointmentId":"49d8784e-5422-43fa-b100-41655df79ad4",
+  "bookingCode":"APT-0D134F04D2DB444495F83E43",
+  "appointmentStatus":"COMPLETED",
+  "medicalRecordId":"a90d2c0e-51f2-467d-b3e8-c6069f5a1a9b",
+  "prescriptionId":"13de627a-2d2e-40f6-b595-c27ae77dbd91",
+  "documents":[
+    {"id":"38983f58-6b35-4b68-9ae6-bc06a0300abf","sourceType":"VISIT_SUMMARY","sourceRecordId":"a90d2c0e-51f2-467d-b3e8-c6069f5a1a9b","status":"AVAILABLE","byteSize":660004,"sha256":"82648ef9398fc2c55aa94199f99b66c4ae90c42f4dd00b5cbb1db82e7debf39e","sourceCurrent":null,"sourceEligible":null},
+    {"id":"69502092-f657-49a1-8c1f-2da4c37a707c","sourceType":"PRESCRIPTION","sourceRecordId":"13de627a-2d2e-40f6-b595-c27ae77dbd91","status":"AVAILABLE","byteSize":659875,"sha256":"f541b20a5d723f8fd4627bf5b97f06ea2628545bee9eeb2259af9f73e77418a4","sourceCurrent":null,"sourceEligible":null},
+    {"id":"ea8660de-7f58-4df8-b3c6-80103c087fee","sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"49d8784e-5422-43fa-b100-41655df79ad4","status":"AVAILABLE","byteSize":660044,"sha256":"3086e7a1ba809de12c252bfd607ffd47325c531a1d78061644bc175e18298c1a","sourceCurrent":true,"sourceEligible":true}
+  ],
+  "artifactManifest":"reports/local-audit-pdfs/manifest.json",
+  "artifacts":"reports/local-audit-pdfs/{visit-summary,prescription,appointment-reminder}.pdf",
+  "inputPolicy":"Freeze these identifiers and captured measurements. Further presentation/verification reads this data; do not recreate the booking/record/PDFs to recompute or overwrite the delivered inputs. Actual replay checks may compare the existing file/download and authorized metadata against this frozen identity.",
+  "authority":"Retain this synthetic local fixture for user inspection. No SQL fixture, clock/synthetic-flag/allowlist bypass, shared/production mutation or deletion. A replay may read and download it through normal local BFF/API, not create new clinical records under another user's ID.",
+  "limits":"Replay proves existing clinical-source document reads/downloads and current role scope, not a new booking/clinical-write journey or live remote provider."
+}

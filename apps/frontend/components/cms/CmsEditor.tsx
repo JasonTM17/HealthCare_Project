@@ -86,6 +86,17 @@ const CMS_ROUTE_LABELS: Record<CmsEditorRouteSlug, string> = {
 const CMS_ROUTE_PRESETS = (["home", ...CMS_PUBLIC_ROUTE_SLUGS] as const)
   .map((routeSlug) => [routeSlug, CMS_ROUTE_LABELS[routeSlug]] as const);
 
+// about/careers own their native page compositions and RouteCmsSlots returns
+// early for them, so a sidebar slot on these slugs is writable but never
+// renders publicly. Keep it out of the slot picker to avoid dead content.
+const CMS_SIDEBARLESS_ROUTE_SLUGS = new Set(["about", "careers"]);
+
+function slotOptionsForSlug(slug: string): readonly CmsSlotKey[] {
+  return CMS_SIDEBARLESS_ROUTE_SLUGS.has(slug.trim().toLowerCase())
+    ? CMS_SLOT_KEYS.filter((slotKey) => slotKey !== "sidebar")
+    : CMS_SLOT_KEYS;
+}
+
 function emptyPayload(componentType: CmsComponentType): CmsPayload {
   switch (componentType) {
     case "HERO":
@@ -408,6 +419,14 @@ export function CmsEditor({
   const loadedSelection = slotSelection(loadedSlotKey);
   const editableSlot = loadedSelection?.slot ?? selectedSlot;
   const allowedComponentTypes = cmsComponentTypesForSlot(editableSlot);
+  const sidebarlessRoute = CMS_SIDEBARLESS_ROUTE_SLUGS.has(slug.trim().toLowerCase());
+
+  const handleSlugChange = (nextSlug: string): void => {
+    setSlug(nextSlug);
+    if (selectedSlot === "sidebar" && CMS_SIDEBARLESS_ROUTE_SLUGS.has(nextSlug.trim().toLowerCase())) {
+      setSelectedSlot("body");
+    }
+  };
 
   const handleLoad = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -582,7 +601,7 @@ export function CmsEditor({
           <input
             aria-describedby="cms-slug-help"
             className="mt-1 min-h-11 w-full rounded-sm border border-slate-300 px-3 py-2 font-mono text-sm"
-            onChange={(event) => setSlug(event.target.value)}
+            onChange={(event) => handleSlugChange(event.target.value)}
             pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
             required
             disabled={isBusy}
@@ -593,13 +612,15 @@ export function CmsEditor({
         <label className="text-sm font-semibold text-slate-700">
           Slot
           <select
+            aria-describedby={sidebarlessRoute ? "cms-slot-help" : undefined}
             className="mt-1 min-h-11 w-full rounded-sm border border-slate-300 px-3 py-2 text-sm"
             onChange={(event) => setSelectedSlot(event.target.value as CmsSlotKey)}
             disabled={isBusy}
             value={selectedSlot}
           >
-            {CMS_SLOT_KEYS.map((slotKey) => <option key={slotKey} value={slotKey}>{SLOT_LABELS[slotKey]} · {slotKey}</option>)}
+            {slotOptionsForSlug(slug).map((slotKey) => <option key={slotKey} value={slotKey}>{SLOT_LABELS[slotKey]} · {slotKey}</option>)}
           </select>
+          {sidebarlessRoute ? <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slot-help">Route này không có vùng sidebar công khai.</span> : null}
         </label>
         <button className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-60" disabled={isBusy} type="submit">
           {operation === "loading" ? "Đang tải…" : "Tải slot"}
@@ -618,7 +639,7 @@ export function CmsEditor({
               aria-pressed={slug === routeSlug}
               className={`min-h-11 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
               key={routeSlug}
-              onClick={() => setSlug(routeSlug)}
+              onClick={() => handleSlugChange(routeSlug)}
               disabled={isBusy}
               type="button"
             >

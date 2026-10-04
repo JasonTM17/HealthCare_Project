@@ -233,6 +233,10 @@ const DEFAULT_BASE_URL = "/api/v1";
 const SLOT_KEY_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const MAX_TEXT_LENGTH = 4_000;
 const LINK_FIELDS = new Set(["ctaHref", "href", "imageUrl"]);
+const IMAGE_FIELDS = new Set(["imageUrl", "src"]);
+// Mirrors the CSP img-src host sources in next.config.ts — an imageUrl that
+// only satisfies the generic HTTPS link rule still renders broken in public.
+const CMS_IMAGE_HOSTS = new Set(["images.unsplash.com", "images.pexels.com", "img.vietqr.io"]);
 const UNSAFE_TEXT = /(<|>|javascript\s*:|data\s*:)/i;
 
 const PAYLOAD_SCHEMAS: Record<CmsComponentType, {
@@ -334,7 +338,43 @@ export function assertSafeCmsUrl(value: string, field: string): void {
   }
 }
 
-function readPayload(raw: unknown, componentType: CmsComponentType): CmsPayload {
+/**
+ * Write-time rule for image fields (imageUrl/src): the public CSP img-src
+ * only allows same-origin plus the CMS_IMAGE_HOSTS HTTPS sources, so the
+ * editor must reject other hosts before save instead of publishing a broken
+ * image. The read/render path keeps the broader isSafeCmsUrl contract.
+ */
+export function isSafeCmsImageUrl(value: string): boolean {
+  const candidate = value.trim();
+  if (candidate.startsWith("/")) {
+    return !candidate.startsWith("//") && !candidate.includes("\\");
+  }
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "https:"
+      && Boolean(url.host)
+      && !url.username
+      && !url.password
+      && !url.port
+      && CMS_IMAGE_HOSTS.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+export function assertSafeCmsImageUrl(value: string, field: string): void {
+  if (!isSafeCmsImageUrl(value)) {
+    throw new CmsValidationError(
+      `${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS thuộc nguồn ảnh được phép.`,
+      { [`payload.${field}`]: "Đường dẫn ảnh phải là /… trên hệ thống hoặc HTTPS thuộc nguồn được phép (Unsplash, Pexels, VietQR)." },
+    );
+  }
+}
+
+// `forWrite` marks the save boundary (validateCmsContentInput / upsert).
+// Response parsing must stay on the old link rule so already-published
+// content keeps rendering even when it predates the image-host allowlist.
+function readPayload(raw: unknown, componentType: CmsComponentType, forWrite = false): CmsPayload {
   const payload = readRecord(raw, "payload");
   const schema = PAYLOAD_SCHEMAS[componentType];
   const keys = Object.keys(payload);
@@ -351,6 +391,7 @@ function readPayload(raw: unknown, componentType: CmsComponentType): CmsPayload 
     }
     const text = normalizeText(payload[key] as string, `payload.${key}`);
     if (LINK_FIELDS.has(key)) assertSafeCmsUrl(text, key);
+    if (forWrite && IMAGE_FIELDS.has(key)) assertSafeCmsImageUrl(text, key);
   }
   for (const required of schema.required) {
     if (!hasOwn(payload, required)) {
@@ -504,7 +545,7 @@ export function validateCmsContentInput(input: CmsContentInput, slotKey?: CmsSlo
   }
   if (!errors.componentType) {
     try {
-      readPayload(input.payload, input.componentType);
+      readPayload(input.payload, input.componentType, true);
     } catch (error) {
       if (error instanceof CmsApiError && error.fieldErrors) Object.assign(errors, error.fieldErrors);
       else errors.payload = error instanceof Error ? error.message : "payload không hợp lệ.";

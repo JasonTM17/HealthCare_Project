@@ -1,0 +1,68 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\HealthCare_Project\apps\ai-service
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collected 8 items
+
+tests\test_chatbot_contract.py F.......                                  [100%]
+
+================================== FAILURES ===================================
+__ test_marked_public_branch_context_allows_contact_data_but_stays_grounded ___
+
+    def test_marked_public_branch_context_allows_contact_data_but_stays_grounded() -> None:
+        service = RagService()
+        service.ingest(
+            "branch",
+            "central",
+            "C\u01a1 s\u1edf Trung t\xe2m",
+            "C\u01a1 s\u1edf Trung t\xe2m\\n1 \u0110\u01b0\u1eddng S\u1ee9c Kh\u1ecfe\\n028 1234 5678\\nHotline 115\\nhttps://maps.example/central",
+            [1.0] + [0.0] * 383,
+            embedding_model="local-hash",
+            metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+        )
+    
+        retrieved = retrieve_chat_candidates(
+            ChatRetrieveRequest(message="\u0110\u1ecba ch\u1ec9 v\xe0 s\u1ed1 \u0111i\u1ec7n tho\u1ea1i c\u01a1 s\u1edf?", mode=ChatMode.HOSPITAL_SUPPORT),
+            _settings(),
+            service,
+            embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+        )
+>       assert [candidate.source_id for candidate in retrieved.candidates] == ["central"]
+E       AssertionError: assert [] == ['central']
+E         
+E         Right contains one more item: 'central'
+E         Use -v to get more diff
+
+tests\test_chatbot_contract.py:259: AssertionError
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+.venv\Lib\site-packages\starlette\testclient.py:53
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+app\main.py:123
+  D:\HealthCare_Project\apps\ai-service\app\main.py:123: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+.venv\Lib\site-packages\fastapi\applications.py:4681
+  D:\HealthCare_Project\apps\ai-service\.venv\Lib\site-packages\fastapi\applications.py:4681: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)  # ty: ignore[deprecated]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_chatbot_contract.py::test_marked_public_branch_context_allows_contact_data_but_stays_grounded
+=================== 1 failed, 7 passed, 4 warnings in 1.29s ===================

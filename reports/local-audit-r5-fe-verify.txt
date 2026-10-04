@@ -1,0 +1,1139 @@
+
+> healthcare-frontend@0.1.1 verify
+> npm run lint && npm run typecheck && npm run test && npm run build
+
+
+> healthcare-frontend@0.1.1 lint
+> eslint .
+
+
+D:\HealthCare_Project\apps\frontend\app\layout.tsx
+  69:9  warning  Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
+
+D:\HealthCare_Project\apps\frontend\components\editor\RichTextEditor.tsx
+  716:5  warning  React Hook useMemo has an unnecessary dependency: 'isFullscreen'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+✖ 2 problems (0 errors, 2 warnings)
+
+
+> healthcare-frontend@0.1.1 typecheck
+> next typegen && tsc --noEmit
+
+Generating route types...
+✓ Types generated successfully
+
+> healthcare-frontend@0.1.1 test
+> node --test tests/*.test.mjs
+
+✔ role-protected admin helpers use the shared cookie-session client (14.1068ms)
+✔ shared authenticated client hydrates and invalidates the HttpOnly browser session safely (3.3176ms)
+✔ admin logout redirects only after confirmed revocation and exposes a retryable safe failure (4.9079ms)
+✔ admin appointment insights transform covers the full status enum and stays pure (11.1082ms)
+✔ admin appointments chart cleans up Chart.js instances and respects reduced motion (5.8033ms)
+✔ admin dashboard wires the insights section with a labelled heading (1.9811ms)
+✔ same-name doctors use distinct branch labels and submit their original eligible IDs (381.5692ms)
+✔ same-name doctors at the same branch use their existing public slugs as collision fallback (29.4515ms)
+✔ missing branch catalog data stays honest without dropping eligible doctors (33.6295ms)
+✔ branch lookup failure has honest fallback while original selection and assignment remain available (170.5304ms)
+✔ page-one SLA counts and filter labels state their actual page scope (97.0749ms)
+✔ filtered-empty page one preserves navigation to overdue page two and a scoped reset (85.9256ms)
+✔ failed eligible-doctor loading retains the existing disabled assignment guard (124.9483ms)
+✔ admin health question and consultation helpers pass page and size query params (20.2182ms)
+✔ health question moderation reasons stay inside the stored moderation_reason_code set (3.5315ms)
+✔ doctor admin form validates optional linked userId and sends it only when present (6.3147ms)
+✔ specialty admin form maps clinical fields accepted by the backend (3.9157ms)
+(node:11268) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/HealthCare_Project/apps/frontend/app/admin/schedules/week-grid.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to D:\HealthCare_Project\apps\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ schedules page offers a Tuần/Danh sách toggle defaulting to the week view (2.5313ms)
+✔ week view has a date-driven week picker and prev/next navigation (0.44ms)
+✔ Danh sách view paginates client-side at 20 cards per page (0.606ms)
+✔ branch chip tint is a deterministic pure function of the branch id (0.5569ms)
+✔ shift rows are derived from distinct schedule windows and sorted by start (1.9066ms)
+✔ week windowing, effective-range filtering and cell placement are correct (2.6686ms)
+✔ chip labels abbreviate facility prefixes and cap length for tooltips-first chips (0.7116ms)
+✔ admin routes expose the complete operations surface (126.8886ms)
+✔ admin FAQ editing keeps AI review governance visible (7.6518ms)
+✔ admin layout gates access and exposes real account actions (2.1961ms)
+✔ dashboard uses live catalog snapshots instead of invented metrics (1.5187ms)
+✔ doctor and specialty screens cover loading, empty, error, and admin mutation states (2.3911ms)
+✔ branch and service screens expose complete CRUD states without mock content (4.2077ms)
+✔ remaining catalog screen preserves inactive records with guarded CRUD actions (6.5233ms)
+✔ catalog reorder persists through versioned APIs and keeps keyboard parity (144.144ms)
+✔ appointment filters apply explicit draft state and keep the table keyboard-scrollable (221.8035ms)
+✔ schedule operations separate load failures from mutation feedback (111.743ms)
+✔ the schedule create form previews the slot grid and refuses a window the server would reject (111.8646ms)
+✔ an unassigned branch is surfaced with a link instead of an empty select (62.1851ms)
+✔ the schedule list is sorted, counted and filtered on the client (63.9993ms)
+✔ schedule forms rebuild their defaults from the current business day (62.1841ms)
+✔ a live-booking 409 is shown verbatim and offers an explicit force retry (139.0003ms)
+✔ admin error copy does not expose raw provider messages (107.9005ms)
+✔ admin error copy names the field the server rejected (814.6012ms)
+(node:22344) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/HealthCare_Project/apps/frontend/lib/doctor-portrait.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to D:\HealthCare_Project\apps\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ CHALLENGE 1: Doctor Portrait Own-Photo-Or-Null Contract across 1,000+ adversarial inputs (15.5878ms)
+✔ CHALLENGE 2: Package Visual Distinctness across actual records, synthetic sequences, and disk assets (811.3412ms)
+✔ Flow 1: Empty / whitespace / short prompts are rejected before network and quota (37.7244ms)
+✔ Flow 1: Rapid session creation has interactionLocked guard and zero duplicate keys (6.101ms)
+✔ Flow 1: Mobile flex layout boundaries ensure composer is always pinned and viewports scroll (3.697ms)
+✔ Flow 1: Quota debiting contract is strictly transactional upon completed assistant response (9.3663ms)
+✔ Flow 2: Normalization handles exhaustive Vietnamese diacritics and regex symbols (3.9414ms)
+✔ Flow 2: Zero false red error banners when results exist (resultCount > 0) (1.7125ms)
+✔ Flow 2: Category tabs partition results without data loss (41.2612ms)
+✔ Flow 3: Hold slot timeout is 28,000ms with automatic cold-start retry (63.4704ms)
+✔ Flow 3: OTP error messages are preserved and not masked by generic fallbacks (163.3511ms)
+✔ Flow 4: Package immutability, specialty bypass, and 4-step wizard completeness (56.5582ms)
+✔ Flow 4: Button synchronization across packages, package detail, and search (32.5245ms)
+✔ booking and AI dialogs use generated brand tokens with visible focus (163.3323ms)
+✔ AI triage uses the authenticated backend contract without a local answer (37.7427ms)
+✔ no admin surface claims a spendable per-doctor AI quota (6.4326ms)
+✔ ai-credits renders an empty AdminState for zero rows (2.2797ms)
+✔ AI triage fails closed for emergency and unresolved specialty results (18.9566ms)
+✔ AI triage error states always show the 115 emergency line (6.3199ms)
+✔ AI triage drops blank suggested questions at both boundaries (8.4385ms)
+✔ chat stream forwards sanitized deltas before the persisted done exchange (1494.1339ms)
+✔ chat stream converts a body deadline into a retryable REQUEST_TIMEOUT (1452.9937ms)
+✔ chat stream preserves caller cancellation after response headers (835.0246ms)
+✔ shared API client keeps timeout and caller abort active while reading a response body (1057.0055ms)
+✔ shared API client forwards caller cancellation through a response body (575.3805ms)
+✔ late current-session hydration cannot overwrite a newer password login (523.0283ms)
+✔ ambiguous password login failure cannot restore a previous session without fresh authority (542.3474ms)
+✔ logout invalidates an in-flight hydration and cannot be undone by its late result (309.5787ms)
+✔ failed logout preserves the session only after GET confirms the same active authority (1071.2847ms)
+✔ lost DELETE acknowledgement reconciles a committed server revocation as an explicit logout (722.7965ms)
+✔ failed DELETE plus failed reconciliation enters a privacy-blocking state until retry succeeds (673.358ms)
+✔ logout reconciliation refuses a different user or different absolute session lifetime (1095.7842ms)
+✔ an aborted logout cannot clear or restore over a newer successful login (452.0807ms)
+✔ email verification creates a browser session grant without bearer material (292.9409ms)
+✔ admin AI credit inventory walks every backend window until a short page (493.4257ms)
+✔ admin AI credit inventory stops after one short window for small hospitals (419.7838ms)
+✔ admin AI credit inventory caps window walking against a server that never shortens (400.4064ms)
+(node:39340) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/HealthCare_Project/apps/frontend/lib/appointment-calendar.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to D:\HealthCare_Project\apps\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ calendar exports keep only the appointment time and omit medical identifiers (13.6993ms)
+✔ buildGoogleCalendarUrl falls back safely when doctor or branch is omitted (0.7934ms)
+✔ presentApiError correctly translates BFF upstream cold-start and timeout codes (0.3272ms)
+✔ calendar exports do not encode booking identity when patientName is omitted (1.0469ms)
+✔ buildIcsCalendar embeds the Asia/Ho_Chi_Minh VTIMEZONE and ends with CRLF (0.4496ms)
+✔ buildIcsCalendarMany embeds the VTIMEZONE once and ends with CRLF (0.4042ms)
+✔ re-exporting one appointment keeps one opaque UID while different appointments differ (0.8104ms)
+✔ appointment client uses the documented authenticated Page contracts (98.8479ms)
+✔ the doctor appointment client keeps the single-day call shape and adds the bounded range (4.6421ms)
+✔ the admin cancel helper posts one legal transition and keeps the reason optional (2.2803ms)
+✔ the schedule client forwards force only where the backend reads it (8.5174ms)
+✔ appointment surfaces keep state boundaries and avoid symptoms or secrets (7.1626ms)
+✔ selecting a doctor appointment also opens that patient's clinical context (24.6332ms)
+✔ the doctor dashboard renders a read-only roster and a seven-day appointment window (93.7267ms)
+✔ the admin appointment table cancels through one dialog and commits the returned row (3.5652ms)
+✔ production login never renders demo credentials without the explicit demo flag (32.3535ms)
+✔ PHONE_LINKED_TO_BOOKING_EMAIL surfaces the booking-email instruction instead of the generic conflict copy (560.585ms)
+✔ PHONE_LINKED_TO_BOOKING_EMAIL field copy wins over the generic email field copy (192.5775ms)
+✔ PHONE_OWNED_BY_ACCOUNT guides the user to sign in instead of registering (43.2404ms)
+✔ phone-billing codes never leak through the generic 400/409 banner for other codes (24.6259ms)
+✔ indeterminate browser-session authority privacy-blocks portal and admin content with recovery actions (24.7587ms)
+✔ bank transfer client keeps patient and admin APIs authenticated (115.1536ms)
+✔ patient transfer UI warns against credential collection and submits only a reference (10.7801ms)
+✔ patient payment status polling uses cleanup and bounded backoff for unpaid and pending states (3.8707ms)
+✔ VietQR download validates its origin, MIME type and maximum payload (8.4825ms)
+✔ payment controls expose copy feedback, focus recovery and rejected guidance (4.6506ms)
+✔ admin reconciliation requires explicit review and is linked in navigation (115.8469ms)
+✔ admin payment reload ignores stale responses and keeps review controls keyboard-sized (134.1811ms)
+✔ patient transfer copy makes admin approval the payment authority (119.1199ms)
+✔ confirmed booking routes back to the exact claimed appointment payment (111.5708ms)
+✔ BFF retries one safe read when a cold upstream answers 502 (1296.6189ms)
+healthcare_bff_upstream_retry {
+  attempt: 2,
+  reason: 'network_error',
+  requestId: '795990ce-730d-4028-a3c6-7da12256251e',
+  status: null
+}
+✔ BFF retries one safe read when the upstream fetch fails at the network layer (1421.373ms)
+healthcare_bff_upstream_retry {
+  attempt: 2,
+  reason: 'upstream_status',
+  requestId: 'a20c078a-8c4e-40a3-b891-013970fafadf',
+  status: 502
+}
+✔ BFF gives up after exactly one retry and never loops on a persistent 502 (1425.094ms)
+healthcare_bff_upstream_retry {
+  attempt: 2,
+  reason: 'upstream_status',
+  requestId: '99169940-ab66-4283-a557-d197295b3e94',
+  status: 504
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/hospital/branches',
+  requestId: '99169940-ab66-4283-a557-d197295b3e94',
+  durationMs: 438,
+  error: 'TypeError: fetch failed',
+  cause: undefined
+}
+✔ BFF surfaces its structured upstream error when the retry itself fails (869.4414ms)
+healthcare_chat_stage {
+  durationMs: 3,
+  outcome: 'fallback',
+  requestId: 'a047b6d9-c9c8-4442-a36c-fe8202e773c7',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF never retries an unsafe method and keeps the public-chat fallback intact (500.812ms)
+healthcare_bff_upstream_retry {
+  attempt: 2,
+  reason: 'upstream_status',
+  requestId: 'd1f8e5be-7f35-4485-8f5c-f32d059a2592',
+  status: 502
+}
+✔ BFF retries HEAD reads without inventing a response body (713.072ms)
+✔ BFF refuses the retry once the remaining deadline budget is too small (1333.5397ms)
+✔ BFF does not retry after the browser disconnects (837.0936ms)
+✔ BFF rejects structural path encodings, traversal, absolute targets and control characters (861.7423ms)
+✔ BFF rejects TRACE and CONNECT before reading or forwarding the request (298.0642ms)
+✔ BFF hard-denies only exact legacy bearer-mint routes before body reads or upstream calls (588.0071ms)
+✔ BFF rejects browser authority headers and cross-origin mutations (415.4378ms)
+✔ BFF trusts only a single Vercel-overwritten IP literal (1780.464ms)
+✔ BFF adds only server authority, cookie CSRF and an allowlisted request surface (512.0843ms)
+✔ BFF rejects duplicate or malformed healthcare security cookies (384.9759ms)
+✔ BFF preserves only allowlisted secure cookies without exposing its service token (302.6833ms)
+✔ BFF binds CSRF origin to a server-owned public origin behind a reverse proxy (348.4549ms)
+✔ BFF can forward a canonical backend origin for allowed custom domains (216.8498ms)
+healthcare_chat_stage {
+  durationMs: 4,
+  outcome: 'fallback',
+  requestId: '4bd9ecaa-0c32-43c2-8f7b-24473a6e7961',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF returns a safe public chat fallback when the AI upstream is unavailable (231.8575ms)
+healthcare_chat_stage {
+  durationMs: 3,
+  outcome: 'fallback',
+  requestId: '4b87d1f8-32d7-4a52-80f8-88fbf7c22996',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF keeps emergency guidance deterministic when public AI is unavailable (290.7327ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '689c2922-1079-4ac5-8db0-2371b3b41f82',
+  apiPath: '/api/v1/public/ai/chat',
+  calledFrom: 'at healthcare-bff.compiled.cjs:967:17 <- at settle (healthcare-bff.compiled.cjs:738:15) <- at Object.cancel (healthcare-bff.compiled.cjs:762:32)'
+}
+healthcare_chat_stage {
+  durationMs: 81,
+  outcome: 'cancelled',
+  requestId: '689c2922-1079-4ac5-8db0-2371b3b41f82',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF creates a UUID request id and returns the same trace handle to the browser (613.1963ms)
+healthcare_chat_cancel_dispatched {
+  requestId: 'd07e803a-ad44-4864-9be4-9497281366c1',
+  apiPath: '/api/v1/public/ai/chat',
+  calledFrom: 'at Timeout._onTimeout (healthcare-bff.compiled.cjs:960:13) <- at listOnTimeout (node:internal/timers:605:17) <- at process.processTimers (node:internal/timers:541:7)'
+}
+healthcare_chat_cancel_dispatched {
+  requestId: 'aff0c1bb-864f-47a8-b2a3-cd13f725acc1',
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  calledFrom: 'at healthcare-bff.compiled.cjs:967:17 <- at settle (healthcare-bff.compiled.cjs:738:15) <- at Object.cancel (healthcare-bff.compiled.cjs:762:32)'
+}
+healthcare_chat_stage {
+  durationMs: 10,
+  outcome: 'cancelled',
+  requestId: 'aff0c1bb-864f-47a8-b2a3-cd13f725acc1',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF aborts its upstream fetch when the browser cancels a response body (459.3422ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '0ce6ab14-78e9-4517-9a0e-9da26485e771',
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  calledFrom: 'at Timeout._onTimeout (healthcare-bff.compiled.cjs:960:13) <- at listOnTimeout (node:internal/timers:605:17) <- at process.processTimers (node:internal/timers:541:7)'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  requestId: '0ce6ab14-78e9-4517-9a0e-9da26485e771',
+  durationMs: 98,
+  error: 'AbortError: upstream timed out',
+  cause: undefined
+}
+✔ BFF records a patient-chat prepare deadline as a timeout (955.2353ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '12e72188-92ce-4ea6-9cd4-5f3e12f4e4a3',
+  apiPath: '/api/v1/public/ai/chat',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_chat_stage {
+  durationMs: 8,
+  outcome: 'cancelled',
+  requestId: '12e72188-92ce-4ea6-9cd4-5f3e12f4e4a3',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF aborts an in-flight public chat fetch when the browser disconnects (820.4985ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '546a41e8-04c7-46df-9558-797cd2063e23',
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  requestId: '546a41e8-04c7-46df-9558-797cd2063e23',
+  durationMs: 62,
+  error: 'browser-navigation',
+  cause: undefined
+}
+healthcare_chat_stage {
+  durationMs: 63,
+  outcome: 'cancelled',
+  requestId: '546a41e8-04c7-46df-9558-797cd2063e23',
+  stage: 'bff',
+  status: 502
+}
+✔ BFF notifies the backend over a separate socket when patient chat is cancelled (993.1589ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '6fe466e7-fabf-44a4-9cfc-1c071779b2d1',
+  apiPath: '/api/v1/public/ai/chat',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_chat_stage {
+  durationMs: 10,
+  outcome: 'cancelled',
+  requestId: '6fe466e7-fabf-44a4-9cfc-1c071779b2d1',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF notifies the backend over a separate socket when public chat is cancelled (288.1707ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '27033f0e-25d7-4c01-944b-6f66f988d3c7',
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  requestId: '27033f0e-25d7-4c01-944b-6f66f988d3c7',
+  durationMs: 9,
+  error: 'browser-navigation',
+  cause: undefined
+}
+healthcare_chat_stage {
+  durationMs: 10,
+  outcome: 'cancelled',
+  requestId: '27033f0e-25d7-4c01-944b-6f66f988d3c7',
+  stage: 'bff',
+  status: 502
+}
+✔ BFF waits for backend cancellation acknowledgement before returning from an aborted chat request (341.5828ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '188d577d-a9dd-45c3-9ea9-1af725ef3ad3',
+  apiPath: '/api/v1/public/ai/chat',
+  calledFrom: 'at Timeout._onTimeout (healthcare-bff.compiled.cjs:960:13) <- at listOnTimeout (node:internal/timers:605:17) <- at process.processTimers (node:internal/timers:541:7)'
+}
+healthcare_chat_stage {
+  durationMs: 151,
+  outcome: 'timeout',
+  requestId: '188d577d-a9dd-45c3-9ea9-1af725ef3ad3',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF waits for cancellation acknowledgement after a guest-chat deadline (602.8533ms)
+healthcare_chat_cancel_dispatched {
+  requestId: 'd266ba35-7605-4567-a862-b33aae14d1f9',
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  calledFrom: 'at healthcare-bff.compiled.cjs:967:17 <- at settle (healthcare-bff.compiled.cjs:738:15) <- at Object.cancel (healthcare-bff.compiled.cjs:762:32)'
+}
+healthcare_chat_stage {
+  durationMs: 90,
+  outcome: 'cancelled',
+  requestId: 'd266ba35-7605-4567-a862-b33aae14d1f9',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF stream cancellation awaits the cancellation side-call before settling its body (542.176ms)
+✔ BFF bounds a slow chunked request body before contacting the backend (138.4634ms)
+✔ BFF keeps its deadline active while forwarding an upstream response body (163.5087ms)
+✔ BFF fails closed on missing service credentials, oversized bodies and upstream redirects (118.9406ms)
+✔ BFF cancels a chunked request as soon as its streamed body exceeds 12 MiB (169.9663ms)
+healthcare_chat_cancel_dispatched {
+  requestId: 'b9207ea5-c87c-4c18-9157-3e6e9739f0d2',
+  apiPath: '/api/v1/ai/conversations/c-1/messages/stream',
+  calledFrom: 'at healthcare-bff.compiled.cjs:967:17 <- at settle (healthcare-bff.compiled.cjs:738:15) <- at Object.cancel (healthcare-bff.compiled.cjs:762:32)'
+}
+healthcare_chat_stage {
+  durationMs: 73,
+  outcome: 'cancelled',
+  requestId: 'b9207ea5-c87c-4c18-9157-3e6e9739f0d2',
+  stage: 'bff',
+  status: 200
+}
+✔ BFF gives the chunked chat route its longer generation deadline (733.2748ms)
+✔ BFF gives public hospital-support chat a bounded cold-start deadline (142.0514ms)
+healthcare_chat_cancel_dispatched {
+  requestId: 'c7e122bb-033b-4508-aeae-092297b3e1fb',
+  apiPath: '/api/v1/public/ai/chat',
+  calledFrom: 'at Timeout._onTimeout (healthcare-bff.compiled.cjs:960:13) <- at listOnTimeout (node:internal/timers:605:17) <- at process.processTimers (node:internal/timers:541:7)'
+}
+✔ BFF accepts multiple comma-separated public origins and custom domains (129.519ms)
+✔ BFF accepts the 127.0.0.1 loopback origin when the runtime URL is localhost (110.4927ms)
+healthcare_chat_stage {
+  durationMs: 3,
+  outcome: 'completed',
+  requestId: '25a10a8b-f4fe-4dd9-af3a-fd0ec2725902',
+  stage: 'bff',
+  status: 200
+}
+✔ patient chat hides the private prepare permit and preserves the public JSON exchange (133.6358ms)
+✔ BFF refuses direct browser access to private patient-chat prepare and commit routes (97.5967ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '65065b83-fbe1-4537-8e29-3604972db3c0',
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  requestId: '65065b83-fbe1-4537-8e29-3604972db3c0',
+  durationMs: 10,
+  error: 'AbortError: aborted',
+  cause: undefined
+}
+healthcare_chat_stage {
+  durationMs: 12,
+  outcome: 'cancelled',
+  requestId: '65065b83-fbe1-4537-8e29-3604972db3c0',
+  stage: 'bff',
+  status: 502
+}
+healthcare_chat_cancel_delivery_failed { requestId: '65065b83-fbe1-4537-8e29-3604972db3c0', status: 503 }
+✔ patient chat observed abort sends no commit even when both cancel notifications are rejected (146.9187ms)
+healthcare_chat_stage {
+  durationMs: 14,
+  outcome: 'completed',
+  requestId: '48f5609b-e8b7-48ea-b560-88dd57e721ad',
+  stage: 'bff',
+  status: 200
+}
+✔ patient chat SSE keeps delta and done events after private commit (153.4279ms)
+healthcare_chat_stage {
+  durationMs: 2,
+  outcome: 'completed',
+  requestId: '0254ba03-0349-4be8-9dfe-3a0f560908d6',
+  stage: 'bff',
+  status: 200
+}
+✔ guest chat opens a private lease before provider dispatch without exposing prompt data (124.7802ms)
+healthcare_chat_stage {
+  durationMs: 6,
+  outcome: 'completed',
+  requestId: '1c688222-1b67-4fbf-b876-60d92bdddb32',
+  stage: 'bff',
+  status: 200
+}
+✔ patient chat opens its bound lease before prepare and never returns the renewal permit (241.2353ms)
+healthcare_chat_cancel_dispatched {
+  requestId: 'f5279229-70dd-4ac4-916c-eab5efb606ab',
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_chat_lease_renewal_failed {
+  requestId: 'f5279229-70dd-4ac4-916c-eab5efb606ab',
+  renewElapsedMs: 1,
+  abortReason: 'chat-lease-heartbeat-stopped',
+  commitDispatched: false,
+  error: 'AbortError: renewal aborted'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  requestId: 'f5279229-70dd-4ac4-916c-eab5efb606ab',
+  durationMs: 2006,
+  error: 'AbortError: prepare aborted',
+  cause: undefined
+}
+healthcare_chat_stage {
+  durationMs: 2006,
+  outcome: 'cancelled',
+  requestId: 'f5279229-70dd-4ac4-916c-eab5efb606ab',
+  stage: 'bff',
+  status: 502
+}
+healthcare_chat_cancel_delivery_failed { requestId: 'f5279229-70dd-4ac4-916c-eab5efb606ab', status: 503 }
+✔ in-flight lease renewal is single-flight and browser abort sends no commit when cancel calls fail (2160.2166ms)
+healthcare_chat_lease_renewal_failed {
+  requestId: '24690b39-b194-4ba5-a471-9370e7fd7711',
+  renewElapsedMs: 1,
+  abortReason: '',
+  commitDispatched: false,
+  error: 'chat lease renewal rejected: HTTP 503 '
+}
+healthcare_chat_cancel_dispatched {
+  requestId: '24690b39-b194-4ba5-a471-9370e7fd7711',
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  calledFrom: 'at failLeaseHeartbeat (healthcare-bff.compiled.cjs:1011:13) <- at renewChatLease (healthcare-bff.compiled.cjs:1082:17)'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  requestId: '24690b39-b194-4ba5-a471-9370e7fd7711',
+  durationMs: 2004,
+  error: 'AbortError: prepare aborted after uncertain renewal',
+  cause: undefined
+}
+healthcare_chat_stage {
+  durationMs: 2004,
+  outcome: 'failed',
+  requestId: '24690b39-b194-4ba5-a471-9370e7fd7711',
+  stage: 'bff',
+  status: 502
+}
+healthcare_chat_cancel_delivery_failed { requestId: '24690b39-b194-4ba5-a471-9370e7fd7711', status: 503 }
+✔ uncertain lease renewal aborts patient prepare and prevents commit (2061.1816ms)
+healthcare_chat_lease_renewal_failed {
+  requestId: '801e8a8c-b63f-490f-b7dd-211d9f9bb6a6',
+  renewElapsedMs: 0,
+  abortReason: '',
+  commitDispatched: true,
+  error: 'chat lease renewal rejected: HTTP 409 '
+}
+healthcare_chat_stage {
+  durationMs: 2039,
+  outcome: 'completed',
+  requestId: '801e8a8c-b63f-490f-b7dd-211d9f9bb6a6',
+  stage: 'bff',
+  status: 200
+}
+✔ a lease renewal rejected during COMMITTING never aborts the settled turn (2097.9153ms)
+healthcare_chat_cancel_dispatched {
+  requestId: '9b50ffb6-5c54-4b51-a250-b2a86a91d19d',
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  calledFrom: 'at AbortSignal.abortFromBrowser (healthcare-bff.compiled.cjs:942:13) <- at [nodejs.internal.kHybridDispatch] (node:internal/event_target:845:20) <- at AbortSignal.dispatchEvent (node:internal/event_target:778:26)'
+}
+healthcare_bff_upstream_failed {
+  apiPath: '/api/v1/ai/conversations/c-1/messages',
+  requestId: '9b50ffb6-5c54-4b51-a250-b2a86a91d19d',
+  durationMs: 2019,
+  error: 'AbortError: prepare aborted',
+  cause: undefined
+}
+healthcare_chat_stage {
+  durationMs: 2019,
+  outcome: 'cancelled',
+  requestId: '9b50ffb6-5c54-4b51-a250-b2a86a91d19d',
+  stage: 'bff',
+  status: 502
+}
+✔ lease heartbeat keeps its two-second cadence anchored to permit issuance (2071.7383ms)
+✔ slot client carries branch identity and rejects mismatched responses (112.6358ms)
+✔ booking catalog no longer carries frontend seed identities (2.2498ms)
+✔ AI specialty identity fails closed when the live booking catalog is stale (4.8114ms)
+✔ booking keeps a doctor CTA scoped to that doctor's specialty and branch (4.6154ms)
+✔ step 1 shows the preselected doctor and lets the patient switch away (3.3052ms)
+✔ doctor detail page hands its doctor to the booking shell (1.9827ms)
+✔ doctor booking identity is highlighted on header and steps 1, 4, and 5 (84.9369ms)
+✔ doctor CTA callers propagate doctorId, specialtyId, and branchId (80.0308ms)
+✔ branch two selection resets slot identity and passes the selected branch to hold (110.4093ms)
+✔ booking invalidates pending responses across navigation and labels patient fields (242.8746ms)
+✔ booking captures BHYT and privacy consent before holding a slot (3.4817ms)
+✔ booking slot UI exposes loading, error, and empty states (117.0486ms)
+✔ booking catalog loads independently and offers a clear retry (47.0997ms)
+✔ booking input and OTP validation match the backend contract (2.9017ms)
+✔ branch booking CTAs reflect the live doctor-assignment gate (82.4181ms)
+✔ booking UI keeps the server hold and OTP expiries separate (194.0188ms)
+✔ booking dialog resets, manages focus, and only closes from the real backdrop (54.9758ms)
+✔ booking steps announce themselves and slot selection is not colour-only (8.7418ms)
+✔ booking slot duration comes from the selected slot instead of a fixed label (3.5363ms)
+✔ booking error banner lives in the scrollable step body and describes step 6 inputs (3.0734ms)
+✔ booking modal keeps its header reachable on phones (1.8533ms)
+✔ hold requests carry one idempotency key across their single retry (2.7828ms)
+✔ booking page reuses the engine inline without mounting a second dialog (7.3727ms)
+✔ booking API converts network and server failures to safe Vietnamese messages (7.7773ms)
+✔ booking API aborts stalled requests after twelve seconds and preserves caller cancellation (1.9904ms)
+✔ booking dialog uses natural Vietnamese sentence case (45.9779ms)
+✔ booking form fields have stable accessible labels and progress state (69.0893ms)
+✔ generic booking flow does not lock available branches to arbitrary doctor (77.7489ms)
+✔ booking wizard always loads the complete catalog, teaser props only seed preselection (49.8901ms)
+✔ booking OTP resend is an idempotent existing-hold action (96.7886ms)
+✔ expired OTP can be resent while the hold is alive (8.7734ms)
+✔ normalized slot identity and upstream reselects cannot clear a committed slot (1773.0723ms)
+✔ slow A, fast B, and a late A error/finally cannot overwrite B (1832.6423ms)
+✔ close/reopen and React Strict Mode lifecycles invalidate pending work (967.0001ms)
+✔ retry, empty results, incomplete identity, and caller aborts are deterministic (823.7578ms)
+✔ a current retry error preserves authoritative slots and selection until success says otherwise (711.5657ms)
+✔ the same hold intent replays one idempotency key; a different intent mints another (53.3668ms)
+✔ a 409 hold conflict surfaces as HoldSlotConflictError carrying the status (128.913ms)
+✔ abandoned holds release the slot, confirmed bookings never get cancelled (1056.4524ms)
+✔ cancelPatientAppointment releases holds by phone when no session exists (77.8029ms)
+✔ branch maps derive trusted Google Maps URLs only from backend-owned branch data (118.4778ms)
+✔ branch list, detail, and homepage expose Google Maps without inventing an address (5.0753ms)
+✔ contact page derives map links from branch addresses instead of raw map urls (2.1513ms)
+✔ branch loaders settle only the current request under Strict Mode cleanup (2.2483ms)
+✔ public API requests compose caller cancellation with a bounded timeout (6.9453ms)
+✔ public chrome and browser icon reuse the original shield-heart brand mark (94.3588ms)
+✔ root layout renders content immediately without a blocking brand splash (3.4995ms)
+✔ live CSS uses one documented primary teal without dual live brand greens (7.8159ms)
+✔ typography variables provide deterministic font fallbacks without build-time remote fetches (8.2078ms)
+✔ footer uses readable inverse identity, landmark navigation and responsive contact card (3.03ms)
+✔ public frontend source only renders the reference hospital brand in the about attribution note (1697.097ms)
+✔ careers page is backed by live openings and a complete application workflow (20.5514ms)
+✔ career backend persists applications and protects recruiter review endpoints (10.1067ms)
+✔ empty stream 404 at 32s does not restart the authenticated chat deadline (2069.9095ms)
+ℹ {"atDeadline":{"aborted":true,"status":"rejected","settledAt":33000,"code":"REQUEST_TIMEOUT","pendingTimers":[]},"terminalStatus":"rejected","terminalAt":33000}
+✔ caller abort during REST fallback reaches its fetch signal and preserves AbortError (1433.1871ms)
+✔ structured conversation 404 never dispatches a second chat mutation (946.6527ms)
+✔ chat cost metadata survives the AI -> Java -> TS contract (E1) (80.7972ms)
+✔ a timed-out chat send retries with the same idempotency key (739.6297ms)
+✔ an aborted chat send keeps its idempotency key; only terminal codes rotate it (116.9815ms)
+✔ a completed chat send clears its attempt so the next question gets a fresh key (244.1977ms)
+✔ assistantFailureFromError classifies abort/timeout failures as retryable (149.1488ms)
+✔ floating: validated final unlocks composer while history/list/credits are unresolved (3567.9577ms)
+✔ floating: late history from first answer cannot erase second answer (1381.1348ms)
+✔ patient: validated final unlocks composer while history/list/credits are unresolved (1041.7447ms)
+✔ patient: late history from first answer cannot erase second answer (1077.8615ms)
+✔ patient: stop aborts request, preserves draft and discards late delta/final (928.3359ms)
+✔ patient: canceled request finally cannot unlock a newer in-flight request (892.7168ms)
+✔ floating: anonymous visitors hit the login gate and cannot send (546.8248ms)
+✔ floating: synchronous duplicate submits create one send (658.0441ms)
+✔ floating: feedback cannot invalidate an in-flight send or strand composer (862.8022ms)
+✔ floating: send during pending feedback releases canceled feedback lock (791.4514ms)
+✔ floating: stale feedback cleanup cannot release a newer feedback lock (899.0652ms)
+✔ floating: close/reopen keeps draft and discards canceled reply (715.7189ms)
+✔ floating: Stop does not become a submit and resend the preserved draft (620.4044ms)
+✔ floating: consent shows current server retention rather than hardcoded 90 days (513.1312ms)
+✔ patient: consent shows current server retention rather than hardcoded 90 days (451.5294ms)
+✔ patient: account switch cannot reveal old transcript while new account reads are delayed (515.5912ms)
+✔ timed wait stages stay neutral and restart on each request (466.034ms)
+✔ CI credential scan uses extended regex and catches synthetic secret-shaped fixtures (1741.9796ms)
+✔ clinical review UI keeps admin submit and independent doctor decisions separate (52.5639ms)
+✔ clinical review API parser is closed over source type, state, hash, and snapshot (3.8035ms)
+✔ doctor review queue and snapshot fetch fail closed on stale responses (5.5053ms)
+✔ doctor review queue exposes approved history and keeps decision states contract-correct (5.3461ms)
+✔ cms inline editor is admin-only, client-only and rides the existing admin PUT (56.8219ms)
+✔ cms edit mode never appears for signed-out visitors on public slots (5.8157ms)
+✔ public route files keep their rendering contract untouched (10.9288ms)
+✔ CMS client matches the integrated slot-scoped typed contract (105.6873ms)
+✔ CMS renderer is allowlisted and never interprets raw HTML (4.0216ms)
+✔ public live slot gates the SSE change feed behind liveFeed and polls while visible (6.4352ms)
+✔ CMS client carries admin publish versions into the public change feed (316.2955ms)
+✔ CMS reconciliation ledger preserves contiguous order across reordered events and requests (0.9319ms)
+✔ admin editor exposes typed status/version and protected API states (116.6835ms)
+✔ patient portal exposes profile, reschedule, and cookie-authenticated diagnostic workflows (37.8195ms)
+✔ patient self-registration waits for verification before issuing a browser session (5.2513ms)
+✔ doctor portal enforces the visible lifecycle before clinical completion (1.572ms)
+✔ admin UI covers remaining hospital catalog and recurring schedules (5.1096ms)
+✔ representative primary actions have browser-level network assertions (1.7171ms)
+✔ authenticated search augments bounded keyword results with related content (2.4912ms)
+✔ Compose chatbot freshness smoke probes the stale-image failure boundary (62.9282ms)
+✔ poll waits for trusted CLEAN and stops requesting terminal attachments (10.1066ms)
+✔ outage and mismatched identity stay pending within the attempt budget (28.8726ms)
+✔ aborted old thread cannot commit a late CLEAN response (10.5035ms)
+✔ abort cancels the scheduled next poll immediately (0.8932ms)
+✔ patient watermark is derived from the completed server snapshot, not a later local own message (2.3258ms)
+✔ patient fails closed when a continuing page repeats the requested cursor (0.3655ms)
+✔ patient fails closed when the initial page claims more data without a cursor (0.2407ms)
+✔ patient completes an advancing final page, dedupes messages, and selects the latest remote watermark (1.5364ms)
+✔ doctor watermark is derived from the completed server snapshot, not a later local own message (0.2908ms)
+✔ doctor fails closed when a continuing page repeats the requested cursor (0.2106ms)
+✔ doctor fails closed when the initial page claims more data without a cursor (0.2208ms)
+✔ doctor completes an advancing final page, dedupes messages, and selects the latest remote watermark (0.2435ms)
+✔ consultation request helper bounds a stalled fetch (474.2242ms)
+✔ consultation request helper preserves caller cancellation (29.574ms)
+✔ consultation response body remains covered after response headers arrive (67.8366ms)
+✔ caller cancellation still reaches a response body after headers arrive (80.1838ms)
+✔ direct signed upload helper bounds a stalled object-store response (48.1164ms)
+✔ consultation helper preserves an explicit credentials override (16.9702ms)
+✔ formatDate and formatDateTime render the Asia/Ho_Chi_Minh wall clock (61.0896ms)
+✔ rendering is identical regardless of host time zone (644.5397ms)
+✔ nullish and unparseable inputs degrade gracefully (0.5701ms)
+✔ lib/datetime delegates formatting and never re-implements it (0.3832ms)
+✔ doctor appointment actions are gated on the business day (50.873ms)
+✔ an authored Vietnamese 409 surfaces verbatim on the appointment status action (2.5735ms)
+✔ an authored Vietnamese 400 surfaces verbatim (0.3658ms)
+✔ an unknown 500 falls back to the generic copy (0.2792ms)
+✔ a non-Vietnamese or oversized 409 body does not override the generic line (0.5127ms)
+✔ an error that is not an ApiError uses the generic copy (0.3027ms)
+✔ doctor care plan client exposes the editable lifecycle endpoints (157.7019ms)
+✔ doctor care plan page wires editing, item actions and safe portal states (4.9258ms)
+✔ out-of-order patient responses can commit only the latest patient context (380.9782ms)
+✔ a 403 patient lookup answers with the specific permission message (257.5955ms)
+(node:5508) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/HealthCare_Project/apps/frontend/lib/doctor-portrait.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to D:\HealthCare_Project\apps\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ doctor portrait source encodes the own-photo-or-null contract (11.8751ms)
+✔ valid catalog portraits pass through untouched (0.8526ms)
+✔ stock photography hosts and 404 markers never render as a doctor's portrait (0.3269ms)
+✔ doctors without a portrait resolve to null so UI renders the initials avatar (7.0151ms)
+✔ resolution is deterministic: the same catalog row always yields the same result (0.8452ms)
+✔ getDoctorInitials operates correctly for initials generation (0.9741ms)
+✔ FAILED document card exposes a retry control that reuses handleGenerate (90.4756ms)
+✔ retry never unlocks download for a row that is not AVAILABLE (4.3288ms)
+✔ retry error path stays fail-closed and 503 storage outage maps to Vietnamese copy (5.9626ms)
+✔ downloadProtectedFile keeps the server RFC 5987 filename and defers revoke (1137.3257ms)
+✔ downloadProtectedFile falls back to the basic filename= parameter (712.9747ms)
+✔ downloadProtectedFile prefers filename* over filename= when both are present (1053.3296ms)
+✔ downloadProtectedFile uses the caller filename only when the header is absent (1385.9422ms)
+✔ downloadProtectedFile survives a broken percent-encoded filename* (785.2672ms)
+✔ C4 underline survives the HTML to markdown round trip (8.1289ms)
+✔ C4 underline is not left as a dangling tag (0.7259ms)
+✔ C5 a callout containing a nested div is not truncated (1.4565ms)
+✔ C5 two sibling callouts are both converted (0.9414ms)
+✔ C6 a literal pipe inside a cell does not split the row (6.0138ms)
+✔ C6 table cells keep inline emphasis (0.5896ms)
+✔ C7 alt text survives regardless of attribute order (0.7509ms)
+✔ C7 an image with no alt still converts (0.5284ms)
+✔ C7 an image with no src is dropped rather than emitted empty (0.4216ms)
+✔ C8 a literal angle bracket cannot become a tag (2.0057ms)
+✔ C8 a quote inside a link target cannot close the attribute (1.5321ms)
+✔ C8 ampersands are escaped once, not twice (15.6364ms)
+✔ C9 a fenced code block becomes a pre/code block (3.2857ms)
+✔ C9 a language tag on the fence is preserved (1.7108ms)
+✔ C10 a nested list keeps both items instead of concatenating them (2.3456ms)
+✔ C10 three nesting levels keep their order, depth and words (0.404ms)
+✔ C10 an ordered list nests under the parent step and keeps numbering (0.8106ms)
+✔ C10 sibling items of a nested list stay siblings (0.3816ms)
+✔ C10 a nested list under an emphasised parent item keeps both halves (0.2502ms)
+✔ C10 a flat list still converts byte for byte as before (0.3783ms)
+✔ C10 indented markdown re-opens as a nested list, not a flat one (0.8655ms)
+✔ C10 the nested list survives a full round trip (0.4363ms)
+✔ toStoredArticleBody converts editor HTML and leaves markdown alone (1.0172ms)
+✔ C11 a colspan cell no longer shifts the columns under it (2.0889ms)
+✔ C11 a rowspan cell keeps the row beneath aligned (0.7407ms)
+✔ C11 header alignment emits GFM separators the renderer can parse (1.2384ms)
+✔ C12 a figcaption survives as an italic caption line, not loose text (1.295ms)
+✔ C12 a caption identical to the alt text is not duplicated (0.8492ms)
+✔ C12 a figure without a usable image degrades to its caption text (0.2226ms)
+✔ the toolbar no longer advertises commands the markdown pipeline loses (3.5395ms)
+✔ the table commands that do survive stay on the toolbar (0.9531ms)
+✔ image insertion stays behind the upload posture (0.8043ms)
+✔ the toolbar is backed by plugins that are registered and bundled (8.7717ms)
+✔ the unreachable font format options are gone (1.6603ms)
+✔ Word paste artifacts are removed before insertion (3.3122ms)
+✔ the paste scrub leaves ordinary content alone (2.0225ms)
+✔ the scrub is wired into the paste pipeline (0.3575ms)
+✔ the visible label points at the control that is mounted (0.4668ms)
+✔ the section builder tells the author which outline actually wins (16.2572ms)
+✔ the save path submits authored sections instead of a hard-coded null (77.6048ms)
+✔ a filled section body is submitted as authored outline (2.0809ms)
+✔ a builder with only blank bodies sends null so the body outline wins (0.1954ms)
+✔ HOSPITAL_EVENTS_CATALOG has 70 complete and valid event visuals (105.2539ms)
+✔ Event categories cover all required hospital activity themes (1.1312ms)
+✔ flat clinical UI tokens clamp structural surfaces and controls (80.3542ms)
+✔ targeted admin, CMS, booking, portal, and chatbot surfaces avoid bulky rounded utilities (24.6288ms)
+✔ remaining rounded-full utilities are limited to true circular affordances (212.8584ms)
+✔ targeted CSS avoids direct border radii above the 4px control limit (244.323ms)
+✔ migrated surfaces avoid sub-floor text-[10px]/text-[11px] utilities (12.9863ms)
+✔ pinned CSS surfaces keep every raw font-size at or above the 0.75rem floor (29.465ms)
+✔ global error boundary stays flat and unrounded (1.763ms)
+✔ delight layer stays flat, tokened and reduced-motion safe (3.5692ms)
+✔ display date formatting goes through lib/business-time or lib/datetime (6486.8691ms)
+✔ vi-VN allowlist entries stay narrow and used (556.2548ms)
+✔ floating assistant is mounted globally and stays on the REST chat contract (64.0848ms)
+✔ floating assistant exposes real recovery, safety and accessible actions (5.022ms)
+✔ floating assistant fails closed across mode changes and policy refreshes (2.9153ms)
+✔ floating assistant feedback cannot wedge an in-flight send (2.0403ms)
+✔ floating assistant send machine resets unconditionally and maps stray aborts to a retryable timeout (20.7146ms)
+✔ disease detail resolves closed, route-specific metadata on the server (57.6229ms)
+✔ general article detail resolves route-specific metadata on the server (10.0058ms)
+✔ disease JSON-LD uses an escaped absolute canonical and no unverified reviewer data (3.744ms)
+✔ sitemap is request-time, bounded and degrades to verified static routes (2.5381ms)
+✔ disease hub keeps article and published Q&A outages independent (50.4213ms)
+✔ disease hub exposes closed taxonomy labels, search and bounded pagination (2.4644ms)
+✔ disease detail provides a safe, navigable clinical reading surface (3.4573ms)
+✔ authErrorMessage accurately identifies connectivity, timeout, and credential failures (358.797ms)
+✔ homepage catalog handles cold starts and backend outages gracefully (148.7381ms)
+✔ patient male avatar asset is present and documented (92.8072ms)
+✔ homepage exposes patient-first navigation and appointment intents (59.4501ms)
+✔ appointment calls to action expose the available branch route (40.531ms)
+✔ homepage hero fallback attribution matches the stock image source (9.3324ms)
+✔ homepage mounts the published CMS hero slot for realtime updates (4.7762ms)
+✔ designed hero typography stays reserved for the seeded default copy (4.3682ms)
+✔ lab results require an order: two-step clinical flow (63.3419ms)
+✔ every form control in admin/ai-credits page.tsx has a programmatic label (27.3369ms)
+✔ every form control in patient/dashboard page.tsx has a programmatic label (4.4236ms)
+✔ every form control in app/doctor/articles/page.tsx has a programmatic label (7.9053ms)
+✔ every form control in components/articles/ArticleComments.tsx has a programmatic label (3.2358ms)
+✔ every form control in components/editor/RichTextEditor.tsx has a programmatic label (2.6348ms)
+✔ every form control in app/admin/catalog/page.tsx has a programmatic label (3.0577ms)
+✔ the two audit-critical grant controls and the allergy textarea are label-paired by id (105.0428ms)
+✔ local chat launcher honors process selection and explicit closed remote gates (3637.5849ms)
+✔ local launcher resolves its own quoted Unicode repository and authenticated local defaults (3002.6668ms)
+✔ remote selection with explicitly empty credentials fails before Python and keeps the key private (1883.1089ms)
+✔ launcher propagates the Python failure status (1342.0203ms)
+✔ backend launcher resolves process trust credentials and the selected portable dotenv (1573.2451ms)
+✔ local MVP provenance helpers fail closed on dirty, identity drift, invalid, and mismatched inputs (8041.9617ms)
+✔ local MVP launcher restores BUILD_VCS_REF when snapshot cleanup fails (4234.5417ms)
+✔ clinical local verifier binds confirmation and terminal status to the same appointment (67.2387ms)
+✔ local MVP launcher retries readiness only before the write-once booking verifier (5.6284ms)
+✔ clinical verifier documentation remains scoped to API evidence (6.3824ms)
+✔ media upload surfaces mirror the backend upload-enabled posture (62.7826ms)
+✔ public Navbar mobile navigation has a labelled dialog and complete keyboard return path (84.5489ms)
+✔ Navbar actions close the menu and keep interactive targets touch-safe (5.8247ms)
+✔ booking progress remains named and keyboard reachable when it scrolls (4.9211ms)
+✔ public light and dark surfaces keep text-button contrast scoped (5.1125ms)
+✔ public navbar exposes role-aware account entry points (46.4989ms)
+✔ app router has branded loading, error, and not-found states (4.0552ms)
+✔ the Stitch token layer reaches the admin shell without leaking to :root (65.6977ms)
+✔ the notification popover is a flat 12px panel with a spec pill radius (6.7127ms)
+✔ an unread row uses the Stitch tint and a 3px inset accent from tokens (4.1639ms)
+✔ the bell refreshes on a bounded, hidden-aware poll in both shells (3.8444ms)
+✔ notification labels match the backend whitelist with no invented event types (4.7729ms)
+✔ the portal bell offers the inbox to every role instead of patients only (25.7086ms)
+✔ all three unread surfaces share one server-provided number (3.0432ms)
+✔ every path that marks a read keeps the shared unread number coherent (4.1972ms)
+✔ the bell polls on a fixed cadence and re-arms exactly once per tick (3.4642ms)
+✔ a slow tick cannot stack a second request (3.4153ms)
+✔ a hidden tab holds no timer and only catches up once the interval elapsed (2.2125ms)
+✔ a rejected tick keeps the last known badge and the same bounded cadence (1.1105ms)
+✔ the cadence stays inside the documented floor and ceiling (1.0699ms)
+✔ notification preferences matrix keeps the current contract and guarded states (75.286ms)
+✔ PATIENT: acknowledged all-read survives an older GET and waits for one catch-up (62.2974ms)
+✔ PATIENT: acknowledged single-read survives an older GET and waits for one catch-up (4.9139ms)
+✔ PATIENT: update bursts coalesce without stacking, including during the catch-up (2.2076ms)
+✔ PATIENT: an invalidated failure is ignored; a current failure stays honest and retryable (2.8211ms)
+✔ PATIENT: failed all-read preserves unread state and the existing duplicate-write guard (11.0666ms)
+✔ PATIENT: failed single-read preserves unread state and the existing duplicate-write guard (0.997ms)
+✔ DOCTOR: acknowledged all-read survives an older GET and waits for one catch-up (2.0973ms)
+✔ DOCTOR: acknowledged single-read survives an older GET and waits for one catch-up (1.2037ms)
+✔ DOCTOR: update bursts coalesce without stacking, including during the catch-up (0.9918ms)
+✔ DOCTOR: an invalidated failure is ignored; a current failure stays honest and retryable (1.1952ms)
+✔ DOCTOR: failed all-read preserves unread state and the existing duplicate-write guard (1.3812ms)
+✔ DOCTOR: failed single-read preserves unread state and the existing duplicate-write guard (0.5381ms)
+✔ apps/frontend/app/packages/[slug]/page.tsx injects Schema.org MedicalProcedure and Offer (2.6932ms)
+✔ apps/frontend/app/faq/page.tsx injects Schema.org FAQPage for Google Rich Results (2.3157ms)
+✔ apps/frontend/app/articles/[slug]/page.tsx injects Schema.org MedicalWebPage with medical author & organization (0.8815ms)
+✔ apps/frontend/app/tra-cuu/page.tsx integrates Google Calendar and .ics reminders with print isolation (0.7546ms)
+✔ apps/frontend/components/PortalAppointments.tsx integrates Google Calendar and .ics for confirmed patient visits (0.656ms)
+✔ apps/frontend/app/layout.tsx integrates OfflineNetworkIndicator across the platform (1.1784ms)
+✔ apps/frontend/app/styles.css enforces .no-print and suppresses calendar raw link printing (4.0747ms)
+✔ operational review pages expose a readable, safe inventory workflow (48.2904ms)
+✔ consultation queues keep status and SLA cues safe across responsive states (4.3144ms)
+✔ admin doctor content edits do not clear account links from the browser payload (6.2865ms)
+✔ admin catalog and selector surfaces walk backend pages beyond the first 100 records (6.4915ms)
+✔ reviewed resilience keeps clinical inventory safe during stale navigation and outages (8.1969ms)
+✔ PackageBookingModal exports proper types and tailored 4-step wizard (13.9523ms)
+✔ PackageBookingModal never fabricates reception slots when the schedule returns none (5.0872ms)
+✔ packages catalog (/packages) synchronizes 'Đặt lịch với gói này' on all package cards (4.453ms)
+✔ package detail (/packages/[slug]) synchronizes hero and bottom CTA buttons to PackageBookingModal (4.8418ms)
+✔ search results (/search) includes 'Đặt lịch với gói này' for every package result (3.978ms)
+(node:36816) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///D:/HealthCare_Project/apps/frontend/lib/package-visuals.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to D:\HealthCare_Project\apps\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ package catalog uses local licensed photography instead of competitor assets (34.1183ms)
+✔ package cards share the same visual system across home and catalog routes (36.6801ms)
+✔ package detail keeps backend-owned content and labels stock photography (77.8298ms)
+✔ package visuals supports all 14 clinical tones with verified assets on disk (294.3553ms)
+✔ expanded specialty recognition correctly classifies 13+ medical specialties (6.4425ms)
+✔ deterministic allocation guarantees distinct vivid images across consecutive packages (8.7703ms)
+✔ full 14-tone coverage without duplicate fallback (1.0971ms)
+✔ intra-specialty multi-tier packages avoid image duplication (0.5408ms)
+✔ PackageVisuals.module.css defines .tone-digestive theme colors (85.6135ms)
+✔ getPackageVisual gracefully handles null, undefined, and empty package items (1.8902ms)
+✔ the observed past CONFIRMED appointment has contact recovery instead of impossible self-actions (126.7253ms)
+✔ a past PENDING_CONFIRMATION hold cannot be self-cancelled (7.1604ms)
+✔ same-day patient actions one millisecond before start respect business-zone seconds (10.3113ms)
+✔ same-day patient actions exactly at start respect business-zone seconds (9.9435ms)
+✔ same-day patient actions one millisecond after start respect business-zone seconds (74.9153ms)
+✔ future appointments retain both callbacks even when the current local time is later than their clock time (14.9278ms)
+✔ HH:mm start format at 2026-10-01T01:59:59.999Z retains the exact cutoff (7.584ms)
+✔ HH:mm start format at 2026-10-01T02:00:00.000Z retains the exact cutoff (94.4763ms)
+✔ business midnight at 2026-10-01T16:59:59.999Z respects the date and start instant together (80.4961ms)
+✔ business midnight at 2026-10-01T17:00:00.000Z respects the date and start instant together (32.2285ms)
+✔ past confirmed visits retain package details, calendar export and eligible billing actions (210.6049ms)
+✔ doctor day-scoped actions are unchanged by the patient self-action cutoff (110.6334ms)
+✔ future doctor visits expose neither refused day-scoped callback (227.9032ms)
+✔ doctor visits become day-actionable at ICT midnight (10.4948ms)
+✔ terminal patient states retain their existing action boundary (56.4918ms)
+✔ patient appointment list offers a load-more control backed by page totals (33.9114ms)
+✔ deep-linked appointment ids are searched across every page before declaring them unlinked (4.867ms)
+✔ patient care hub derives every task from patient-scoped contracts (109.2075ms)
+✔ patient care hub keeps loading, healthy, empty, partial-error and retry semantics visible (3.4119ms)
+✔ patient care hub styling is token-based, touch-safe and responsive (3.6676ms)
+✔ patient chat client exposes every locked REST conversation resource (70.657ms)
+✔ chat API rejects malformed provider-shaped responses before they reach the UI (4.345ms)
+✔ patient chat is role gated and keeps server history authoritative (3.7808ms)
+✔ patient chat includes bounded composer, recovery, citations, and destructive confirmation (5.9145ms)
+✔ patient chat reuses one idempotency key for an ambiguous logical attempt (3.3928ms)
+✔ patient chat keeps medical and emergency limits visible and accessible (4.2942ms)
+✔ patient chat renders safety notices as a compact single-line band (122.1743ms)
+✔ patient chat mode picker is a compact segmented row with tooltips (177.8393ms)
+✔ chat safety band and mode picker stay single-line with high-contrast save button (46.4433ms)
+✔ patient chat keeps consent fail-closed when policy is missing or changes (10.6532ms)
+✔ patient chat drops late stream updates after a conversation switch (3.836ms)
+✔ patient chat surfaces non-cancelled aborts as a retryable timeout failure (11.5568ms)
+✔ patient chat offers a Stop control that resets the send machine synchronously (3.7937ms)
+✔ patient chat states the real per-question credit cost (2.0187ms)
+✔ patient chat shows the patient's own message before the exchange settles (3.6821ms)
+✔ patient consultation UI keeps private-channel boundaries visible (55.7742ms)
+✔ patient consultation list and eligible appointments fail and retry independently (1.1812ms)
+✔ patient consultation detail keeps cursor, read-state and attachment gates explicit (1.7187ms)
+✔ common-disease routes are real backend-driven routes (1.3013ms)
+✔ doctor consultation and Q&A surfaces keep independent-review copy (3.771ms)
+✔ patient Q&A route keeps PII guard and moderation lifecycle visible (2.6659ms)
+✔ patient documents route is a real PDF workflow, not a dashboard alias (66.8841ms)
+✔ patient documents page fails closed and never renders raw caught errors (4.9889ms)
+✔ api client exposes patient document APIs through same-origin BFF only (14.3443ms)
+✔ patient, doctor and admin shells keep role gates and keyboard landmarks explicit (65.4867ms)
+✔ portal and admin controls expose 44px targets, visible focus and responsive reflow (10.1192ms)
+✔ shell motion, safe-area and zoom contracts preserve user settings (9.3288ms)
+✔ logout and browser-session boundaries fail closed without raw errors or bearer storage (86.2988ms)
+✔ daily tip rotate control meets the 44px target and motion is gated (75.8986ms)
+✔ 76 portal routes are partitioned across 4 functional portals without duplicates (1825.8545ms)
+✔ portal access control gates and navigation landmarks are strictly enforced (32.055ms)
+✔ typography rules globally enforce Be Vietnam Pro for Vietnamese UI (3.9275ms)
+✔ clinical design system tokens, teal color palette and flat UI rules are unified (6.0293ms)
+✔ 0 dead links (href=#, href='', javascript:) across all portal and public components (3946.0292ms)
+✔ responsive layout constraints, horizontal overflow containment, and touch targets (8.7691ms)
+✔ patient copy never renders raw record UUIDs (5.0908ms)
+✔ authenticated client exposes portal contracts without browser bearer storage (150.8891ms)
+✔ patient and doctor layouts defer children until cookie-session hydration settles (3.5661ms)
+✔ patient portal keeps missing appointment list data explicit (18.4731ms)
+✔ doctor portal only renders authorized patient clinical lookup (16.5909ms)
+✔ portal alias routes redirect to the dashboard anchors that already own the live data (15.5369ms)
+✔ both portals mount one shared full-screen notification inbox (177.005ms)
+✔ shared portal states include forbidden and loading semantics (77.0246ms)
+✔ portal chrome exposes complete role navigation and keyboard landmarks (63.3333ms)
+✔ portal styling stays dense, fixed-scale, touch-safe, and responsive (130.9594ms)
+✔ catalog source contains no content-substitution machinery (68.8803ms)
+✔ catalog records pass through unchanged and duplicate doctor cards collapse (261.5679ms)
+✔ public knowledge routes expose stable accessible loading and recovery states (159.6145ms)
+✔ public knowledge data failures stay code-owned and preserve a usable next step (15.6419ms)
+✔ catalog links encode backend-owned slugs and keep headings in a readable hierarchy (3.1054ms)
+✔ public knowledge content keeps medical trust boundaries visible (2.6613ms)
+✔ existing public route tokens cover the requested viewport and reduced-motion bar (5.5217ms)
+✔ public pages opt into the shared route chrome without changing the homepage (120.0306ms)
+✔ all primary public route groups expose descriptive metadata (30.5856ms)
+✔ legacy login links redirect into the canonical auth route (2.2792ms)
+✔ public route styling keeps dark heroes legible and guidance responsive (12.0296ms)
+✔ public catalog states and mobile assistance stay readable during slow loads (89.8247ms)
+✔ canonical resource details clear stale records and expose complete async states (112.6199ms)
+✔ paginated catalog routes clear stale pages before a retry (4.4773ms)
+✔ health knowledge and booking guidance surfaces provide bounded retry actions (3.7445ms)
+✔ contact and guidance pages do not invent branch, insurance, or FAQ data (2.6182ms)
+✔ faq page now behaves like a support hub instead of a bare list (3.281ms)
+✔ Vietnamese legacy aliases redirect to canonical detail routes (1.663ms)
+✔ booking landing page now opens as a clear support-aware route (93.3247ms)
+✔ appointment lookup page now behaves like a patient tracking hub (75.1487ms)
+✔ search page now behaves like a guided discovery hub with bounded AI results (80.6505ms)
+✔ branches page now behaves like a network hub (53.6954ms)
+✔ packages page now behaves like a selection hub (59.2302ms)
+✔ package detail page now behaves like a package detail hub (39.2474ms)
+✔ specialties page now behaves like a choice-and-triage hub (31.112ms)
+✔ specialty detail page now behaves like a specialty detail hub (68.8382ms)
+✔ services page now behaves like a service selection hub (38.9136ms)
+✔ service detail page now behaves like a service detail hub (1.8581ms)
+✔ doctor detail page now behaves like a doctor detail hub (4.1219ms)
+✔ doctors page now behaves like a doctor selection hub (1.832ms)
+✔ articles page now behaves like a health knowledge hub (11.9526ms)
+✔ article detail page now behaves like a health knowledge detail hub (17.6546ms)
+✔ public phone actions validate backend values before creating tel links (3.6547ms)
+✔ homepage exposes a distinct unavailable catalog state with a retry path (3.7918ms)
+✔ CMS booking CTA has a real landing route and public chrome avoids invented hotlines (7.5572ms)
+✔ AI and CMS live boundaries fail closed across reconnect and unresolved results (6.4978ms)
+✔ published article detail consumes the backend body when available (5.332ms)
+✔ Stitch detail screens render backend-owned structured content (3.2867ms)
+✔ Stitch search and careers screens have live public route owners (2.3691ms)
+✔ every public page family keeps the route-level CMS composition point (5.4054ms)
+✔ the about page renders the CMS slots migration V92 publishes (58.1276ms)
+✔ CMS route inventory stays aligned across frontend admin, public shell, and backend (46.4177ms)
+✔ CMS slot-component and migration contracts stay aligned across frontend, backend, and SQL (23.0879ms)
+✔ doctor portal exposes the typed clinical write workflow (15.5602ms)
+✔ catalog surfaces use the shared clinical icon family (12.7832ms)
+✔ booking, AI, and appointment tracking states use the icon family (6.0524ms)
+✔ home carries the daily health tip widget (6.9959ms)
+✔ booking success celebrates with the drawn check and next-step chips (18.7192ms)
+✔ doctor detail page discloses demo profiles near the booking CTA (69.3455ms)
+✔ homepage doctor cards and doctor list carry the demo badge flag-aware (4.9904ms)
+✔ public booking success never dead-ends guests into the patient portal (2.9923ms)
+✔ an empty doctor list is only claimed when the catalog actually loaded (2.0654ms)
+✔ package booking copy no longer claims unsupported per-branch equipment (1.8481ms)
+✔ public disease-guide fallback CTA stays on the public site (1.5333ms)
+✔ indexing defaults to the canonical production domain, not env luck (6.2364ms)
+✔ sitemap covers public catalog detail pages and skips disease-guide duplicates (6.0553ms)
+✔ homepage article empty state keeps professional copy without nested links (11.3122ms)
+✔ register page prefills phone and email from the lookup bridge query (41.3903ms)
+✔ lookup hero carries the register bridge CTA (3.472ms)
+✔ found-ticket actions carry the register bridge CTA with prefilled identity (6.5899ms)
+✔ register href builder validates and URL-encodes phone and email (6.0994ms)
+✔ hero CTA carries prefilled query only once an appointment was found (1.9843ms)
+✔ Supabase keep-alive enforces the documented endpoint schemas (48.5092ms)
+✔ Render health keeps its fail-loud aggregate exit inside a cold-start probe window (4.2966ms)
+✔ Render keep-alive documents its cadence as a canary, not a warmer (12.3039ms)
+✔ Supabase keep-alive probe predicates enforce all live contracts in-process (48.1866ms)
+✔ REST auth routes and client actions are present (61.5193ms)
+✔ registration waits for email verification and exposes bounded resend (2.8539ms)
+✔ login and recovery surfaces map verification and reset states (7.3408ms)
+✔ RichContentRenderer uses pure React rendering without raw HTML injection (50.0728ms)
+✔ renderInlineMarkdown sanitizes image and link URLs with an allowlist (5.8356ms)
+✔ htmlToMarkdown strips script and style tag blocks (4.5842ms)
+✔ markdown images render through JSX img props without event attributes (2.2475ms)
+✔ editor component suite is exported and structured properly (45.6037ms)
+✔ RichContentRenderer never uses dangerouslySetInnerHTML and blocks dangerous URI schemes (8.6861ms)
+✔ RichContentRenderer supports clinical healthcare callouts, structured tables, and code blocks (1454.9586ms)
+✔ renderInlineMarkdown protects medical terms with underscores and parses formatting (4.5543ms)
+✔ RichTextEditor includes multi-mode workspace, medical templates, undo/redo, and counters (3.9858ms)
+✔ editor components adhere to flat UI design tokens without bulky rounded utilities (9.6364ms)
+✔ TinyMCE editor is wired into doctor articles, admin catalog, and public details (14.3157ms)
+✔ parseMarkdownBlocks supports multi-line indented continuation list items and wide horizontal rules (88.5705ms)
+✔ RichTextEditor preserves undo baseline on initial edits and supports consecutive list numbering (5.9006ms)
+✔ doctor articles page conforms to flat UI design tokens (no rounded-lg, rounded-[6px], rounded-[8px]) (4.5266ms)
+✔ parseMarkdownBlocks terminates without hanging on edge-case inputs (lonely :::, hashtag, indented blockquote) (37.1632ms)
+✔ parseMarkdownBlocks supports single-column tables, column alignments, and custom ordered list start (55.8941ms)
+✔ RichTextEditor guards disabled mode, preserves modal selection, and batches drag/paste uploads (28.7208ms)
+✔ admin catalog page conforms to flat UI design tokens (no rounded-lg, rounded-md, rounded-[6px], rounded-[8px]) (5.2401ms)
+✔ RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolbar, and clinical extensions (16.7869ms)
+✔ TinyMCE toolbar commands all map to registered self-hosted plugins (no dead toolbar entries) (43.4143ms)
+✔ RichTextEditor derives statistics and Markdown source from markup-free content (181.1312ms)
+✔ browser route matrix covers every App Router page exactly once (215.5682ms)
+✔ presentApiError exposes only closed Vietnamese copy (200.4408ms)
+✔ safe-error surfaces never render raw caught Error.message (84.8337ms)
+✔ CMS public and admin surfaces present only stable error kind and status copy (10.7379ms)
+✔ public browser API clients use the same-origin proxy by default (28.3143ms)
+✔ background cold-start warmup uses the bounded health route, not an AI policy read (2.1837ms)
+✔ route-param API clients encode slug path segments before hitting backend routes (4.3783ms)
+✔ Compose keeps browser traffic same-origin through the server-only BFF (10.214ms)
+✔ live Compose browser gate preserves the trusted BFF and CSRF contract (36.3152ms)
+✔ local MVP helper binds rebuilt application images to an immutable Git source revision (7.6728ms)
+✔ database package includes the CMS slot-component migration (2.1704ms)
+✔ database publish workflow binds packages to a verified exact source SHA (2.3706ms)
+✔ application publish workflow emits canonical digest-bound GHCR packages (3.2707ms)
+✔ database publish workflow rejects SHA-looking manual aliases case-insensitively (1.0179ms)
+✔ SearchPageClient eradicates false red error banner when results exist (21.6436ms)
+✔ SearchPageClient implements accurate category filter tabs (2.5986ms)
+✔ SearchPageClient normalization strips Vietnamese diacritics accurately (4.7696ms)
+✔ SearchPageClient publishes catalog groups progressively (4.6002ms)
+✔ SearchPageClient discloses the bounded catalog continuation (2.3517ms)
+✔ SearchPageClient rejects stale semantic authority transitions (3.3674ms)
+✔ failed catalog groups get their own retry while loaded groups stay put (14.2726ms)
+✔ toSlug in ../app/admin/catalog/page.tsx collapses hyphen runs and trims edges (211.4586ms)
+✔ toSlug in ../app/doctor/articles/page.tsx collapses hyphen runs and trims edges (17.8924ms)
+✔ useSortableList hook is properly structured with touch resilience and DOM rollback (24.2248ms)
+✔ CSS styles provide visual feedback and touch guards for drag handles (6.895ms)
+✔ admin catalog page wires sortable handles with accessible touch targets (7.7633ms)
+✔ docs/terminology.json declares the canonical terms and banned strings (13.0596ms)
+✔ banned terminology strings are absent from app/ and components/ (2183.2369ms)
+✔ canonical booking CTA appears at the sites the terminology pass fixed (3.181ms)
+✔ assistant naming follows the canonical terms at the fixed sites (1.8544ms)
+✔ toast semantics reserve alerts for errors (1.9883ms)
+✔ toast can be paused by pointer and keyboard focus (0.3626ms)
+✔ toast close target and motion preferences are accessible (0.2514ms)
+✔ frontend typecheck bootstraps generated Next route types first (93.1408ms)
+✔ touch-target contract: no button class carries a sub-2.75rem min-h-10 control height (132.7678ms)
+✔ touch-target contract: icon-only buttons meet the min-h-11 tap square (26.3223ms)
+ℹ tests 643
+ℹ suites 0
+ℹ pass 643
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25931.0638
+
+> healthcare-frontend@0.1.1 build
+> next build
+
+▲ Next.js 16.3.8 (Turbopack)
+- Environments: .env.local
+✓ Running next.config.ts took 105ms
+- Experiments (use with caution):
+  · cpus: 1
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 6.5s
+  Running TypeScript ...
+  Finished TypeScript in 4.7s ...
+  Collecting page data using 1 worker ...
+  Generating static pages using 1 worker (0/67) ...
+  Generating static pages using 1 worker (16/67) 
+  Generating static pages using 1 worker (33/67) 
+  Generating static pages using 1 worker (50/67) 
+✓ Generating static pages using 1 worker (67/67) in 2.4s
+  Finalizing page optimization ...
+
+Route (app)                      Revalidate  Expire
+┌ ○ /
+├ ○ /_not-found
+├ ○ /about
+├ ○ /admin
+├ ○ /admin/ai-content-reviews
+├ ○ /admin/ai-credits
+├ ○ /admin/appointments
+├ ○ /admin/branches
+├ ○ /admin/careers
+├ ○ /admin/catalog
+├ ○ /admin/consultations
+├ ○ /admin/content
+├ ○ /admin/doctors
+├ ○ /admin/health-questions
+├ ○ /admin/payments
+├ ○ /admin/schedules
+├ ○ /admin/services
+├ ○ /admin/specialties
+├ ƒ /api/v1/[...path]
+├ ○ /articles
+├ ƒ /articles/[slug]
+├ ○ /auth/forgot-password
+├ ○ /auth/login
+├ ○ /auth/register
+├ ○ /auth/reset-password
+├ ○ /auth/verify-email
+├ ƒ /bac-si/[slug]
+├ ○ /benh-pho-bien
+├ ƒ /benh-pho-bien/[slug]
+├ ○ /branches
+├ ƒ /branches/[slug]
+├ ○ /careers
+├ ○ /chinh-sach-bao-mat
+├ ƒ /chuyen-khoa/[slug]
+├ ○ /contact
+├ ○ /dat-lich
+├ ○ /doctor
+├ ○ /doctor/ai-content-reviews
+├ ○ /doctor/appointments
+├ ○ /doctor/articles
+├ ○ /doctor/care-plans
+├ ○ /doctor/consultations
+├ ƒ /doctor/consultations/[id]
+├ ○ /doctor/dashboard
+├ ○ /doctor/health-questions
+├ ○ /doctor/notifications
+├ ○ /doctor/profile
+├ ○ /doctors                             5m      1y
+├ ƒ /doctors/[slug]
+├ ○ /faq
+├ ƒ /goi-kham/[slug]
+├ ○ /huong-dan
+├ ○ /icon.svg
+├ ƒ /login
+├ ○ /packages
+├ ƒ /packages/[slug]
+├ ○ /patient
+├ ○ /patient/appointments
+├ ƒ /patient/appointments/[id]
+├ ○ /patient/care-plan
+├ ○ /patient/chat
+├ ○ /patient/community
+├ ○ /patient/consultations
+├ ƒ /patient/consultations/[id]
+├ ○ /patient/dashboard
+├ ○ /patient/diagnostic-results
+├ ○ /patient/documents
+├ ○ /patient/health-questions
+├ ○ /patient/medical-records
+├ ○ /patient/notifications
+├ ○ /patient/preferences
+├ ○ /patient/prescriptions
+├ ○ /patient/profile
+├ ○ /robots.txt
+├ ƒ /search
+├ ○ /services
+├ ƒ /services/[slug]
+├ ƒ /sitemap.xml
+├ ○ /specialties
+├ ƒ /specialties/[slug]
+└ ○ /tra-cuu
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

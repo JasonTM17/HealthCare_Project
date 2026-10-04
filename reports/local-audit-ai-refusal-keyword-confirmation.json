@@ -1,0 +1,15 @@
+{
+  "schema":"healthcare.local-safety-confirmation.v2",
+  "observer":"Team Lead",
+  "sourceIdentity":{"chatbotGitBlob":"3cca937c6b91187fed5711eb02ac8e12d9cd5058","llmGitBlob":"74a5c93958156bb4e3ba6eb66681faaaf6e5dcf3"},
+  "beforeArtifact":"reports/local-audit-ai-refusal-keyword-probe.json",
+  "method":"Fresh local process ran the same three synthetic operational-source inputs through both remote_text_output_is_safe and generate_chat_response after exact verb-category plus prefix repair; local/memory mode, fake client, remote off, keys empty",
+  "observations":[
+    {"alias":"dose_keyword_after_refusal","outputGateAccepted":false,"safetyAction":"INSUFFICIENT_EVIDENCE","originalEchoed":false,"providerCalled":false,"citationPresent":false,"usedSourcesPresent":false},
+    {"alias":"english_dosage_after_refusal","outputGateAccepted":false,"safetyAction":"INSUFFICIENT_EVIDENCE","originalEchoed":false,"providerCalled":false,"citationPresent":false,"usedSourcesPresent":false},
+    {"alias":"first_person_diagnosis_after_refusal","outputGateAccepted":false,"safetyAction":"INSUFFICIENT_EVIDENCE","originalEchoed":false,"providerCalled":false,"citationPresent":false,"usedSourcesPresent":false}
+  ],
+  "result":"PASS for exact formerly failing local deterministic paths",
+  "primaryFrameworkEvidence":"reports/local-audit-v4-ai-pytest.txt: 882 passed, eight deprecation warnings",
+  "limits":"Bounded synthetic/offline result, not every medical wording, live model/provider behavior, production or running-image source binding."
+}

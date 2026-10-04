@@ -15,6 +15,11 @@ from app.llm import (
     resolve_triage,
     rule_based_triage,
 )
+from app.embeddings import (
+    LocalEmbeddingClient,
+    OpenAIEmbeddingClient,
+    build_embedding_client,
+)
 from app.schemas import ChatSafetyAction
 
 
@@ -210,6 +215,107 @@ def test_build_llm_client_allows_allowlisted_host() -> None:
     )
 
     assert isinstance(build_llm_client(settings), OpenAIChatClient)
+
+
+def test_build_llm_client_refuses_provider_outside_the_provider_allowlist() -> None:
+    settings = SimpleNamespace(
+        ai_provider="openai",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="gpt-4o-mini",
+        ai_base_url="https://api.openai.com",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek",
+        remote_ai_https_host_allowlist="api.openai.com",
+    )
+
+    # The provider allowlist is enforced when configured: a valid key and an
+    # allowlisted egress host still yield no client when the provider itself
+    # is not named by remote_ai_provider_allowlist.
+    assert build_llm_client(settings) is None
+
+
+def test_build_llm_client_allows_provider_on_the_provider_allowlist() -> None:
+    settings = SimpleNamespace(
+        ai_provider="openai",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="gpt-4o-mini",
+        ai_base_url="https://api.openai.com",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek,openai",
+        remote_ai_https_host_allowlist="api.openai.com",
+    )
+
+    assert isinstance(build_llm_client(settings), OpenAIChatClient)
+
+
+def test_build_embedding_client_refuses_provider_outside_the_provider_allowlist() -> None:
+    settings = SimpleNamespace(
+        embedding_provider="openai",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_embedding_model="text-embedding-3-small",
+        ai_base_url="https://api.openai.com",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek",
+    )
+
+    assert build_embedding_client(settings) is None
+
+
+def test_build_embedding_client_allows_provider_on_the_provider_allowlist() -> None:
+    settings = SimpleNamespace(
+        embedding_provider="openai",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_embedding_model="text-embedding-3-small",
+        ai_base_url="https://api.openai.com",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek,openai",
+    )
+
+    assert isinstance(build_embedding_client(settings), OpenAIEmbeddingClient)
+
+
+def test_build_embedding_client_falls_back_to_local_without_remote_provider() -> None:
+    settings = SimpleNamespace(
+        embedding_provider="local",
+        ai_api_key="",
+        ai_embedding_model="",
+        ai_base_url="",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek",
+    )
+
+    assert isinstance(build_embedding_client(settings), LocalEmbeddingClient)
+
+
+def test_build_embedding_client_refuses_base_url_outside_the_https_host_allowlist() -> None:
+    settings = SimpleNamespace(
+        embedding_provider="openai",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_embedding_model="text-embedding-3-small",
+        ai_base_url="https://evil.example.com/v1",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek,openai",
+        remote_ai_https_host_allowlist="api.openai.com",
+    )
+
+    # The egress host boundary applies to embeddings too: an allowlisted
+    # provider still gets no client when its resolved base URL host is not
+    # named by remote_ai_https_host_allowlist.
+    assert build_embedding_client(settings) is None
+
+
+def test_build_embedding_client_allows_allowlisted_host() -> None:
+    settings = SimpleNamespace(
+        embedding_provider="openai",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_embedding_model="text-embedding-3-small",
+        ai_base_url="https://api.openai.com",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek,openai",
+        remote_ai_https_host_allowlist="api.openai.com",
+    )
+
+    assert isinstance(build_embedding_client(settings), OpenAIEmbeddingClient)
 
 
 def test_missing_deepseek_secret_returns_no_client_and_fails_closed() -> None:
@@ -459,6 +565,48 @@ def test_triage_remote_output_policy_rejects_provider_secret() -> None:
     )
     assert result.provenance == "local_fallback"
     provider.complete_json.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "unsafe_answer",
+    [
+        "Tôi không thể kê đơn, hãy uống aspirin.",
+        "Bạn không có dị ứng, hãy uống aspirin.",
+        "I cannot prescribe, take aspirin.",
+        "Tôi không thể chẩn đoán, bạn bị viêm phổi.",
+        "Bạn không có dị ứng, bạn bị viêm phổi.",
+        "Tôi không thể kê đơn, paracetamol 500mg mỗi ngày.",
+        "Tôi không thể kê đơn, liều thuốc là 500mg mỗi ngày.",
+        "I cannot prescribe, dosage 500mg daily.",
+        "I cannot prescribe, I diagnose pneumonia.",
+        "Tôi không thể kê đơn, https://unsafe.example.test",
+        "Bạn không có dị ứng, hãy ngừng thuốc.",
+        "Chẩn đoán: viêm phổi.",
+        "Chẩn đoán nghi ngờ: viêm phổi.",
+        "Confirmed diagnosis: pneumonia.",
+        "Hãy uống pаrаcetamol 500mg.",
+        "d o s a g e 500mg daily.",
+        "Tôi không thể kê đơn. Ngừng thuốc.",
+    ],
+)
+def test_direct_medication_action_fails_closed_despite_refusal_frame(
+    unsafe_answer: str,
+) -> None:
+    assert remote_text_output_is_safe(unsafe_answer) is False
+
+
+@pytest.mark.parametrize(
+    "safe_answer",
+    [
+        "Tôi không thể kê đơn.",
+        "Tôi không thể bốc thuốc.",
+        "Tôi không thể chẩn đoán, kê đơn hoặc thay đổi thuốc.",
+        "Không tự ý ngừng thuốc trước khi khám.",
+        "Người lớn nên uống khoảng 1,5-2 lít nước mỗi ngày, tùy thời tiết và mức vận động.",
+    ],
+)
+def test_plain_refusal_and_negated_caution_remain_safe(safe_answer: str) -> None:
+    assert remote_text_output_is_safe(safe_answer) is True
 
 
 def test_public_booking_fallback_uses_booking_copy_instead_of_symptom_prompt() -> None:

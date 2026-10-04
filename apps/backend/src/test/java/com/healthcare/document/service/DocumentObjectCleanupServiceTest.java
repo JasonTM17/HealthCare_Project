@@ -1,5 +1,6 @@
 package com.healthcare.document.service;
 
+import com.healthcare.database.IndependentClinicalTransactions;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -7,6 +8,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +18,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 class DocumentObjectCleanupServiceTest {
+
+    private static IndependentClinicalTransactions sideEffectsOn(JdbcTemplate jdbc) {
+        IndependentClinicalTransactions sideEffects = mock(IndependentClinicalTransactions.class);
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Consumer.class).accept(jdbc);
+            return null;
+        }).when(sideEffects).write(any());
+        return sideEffects;
+    }
 
     @Test
     void trackCandidateDefersCleanupAndUpsertsByObjectKey() {
@@ -28,7 +39,7 @@ class DocumentObjectCleanupServiceTest {
             return 1;
         }).when(jdbc).update(anyString(), any(Object[].class));
         DocumentObjectCleanupService cleanup = new DocumentObjectCleanupService(
-                jdbc, objectStore, transactions, true, 120);
+                jdbc, objectStore, transactions, true, 120, sideEffectsOn(jdbc));
 
         cleanup.trackCandidate("documents/patient/document.pdf");
 
@@ -51,7 +62,7 @@ class DocumentObjectCleanupServiceTest {
             return List.of();
         }).when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
         DocumentObjectCleanupService cleanup = new DocumentObjectCleanupService(
-                jdbc, objectStore, transactions, true, 120);
+                jdbc, objectStore, transactions, true, 120, sideEffectsOn(jdbc));
 
         assertThat(cleanup.claimOne(new SimpleTransactionStatus())).isNull();
 
@@ -76,7 +87,7 @@ class DocumentObjectCleanupServiceTest {
         doAnswer(invocation -> List.of())
                 .when(jdbc).query(anyString(), any(RowMapper.class), any(Object[].class));
         DocumentObjectCleanupService cleanup = new DocumentObjectCleanupService(
-                jdbc, objectStore, transactions, true, 120);
+                jdbc, objectStore, transactions, true, 120, sideEffectsOn(jdbc));
 
         assertThat(cleanup.claimOne(new SimpleTransactionStatus())).isNull();
 

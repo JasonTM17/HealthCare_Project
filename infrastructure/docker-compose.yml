@@ -249,10 +249,11 @@ services:
       STORAGE_UPLOAD_ENABLED: ${STORAGE_UPLOAD_ENABLED:-false}
       STORAGE_AV_REQUIRED: "true"
       # The backend refuses to boot with uploads on unless storage is pinned to
-      # a private endpoint; keep the local stack fail-closed-compliant. Local
-      # runtimes that turn uploads off may relax this to allow the loopback
-      # presign endpoint.
-      STORAGE_REQUIRE_PRIVATE_ENDPOINT: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:-true}
+      # a private endpoint (FailClosedStoragePolicy enforces that independently
+      # of this flag). Local uploads default OFF, and the loopback presign
+      # endpoint is HTTP, so the endpoint guard itself relaxes here — the
+      # hardening-era MinioConfig otherwise refuses to boot this stack.
+      STORAGE_REQUIRE_PRIVATE_ENDPOINT: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:-false}
       STORAGE_AV_SERVICE_URL: http://attachment-scanner:8080/scan
       STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
       STORAGE_AV_ALLOWED_HOSTS: attachment-scanner
@@ -355,6 +356,9 @@ services:
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
       AI_PUBLIC_RETRIEVAL_CANDIDATES: ${AI_PUBLIC_RETRIEVAL_CANDIDATES:-40}
+      # Local compose enables the deterministic public-answer cache; hosted
+      # render environments keep the default (false) until reviewed.
+      AI_PUBLIC_CHAT_CACHE_ENABLED: ${AI_PUBLIC_CHAT_CACHE_ENABLED:-true}
       RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
       RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
       RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-10000}

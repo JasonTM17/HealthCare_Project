@@ -1,0 +1,69 @@
+{
+  "schema": "healthcare.local-pdf-observation.v1",
+  "date": "2026-10-04",
+  "owner": "Team Lead",
+  "scope": "Manual diagnostic browser journey on the newly created synthetic local audit stack; not production evidence",
+  "target": {
+    "frontend": "http://localhost:3330",
+    "composeProject": "healthcare-devin-local-audit",
+    "buildHead": "bbba6935851cdb630f5fd87717c47458a69e2d4e",
+    "dirtyBuildManifest": "reports/local-audit-baseline.json",
+    "sourceType": "VISIT_SUMMARY",
+    "data": "Fresh project-scoped synthetic fixtures only"
+  },
+  "observations": [
+    {
+      "step": "Authenticate a published synthetic patient through the browser login form",
+      "httpStatus": 200,
+      "result": "PASS"
+    },
+    {
+      "step": "Inspect document center before generation",
+      "state": "A legacy FAILED document had disabled download and enabled retry; visit-summary and prescription generation controls were enabled",
+      "result": "OBSERVED"
+    },
+    {
+      "step": "Click the legacy document retry control through the real UI",
+      "httpStatus": 201,
+      "documentStatus": "AVAILABLE",
+      "result": "PASS"
+    },
+    {
+      "step": "Initial network Response.body capture during a blob download",
+      "httpStatus": 200,
+      "capturedBytes": 0,
+      "actualDownloadedFileBytes": null,
+      "result": "INCONCLUSIVE",
+      "limitation": "The initial downloaded file was not read before a subsequent download. This network-body capture does not establish a zero-byte product defect. The lead withdrew that conclusion after counterevidence."
+    },
+    {
+      "step": "Authenticated in-page fetch of the real BFF document-download endpoint",
+      "httpStatus": 200,
+      "storedBytes": 660381,
+      "actualBytes": 660381,
+      "magic": "%PDF-",
+      "contentType": "application/pdf;charset=UTF-8",
+      "cacheControl": "no-store",
+      "result": "PASS"
+    },
+    {
+      "step": "Read the actual browser Download.createReadStream after clicking the PDF download control",
+      "actualBytes": 660381,
+      "expectedBytes": 660381,
+      "byteSizeMatches": true,
+      "sha256Matches": true,
+      "magic": "%PDF-",
+      "downloadFailure": null,
+      "filename": "ho-so-kham-80000000.pdf",
+      "result": "PASS"
+    }
+  ],
+  "transport": ["Browser UI", "Next.js BFF", "Spring Boot API", "Real private local MinIO"],
+  "excludedClaims": [
+    "No claim that the user's original download failure has been reproduced reliably on every local configuration",
+    "No claim that all document types or role boundaries have passed",
+    "No claim of production, live remote AI, Supabase, Render, or Vercel verification",
+    "No claim of a digital signature or certified medical document"
+  ],
+  "nextGate": "Regression tests for concurrency and role boundaries, plus automated live PDF E2E that reads the actual downloaded file and verifies size/hash"
+}

@@ -1,0 +1,59 @@
+{
+  "probe": "cms-live-persistence",
+  "generatedAt": "2026-10-04T15:47:21.619Z",
+  "routeNote": "Direct audit backend :8180 with its own configured BFF credential (env mismatch makes :3330 BFF hop unusable); admin principal redacted",
+  "steps": [
+    {
+      "step": "read-published-before",
+      "status": 200,
+      "version": 8,
+      "payload": {
+        "body": "Đặt lịch khám và tìm hiểu dịch vụ chăm sóc phù hợp với nhu cầu của bạn.",
+        "title": "Đồng hành cùng sức khỏe gia đình",
+        "ctaHref": "/dat-lich",
+        "eyebrow": "Chăm sóc chủ động",
+        "ctaLabel": "Đặt lịch khám"
+      },
+      "componentType": "HERO",
+      "pubStatus": "PUBLISHED"
+    },
+    {
+      "step": "admin-login",
+      "status": 200,
+      "sessionEstablished": true,
+      "csrfPresent": true
+    },
+    {
+      "step": "put-new-version",
+      "status": 200,
+      "newVersion": 9,
+      "imageUrl": "/media/about-care-poster.jpg"
+    },
+    {
+      "step": "read-published-after",
+      "status": 200,
+      "version": 9,
+      "imageUrl": "/media/about-care-poster.jpg",
+      "versionMatches": true,
+      "imageMatches": true
+    },
+    {
+      "step": "history-lookup",
+      "status": 200,
+      "entries": 9,
+      "targetEventId": 14,
+      "targetVersion": 8
+    },
+    {
+      "step": "rollback-restore",
+      "status": 200,
+      "restoredVersion": 10,
+      "payloadMatchesOriginal": true,
+      "imageUrlAfterRestore": null
+    }
+  ],
+  "verdict": "PASS",
+  "beforeVersion": 8,
+  "newVersion": 9,
+  "restoredVersion": 10
+}

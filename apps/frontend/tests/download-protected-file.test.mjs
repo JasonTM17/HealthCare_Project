@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 
 const apiClientPath = new URL("../lib/api-client.ts", import.meta.url);
+const capabilityPath = new URL("../lib/chat-chunked-capability.ts", import.meta.url);
 
 function browserSession(account) {
   return {
@@ -115,12 +116,24 @@ async function loadApiClient({ contentDisposition }) {
     window,
     document,
   });
+  const capabilityModule = { exports: {} };
+  const capabilityTranspiled = ts.transpileModule(await readFile(capabilityPath, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: "chat-chunked-capability.ts",
+  });
+  new vm.Script(
+    `(function (exports, require, module) {${capabilityTranspiled.outputText}\n})`,
+    { filename: "chat-chunked-capability.compiled.cjs" },
+  ).runInContext(context)(capabilityModule.exports, () => {
+    throw new Error("capability module has no runtime imports");
+  }, capabilityModule);
   const loadModule = new vm.Script(
     `(function (exports, require, module) {${transpiled.outputText}\n})`,
     { filename: "api-client.compiled.cjs" },
   ).runInContext(context);
   loadModule(compiledModule.exports, (specifier) => {
     if (specifier === "./secure-random") return { randomId: () => "test-random-id" };
+    if (specifier === "./chat-chunked-capability") return capabilityModule.exports;
     throw new Error(`Unexpected runtime import: ${specifier}`);
   }, compiledModule);
   const api = compiledModule.exports;

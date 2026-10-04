@@ -1,0 +1,73 @@
+{
+  "schema":"healthcare.local-review-packet.v2",
+  "stage":"Independent post-rework product-source review while broad/live verification finishes; not final delivery acceptance",
+  "frozen":true,
+  "targetHead":"bbba6935851cdb630f5fd87717c47458a69e2d4e",
+  "targetIdentity":"Corrected product snapshot v3; exact controller Git blob manifest below, not HEAD alone",
+  "manifestAlgorithm":"Git blob SHA-1, controller executed git hash-object in listed order",
+  "sourceManifest":[
+    {"path":"apps/backend/src/main/java/com/healthcare/database/IndependentClinicalTransactions.java","gitBlob":"112aae310727bb9dd0f4a9cf616d9f674561adfb"},
+    {"path":"apps/backend/src/main/java/com/healthcare/clinical/service/ClinicalAccessAuditService.java","gitBlob":"5aef34c3c76e73abb0203f5275215d31a35c275d"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/service/DocumentObjectCleanupService.java","gitBlob":"f62c905bbc68a8e8b841292b6c4e817ca90975e2"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java","gitBlob":"40e14e41f1d00aeff1796ce38e26a1bda25e26ba"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java","gitBlob":"f4735820ea5a780085f750fc6fe8a122907a10db"},
+    {"path":"apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java","gitBlob":"11ee9cb7d80de2d4cb20dae76567b34197abbe38"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/controller/DocumentController.java","gitBlob":"126e4893bd3c802ee6abda0608afaef84ab9a820"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/dto/DocumentResponse.java","gitBlob":"f30de06750b6c3accaee1eb63bc6c9e2f3be2038"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/dto/DocumentCapabilitiesResponse.java","gitBlob":"1faba5b7825d199450b83081dba54a13b9e2f45d"},
+    {"path":"apps/backend/src/main/java/com/healthcare/document/service/MinioDocumentObjectStore.java","gitBlob":"b9627437a0060058c239f0f159f36e257af36fee"},
+    {"path":"apps/ai-service/app/chatbot.py","gitBlob":"3cca937c6b91187fed5711eb02ac8e12d9cd5058"},
+    {"path":"apps/ai-service/app/llm.py","gitBlob":"00203c4dde142e3a02bb6c57d71553b6e2bd3e26"},
+    {"path":"apps/frontend/app/patient/documents/page.tsx","gitBlob":"4a75694bf756539630303c7c135cbe2a2ca2af4f"},
+    {"path":"apps/frontend/lib/api-client.ts","gitBlob":"43c424cc038ad50046c4bd86b08551ca145d8439"},
+    {"path":"apps/frontend/types/hospital.ts","gitBlob":"88a6473ecc468caad371bde4d6915afe0b8aa176"}
+  ],
+  "scope":"Frozen 15 product members and direct required source dependencies. Test/harness files may still change during verification and are NOT frozen members in this review; do not treat their mutable content as an identity-bound passing gate.",
+  "authority":"R0 source/captured-evidence inspection only; no writes, commands, services, DB queries, secrets, peers, commits, push, deployment or production sign-off",
+  "budget":{"maximumStaticProbes":7,"requireH0AndTwoAlternatives":true,"highSeverityIndependentExecutionRequired":true},
+  "baseline":"reports/local-audit-baseline.json",
+  "initialPatchLimit":"Initial baseline/testdiff patches have encoding-fidelity issues and must not be applied as rollback artifacts. User-owned initial changes remain protected.",
+  "repairs":[
+    "Stable PostgreSQL document-source advisory lock prevents unique-key conflict queries inside an aborted transaction.",
+    "Dedicated lazy bounded Hikari side-effect pool commits audit/cleanup independently, without competing with lock-waiting request connections. Max two additional DB connections per backend instance; production quota/monitoring impact unverified.",
+    "Cleanup marker persists before object bytes; failed marker prevents untracked upload; primary rollback must retain the independently committed marker.",
+    "Typed issuing/assigned-doctor sets prevent cross-source UUID authority widening, and booking-code patient authority precedes existence lookup.",
+    "Reminder revision uses a full content digest; 52-bit metadata version is within JS safe integer range, NOT the integrity identity. Rescheduling/cancellation denies stale current scheduling PDFs without deleting historical objects or inventing revocation metadata.",
+    "Persisted document status guards retain priority: revoked/superseded 403, not-ready 409, then AVAILABLE reminder freshness 409 before object read.",
+    "Server configuredness capability decouples PDF generation from generic user-media uploads; it is NOT storage health/reachability.",
+    "Frontend handles missing capability, ineligible/failed reminders, stale regeneration and async auth/session callback boundaries without exposing tokens.",
+    "AI checks original PII/injection first, validates titles, strips only renderer-removed body URLs, permits only conditional doctor-directed preparation, blocks comma-joined direct medication commands, and retains ordinary refusal/caution/hydration controls.",
+    "Simple authorized operational facts render deterministically from sources; complex/clinical/uncited branches retain existing provider/egress gates. No prompt, threshold, score or remote policy was rewritten."
+  ],
+  "primaryEvidence":[
+    {"path":"reports/local-audit-be-repro.txt","state":"Observed pre-fix failure: duplicate key then PostgreSQL aborted transaction; doctor reminder 403 and booking-before-scope failures"},
+    {"path":"reports/local-audit-be-r2-probes.txt","state":"Observed pre-rework main pool exhaustion with three lock-owning/waiting requests; report completeness limitation remains"},
+    {"path":"reports/local-audit-r3-surefire-DocumentGenerationIntegrationTest.txt","state":"PASS: 10 executed, zero failures/errors/skips; fresh PostgreSQL and mocked object store"},
+    {"path":"reports/local-audit-r3-surefire-DocumentServiceTest.txt","state":"PASS: 28 executed, zero failures/errors/skips; repository/object-store mocks"},
+    {"path":"reports/local-audit-r3-surefire-DocumentObjectCleanupServiceTest.txt","state":"PASS: 3 executed; mocked cleanup SQL boundary"},
+    {"path":"reports/local-audit-r3-fe-e2e.txt","state":"PASS: actual 8-case browser stdout on built port3331; mocked API, not live MinIO"},
+    {"path":"reports/local-audit-ai-r3-holdtrue.txt","state":"Offline fake-provider configuration variant; inspect actual stdout, do not rely on summary alone"},
+    {"path":"reports/local-audit-ai-r3-defaultfalse.txt","state":"Offline fake-provider default variant; inspect actual stdout"},
+    {"path":"reports/local-audit-review-round1.json","state":"Controller adjudication of initial reviews; not peer evidence to copy into a new review"},
+    {"path":"reports/local-audit-qa-authority-and-guards.json","state":"Controller QA origin/cleanup bounds and blocked SQL fixture; no guard bypass"}
+  ],
+  "controllerLiveObservation":{"origin":"http://localhost:3330","newDocumentPageLoaded":true,"localLoginSucceeded":true,"profileStatus":200,"newCapabilityStatus":200,"generationConfigured":true,"limits":"New endpoint/page smoke proves rebuilt capability path only; does not prove real PDF/AV/AI journeys or whole build identity."},
+  "runtimeLimits":[
+    "Own frontend/backend/AI containers are healthy; own ClamAV and attachment-scanner are currently unhealthy. Attachment 503 is fail-closed behavior, NOT real AV proof.",
+    "Full package gates and real normal-API clinical/PDF journey remain in progress; no unobserved pass is implied.",
+    "Legacy doctor.com login/profile discrepancy exists in local seed; no issuing-doctor live claim from unrelated legacy patient sources.",
+    "SQL fixture creation hit synthetic-allowlist security guard, rolled back with zero new rows, and was not bypassed. Use normal APIs or BLOCKED results.",
+    "No production Supabase/Render/Vercel, live paid-provider, cross-platform or qualified model-family route has been verified."
+  ],
+  "invariants":[
+    "Concurrent application callers obtain one correct authorized document row/object without primary-pool starvation caused by independent side effects.",
+    "Cross-patient, cross-source-type and unrelated-doctor requests do not widen authority or probe booking existence before scope checks.",
+    "Current scheduling PDFs are unavailable after source changes/cancellation; historical status/auth semantics remain intact.",
+    "No validation-only title/medication mask lets an unsafe original appear in deterministic answers/citations.",
+    "Generic hydration/refusal/caution remains usable while direct medication/diagnosis directions fail closed.",
+    "Frontend old async callbacks never clear or overwrite a newer auth/data session."
+  ],
+  "acceptanceState":"NOT_ACCEPTED for final delivery; this is independent corrected-source review. Real final evidence and the lead verdict must follow after verification.",
+  "hashVerification":"Reviewers cannot run hashing; controller will recheck every listed member after reviews. Any drift invalidates affected findings.",
+  "runtime":"Native separate read-only Explore contexts executing role instructions; underlying model unknown, no provider-family independence/production qualification claim."
+}

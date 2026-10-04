@@ -22,13 +22,24 @@ test("floating assistant is mounted globally and stays on the REST chat contract
   assert.match(component, /fetchAiConversations\(\)/);
   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
   assert.match(component, /sendMessage\(currentConversation\.id, normalized/);
-  assert.match(component, /sendPublicAiChat\(normalized, recentTurns/);
+  // Login gate: the anonymous public-chat send path must not come back. The
+  // assistant is a signed-in surface; the BE public endpoint stays for the
+  // separate API contract but this component never calls it.
+  assert.doesNotMatch(component, /sendPublicAiChat/);
+  assert.match(component, /if \(!session\) return;/);
   assert.doesNotMatch(component, /CASUAL_GREETING_PATTERN|GREETING_ACTIONS|GREETING_ANSWER/);
   assert.doesNotMatch(component, /href:\s*"\/booking"/);
-  assert.match(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
-  assert.match(component, /Bạn đang dùng chế độ khách/);
+  assert.doesNotMatch(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
+  // The gate replaces the composer with a login CTA that keeps the safe
+  // non-chat channels (booking + hospital hotline) reachable.
+  assert.match(component, /data-testid="floating-assistant-login-gate"/);
+  assert.match(component, /Đăng nhập để trò chuyện với trợ lý/);
+  assert.match(component, /auth\/login\?next=\$\{encodeURIComponent\(pathname\)\}/);
+  assert.match(component, /href="tel:02818000001"/);
+  assert.match(component, /href="\/dat-lich">Đặt lịch khám</);
+  assert.doesNotMatch(component, /Bạn đang dùng chế độ khách/);
   assert.match(component, /Thông tin sức khỏe · Có lưu lịch sử/);
-  assert.match(component, /Tra cứu HealthCare · Không lưu lịch sử/);
+  assert.match(component, /Đăng nhập để hỏi và được lưu hội thoại/);
   assert.doesNotMatch(component, /Bác sĩ Trợ lý AI|Trực tuyến|onlineDot/);
   assert.doesNotMatch(styles, /\.onlineDot/);
   assert.match(component, /isPatient && message\.status === "COMPLETED"/);
@@ -92,7 +103,7 @@ test("floating assistant exposes real recovery, safety and accessible actions", 
   // The floating panel is a non-modal companion widget: the page behind stays
   // interactive, so aria-modal="true" would misrepresent the background.
   assert.doesNotMatch(component, /aria-modal="true"/);
-  assert.match(component, /maxLength=\{isPatient \? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH\}/);
+  assert.match(component, /maxLength=\{MAX_MESSAGE_LENGTH\}/);
   assert.match(styles, /launcherAvatar/);
   assert.match(styles, /\.launcher \{[\s\S]*border-radius: var\(--radius-sm\)/);
   assert.match(styles, /\.launcher \{[\s\S]*width: 3\.25rem;[\s\S]*min-height: 3\.25rem/);

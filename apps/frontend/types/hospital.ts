@@ -495,7 +495,7 @@ export interface MedicalRecord {
   createdAt: string;
 }
 
-export type PatientDocumentSourceType = "VISIT_SUMMARY" | "PRESCRIPTION";
+export type PatientDocumentSourceType = "VISIT_SUMMARY" | "PRESCRIPTION" | "APPOINTMENT_REMINDER";
 export type PatientDocumentStatus = "PENDING" | "AVAILABLE" | "FAILED" | "SUPERSEDED" | "REVOKED";
 
 export interface PatientDocument {
@@ -511,6 +511,8 @@ export interface PatientDocument {
   generatedBy: string;
   generatedAt: string;
   revokedAt?: string | null;
+  sourceCurrent?: boolean | null;
+  sourceEligible?: boolean | null;
 }
 
 export interface DiagnosticResult {

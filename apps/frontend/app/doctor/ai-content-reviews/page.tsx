@@ -316,7 +316,7 @@ export default function DoctorAiContentReviewsPage() {
       <div className="portal-content grid gap-6">
         <header className="portal-hero">
           <div>
-            <p className="section-note">CLINICAL REVIEW</p>
+            <p className="section-note">DUYỆT NỘI DUNG LÂM SÀNG</p>
             <h1>Duyệt nguồn AI</h1>
             <p>Xem snapshot bất biến và hash trước khi cho phép nội dung {typeLabel("ARTICLE")}, {typeLabel("SPECIALTY")} hoặc {typeLabel("FAQ")} đi vào chatbot.</p>
           </div>

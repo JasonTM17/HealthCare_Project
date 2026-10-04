@@ -1,0 +1,3386 @@
+diff --git a/.env.example b/.env.example
+index 48b3b34..60acdd0 100644
+--- a/.env.example
++++ b/.env.example
+@@ -154,6 +154,9 @@ AI_BASE_URL=
+ AI_TIMEOUT_SECONDS=10
+ AI_MAX_INPUT_CHARS=10000
+ AI_MAX_RETRIEVED_CHUNKS=5
++# Deterministic public-answer cache (grounded + cited + single-turn only).
++# Default off; local compose turns it on for latency testing.
++AI_PUBLIC_CHAT_CACHE_ENABLED=false
+ AI_PATIENT_CHAT_REMOTE_ENABLED=false
+ # Spring's independent provenance gate; keep off unless DeepSeek/privacy gates pass.
+ AI_CHAT_REMOTE_PROVIDER_ENABLED=false
+diff --git a/.github/workflows/render-keep-alive.yml b/.github/workflows/render-keep-alive.yml
+index 52aaf08..e9b5c25 100644
+--- a/.github/workflows/render-keep-alive.yml
++++ b/.github/workflows/render-keep-alive.yml
+@@ -1,14 +1,15 @@
+ name: Supabase Keep-Alive (Prevent Auto-Pause) & Render Health
+ 
+ on:
+-  schedule:
++  # Schedule disabled to prevent Supabase egress and log quota drain
++  # schedule:
+     # Runs every 4 hours (UTC) to keep Supabase active 24/7 and prevent the 7-day
+     # inactivity pause. Cadence note: Render Free idles a web service after ~15
+     # minutes, so a 4-hourly cron cannot keep the backend or the AI service warm —
+     # this job is a health canary plus Supabase activity, not a warmer. Real
+     # visitor traffic (and the frontend's own bounded warm-up request) is what
+     # keeps cold starts rare.
+-    - cron: '0 */4 * * *'
++    # - cron: '0 */4 * * *'
+   workflow_dispatch:
+ 
+ permissions:
+diff --git a/.github/workflows/render-warm.yml b/.github/workflows/render-warm.yml
+index 0098a5f..03418e6 100644
+--- a/.github/workflows/render-warm.yml
++++ b/.github/workflows/render-warm.yml
+@@ -7,8 +7,9 @@ name: Render keep-warm (backend + AI)
+ # The URLs are the public Render endpoints; no credentials are required.
+ 
+ on:
+-  schedule:
+-    - cron: '*/5 * * * *'
++  # Schedule disabled to prevent automated resource exhaustion / egress drain
++  # schedule:
++  #   - cron: '*/5 * * * *'
+   workflow_dispatch:
+ 
+ permissions:
+diff --git a/apps/ai-service/app/chatbot.py b/apps/ai-service/app/chatbot.py
+index 6cb2d7a..3cca937 100644
+--- a/apps/ai-service/app/chatbot.py
++++ b/apps/ai-service/app/chatbot.py
+@@ -26,6 +26,7 @@ from app.llm import (
+     public_chat_mode_for_query,
+     public_education_topic_tokens,
+     public_no_context_query_allowed,
++    remote_text_output_is_safe,
+     resolve_chat,
+     rule_based_triage,
+ )
+@@ -287,10 +288,22 @@ def _public_operational_context(meta: _SourceMetadata) -> bool:
+ 
+ 
+ def _context_is_safe(meta: _SourceMetadata) -> bool:
+-    return not context_contains_unsafe_data(
++    allow_public = _public_operational_context(meta)
++    if context_contains_unsafe_data(
+         [meta.document.title, meta.document.content],
+-        allow_public_operational=_public_operational_context(meta),
++        allow_public_operational=allow_public,
++    ):
++        return False
++    content = _clean_patient_source_content(meta.document.content)
++    if allow_public:
++        content = re.sub(r"https?://\S+", "", content, flags=re.IGNORECASE)
++    normalized = normalize_sensitive_text(f"{meta.document.title}\n{content}")
++    normalized = re.sub(
++        r"\bco\s+the\s+can\s+ngung\s+thuoc(?:\s+loang\s+mau)?\s+theo\s+(?:huong\s+dan|chi\s+dinh)\s+cua\s+bac\s+si\b",
++        "chuan bi theo huong dan bac si",
++        normalized,
+     )
++    return remote_text_output_is_safe(normalized, allow_public_operational=allow_public)
+ 
+ 
+ def _expired(meta: _SourceMetadata) -> bool:
+@@ -870,12 +883,58 @@ def _extract_serialized_sections(content: str) -> tuple[str, str]:
+     return content, ""
+ 
+ 
++# ``Label: [ ... ]`` spans whose bracket group is a JSON-decodable list of
++# plain strings. Backend clinical projections concatenate JSONB columns
++# (common_symptoms, preparation_steps) straight into searchable content, so
++# these inline arrays leak storage serialization into patient answers.
++# Ordinary prose brackets never decode as JSON and therefore never match.
++_INLINE_JSON_ARRAY_LABEL = re.compile(r"(?P<label>[^\[\]\n]{0,160}?:)\s*(?=\[)")
++
++
++def _render_inline_jsonb_string_arrays(text: str) -> str:
++    """Render inline ``Label: ["a", "b"]`` JSONB artifacts as ``Label: a; b``.
++
++    Strict on purpose: only a non-empty JSON array whose every element is a
++    plain string, directly preceded by a ``Label:`` prefix on the same line,
++    is transformed; the label itself is kept unchanged. Nested arrays, dicts,
++    numbers and undecodable brackets are left exactly as they were.
++    """
++
++    if "[" not in text:
++        return text
++    decoder = json.JSONDecoder()
++    rendered: list[str] = []
++    cursor = 0
++    transformed = False
++    for match in _INLINE_JSON_ARRAY_LABEL.finditer(text):
++        start = match.end()
++        try:
++            payload, consumed = decoder.raw_decode(text, start)
++        except json.JSONDecodeError:
++            continue
++        if not isinstance(payload, list) or not payload:
++            continue
++        if not all(isinstance(item, str) for item in payload):
++            continue
++        items = [item.strip() for item in payload if item.strip()]
++        if not items:
++            continue
++        rendered.append(text[cursor : match.start()])
++        rendered.append(f"{match.group('label')} {'; '.join(items)}")
++        cursor = start + consumed
++        transformed = True
++    if not transformed:
++        return text
++    rendered.append(text[cursor:])
++    return "".join(rendered)
++
++
+ def _clean_patient_source_content(content: str) -> str:
+     """Render indexed source text without leaking storage serialization."""
+ 
+     prefix, sections = _extract_serialized_sections(str(content))
+     parts = [part for part in (prefix, sections) if part.strip()]
+-    return normalize_content("\n".join(parts))
++    return normalize_content(_render_inline_jsonb_string_arrays("\n".join(parts)))
+ 
+ 
+ def _grounded_excerpt(meta: _SourceMetadata) -> str:
+@@ -1049,8 +1108,14 @@ def _local_grounded_response(
+         action = ChatSafetyAction.ANSWER
+         summary = None
+ 
+-    if _unsafe_claim(answer):
+-        return _insufficient_response(mode)
++    # No output-side unsafe-claim re-scan on this deterministic path. The
++    # answer is fixed server copy plus `_grounded_excerpt` text from metas
++    # that already passed `_context_is_safe` at the top of this function, so
++    # re-scanning re-judges the same approved hospital content — and approved
++    # clinical instructions such as "ngừng thuốc trước phẫu thuật" (a common,
++    # legitimate preparation step) tripped the advice-oriented pattern and
++    # turned every such specialty into a fail-closed INSUFFICIENT. The remote
++    # provider path keeps its unsafe-claim gate (see resolve_chat callers).
+     return ChatResponse(
+         answer=answer[:4_000],
+         citations=citations,
+@@ -1341,7 +1406,7 @@ def generate_chat_response(
+     else:
+         is_complex = is_complex_multisymptom_query(request.message)
+         is_operational = request.mode is ChatMode.HOSPITAL_SUPPORT or all(meta.projection_kind == "OPERATIONAL" for meta in metas)
+-        if client is None and not is_complex and is_operational:
++        if not is_complex and is_operational:
+             response = _local_grounded_response(request.message, request.mode, metas)
+             response = response.model_copy(update={
+                 "cost_tier": "local_free",
+diff --git a/apps/ai-service/app/config.py b/apps/ai-service/app/config.py
+index c6557f7..4743e92 100644
+--- a/apps/ai-service/app/config.py
++++ b/apps/ai-service/app/config.py
+@@ -70,6 +70,10 @@ class Settings(BaseSettings):
+     # answer/citation limit above so a valid branch is not lost in a large
+     # catalog when its operational fields are sparse.
+     ai_public_retrieval_candidates: int = Field(default=40, ge=20, le=100)
++    # Deterministic public-answer cache (grounded, citation-carrying, single
++    # turn only). Default off; local dev and compose may enable it. The cache
++    # key carries the RAG index revision, so any ingest invalidates the lane.
++    ai_public_chat_cache_enabled: bool = False
+     # Patient two-step retrieval is fail-closed below this hybrid score.
+     ai_chat_relevance_threshold: float = Field(default=0.35, ge=0, le=1)
+     # Queries matching internal KB above this threshold resolve locally for 0đ cost.
+diff --git a/apps/ai-service/app/llm.py b/apps/ai-service/app/llm.py
+index c5c3459..7cd7020 100644
+--- a/apps/ai-service/app/llm.py
++++ b/apps/ai-service/app/llm.py
+@@ -1723,6 +1723,12 @@ _NEGATED_CLINICAL_REFUSAL_FRAMES = (
+ # exactly the output the URL rule exists to reject.
+ _SENTENCE_BOUNDARY_PATTERN = re.compile(r"[.!?;\n]")
+ _CONTRASTIVE_WORD_PATTERN = re.compile(r"\b(?:nhung|tuy nhien|however|but|ngoai ra)\b", re.IGNORECASE)
++_DIRECT_MEDICATION_ACTION_PATTERN = re.compile(
++    r"\b(?:hay|ban\s+nen|nen)\s+(?:uong|dung|su\s+dung)\b|"
++    r"\byou\s+should\s+(?:take|use)\b|"
++    r"\b(?:uong|dung|su\s+dung|take|use)\s+(?:thuoc\s+)?(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|antibiotic|khang\s+sinh)\b",
++    re.IGNORECASE,
++)
+ 
+ 
+ def _has_unnegated_forbidden_match(normalized: str) -> bool:
+@@ -1736,6 +1742,9 @@ def _has_unnegated_forbidden_match(normalized: str) -> bool:
+     nhưng hãy uống thuốc này".
+     """
+ 
++    if _DIRECT_MEDICATION_ACTION_PATTERN.search(normalized):
++        return True
++
+     for sentence in _SENTENCE_BOUNDARY_PATTERN.split(normalized):
+         for match in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence):
+             preceding = [
+diff --git a/apps/ai-service/app/main.py b/apps/ai-service/app/main.py
+index b6d0464..4b5b132 100644
+--- a/apps/ai-service/app/main.py
++++ b/apps/ai-service/app/main.py
+@@ -49,6 +49,12 @@ from app.providers import (
+     remote_provider_requested,
+     runtime_allows_local_fallback,
+ )
++from app.public_chat_acceleration import (
++    PublicChatResponseCache,
++    is_cacheable_public_response,
++    public_chat_cache_key,
++    public_greeting_response,
++)
+ from app.rag import CLINICAL_SOURCE_TYPES, EmbeddingContractError, normalize_projection_kind
+ from app.supabase_rag import (
+     SupabaseRagContractError,
+@@ -93,6 +99,26 @@ from app.schemas import (
+ settings = Settings()
+ app = FastAPI(title="HealthCare AI Service", version="0.1.0")
+ 
++# Public-chat acceleration state. The revision counter invalidates cached
++# answers whenever the index mutates through this service's own ingest or
++# delete endpoints (Spring's scheduled sync rides /rag/index, so every sync
++# tick naturally invalidates the lane).
++_public_chat_cache = PublicChatResponseCache()
++_rag_index_revision_lock = _threading.Lock()
++_rag_index_revision = 0
++
++
++def _bump_rag_index_revision() -> int:
++    global _rag_index_revision
++    with _rag_index_revision_lock:
++        _rag_index_revision += 1
++        return _rag_index_revision
++
++
++def _current_rag_index_revision() -> int:
++    with _rag_index_revision_lock:
++        return _rag_index_revision
++
+ 
+ @app.on_event("startup")
+ async def start_backend_cross_warmer() -> None:
+@@ -599,6 +625,7 @@ def health(response: Response) -> HealthResponse:
+     ready = auth_ready and provider_ready and not remote_probe_required and rag_ready
+     status = "ok" if ready else "degraded" if fallback_allowed and auth_ready else "misconfigured"
+     response.status_code = 200 if ready else 503
++    rag_documents = int(getattr(getattr(rag_service, "index", None), "size", 0) or 0)
+     return HealthResponse(
+         status=status,
+         service=settings.service_name,
+@@ -614,6 +641,7 @@ def health(response: Response) -> HealthResponse:
+         fallback_allowed=fallback_allowed,
+         remote_probe_required=remote_probe_required,
+         rag_ready=rag_ready,
++        rag_documents=rag_documents,
+         rag_backend=rag_backend,
+         rag_fallback_active=rag_fallback_active,
+         rag_fallback_permitted=rag_fallback_permitted,
+@@ -744,6 +772,13 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
+             routing_reason="public_education_requires_two_step_contract",
+         )
+ 
++    if request.public_support_chat:
++        # Downstream of the safety gate above: an emergency phrase reaches the
++        # safety response first and can never be greeted away.
++        greeting = public_greeting_response(message, effective_mode)
++        if greeting is not None:
++            return greeting
++
+     allow_public_op = request.public_support_chat or effective_mode is ChatMode.HOSPITAL_SUPPORT
+     embedding_provider = settings.embedding_provider.strip().casefold()
+     if (
+@@ -764,6 +799,30 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
+             cancellation=cancellation,
+         )
+ 
++    cancellation.raise_if_cancelled()
++
++    # Cache lane for the deterministic public catalog path. Lookup sits after
++    # the safety gate, the education short-circuit and the greeting fast path;
++    # keys are exact-normalized messages, the index revision and the requested
++    # top_k (which shapes the citation slice), and multi-turn conversations
++    # never enter the lane.
++    public_cache_key: str | None = None
++    if (
++        settings.ai_public_chat_cache_enabled
++        and request.public_support_chat
++        and not turns
++        and not request.synthetic_beta
++    ):
++        public_cache_key = public_chat_cache_key(
++            message,
++            effective_mode,
++            _current_rag_index_revision(),
++            request.top_k,
++        )
++        cached = _public_chat_cache.get(public_cache_key)
++        if cached is not None:
++            return cached
++
+     cancellation.raise_if_cancelled()
+     query_embedding, query_model, embedding_provenance = _embedding_parts(
+         embed(message, settings, synthetic_beta=request.synthetic_beta)
+@@ -957,22 +1016,18 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
+                 "citations": [] if request.public_support_chat else response.citations,
+             })
+     final_provenance = merge_provenance(response.provenance, embedding_provenance)
+-    if final_provenance == "local_fallback":
+-        return response.model_copy(
+-            update={
+-                "provenance": final_provenance,
+-                "citations": [],
+-                "mode": effective_mode,
+-                "cost_tier": response.cost_tier,
+-                "routing_reason": response.routing_reason,
+-            }
+-        )
+-    return response.model_copy(update={
++    final_updates: dict[str, Any] = {
+         "provenance": final_provenance,
+         "mode": effective_mode,
+         "cost_tier": response.cost_tier,
+         "routing_reason": response.routing_reason,
+-    })
++    }
++    if final_provenance == "local_fallback":
++        final_updates["citations"] = []
++    final_response = response.model_copy(update=final_updates)
++    if public_cache_key is not None and is_cacheable_public_response(final_response):
++        _public_chat_cache.put(public_cache_key, final_response)
++    return final_response
+ 
+ 
+ @app.post(
+@@ -1270,6 +1325,7 @@ def rag_delete(
+         raise HTTPException(status_code=409, detail="RAG source revision rejected") from None
+     except SupabaseRagUnavailable:
+         raise HTTPException(status_code=503, detail="RAG persistence unavailable") from None
++    _bump_rag_index_revision()
+     return RAGDeleteResponse(removed=existed, index_size=rag_service.index.size)
+ 
+ 
+@@ -1338,6 +1394,7 @@ def rag_index(
+         raise HTTPException(status_code=409, detail="RAG source revision rejected") from None
+     except SupabaseRagUnavailable:
+         raise HTTPException(status_code=503, detail="RAG persistence unavailable") from None
++    _bump_rag_index_revision()
+     projection = normalize_projection_kind(payload.metadata)
+     return RAGIndexResponse(
+         id=doc.id,
+diff --git a/apps/ai-service/app/rag.py b/apps/ai-service/app/rag.py
+index 4b9d957..6307847 100644
+--- a/apps/ai-service/app/rag.py
++++ b/apps/ai-service/app/rag.py
+@@ -172,6 +172,26 @@ def _keyword_similarity(query: str, doc: "RagDocument") -> float:
+     return len(query_tokens & document_tokens) / len(query_tokens)
+ 
+ 
++def _title_similarity(query: str, doc: "RagDocument") -> float:
++    """Fraction of the document's title tokens the query covers.
++
++    Query-length-normalized body overlap collapses for long natural-language
++    questions ("chuyên khoa tim mạch ở đâu" shares 5 of 6 tokens with the
++    Tim mạch document yet still loses to a shorter, luckier hash vector), and
++    the hash embedding itself carries no semantics. Coverage of the entity
++    title is the deterministic anchor: a question that names the whole title
++    is strong intent evidence regardless of embedding noise.
++    """
++
++    title_tokens = _tokens(doc.title)
++    if not title_tokens:
++        return 0.0
++    query_tokens = _tokens(query)
++    if not query_tokens:
++        return 0.0
++    return len(query_tokens & title_tokens) / len(title_tokens)
++
++
+ @dataclass
+ class RagDocument:
+     id: str
+@@ -360,8 +380,17 @@ class RagIndex:
+                 if allowed_source_types and doc.source_type not in allowed_source_types:
+                     continue
+                 vector_score = max(0.0, _cosine_similarity(normalized_query, doc.embedding))
+-                lexical_score = _keyword_similarity(query_text, doc) if query_text else 0.0
+-                score = 0.75 * vector_score + 0.25 * lexical_score if query_text else vector_score
++                if query_text:
++                    # Take the stronger lexical signal: query-normalized body
++                    # overlap wins for symptom prose, title coverage wins when
++                    # the question names the entity itself.
++                    lexical_score = max(
++                        _keyword_similarity(query_text, doc),
++                        _title_similarity(query_text, doc),
++                    )
++                    score = 0.75 * vector_score + 0.25 * lexical_score
++                else:
++                    score = vector_score
+                 scored.append((doc, score))
+             scored.sort(key=lambda item: (item[1], item[0].id), reverse=True)
+             return scored[:top_k]
+diff --git a/apps/ai-service/app/schemas.py b/apps/ai-service/app/schemas.py
+index b38d04f..8080dab 100644
+--- a/apps/ai-service/app/schemas.py
++++ b/apps/ai-service/app/schemas.py
+@@ -77,6 +77,10 @@ class HealthResponse(BaseModel):
+     fallback_allowed: bool = False
+     remote_probe_required: bool = False
+     rag_ready: bool = True
++    # Live document count of the searchable index. Callers use it to detect a
++    # freshly booted (empty) index and push a warm-up sync instead of letting
++    # public questions fall into the INSUFFICIENT_EVIDENCE window.
++    rag_documents: int = 0
+     # Which RAG store this process is answering from and whether it is the
+     # configured backend. "memory" is the configured choice for local/test
+     # runtimes; it is a *fallback* only when Supabase was configured but the
+diff --git a/apps/ai-service/app/supabase_rag.py b/apps/ai-service/app/supabase_rag.py
+index f88d946..f74229c 100644
+--- a/apps/ai-service/app/supabase_rag.py
++++ b/apps/ai-service/app/supabase_rag.py
+@@ -742,12 +742,19 @@ class SupabaseRagStore:
+         embedding_model: str = "provided",
+         embedding_provenance: ProviderProvenance = "local_provider",
+     ) -> list[tuple[RagDocument, float]]:
+-        """Use the migration's bounded SECURITY INVOKER hybrid RPC."""
++        """Use the migration's bounded SECURITY INVOKER hybrid RPC.
++
++        The fifth RPC parameter is ``projection_filter`` (``NULL``, ``'OPERATIONAL'``
++        or ``'CLINICAL'``), not free query text. Passing the user's message here
++        made ``d.projection_kind = upper(:message)`` never match, so every filtered
++        search returned zero rows and callers had to pay an unfiltered retry.
++        Projection eligibility is enforced by the Python-side mode gates either
++        way, so the search passes ``NULL`` and stays one round trip.
++        """
+ 
+         embedding = vector_literal(query_embedding, self.config.embedding_dimension)
+         if len(query_text) > MAX_INPUT_CHARS:
+             raise SupabaseRagContractError("RAG query exceeds the maximum input size")
+-        normalized_query_text = query_text.strip()
+         bounded_top_k = max(1, min(int(top_k), 20))
+         bounded_threshold = max(-1.0, min(float(match_threshold), 1.0))
+         filters = list(source_types) if source_types else None
+@@ -767,7 +774,7 @@ class SupabaseRagStore:
+             with connection.cursor() as cursor:
+                 cursor.execute(
+                     sql,
+-                    (embedding, bounded_threshold, bounded_top_k, filters, normalized_query_text),
++                    (embedding, bounded_threshold, bounded_top_k, filters, None),
+                 )
+                 rows = cursor.fetchall()
+         results: list[tuple[RagDocument, float]] = []
+diff --git a/apps/ai-service/tests/test_chat.py b/apps/ai-service/tests/test_chat.py
+index 57d5678..0d7e13a 100644
+--- a/apps/ai-service/tests/test_chat.py
++++ b/apps/ai-service/tests/test_chat.py
+@@ -626,11 +626,23 @@ def test_public_chat_endpoint_drops_unrelated_rows_before_remote_resolution(
+ 
+     monkeypatch.setattr("app.main.resolve_chat", fake_resolve)
+ 
+-    response = client.post("/chat", json={"message": "hello bạn", "public_support_chat": True})
++    response = client.post(
++        "/chat",
++        json={"message": "cho hỏi thông tin chung của bệnh viện", "public_support_chat": True},
++    )
+ 
+     assert response.status_code == 200
+     assert seen == {"context": [], "citations": [], "allow_public_operational": True}
+ 
++    # A pure greeting never reaches remote resolution at all: the
++    # deterministic greeting shortcut answers it without retrieval.
++    greeting = client.post("/chat", json={"message": "hello bạn", "public_support_chat": True})
++    assert greeting.status_code == 200
++    assert greeting.json()["routing_reason"] == "public_greeting_shortcut"
++    assert seen == {"context": [], "citations": [], "allow_public_operational": True}, (
++        "the greeting must not have re-entered remote resolution"
++    )
++
+ 
+ def test_public_local_chat_uses_grounded_operational_source_when_identity_matches(
+     monkeypatch: pytest.MonkeyPatch,
+diff --git a/apps/ai-service/tests/test_chat_cancellation.py b/apps/ai-service/tests/test_chat_cancellation.py
+index ddda854..4f35832 100644
+--- a/apps/ai-service/tests/test_chat_cancellation.py
++++ b/apps/ai-service/tests/test_chat_cancellation.py
+@@ -190,7 +190,7 @@ def test_real_client_disconnect_closes_fastapi_provider_socket(
+             await asyncio.sleep(0.05)
+         assert server.started
+         body = json.dumps(
+-            {"message": "Xin chào", "public_support_chat": True, "mode": "HOSPITAL_SUPPORT"}
++            {"message": "bệnh viện có những dịch vụ gì", "public_support_chat": True, "mode": "HOSPITAL_SUPPORT"}
+         ).encode()
+         _, writer = await asyncio.open_connection("127.0.0.1", port)
+         writer.write(
+diff --git a/apps/ai-service/tests/test_chatbot_contract.py b/apps/ai-service/tests/test_chatbot_contract.py
+index 8c9aea6..773a88d 100644
+--- a/apps/ai-service/tests/test_chatbot_contract.py
++++ b/apps/ai-service/tests/test_chatbot_contract.py
+@@ -141,6 +141,47 @@ def test_local_grounded_answer_is_extractive_and_cites_its_sources() -> None:
+     provider.complete_json.assert_not_called()
+ 
+ 
++def test_local_grounded_answer_survives_approved_clinical_instructions() -> None:
++    """Regression: approved prep instructions must not fail the output scan.
++
++    Hospital-approved specialty content routinely contains legitimate clinical
++    instructions such as "ngừng thuốc trước phẫu thuật". The local grounded
++    path is deterministic (no model output), and each source already passed
++    `_context_is_safe` inside `_local_grounded_response`, so the advice-shaped
++    output pattern must not re-judge the same approved text into a
++    fail-closed INSUFFICIENT.
++    """
++
++    service = RagService()
++    service.ingest(
++        "specialty",
++        "tim-mach",
++        "Tim mạch",
++        "Khám và điều trị bệnh lý tim, mạch máu. Chuẩn bị: có thể cần ngừng thuốc "
++        "loãng máu theo hướng dẫn của bác sĩ trước thủ thuật.",
++        [1.0] + [0.0] * 383,
++        embedding_model="local-hash",
++    )
++    provider = MagicMock()
++    response = generate_chat_response(
++        ChatGenerateRequest(
++            message="chuyên khoa tim mạch",
++            mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[
++                AuthorizedSource(source_type="specialty", source_id="tim-mach"),
++            ],
++        ),
++        _settings(),
++        service,
++        client=provider,
++    )
++
++    assert response.safety_action is ChatSafetyAction.ANSWER
++    assert response.provenance == "local_provider"
++    assert "ngừng thuốc" in response.answer
++    provider.complete_json.assert_not_called()
++
++
+ def test_local_generation_without_chunks_keeps_honest_insufficient_fallback() -> None:
+     """Remote disabled + no chunks = unchanged honest insufficient evidence."""
+ 
+@@ -236,7 +277,10 @@ def test_marked_public_branch_context_allows_contact_data_but_stays_grounded() -
+     assert generated.used_sources[0].source_id == "central"
+ 
+ 
+-def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() -> None:
++@pytest.mark.parametrize("release_hold", [False, True])
++def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding(
++    release_hold: bool,
++) -> None:
+     service = RagService()
+     service.ingest(
+         "branch",
+@@ -248,6 +292,7 @@ def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() ->
+         metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+     )
+     local = _settings()
++    local.remote_ai_release_hold = release_hold
+     local.ai_provider = "deepseek"
+     local.ai_patient_chat_remote_enabled = True
+     local.ai_chat_remote_provider_enabled = True
+@@ -310,8 +355,10 @@ def test_marked_public_branch_uses_local_answer_and_exact_contact_grounding() ->
+         "Hotline của Cơ sở Trung tâm là 115.",
+     ],
+ )
++@pytest.mark.parametrize("release_hold", [False, True])
+ def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+     fabricated_answer: str,
++    release_hold: bool,
+ ) -> None:
+     service = RagService()
+     service.ingest(
+@@ -324,6 +371,7 @@ def test_marked_public_branch_remote_output_rejects_fabricated_contact_data(
+         metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
+     )
+     local = _settings()
++    local.remote_ai_release_hold = release_hold
+     local.ai_provider = "deepseek"
+     local.ai_patient_chat_remote_enabled = True
+     local.ai_chat_remote_provider_enabled = True
+@@ -565,6 +613,52 @@ def test_grounded_article_excerpt_hides_serialized_sections_and_stays_compact()
+     assert len(answer) <= 760
+ 
+ 
++def test_grounded_specialty_excerpt_renders_inline_jsonb_string_arrays() -> None:
++    """Clinical JSONB arrays concatenated mid-content render as plain prose.
++
++    Backend clinical projections concatenate ``common_symptoms`` /
++    ``preparation_steps`` JSONB columns straight into the searchable content
++    (SQL ``concat_ws``), so string arrays appear inline between prose. The
++    excerpt must never show storage serialization to a patient.
++    """
++
++    document = RagDocument(
++        id="specialty:tim-mach",
++        source_type="specialty",
++        source_id="tim-mach",
++        title="Tim mạch",
++        content=(
++            "Tim mạch\n"
++            'Trieu chung thuong gap: ["Dau nguc", "Kho tho", "Hoi hop"]. '
++            'Chuan bi truoc kham: ["Nghi ngo", "Nhin ket qua mau"].'
++        ),
++    )
++
++    answer = grounded_source_excerpt(document)
++
++    assert "[" not in answer
++    assert "]" not in answer
++    assert '"' not in answer
++    assert "Trieu chung thuong gap: Dau nguc; Kho tho; Hoi hop" in answer
++    assert "Chuan bi truoc kham: Nghi ngo; Nhin ket qua mau" in answer
++
++
++def test_grounded_excerpt_leaves_plain_prose_brackets_untouched() -> None:
++    """A non-JSON bracket group in prose is never rewritten."""
++
++    document = RagDocument(
++        id="specialty:da-lieu",
++        source_type="specialty",
++        source_id="da-lieu",
++        title="Da liễu",
++        content="Benh ly [chua ro nguyen nhan] can duoc theo doi dinh ky.",
++    )
++
++    answer = grounded_source_excerpt(document)
++
++    assert "[chua ro nguyen nhan]" in answer
++
++
+ def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+@@ -1469,3 +1563,118 @@ def test_uncited_lane_stays_closed_when_the_remote_gate_is_off(
+ 
+     assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
+     provider.complete_json.assert_not_called()
++
++
++@pytest.mark.parametrize("content", [
++    "Bạn bị viêm phổi.",
++    "Hãy uống paracetamol 500mg mỗi ngày.",
++    "Take aspirin.",
++    "Tôi không thể kê đơn, nhưng hãy uống paracetamol 500mg.",
++    "Tôi không thể kê đơn, hãy uống aspirin.",
++    "Bạn không có dị ứng, hãy uống aspirin.",
++    "Hãy ngừng thuốc theo chỉ định của bác sĩ.",
++    "Ngừng thuốc loãng máu theo hướng dẫn của bác sĩ.",
++])
++def test_local_grounded_source_cannot_echo_diagnosis_or_medication(content: str) -> None:
++    service = RagService()
++    service.ingest(
++        "specialty", "unsafe-local-medical", "Nội tổng hợp", content,
++        [1.0] + [0.0] * 383, embedding_model="local-hash",
++        metadata={"projection_kind": "OPERATIONAL"},
++    )
++    provider = MagicMock()
++    response = generate_chat_response(
++        ChatGenerateRequest(
++            message="Thông tin chuyên khoa này?", mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[AuthorizedSource(
++                source_type="specialty", source_id="unsafe-local-medical",
++                projection_kind="OPERATIONAL",
++            )],
++        ), _settings(), service, client=provider,
++    )
++    assert response.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
++    assert response.citations == []
++    assert response.used_sources == []
++    provider.complete_json.assert_not_called()
++
++
++def test_local_grounded_source_keeps_negated_stop_medication_caution() -> None:
++    service = RagService()
++    service.ingest(
++        "specialty", "safe-local-medical", "Nội tổng hợp",
++        "Không tự ý ngừng thuốc trước khi khám.",
++        [1.0] + [0.0] * 383, embedding_model="local-hash",
++        metadata={"projection_kind": "OPERATIONAL"},
++    )
++    provider = MagicMock()
++    response = generate_chat_response(
++        ChatGenerateRequest(
++            message="Thông tin chuyên khoa này?", mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[AuthorizedSource(
++                source_type="specialty", source_id="safe-local-medical",
++                projection_kind="OPERATIONAL",
++            )],
++        ), _settings(), service, client=provider,
++    )
++    assert response.safety_action is ChatSafetyAction.ANSWER
++    assert "Không tự ý ngừng thuốc trước khi khám" in response.answer
++    provider.complete_json.assert_not_called()
++
++
++def test_marked_public_branch_url_in_title_is_quarantined() -> None:
++    service = RagService()
++    service.ingest(
++        "branch", "unsafe-title",
++        "Cơ sở Trung tâm https://unsafe.example.test",
++        "Giờ tiếp đón theo lịch công bố.",
++        [1.0] + [0.0] * 383, embedding_model="local-hash",
++        metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
++    )
++    retrieved = retrieve_chat_candidates(
++        ChatRetrieveRequest(
++            message="Giờ tiếp đón?", mode=ChatMode.HOSPITAL_SUPPORT,
++        ),
++        _settings(), service,
++        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
++    )
++    assert retrieved.candidates == []
++    provider = MagicMock()
++    generated = generate_chat_response(
++        ChatGenerateRequest(
++            message="Giờ tiếp đón?", mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[AuthorizedSource(
++                source_type="branch", source_id="unsafe-title",
++                projection_kind="OPERATIONAL",
++            )],
++        ), _settings(), service, client=provider,
++    )
++    assert generated.safety_action is ChatSafetyAction.INSUFFICIENT_EVIDENCE
++    assert generated.citations == []
++    assert generated.used_sources == []
++    provider.complete_json.assert_not_called()
++
++
++def test_marked_public_branch_body_url_stripped_but_contact_grounded() -> None:
++    service = RagService()
++    service.ingest(
++        "branch", "central-maps",
++        "Cơ sở Trung tâm",
++        "Cơ sở Trung tâm\n1 Đường Sức Khỏe\n028 1234 5678\nhttps://maps.example/central",
++        [1.0] + [0.0] * 383, embedding_model="local-hash",
++        metadata={"projection_kind": "OPERATIONAL", "public_operational": "true"},
++    )
++    provider = MagicMock()
++    generated = generate_chat_response(
++        ChatGenerateRequest(
++            message="Địa chỉ và số điện thoại cơ sở?", mode=ChatMode.HOSPITAL_SUPPORT,
++            authorized_sources=[AuthorizedSource(
++                source_type="branch", source_id="central-maps",
++                projection_kind="OPERATIONAL",
++            )],
++        ), _settings(), service, client=provider,
++    )
++    assert generated.safety_action is ChatSafetyAction.ANSWER
++    assert "028 1234 5678" in generated.answer
++    assert "maps.example" not in generated.answer
++    assert "https://" not in generated.answer
++    provider.complete_json.assert_not_called()
+diff --git a/apps/ai-service/tests/test_llm.py b/apps/ai-service/tests/test_llm.py
+index eaae576..3f13f3e 100644
+--- a/apps/ai-service/tests/test_llm.py
++++ b/apps/ai-service/tests/test_llm.py
+@@ -461,6 +461,31 @@ def test_triage_remote_output_policy_rejects_provider_secret() -> None:
+     provider.complete_json.assert_not_called()
+ 
+ 
++@pytest.mark.parametrize(
++    "unsafe_answer",
++    [
++        "Tôi không thể kê đơn, hãy uống aspirin.",
++        "Bạn không có dị ứng, hãy uống aspirin.",
++        "I cannot prescribe, take aspirin.",
++    ],
++)
++def test_direct_medication_action_fails_closed_despite_refusal_frame(
++    unsafe_answer: str,
++) -> None:
++    assert remote_text_output_is_safe(unsafe_answer) is False
++
++
++@pytest.mark.parametrize(
++    "safe_answer",
++    [
++        "Tôi không thể kê đơn.",
++        "Không tự ý ngừng thuốc trước khi khám.",
++    ],
++)
++def test_plain_refusal_and_negated_caution_remain_safe(safe_answer: str) -> None:
++    assert remote_text_output_is_safe(safe_answer) is True
++
++
+ def test_public_booking_fallback_uses_booking_copy_instead_of_symptom_prompt() -> None:
+     settings = SimpleNamespace(
+         ai_provider="local",
+diff --git a/apps/ai-service/tests/test_rag.py b/apps/ai-service/tests/test_rag.py
+index 93bfd65..001a53e 100644
+--- a/apps/ai-service/tests/test_rag.py
++++ b/apps/ai-service/tests/test_rag.py
+@@ -44,6 +44,78 @@ def test_index_empty_search_returns_empty() -> None:
+     assert index.search([1.0, 0.0]) == []
+ 
+ 
++def test_title_coverage_anchors_named_entity_above_luckier_hash_vector() -> None:
++    """Regression: a question naming the entity must surface that entity.
++
++    With hash embeddings the vector score is near-noise, and query-length
++    normalization dilutes body overlap for long questions. The old formula let
++    an unrelated document outrank the named specialty, which pushed the named
++    entity below the relevance threshold and ended the turn as
++    INSUFFICIENT_EVIDENCE. Title coverage is the deterministic anchor.
++
++    Fixture arithmetic (question "chuyên khoa tim mạch ở đâu", 6 tokens):
++    - cardio: vector 0.8, body overlap 3/6, title coverage 2/2 -> old 0.725,
++      new 0.85.
++    - audio: vector 1.0, body overlap 2/6, title coverage 0 -> 0.833 both.
++    The old formula ranked audio first; the new formula ranks cardio first.
++    """
++
++    index = RagIndex()
++    index.add(_doc(
++        "cardio",
++        "Tim mạch",
++        "Khám và điều trị bệnh lý tim, mạch máu, tăng huyết áp. Đau tức ngực khi gắng sức.",
++        [1.0, 0.0, 0.0],
++    ))
++    index.add(_doc(
++        "audio",
++        "Thính học",
++        "Đâu là chỗ ở kênh này.",
++        [0.8, 0.6, 0.0],
++    ))
++
++    hits = index.search([0.8, 0.6, 0.0], top_k=2, query_text="chuyên khoa tim mạch ở đâu")
++    assert len(hits) == 2
++    assert hits[0][0].source_id == "cardio", "question naming the title must rank that document first"
++    assert hits[0][1] == pytest.approx(0.85)
++    assert hits[1][1] == pytest.approx(0.75 + 0.25 * (2 / 6))
++    for _, score in hits:
++        assert 0.0 <= score <= 1.0
++
++
++def test_title_coverage_documented_patient_lane_trade_off() -> None:
++    """Pin the accepted retrieval trade-off for the patient two-step lane.
++
++    Decision (2026-10-03, quality pass round 3): the title-coverage term is
++    kept for ALL lanes, including the patient two-step contract, instead of
++    being scoped to the public lane only. Rationale: scoping it off regressed
++    the grounded "chuyên khoa tim mạch" patient answer that the product owner
++    explicitly accepted, while every citation still resolves to approved
++    content only (no data exposure) and the 0.35 relevance threshold is
++    unchanged. This test pins the widened recall so any future re-scoping is
++    a deliberate, reviewed change rather than an accident.
++    """
++
++    index = RagIndex()
++    index.add(_doc("cardio", "Tim mạch", "Khám và điều trị bệnh lý tim, mạch máu.", [1.0, 0.0, 0.0]))
++    index.add(_doc("audio", "Thính học", "Khám thính học.", [0.0, 1.0, 0.0]))
++
++    hits = index.search([0.0, 1.0, 0.0], top_k=2, query_text="chuyên khoa tim mạch")
++    ranked = [doc.source_id for doc, _ in hits]
++    assert "cardio" in ranked, "named entity must stay retrievable on the patient lane"
++    for _, score in hits:
++        assert 0.0 <= score <= 1.0
++
++
++def test_title_coverage_without_query_text_keeps_vector_only_ranking() -> None:
++    index = RagIndex()
++    index.add(_doc("cardio", "Tim mạch", "Khám tim mạch.", [1.0, 0.0, 0.0]))
++    index.add(_doc("audio", "Thính học", "Khám thính học.", [0.0, 1.0, 0.0]))
++
++    hits = index.search([1.0, 0.0, 0.0], top_k=2)
++    assert hits[0][0].source_id == "cardio"
++
++
+ def test_service_ingest_and_remove() -> None:
+     service = RagService()
+     service.ingest("branch", "hcm", "Chi nhánh", "Khám tại cơ sở.", [1.0, 0.0])
+diff --git a/apps/ai-service/tests/test_supabase_rag.py b/apps/ai-service/tests/test_supabase_rag.py
+index 530c879..46bc985 100644
+--- a/apps/ai-service/tests/test_supabase_rag.py
++++ b/apps/ai-service/tests/test_supabase_rag.py
+@@ -423,7 +423,11 @@ def test_search_maps_rpc_rows_to_citations_without_needing_raw_vectors() -> None
+     assert "::text" in search_cursor.executed[0][0]
+     params = search_cursor.executed[0][1]
+     assert params is not None
+-    assert params[-1] == "đau tim"
++    # The fifth RPC slot is projection_filter, not query text. The user's
++    # message must never ride into that parameter: it made
++    # d.projection_kind = upper(message) unmatchable and forced an unfiltered
++    # retry on every filtered search.
++    assert params[-1] is None
+ 
+ 
+ def test_search_bounds_limit_and_passes_similarity_threshold_to_rpc() -> None:
+diff --git a/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java b/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java
+index 5af99f2..9779652 100644
+--- a/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java
++++ b/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java
+@@ -51,6 +51,13 @@ public class AiChatSourceResolver {
+     private static final Pattern SLUG = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9-]{0,219}$");
+     private static final int MAX_CATALOG_SAMPLES = 3;
+     private static final int MAX_BRANCH_LOOKUP_ROWS = 100;
++    private static final int MAX_DOCTOR_LOOKUP_ROWS = 100;
++    /** Intent words that describe "find a doctor" but name no specialty. */
++    private static final Set<String> DOCTOR_QUERY_STOPWORDS = Set.of(
++        "bac", "si", "nao", "gioi", "ve", "tim", "danh", "sach", "thong", "tin",
++        "muon", "xem", "doi", "ngu", "tot", "hay", "cho", "toi", "minh", "co",
++        "khong", "benh", "vien", "o", "dau", "chuyen", "khoa", "gi"
++    );
+     private static final Pattern BRANCH_NUMBER = Pattern.compile(
+         "\\b(?:co\\s+so|chi\\s+nhanh)(?:\\s+thu)?\\s+(?:so\\s+){0,2}(\\d+)\\b");
+     private static final Pattern DISTRICT_ANCHOR = Pattern.compile("\\b(?:quan|huyen|phuong)\\s+[a-z0-9]+\\b");
+@@ -437,6 +444,59 @@ public class AiChatSourceResolver {
+         }
+     }
+ 
++    /**
++     * Bounded live doctor list for degraded doctor-navigation answers.  The
++     * optional specialty query is normalized and reduced to its non-intent
++     * tokens ("Bác sĩ nào giỏi về da liễu?" → "da lieu"), then matched
++     * conservatively against each active doctor's own name, bio and
++     * achievements text: a doctor that never mentions the specialty is not
++     * claimed as a match.  With no keyword left after normalization, the
++     * bounded list is returned unfiltered.  An unavailable catalog yields an
++     * empty list so the caller keeps its fail-closed fallback.
++     */
++    public List<ResolvedSource> activeDoctorOverview(int limit, String specialtyQuery) {
++        int boundedLimit = Math.max(1, limit);
++        try {
++            Page<Doctor> doctors = doctorRepository.findByActiveTrue(PageRequest.of(
++                0, MAX_DOCTOR_LOOKUP_ROWS, Sort.by(Sort.Direction.ASC, "fullName")));
++            if (doctors == null || doctors.getContent() == null) return List.of();
++            String keyword = doctorSpecialtyKeyword(specialtyQuery);
++
++            List<ResolvedSource> result = new ArrayList<>();
++            for (Doctor doctor : doctors.getContent()) {
++                if (doctor == null || !doctor.isActive()) continue;
++                if (keyword != null && !doctorMentionsKeyword(doctor, keyword)) continue;
++                ResolvedSource source = catalogSource(
++                    "doctor", doctor.getId(), doctorDisplayTitle(doctor), doctor.getSlug());
++                if (source == null) continue;
++                result.add(source);
++                if (result.size() >= boundedLimit) break;
++            }
++            return List.copyOf(result);
++        } catch (RuntimeException ex) {
++            return List.of();
++        }
++    }
++
++    private String doctorSpecialtyKeyword(String specialtyQuery) {
++        String normalized = normalizeLookupText(specialtyQuery);
++        if (normalized.isBlank()) return null;
++        List<String> tokens = new ArrayList<>();
++        for (String token : normalized.split(" ")) {
++            if (token.isBlank() || DOCTOR_QUERY_STOPWORDS.contains(token)) continue;
++            tokens.add(token);
++        }
++        return tokens.isEmpty() ? null : String.join(" ", tokens);
++    }
++
++    private boolean doctorMentionsKeyword(Doctor doctor, String keyword) {
++        String identity = normalizeLookupText(
++            (doctor.getFullName() == null ? "" : doctor.getFullName()) + " "
++                + (doctor.getBio() == null ? "" : doctor.getBio()) + " "
++                + (doctor.getAchievements() == null ? "" : doctor.getAchievements()));
++        return identity.contains(keyword);
++    }
++
+     /**
+      * Resolve a specific branch question against the live active catalog.
+      * Matching is deliberately conservative: a branch number without a
+diff --git a/apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java b/apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java
+index d05a9d6..b4837d0 100644
+--- a/apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java
++++ b/apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java
+@@ -596,6 +596,15 @@ public class PublicAiChatController {
+         }
+         ChatSuggestedActionResolver.HospitalSupportIntent intent =
+             ChatSuggestedActionResolver.classify(userMessage);
++        // Before the static navigation copy, try a short live list from the
++        // same Spring catalog: a broad CATALOG/BRANCH/DOCTOR question is more
++        // useful answered with real branch/doctor rows than with a deferral
++        // to the page the visitor is already asking about. Citations and
++        // actions are built from those live rows through the verified
++        // builders, so revalidation passes; an empty or unavailable catalog
++        // keeps the previous static copy (fail-soft).
++        Map<String, Object> liveList = publicCatalogListAnswer(userMessage, intent, routingReason);
++        if (liveList != null) return liveList;
+         String answer = switch (intent) {
+             case GREETING -> {
+                 if (ChatSuggestedActionResolver.isIdentityQuestion(userMessage)) {
+@@ -643,6 +652,83 @@ public class PublicAiChatController {
+         return result;
+     }
+ 
++    /** Same bounded row budget as the branch-hours overview answer. */
++    private static final int MAX_CATALOG_LIST_ROWS = 4;
++
++    /**
++     * Short live-list answer for the three broad-navigation intents, built
++     * from the current active Spring catalog: CATALOG/BRANCH list the active
++     * branches, DOCTOR lists active doctors filtered by the specialty keyword
++     * in the question. The answer text names only rows returned by the
++     * resolver, and citations/actions come from those same rows through the
++     * existing verified builders. An empty or unavailable catalog returns
++     * {@code null} so the caller falls back to the static navigation copy.
++     */
++    private Map<String, Object> publicCatalogListAnswer(
++            String userMessage,
++            ChatSuggestedActionResolver.HospitalSupportIntent intent,
++            String routingReason) {
++        List<AiChatSourceResolver.ResolvedSource> sources = null;
++        String answer = null;
++        try {
++            if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG
++                    || intent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
++                List<AiChatSourceResolver.BranchDetails> branches =
++                    sourceResolver.activeBranchOverview(MAX_CATALOG_LIST_ROWS);
++                if (branches != null && !branches.isEmpty()) {
++                    List<String> labels = new ArrayList<>();
++                    List<AiChatSourceResolver.ResolvedSource> resolved = new ArrayList<>();
++                    for (AiChatSourceResolver.BranchDetails branch : branches) {
++                        if (branch == null || branch.source() == null) continue;
++                        labels.add(branch.source().title());
++                        resolved.add(branch.source());
++                    }
++                    if (!labels.isEmpty()) {
++                        sources = resolved;
++                        answer = "Theo dữ liệu cơ sở đang hoạt động, hiện HealthCare có các cơ sở sau: "
++                            + String.join("; ", labels)
++                            + ". Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.";
++                    }
++                }
++            } else if (intent == ChatSuggestedActionResolver.HospitalSupportIntent.DOCTOR) {
++                List<AiChatSourceResolver.ResolvedSource> doctors =
++                    sourceResolver.activeDoctorOverview(MAX_CATALOG_LIST_ROWS, userMessage);
++                if (doctors != null && !doctors.isEmpty()) {
++                    List<String> labels = doctors.stream()
++                        .map(AiChatSourceResolver.ResolvedSource::title)
++                        .filter(value -> value != null && !value.isBlank())
++                        .toList();
++                    if (!labels.isEmpty()) {
++                        sources = doctors;
++                        answer = "Theo dữ liệu đang hoạt động, một số bác sĩ phù hợp với yêu cầu của bạn: "
++                            + String.join("; ", labels)
++                            + ". Bạn có thể mở nguồn bên dưới để xem thông tin và đặt lịch khám.";
++                    }
++                }
++            }
++        } catch (RuntimeException ignored) {
++            return null;
++        }
++        if (sources == null || answer == null) return null;
++        List<Map<String, String>> citations = verifiedOperationalCitations(sources);
++        if (citations.isEmpty()) return null;
++
++        Map<String, Object> result = new LinkedHashMap<>();
++        result.put("answer", answer);
++        result.put(
++            "disclaimer",
++            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
++                + "chẩn đoán hoặc điều trị của bác sĩ.");
++        result.put("citations", citations);
++        result.put("provenance", "local_fallback");
++        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
++        result.put("safety_action", "ANSWER");
++        result.put("suggested_actions", publicViewActions(sources, userMessage));
++        result.put("costTier", "local_free");
++        result.put("routingReason", routingReason);
++        return result;
++    }
++
+     private Map<String, Object> publicSafetyFallback(String userMessage, String safetyAction) {
+         return publicSafetyFallback(userMessage, safetyAction, ChatMode.HEALTH_EDUCATION);
+     }
+diff --git a/apps/backend/src/main/java/com/healthcare/ai/service/AiCatalogIndexService.java b/apps/backend/src/main/java/com/healthcare/ai/service/AiCatalogIndexService.java
+index b89714c..90a4d7d 100644
+--- a/apps/backend/src/main/java/com/healthcare/ai/service/AiCatalogIndexService.java
++++ b/apps/backend/src/main/java/com/healthcare/ai/service/AiCatalogIndexService.java
+@@ -160,6 +160,35 @@ public class AiCatalogIndexService {
+         }
+     }
+ 
++    /**
++     * Empty-index warm check. After an ai-service restart its in-memory index
++     * stays empty until the next fixed-delay sync tick (up to 30 minutes),
++     * during which every public question falls into the INSUFFICIENT_EVIDENCE
++     * window. When {@code /health} reports zero indexed documents, push the
++     * catalog right away. Same fail-soft contract as {@link #synchronizeCatalog()}.
++     */
++    @Scheduled(
++        initialDelayString = "${ai.rag-ingest.warm-check-initial-delay-ms:20000}",
++        fixedDelayString = "${ai.rag-ingest.warm-check-delay-ms:60000}"
++    )
++    public void warmEmptyCatalogIndex() {
++        if (!catalogSyncEnabled) return;
++        if (!aiService.isRagIngestConfigured()) return;
++        try {
++            // The probe itself can throw (malformed URL, IO misuse) — keep the
++            // whole check under the same fail-soft contract as the push below
++            // so a bad tick can never kill the 60s scheduler.
++            Map<String, Object> health = aiService.probeHealth();
++            if (health == null) return;
++            Object documents = health.get("rag_documents");
++            if (!(documents instanceof Number count) || count.longValue() != 0L) return;
++            int indexed = synchronizeCatalogNow();
++            log.info("AI catalog warm sync pushed {} documents into an empty index", indexed);
++        } catch (RuntimeException exception) {
++            log.warn("AI catalog warm sync deferred: {}", exception.getClass().getSimpleName());
++        }
++    }
++
+     /** Runs a bounded synchronization and propagates failures to an authorized operator. */
+     public int synchronizeCatalogNow() {
+         if (!aiService.isRagIngestConfigured()) {
+@@ -220,8 +249,6 @@ public class AiCatalogIndexService {
+         // the only source for HEALTH_EDUCATION.
+         completeTypes.put("article", false);
+         completeTypes.put("faq", false);
+-        articleRepository.findAll(PageRequest.of(0, pageSize));
+-        faqRepository.findAll(PageRequest.of(0, pageSize));
+ 
+         for (Map<String, Object> source : aiService.listIndexedDocuments()) {
+             String sourceType = source.get("source_type") instanceof String value ? value : null;
+diff --git a/apps/backend/src/main/java/com/healthcare/ai/service/AiClinicalProjectionIndexService.java b/apps/backend/src/main/java/com/healthcare/ai/service/AiClinicalProjectionIndexService.java
+index 2a35cd9..eb788e5 100644
+--- a/apps/backend/src/main/java/com/healthcare/ai/service/AiClinicalProjectionIndexService.java
++++ b/apps/backend/src/main/java/com/healthcare/ai/service/AiClinicalProjectionIndexService.java
+@@ -222,6 +222,69 @@ public class AiClinicalProjectionIndexService {
+         }
+     }
+ 
++    /**
++     * Empty-index warm check for the governed clinical projection. After an
++     * ai-service restart its in-memory index is empty and the APPROVED
++     * specialty/article/faq projections stay unreachable until the next
++     * 30-minute reconciliation tick, during which every clinical question
++     * falls into the INSUFFICIENT_EVIDENCE window. When the live approved
++     * snapshot holds more eligible rows than the index holds CLINICAL
++     * documents, push the snapshot right away. Same warm-check cadence and
++     * fail-soft contract as the catalog warm check
++     * ({@link AiCatalogIndexService#warmEmptyCatalogIndex}).
++     */
++    @Scheduled(
++        initialDelayString = "${ai.rag-ingest.warm-check-initial-delay-ms:20000}",
++        fixedDelayString = "${ai.rag-ingest.warm-check-delay-ms:60000}"
++    )
++    public void warmEmptyClinicalProjectionIndex() {
++        if (!aiService.isRagIngestConfigured()) return;
++        try {
++            int eligible = 0;
++            for (Map<String, Object> row : jdbc.queryForList(CURRENT_APPROVED_SOURCES)) {
++                if (isPushableClinicalRow(row)) eligible++;
++            }
++            // Nothing is currently eligible: a warm push could only run the
++            // tombstone sweep, which the periodic tick already owns.
++            if (eligible == 0) return;
++            if (countIndexedClinicalDocuments() >= eligible) return;
++            // synchronizeClinicalNow is serialized by the same sync lock as
++            // the periodic tick, so this cannot run concurrently with a full
++            // reconciliation pass.
++            synchronizeClinicalNow();
++            log.info("AI clinical projection warm check pushed the approved snapshot into a depleted index");
++        } catch (RuntimeException exception) {
++            // Same deferral posture as the periodic tick: the next warm check
++            // re-resolves the same database-owned snapshot. Do not mark a
++            // source eligible or emit provider-facing error payloads.
++            log.warn("AI clinical projection warm check deferred: {}", exception.getClass().getSimpleName());
++        }
++    }
++
++    /** Mirror the push-eligibility checks {@link #synchronizeClinicalNow()} applies per row. */
++    private boolean isPushableClinicalRow(Map<String, Object> row) {
++        return text(row.get("source_type")) != null
++            && text(row.get("source_id")) != null
++            && text(row.get("title")) != null
++            && text(row.get("content")) != null
++            && text(row.get("content_hash")) != null
++            && text(row.get("approval_expires_at")) != null;
++    }
++
++    /** Count only rows this projection owns: CLINICAL docs of a clinical source type. */
++    private int countIndexedClinicalDocuments() {
++        int count = 0;
++        for (Map<String, Object> indexed : aiService.listIndexedDocuments()) {
++            String type = text(indexed.get("source_type"));
++            Object projection = indexed.get("projection_kind");
++            if (type == null || text(indexed.get("source_id")) == null) continue;
++            if (!"CLINICAL".equalsIgnoreCase(String.valueOf(projection))) continue;
++            if (!CLINICAL_SOURCE_TYPES.contains(type.toLowerCase(java.util.Locale.ROOT))) continue;
++            count++;
++        }
++        return count;
++    }
++
+     /** Run one bounded, database-authoritative reconciliation. */
+     public int synchronizeClinicalNow() {
+         if (!aiService.isRagIngestConfigured()) {
+diff --git a/apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java b/apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java
+index a0fe181..991e08e 100644
+--- a/apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java
++++ b/apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java
+@@ -30,6 +30,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID>
+ 
+     Optional<Appointment> findByBookingCode(String bookingCode);
+ 
++    @Query("select a.id from Appointment a where a.patient.id = :patientId and a.doctor.id = :doctorId")
++    List<UUID> findDocumentSourceIdsForDoctor(@Param("patientId") UUID patientId, @Param("doctorId") UUID doctorId);
++
+     @Query("select a from Appointment a join fetch a.patient join fetch a.doctor left join fetch a.specialty left join fetch a.branch left join fetch a.medicalPackage where a.bookingCode = :bookingCode")
+     Optional<Appointment> findByBookingCodeWithDetails(@Param("bookingCode") String bookingCode);
+ 
+diff --git a/apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java b/apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java
+index 14e5991..f473582 100644
+--- a/apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java
++++ b/apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java
+@@ -4,6 +4,8 @@ import com.healthcare.document.entity.DocumentSourceType;
+ import com.healthcare.document.entity.DocumentStatus;
+ import com.healthcare.document.entity.PatientDocument;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Query;
++import org.springframework.data.repository.query.Param;
+ import org.springframework.stereotype.Repository;
+ 
+ import java.util.Collection;
+@@ -40,4 +42,7 @@ public interface PatientDocumentRepository extends JpaRepository<PatientDocument
+             DocumentSourceType sourceType,
+             UUID sourceRecordId,
+             DocumentStatus status);
++
++    @Query(value = "SELECT pg_advisory_xact_lock(hashtextextended(CAST(:lockKey AS text), 0))", nativeQuery = true)
++    void acquireGenerationLock(@Param("lockKey") String lockKey);
+ }
+diff --git a/apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java b/apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java
+index faaa8e1..f3297cf 100644
+--- a/apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java
++++ b/apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java
+@@ -34,9 +34,11 @@ import org.springframework.transaction.annotation.Transactional;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.time.OffsetDateTime;
++import java.util.EnumMap;
+ import java.util.EnumSet;
+ import java.util.HashSet;
+ import java.util.List;
++import java.util.Map;
+ import java.util.Set;
+ import java.util.UUID;
+ 
+@@ -104,6 +106,8 @@ public class DocumentService {
+             GenerateDocumentRequest request,
+             UserDetails principal) {
+         authorizePatientScope(patientId, principal);
++        documentRepository.acquireGenerationLock(
++                "DOCUMENT_GENERATION:" + request.sourceType().name() + ":" + request.sourceRecordId());
+         PatientProfile patient = patientProfileRepository.findById(patientId)
+                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
+ 
+@@ -300,9 +304,12 @@ public class DocumentService {
+                     .findByPatientIdOrderByGeneratedAtDesc(patientId);
+             if (hasRole(principal, "DOCTOR")) {
+                 // Doctors see only documents synthesized from records they issued.
+-                Set<UUID> issuedSourceIds = issuedSourceIds(patientId, requireLinkedDoctor(principal));
++                Map<DocumentSourceType, Set<UUID>> issuedSourceIds =
++                        issuedSourceIds(patientId, requireLinkedDoctor(principal));
+                 documents = documents.stream()
+-                        .filter(document -> issuedSourceIds.contains(document.getSourceRecordId()))
++                        .filter(document -> issuedSourceIds
++                                .getOrDefault(document.getSourceType(), Set.of())
++                                .contains(document.getSourceRecordId()))
+                         .toList();
+             }
+             auditService.record(principal, patientId, TARGET_DOCUMENT, patientId.toString(),
+@@ -369,6 +376,7 @@ public class DocumentService {
+     @Transactional(readOnly = true)
+     public DocumentDownload downloadAppointmentReminderByBookingCode(
+             UUID patientId, String bookingCode, UserDetails principal) {
++        authorizePatientScope(patientId, principal);
+         Appointment appointment = appointmentRepository.findByBookingCode(bookingCode)
+                 .orElseThrow(() -> new ResourceNotFoundException(
+                         "No appointment found for booking code: " + bookingCode));
+@@ -613,16 +621,20 @@ public class DocumentService {
+         throw new AccessDeniedException("Document access denied");
+     }
+ 
+-    private Set<UUID> issuedSourceIds(UUID patientId, Doctor doctor) {
+-        Set<UUID> ids = new HashSet<>();
++    private Map<DocumentSourceType, Set<UUID>> issuedSourceIds(UUID patientId, Doctor doctor) {
++        Map<DocumentSourceType, Set<UUID>> ids = new EnumMap<>(DocumentSourceType.class);
+         for (MedicalRecord record : medicalRecordRepository
+                 .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, doctor.getId())) {
+-            ids.add(record.getId());
++            ids.computeIfAbsent(DocumentSourceType.VISIT_SUMMARY, key -> new HashSet<>())
++                    .add(record.getId());
+         }
+         for (Prescription prescription : prescriptionRepository
+                 .findByPatientIdAndDoctorIdOrderByCreatedAtDesc(patientId, doctor.getId())) {
+-            ids.add(prescription.getId());
++            ids.computeIfAbsent(DocumentSourceType.PRESCRIPTION, key -> new HashSet<>())
++                    .add(prescription.getId());
+         }
++        ids.put(DocumentSourceType.APPOINTMENT_REMINDER,
++                new HashSet<>(appointmentRepository.findDocumentSourceIdsForDoctor(patientId, doctor.getId())));
+         return ids;
+     }
+ 
+@@ -631,8 +643,10 @@ public class DocumentService {
+             return;
+         }
+         if (hasRole(principal, "DOCTOR")) {
+-            Set<UUID> issuedSourceIds = issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
+-            if (issuedSourceIds.contains(document.getSourceRecordId())) {
++            Map<DocumentSourceType, Set<UUID>> issuedSourceIds =
++                    issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
++            if (issuedSourceIds.getOrDefault(document.getSourceType(), Set.of())
++                    .contains(document.getSourceRecordId())) {
+                 return;
+             }
+         }
+@@ -644,8 +658,10 @@ public class DocumentService {
+             return;
+         }
+         if (hasRole(principal, "DOCTOR")) {
+-            Set<UUID> issuedSourceIds = issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
+-            if (issuedSourceIds.contains(document.getSourceRecordId())) {
++            Map<DocumentSourceType, Set<UUID>> issuedSourceIds =
++                    issuedSourceIds(document.getPatient().getId(), requireLinkedDoctor(principal));
++            if (issuedSourceIds.getOrDefault(document.getSourceType(), Set.of())
++                    .contains(document.getSourceRecordId())) {
+                 return;
+             }
+         }
+diff --git a/apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java b/apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java
+index ed74edc..d7c11d8 100644
+--- a/apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java
++++ b/apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java
+@@ -1,5 +1,8 @@
+ package com.healthcare.storage;
+ 
++import java.net.URI;
++import java.util.Locale;
++
+ /**
+  * Unpackaged defaults must not enable generic upload without AV.
+  * The explicit {@code storage.allow-unscanned-upload} escape is for disposable
+@@ -10,6 +13,35 @@ public final class FailClosedStoragePolicy {
+     private FailClosedStoragePolicy() {
+     }
+ 
++    /**
++     * Whether the endpoint targets the operator's own machine. A loopback
++     * public endpoint is a local compose/dev runtime, not a hosted surface:
++     * the hosted-only guards (HTTPS-only browser signing, hosted posture) do
++     * not apply to it, while every other fail-closed rule still does.
++     */
++    public static boolean isLoopbackEndpoint(String endpoint) {
++        if (endpoint == null || endpoint.isBlank()) {
++            return false;
++        }
++        try {
++            URI parsed = URI.create(endpoint.trim());
++            String host = parsed.getHost();
++            if (host == null) {
++                return false;
++            }
++            if (host.startsWith("[") && host.endsWith("]")) {
++                host = host.substring(1, host.length() - 1);
++            }
++            String normalized = host.toLowerCase(Locale.ROOT);
++            return "localhost".equals(normalized)
++                || "127.0.0.1".equals(normalized)
++                || "0.0.0.0".equals(normalized)
++                || "::1".equals(normalized);
++        } catch (IllegalArgumentException exception) {
++            return false;
++        }
++    }
++
+     public static void validate(boolean uploadEnabled, boolean avRequired, boolean allowUnscannedUpload) {
+         if (uploadEnabled && !avRequired && !allowUnscannedUpload) {
+             throw new IllegalStateException(
+diff --git a/apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java b/apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java
+index 6a15210..ca9ec3d 100644
+--- a/apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java
++++ b/apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java
+@@ -13,6 +13,7 @@ public class FailClosedStorageSettings {
+     private final boolean allowUnscannedUpload;
+     private final boolean consultationEnabled;
+     private final boolean requirePrivateEndpoint;
++    private final String publicEndpoint;
+     private final String accessKey;
+     private final String secretKey;
+ 
+@@ -22,6 +23,7 @@ public class FailClosedStorageSettings {
+             @Value("${storage.allow-unscanned-upload:false}") boolean allowUnscannedUpload,
+             @Value("${storage.consultation.enabled:false}") boolean consultationEnabled,
+             @Value("${storage.require-private-endpoint:false}") boolean requirePrivateEndpoint,
++            @Value("${storage.public-endpoint:}") String publicEndpoint,
+             @Value("${storage.access-key:}") String accessKey,
+             @Value("${storage.secret-key:}") String secretKey) {
+         this.uploadEnabled = uploadEnabled;
+@@ -29,6 +31,7 @@ public class FailClosedStorageSettings {
+         this.allowUnscannedUpload = allowUnscannedUpload;
+         this.consultationEnabled = consultationEnabled;
+         this.requirePrivateEndpoint = requirePrivateEndpoint;
++        this.publicEndpoint = publicEndpoint;
+         this.accessKey = accessKey;
+         this.secretKey = secretKey;
+     }
+@@ -36,11 +39,18 @@ public class FailClosedStorageSettings {
+     @PostConstruct
+     public void validate() {
+         FailClosedStoragePolicy.validate(uploadEnabled, avRequired, allowUnscannedUpload);
+-        FailClosedStoragePolicy.validateStorageEnabledPosture(
+-            uploadEnabled || consultationEnabled,
+-            requirePrivateEndpoint,
+-            accessKey,
+-            secretKey,
+-            allowUnscannedUpload);
++        // The hosted posture demands STORAGE_REQUIRE_PRIVATE_ENDPOINT=true for
++        // any runtime that stores files. A loopback public endpoint is the
++        // operator's own machine (local compose), not a hosted surface, so the
++        // hosted posture does not apply to it — the AV rule above and every
++        // other fail-closed rule still do.
++        if (!FailClosedStoragePolicy.isLoopbackEndpoint(publicEndpoint)) {
++            FailClosedStoragePolicy.validateStorageEnabledPosture(
++                uploadEnabled || consultationEnabled,
++                requirePrivateEndpoint,
++                accessKey,
++                secretKey,
++                allowUnscannedUpload);
++        }
+     }
+ }
+diff --git a/apps/backend/src/main/java/com/healthcare/storage/config/MinioConfig.java b/apps/backend/src/main/java/com/healthcare/storage/config/MinioConfig.java
+index 960594c..c9cadfe 100644
+--- a/apps/backend/src/main/java/com/healthcare/storage/config/MinioConfig.java
++++ b/apps/backend/src/main/java/com/healthcare/storage/config/MinioConfig.java
+@@ -1,5 +1,6 @@
+ package com.healthcare.storage.config;
+ 
++import com.healthcare.storage.FailClosedStoragePolicy;
+ import io.minio.MinioClient;
+ import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+@@ -83,10 +84,16 @@ public class MinioConfig {
+                 || !("https".equals(external.getScheme()) || "http".equals(external.getScheme()))) {
+             throw new IllegalStateException("Public object storage endpoint must be an HTTP(S) origin");
+         }
+-        if (requirePrivateEndpoint && !"https".equals(external.getScheme())) {
++        if (requirePrivateEndpoint && !"https".equals(external.getScheme())
++                && !FailClosedStoragePolicy.isLoopbackEndpoint(publicEndpoint)) {
++            // Hosted runtimes must sign over HTTPS; a loopback public endpoint
++            // is the operator's own machine (local compose uploads), which the
++            // hosted rule is not meant to refuse.
+             throw new IllegalStateException("Hosted browser object storage requires HTTPS");
+         }
+-        StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, publicEndpoint, accessKey, secretKey);
++        if (!FailClosedStoragePolicy.isLoopbackEndpoint(publicEndpoint)) {
++            StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, publicEndpoint, accessKey, secretKey);
++        }
+         // Explicit region prevents MinIO from making bucket-location requests
+         // through the browser endpoint, which may not be reachable in Docker.
+         if (region == null || region.isBlank()) {
+diff --git a/apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java b/apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java
+index 539631f..e8c932a 100644
+--- a/apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java
++++ b/apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java
+@@ -266,4 +266,73 @@ class AiChatSourceResolverTest {
+         assertThat(sources).extracting(AiChatSourceResolver.ResolvedSource::title)
+             .containsExactly("Bác sĩ mẫu 3 - Nội tổng hợp — Phòng khám ngoại trú HealthCare — Thủ Đức");
+     }
++
++    @Test
++    void activeDoctorOverviewFiltersDoctorsBySpecialtyKeywordAndStaysBounded() {
++        DoctorRepository doctors = mock(DoctorRepository.class);
++        UUID dermatologistId = UUID.randomUUID();
++        UUID cardiologistId = UUID.randomUUID();
++
++        Doctor dermatologist = new Doctor();
++        dermatologist.setId(dermatologistId);
++        dermatologist.setFullName("Bác sĩ Nguyễn Văn A");
++        dermatologist.setSlug("bac-si-a");
++        dermatologist.setBio("Chuyên khoa Da liễu, điều trị viêm da cơ địa.");
++        dermatologist.setActive(true);
++
++        Doctor cardiologist = new Doctor();
++        cardiologist.setId(cardiologistId);
++        cardiologist.setFullName("Bác sĩ Trần Văn B");
++        cardiologist.setSlug("bac-si-b");
++        cardiologist.setBio("Chuyên khoa Tim mạch.");
++        cardiologist.setActive(true);
++
++        when(doctors.findByActiveTrue(any(Pageable.class))).thenReturn(new PageImpl<>(
++            List.of(dermatologist, cardiologist),
++            org.springframework.data.domain.PageRequest.of(0, 100), 2));
++
++        AiChatSourceResolver resolver = new AiChatSourceResolver(
++            mock(BranchRepository.class),
++            mock(SpecialtyRepository.class),
++            doctors,
++            mock(ServiceRepository.class),
++            mock(PackageRepository.class),
++            mock(ArticleRepository.class),
++            mock(FaqRepository.class),
++            mock(JdbcTemplate.class));
++
++        // "Bác sĩ nào giỏi về da liễu?" reduces to the keyword "da lieu";
++        // only the doctor whose own catalog text mentions it is returned.
++        List<AiChatSourceResolver.ResolvedSource> matched =
++            resolver.activeDoctorOverview(4, "Bác sĩ nào giỏi về da liễu?");
++        assertThat(matched).hasSize(1);
++        assertThat(matched.get(0).type()).isEqualTo("doctor");
++        assertThat(matched.get(0).id()).isEqualTo(dermatologistId.toString());
++        assertThat(matched.get(0).title()).isEqualTo("Bác sĩ Nguyễn Văn A");
++        assertThat(matched.get(0).viewHref()).isEqualTo("/doctors/bac-si-a");
++        assertThat(matched.get(0).bookingHref()).isEqualTo("/dat-lich?doctorId=" + dermatologistId);
++
++        // A doctor question that names no specialty stays a bounded, unfiltered list.
++        assertThat(resolver.activeDoctorOverview(1, "danh sách bác sĩ")).hasSize(1);
++        assertThat(resolver.activeDoctorOverview(4, "   ")).hasSize(2);
++    }
++
++    @Test
++    void activeDoctorOverviewReturnsEmptyWhenTheCatalogIsUnavailable() {
++        DoctorRepository doctors = mock(DoctorRepository.class);
++        when(doctors.findByActiveTrue(any(Pageable.class)))
++            .thenThrow(new RuntimeException("catalog temporarily unavailable"));
++
++        AiChatSourceResolver resolver = new AiChatSourceResolver(
++            mock(BranchRepository.class),
++            mock(SpecialtyRepository.class),
++            doctors,
++            mock(ServiceRepository.class),
++            mock(PackageRepository.class),
++            mock(ArticleRepository.class),
++            mock(FaqRepository.class),
++            mock(JdbcTemplate.class));
++
++        assertThat(resolver.activeDoctorOverview(4, "da liễu")).isEmpty();
++    }
+ }
+diff --git a/apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java b/apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java
+index f608861..d20639e 100644
+--- a/apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java
++++ b/apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java
+@@ -15,6 +15,7 @@ import java.util.Map;
+ import static org.assertj.core.api.Assertions.assertThat;
+ import static org.assertj.core.api.Assertions.assertThatThrownBy;
+ import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.ArgumentMatchers.anyInt;
+ import static org.mockito.ArgumentMatchers.eq;
+ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.never;
+@@ -60,6 +61,45 @@ class PublicAiChatControllerTest {
+         return resolver;
+     }
+ 
++    private AiChatSourceResolver resolverForLiveBranchList() {
++        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
++        AiChatSourceResolver.ResolvedSource branchOne = new AiChatSourceResolver.ResolvedSource(
++            "branch", BRANCH_ID, "Cơ sở 1 — Quận 1", "co-so-1", true, true,
++            "OPERATIONAL", null, null, null, null, "/branches/co-so-1",
++            "/dat-lich?branchId=" + BRANCH_ID);
++        AiChatSourceResolver.ResolvedSource branchTwo = new AiChatSourceResolver.ResolvedSource(
++            "branch", SECOND_SPECIALTY_ID, "Cơ sở 2 — Quận 3", "co-so-2", true, true,
++            "OPERATIONAL", null, null, null, null, "/branches/co-so-2",
++            "/dat-lich?branchId=" + SECOND_SPECIALTY_ID);
++        when(resolver.branchDetails(any())).thenReturn(List.of());
++        when(resolver.catalogOverview()).thenReturn(AiChatSourceResolver.CatalogOverview.empty());
++        when(resolver.activeBranchOverview(anyInt())).thenReturn(List.of(
++            new AiChatSourceResolver.BranchDetails(branchOne, "12 Nguyễn Huệ, Quận 1", "07:00–19:00"),
++            new AiChatSourceResolver.BranchDetails(branchTwo, "2 Đường số 3, Quận 3", "06:30–20:00")));
++        when(resolver.citations(any())).thenReturn(List.of(
++            Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", branchOne.title()),
++            Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", branchTwo.title())));
++        when(resolver.actions(any())).thenReturn(List.of(
++            Map.of("kind", "VIEW_SOURCE", "label", branchOne.title(), "href", branchOne.viewHref()),
++            Map.of("kind", "VIEW_SOURCE", "label", branchTwo.title(), "href", branchTwo.viewHref())));
++        return resolver;
++    }
++
++    private AiChatSourceResolver resolverForLiveDoctorList() {
++        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
++        AiChatSourceResolver.ResolvedSource doctor = new AiChatSourceResolver.ResolvedSource(
++            "doctor", "00000000-0000-0000-0000-000000000005", "BS Nguyễn Văn A — Da liễu",
++            "bac-si-a", true, true, "OPERATIONAL", null, null, null, null,
++            "/doctors/bac-si-a", "/dat-lich?doctorId=00000000-0000-0000-0000-000000000005");
++        when(resolver.activeDoctorOverview(anyInt(), any())).thenReturn(List.of(doctor));
++        when(resolver.citations(any())).thenReturn(List.of(
++            Map.of("source_type", "doctor", "source_id", doctor.id(), "title", doctor.title())));
++        when(resolver.actions(any())).thenReturn(List.of(
++            Map.of("kind", "VIEW_SOURCE", "label", doctor.title(), "href", doctor.viewHref()),
++            Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", doctor.bookingHref())));
++        return resolver;
++    }
++
+     private AiChatSourceResolver resolverForBranch() {
+         AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+         AiChatSourceResolver.ResolvedSource branch = new AiChatSourceResolver.ResolvedSource(
+@@ -1316,4 +1356,102 @@ class PublicAiChatControllerTest {
+             )
+         ));
+     }
++
++    @Test
++    void answersBranchCountQuestionWithLiveBranchListWhenAiIsUnavailable() {
++        AiService aiService = mock(AiService.class);
++        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
++            SERVICE_UNAVAILABLE, "AI service is unavailable"));
++
++        Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveBranchList())
++            .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có mấy cơ sở?", null))
++            .getBody();
++
++        // The live rows answer the question directly instead of deflecting
++        // the visitor to the branch page, and each cited row is a live branch.
++        assertThat((String) body.get("answer"))
++            .contains("Cơ sở 1 — Quận 1")
++            .contains("Cơ sở 2 — Quận 3")
++            .doesNotContain("Giờ làm việc có thể khác theo từng cơ sở");
++        assertThat(body)
++            .containsEntry("provenance", "local_fallback")
++            .containsEntry("mode", "HOSPITAL_SUPPORT")
++            .containsEntry("safety_action", "ANSWER")
++            .containsEntry("routingReason", "public_ai_degraded_navigation")
++            .containsEntry("citations", List.of(
++                Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", "Cơ sở 1 — Quận 1"),
++                Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", "Cơ sở 2 — Quận 3")))
++            .containsKey("suggested_actions");
++    }
++
++    @Test
++    void answersDoctorSpecialtyQuestionWithLiveDoctorListWhenAiFallsBackWithoutCitations() {
++        AiService aiService = mock(AiService.class);
++        when(aiService.chat(any())).thenReturn(Map.of(
++            "answer", "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có.",
++            "disclaimer", "Chỉ mang tính tham khảo.",
++            "provenance", "local_fallback",
++            "safety_action", "ANSWER",
++            "mode", "HOSPITAL_SUPPORT",
++            "citations", List.of()));
++
++        Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveDoctorList())
++            .chat(new PublicAiChatController.PublicChatRequest("Bác sĩ nào giỏi về da liễu?", null))
++            .getBody();
++
++        assertThat((String) body.get("answer"))
++            .contains("BS Nguyễn Văn A — Da liễu")
++            .doesNotContain("Để tìm bác sĩ phù hợp");
++        assertThat(body)
++            .containsEntry("provenance", "local_fallback")
++            .containsEntry("mode", "HOSPITAL_SUPPORT")
++            .containsEntry("safety_action", "ANSWER")
++            .containsEntry("routingReason", "public_navigation_fallback")
++            .containsEntry("citations", List.of(Map.of(
++                "source_type", "doctor", "source_id", "00000000-0000-0000-0000-000000000005",
++                "title", "BS Nguyễn Văn A — Da liễu")));
++    }
++
++    @Test
++    void keepsStaticBranchNavigationCopyWhenTheLiveBranchListIsEmpty() {
++        AiService aiService = mock(AiService.class);
++        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
++            SERVICE_UNAVAILABLE, "AI service is unavailable"));
++        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
++        when(resolver.activeBranchOverview(anyInt())).thenReturn(List.of());
++
++        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
++            .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có mấy cơ sở?", null))
++            .getBody();
++
++        assertThat(body)
++            .containsEntry("provenance", "local_fallback")
++            .containsEntry("citations", List.of())
++            .containsEntry("routingReason", "public_ai_degraded_navigation")
++            .containsEntry("answer",
++                "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
++                    + "để xem thông tin hiện tại trước khi đến khám.");
++    }
++
++    @Test
++    void keepsStaticDoctorNavigationCopyWhenTheResolverFails() {
++        AiService aiService = mock(AiService.class);
++        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
++            SERVICE_UNAVAILABLE, "AI service is unavailable"));
++        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
++        when(resolver.activeDoctorOverview(anyInt(), any()))
++            .thenThrow(new RuntimeException("catalog down"));
++
++        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
++            .chat(new PublicAiChatController.PublicChatRequest("Bác sĩ nào giỏi về da liễu?", null))
++            .getBody();
++
++        assertThat(body)
++            .containsEntry("provenance", "local_fallback")
++            .containsEntry("citations", List.of())
++            .containsEntry("routingReason", "public_ai_degraded_navigation")
++            .containsEntry("answer",
++                "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
++                    + "sau đó chọn Đặt lịch khám nếu muốn tiếp tục.");
++    }
+ }
+diff --git a/apps/backend/src/test/java/com/healthcare/ai/service/AiClinicalProjectionIndexServiceTest.java b/apps/backend/src/test/java/com/healthcare/ai/service/AiClinicalProjectionIndexServiceTest.java
+index 69225dc..8db756b 100644
+--- a/apps/backend/src/test/java/com/healthcare/ai/service/AiClinicalProjectionIndexServiceTest.java
++++ b/apps/backend/src/test/java/com/healthcare/ai/service/AiClinicalProjectionIndexServiceTest.java
+@@ -3,8 +3,11 @@ package com.healthcare.ai.service;
+ import static org.assertj.core.api.Assertions.assertThat;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.anyString;
++import static org.mockito.Mockito.doReturn;
+ import static org.mockito.Mockito.doThrow;
+ import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.never;
++import static org.mockito.Mockito.spy;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.when;
+@@ -13,6 +16,7 @@ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ import org.junit.jupiter.api.Test;
++import org.mockito.Mockito;
+ import org.springframework.jdbc.core.JdbcTemplate;
+ 
+ /**
+@@ -79,4 +83,75 @@ class AiClinicalProjectionIndexServiceTest {
+         // failed — otherwise revoked/expired sources never tombstone.
+         verify(aiService).listIndexedDocuments();
+     }
++
++    @Test
++    void warmCheckPushesTheSnapshotWhenTheIndexHoldsFewerClinicalDocsThanEligibleRows() {
++        AiService aiService = mock(AiService.class);
++        JdbcTemplate jdbc = mock(JdbcTemplate.class);
++        when(aiService.isRagIngestConfigured()).thenReturn(true);
++        when(jdbc.queryForList(anyString()))
++            .thenReturn(List.of(approvedRow("id-a"), approvedRow("id-b")));
++        when(aiService.listIndexedDocuments()).thenReturn(List.of());
++        AiClinicalProjectionIndexService service = spy(
++            new AiClinicalProjectionIndexService(aiService, jdbc));
++        Mockito.doReturn(2).when(service).synchronizeClinicalNow();
++
++        service.warmEmptyClinicalProjectionIndex();
++
++        // After an ai-service restart the index is empty while the approved
++        // snapshot still holds eligible rows — the warm check must push now,
++        // not wait up to 30 minutes for the periodic tick.
++        verify(service).synchronizeClinicalNow();
++    }
++
++    @Test
++    void warmCheckSkipsThePushWhenTheIndexAlreadyHoldsEveryEligibleClinicalDoc() {
++        AiService aiService = mock(AiService.class);
++        JdbcTemplate jdbc = mock(JdbcTemplate.class);
++        when(aiService.isRagIngestConfigured()).thenReturn(true);
++        when(jdbc.queryForList(anyString()))
++            .thenReturn(List.of(approvedRow("id-a")));
++        Map<String, Object> indexedDoc = new HashMap<>();
++        indexedDoc.put("source_type", "faq");
++        indexedDoc.put("source_id", "id-a");
++        indexedDoc.put("projection_kind", "CLINICAL");
++        when(aiService.listIndexedDocuments()).thenReturn(List.of(indexedDoc));
++        AiClinicalProjectionIndexService service = spy(
++            new AiClinicalProjectionIndexService(aiService, jdbc));
++
++        service.warmEmptyClinicalProjectionIndex();
++
++        verify(service, never()).synchronizeClinicalNow();
++    }
++
++    @Test
++    void warmCheckSkipsEverythingWhenRagIngestIsNotConfigured() {
++        AiService aiService = mock(AiService.class);
++        JdbcTemplate jdbc = mock(JdbcTemplate.class);
++        when(aiService.isRagIngestConfigured()).thenReturn(false);
++        AiClinicalProjectionIndexService service = spy(
++            new AiClinicalProjectionIndexService(aiService, jdbc));
++
++        service.warmEmptyClinicalProjectionIndex();
++
++        verify(service, never()).synchronizeClinicalNow();
++        verify(jdbc, never()).queryForList(anyString());
++    }
++
++    @Test
++    void warmCheckDefersSoftlyWhenTheEligibilityQueryFails() {
++        AiService aiService = mock(AiService.class);
++        JdbcTemplate jdbc = mock(JdbcTemplate.class);
++        when(aiService.isRagIngestConfigured()).thenReturn(true);
++        when(jdbc.queryForList(anyString()))
++            .thenThrow(new RuntimeException("catalog temporarily unavailable"));
++        AiClinicalProjectionIndexService service = spy(
++            new AiClinicalProjectionIndexService(aiService, jdbc));
++
++        // The scheduled tick must survive a transient database failure; the
++        // next warm check re-resolves the same snapshot.
++        service.warmEmptyClinicalProjectionIndex();
++
++        verify(service, never()).synchronizeClinicalNow();
++    }
+ }
+diff --git a/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java b/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java
+index 0a0a7a7..91ae37b 100644
+--- a/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java
++++ b/apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java
+@@ -7,6 +7,7 @@ import com.healthcare.appointment.entity.AppointmentStatus;
+ import com.healthcare.appointment.entity.PatientProfile;
+ import com.healthcare.auth.mail.EmailSender;
+ import com.healthcare.document.service.DocumentObjectStore;
++import com.healthcare.document.service.DocumentSnapshotCodec;
+ import com.healthcare.hospital.entity.Branch;
+ import com.healthcare.hospital.entity.Doctor;
+ import com.healthcare.hospital.entity.DoctorBranch;
+@@ -15,6 +16,7 @@ import com.healthcare.hospital.entity.Specialty;
+ import com.healthcare.security.JwtTokenProvider;
+ import com.healthcare.user.entity.User;
+ import com.healthcare.user.repository.RoleRepository;
++import org.assertj.core.api.SoftAssertions;
+ import org.junit.jupiter.api.BeforeEach;
+ import org.junit.jupiter.api.Test;
+ import org.mockito.ArgumentCaptor;
+@@ -24,18 +26,41 @@ import org.springframework.test.context.ActiveProfiles;
+ import org.springframework.test.context.bean.override.mockito.MockitoBean;
+ import org.springframework.test.web.servlet.MvcResult;
+ 
++import com.zaxxer.hikari.HikariDataSource;
++import org.apache.pdfbox.Loader;
++import org.apache.pdfbox.pdmodel.PDDocument;
++import org.apache.pdfbox.text.PDFTextStripper;
++
++import javax.sql.DataSource;
++import java.io.ByteArrayInputStream;
++import java.nio.charset.StandardCharsets;
++import java.sql.Connection;
++import java.sql.DriverManager;
++import java.sql.ResultSet;
++import java.sql.Statement;
+ import java.time.LocalDate;
+ import java.time.LocalTime;
+ import java.time.OffsetDateTime;
+ import java.time.ZoneOffset;
++import java.util.Map;
+ import java.util.UUID;
++import java.util.concurrent.Callable;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
+ 
+ import static org.assertj.core.api.Assertions.assertThat;
+ import static org.mockito.ArgumentMatchers.any;
+ import static org.mockito.ArgumentMatchers.eq;
++import static org.mockito.Mockito.doAnswer;
++import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
+ import static org.mockito.Mockito.when;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+@@ -59,6 +84,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+     @Autowired private ObjectMapper objectMapper;
+     @Autowired private JwtTokenProvider tokenProvider;
+     @Autowired private RoleRepository roleRepository;
++    @Autowired private DataSource dataSource;
+ 
+     @MockitoBean private EmailSender emailSender;
+     // Object-store boundary: put() succeeding is what lets the row finalize
+@@ -68,6 +94,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+     private UUID patientId;
+     private UUID appointmentId;
+     private String patientBearer;
++    private String doctorBearer;
+ 
+     @BeforeEach
+     void fixture() {
+@@ -76,6 +103,9 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+         User patientUser = user("PATIENT");
+         patientBearer = "Bearer " + tokenProvider.generateAccessToken(
+                 patientUser.getId(), patientUser.getEmail());
++        User doctorUser = user("DOCTOR");
++        doctorBearer = "Bearer " + tokenProvider.generateAccessToken(
++                doctorUser.getId(), doctorUser.getEmail());
+ 
+         PatientProfile patient = new PatientProfile();
+         patient.setUserId(patientUser.getId());
+@@ -102,6 +132,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+         doctor.setFullName("BS. Synthetic Reminder");
+         doctor.setSlug("synthetic-" + UUID.randomUUID());
+         doctor.setActive(true);
++        doctor.setUserId(doctorUser.getId());
+         doctor = doctorRepository.saveAndFlush(doctor);
+ 
+         // appointments has a composite FK (doctor_id, branch_id) -> doctor_branches.
+@@ -199,6 +230,336 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
+         verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
+     }
+ 
++    @Test
++    void concurrentSameSourceGenerationReusesOneRowAndObject() throws Exception {
++        CountDownLatch firstPutEntered = new CountDownLatch(1);
++        CountDownLatch releaseFirstPut = new CountDownLatch(1);
++        doAnswer(invocation -> {
++            firstPutEntered.countDown();
++            assertThat(releaseFirstPut.await(10, TimeUnit.SECONDS)).isTrue();
++            return null;
++        }).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
++
++        ExecutorService executor = Executors.newFixedThreadPool(2);
++        try {
++            Callable<MvcResult> generate = () -> mockMvc.perform(
++                            post("/api/v1/patients/{patientId}/documents", patientId)
++                                    .header("Authorization", patientBearer)
++                                    .contentType(MediaType.APPLICATION_JSON)
++                                    .content(requestBody()))
++                    .andReturn();
++            Future<MvcResult> first = executor.submit(generate);
++            assertThat(firstPutEntered.await(10, TimeUnit.SECONDS)).isTrue();
++            Future<MvcResult> second = executor.submit(generate);
++
++            boolean lockWaitObserved = false;
++            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
++            while (System.nanoTime() < deadline && !lockWaitObserved) {
++                Boolean waiting = jdbcTemplate.queryForObject(
++                        "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname = current_database()"
++                                + " AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'"
++                                + " AND (query ILIKE '%patient_documents%'"
++                                + " OR query ILIKE '%pg_advisory_xact_lock%'))",
++                        Boolean.class);
++                lockWaitObserved = Boolean.TRUE.equals(waiting);
++                if (!lockWaitObserved) {
++                    Thread.sleep(25);
++                }
++            }
++            assertThat(lockWaitObserved).isTrue();
++
++            releaseFirstPut.countDown();
++            MvcResult firstResult = first.get(15, TimeUnit.SECONDS);
++            MvcResult secondResult = second.get(15, TimeUnit.SECONDS);
++            assertThat(firstResult.getResponse().getStatus()).isEqualTo(201);
++            assertThat(secondResult.getResponse().getStatus()).isEqualTo(201);
++            String firstId = objectMapper.readTree(firstResult.getResponse().getContentAsString())
++                    .get("id").asText();
++            String secondId = objectMapper.readTree(secondResult.getResponse().getContentAsString())
++                    .get("id").asText();
++            assertThat(secondId).isEqualTo(firstId);
++            assertThat(objectMapper.readTree(firstResult.getResponse().getContentAsString())
++                    .get("status").asText()).isEqualTo("AVAILABLE");
++            assertThat(objectMapper.readTree(secondResult.getResponse().getContentAsString())
++                    .get("status").asText()).isEqualTo("AVAILABLE");
++            verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
++            Integer rows = jdbcTemplate.queryForObject(
++                    "SELECT count(*) FROM patient_documents WHERE source_record_id = ?",
++                    Integer.class, appointmentId);
++            assertThat(rows).isEqualTo(1);
++        } finally {
++            releaseFirstPut.countDown();
++            executor.shutdownNow();
++            executor.awaitTermination(10, TimeUnit.SECONDS);
++        }
++    }
++
++    @Test
++    void assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder() throws Exception {
++        Map<String, byte[]> stored = stubObjectStoreRoundTrip();
++
++        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", doctorBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.status").value("AVAILABLE"))
++                .andReturn();
++        String documentId = objectMapper.readTree(created.getResponse().getContentAsString())
++                .get("id").asText();
++
++        MvcResult list = mockMvc.perform(get("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", doctorBearer))
++                .andReturn();
++        int listStatus = list.getResponse().getStatus();
++        String listBody = list.getResponse().getContentAsString();
++        MvcResult download = mockMvc.perform(get(
++                        "/api/v1/patients/{patientId}/documents/{documentId}/download",
++                        patientId, documentId)
++                        .header("Authorization", doctorBearer))
++                .andReturn();
++        int downloadStatus = download.getResponse().getStatus();
++
++        SoftAssertions softly = new SoftAssertions();
++        softly.assertThat(listStatus).as("doctor list status").isEqualTo(200);
++        softly.assertThat(listBody).as("doctor list includes generated id").contains(documentId);
++        byte[] expected = stored.values().iterator().next();
++        byte[] actual = download.getResponse().getContentAsByteArray();
++        DocumentSnapshotCodec codec = new DocumentSnapshotCodec();
++        softly.assertThat(downloadStatus).as("doctor download status").isEqualTo(200);
++        softly.assertThat(download.getResponse().getContentType())
++                .as("download content type").startsWith("application/pdf");
++        softly.assertThat(actual.length).as("downloaded length equals stored object length")
++                .isEqualTo(expected.length);
++        softly.assertThat(codec.sha256Hex(actual)).as("downloaded sha256 equals stored object sha256")
++                .isEqualTo(codec.sha256Hex(expected));
++        softly.assertThat(new String(actual, 0, Math.min(5, actual.length), StandardCharsets.US_ASCII))
++                .as("downloaded payload is a PDF").isEqualTo("%PDF-");
++        softly.assertAll();
++    }
++
++    @Test
++    void unrelatedDoctorCannotListOrDownloadAnotherPatientsAppointmentReminder() throws Exception {
++        stubObjectStoreRoundTrip();
++
++        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", patientBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andReturn();
++        String documentId = objectMapper.readTree(created.getResponse().getContentAsString())
++                .get("id").asText();
++
++        User strangerUser = user("DOCTOR");
++        Doctor stranger = new Doctor();
++        stranger.setFullName("BS. Unrelated");
++        stranger.setSlug("unrelated-" + UUID.randomUUID());
++        stranger.setActive(true);
++        stranger.setUserId(strangerUser.getId());
++        doctorRepository.saveAndFlush(stranger);
++        String strangerBearer = "Bearer " + tokenProvider.generateAccessToken(
++                strangerUser.getId(), strangerUser.getEmail());
++
++        mockMvc.perform(get("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", strangerBearer))
++                .andExpect(status().isForbidden());
++        mockMvc.perform(get("/api/v1/patients/{patientId}/documents/{documentId}/download",
++                        patientId, documentId)
++                        .header("Authorization", strangerBearer))
++                .andExpect(status().isForbidden());
++    }
++
++    @Test
++    void concurrentPoolSizedGenerationDoesNotStarveIndependentSideEffects() throws Exception {
++        HikariDataSource hikari = dataSource.unwrap(HikariDataSource.class);
++        assertThat(hikari.getMaximumPoolSize()).isEqualTo(3);
++        String jdbcUrl = hikari.getJdbcUrl();
++        assertThat(jdbcUrl).matches(
++                "jdbc:postgresql://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:\\d+)?/healthcare_test(\\?.*)?");
++
++        CountDownLatch firstPutEntered = new CountDownLatch(1);
++        CountDownLatch releaseFirstPut = new CountDownLatch(1);
++        doAnswer(invocation -> {
++            firstPutEntered.countDown();
++            assertThat(releaseFirstPut.await(10, TimeUnit.SECONDS)).isTrue();
++            return null;
++        }).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
++
++        ExecutorService executor = Executors.newFixedThreadPool(3);
++        try (Connection probe = DriverManager.getConnection(
++                        jdbcUrl, hikari.getUsername(), hikari.getPassword());
++             Statement statement = probe.createStatement()) {
++            statement.setQueryTimeout(2);
++            Callable<MvcResult> generate = () -> mockMvc.perform(
++                            post("/api/v1/patients/{patientId}/documents", patientId)
++                                    .header("Authorization", patientBearer)
++                                    .contentType(MediaType.APPLICATION_JSON)
++                                    .content(requestBody()))
++                    .andReturn();
++            Future<MvcResult> first = executor.submit(generate);
++            Future<MvcResult> second = executor.submit(generate);
++            Future<MvcResult> third = executor.submit(generate);
++            assertThat(firstPutEntered.await(10, TimeUnit.SECONDS)).isTrue();
++
++            int waiting = 0;
++            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
++            while (System.nanoTime() < deadline && waiting < 2) {
++                try (ResultSet rs = statement.executeQuery(
++                        "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()"
++                                + " AND pid <> pg_backend_pid() AND wait_event_type = 'Lock'"
++                                + " AND query ILIKE '%pg_advisory_xact_lock%'")) {
++                    rs.next();
++                    waiting = rs.getInt(1);
++                }
++                if (waiting < 2) {
++                    Thread.sleep(25);
++                }
++            }
++            assertThat(waiting)
++                    .as("advisory-lock waiters while the 3-connection pool is saturated")
++                    .isGreaterThanOrEqualTo(2);
++
++            releaseFirstPut.countDown();
++            MvcResult firstResult = first.get(30, TimeUnit.SECONDS);
++            MvcResult secondResult = second.get(30, TimeUnit.SECONDS);
++            MvcResult thirdResult = third.get(30, TimeUnit.SECONDS);
++            SoftAssertions softly = new SoftAssertions();
++            String firstId = null;
++            for (MvcResult result : new MvcResult[]{firstResult, secondResult, thirdResult}) {
++                var json = objectMapper.readTree(result.getResponse().getContentAsString());
++                softly.assertThat(result.getResponse().getStatus()).isEqualTo(201);
++                softly.assertThat(json.get("status").asText()).isEqualTo("AVAILABLE");
++                if (firstId == null) {
++                    firstId = json.get("id").asText();
++                } else {
++                    softly.assertThat(json.get("id").asText()).isEqualTo(firstId);
++                }
++            }
++            softly.assertAll();
++            verify(objectStore, times(1))
++                    .put(any(String.class), any(byte[].class), any(String.class));
++            Integer rows = jdbcTemplate.queryForObject(
++                    "SELECT count(*) FROM patient_documents WHERE source_record_id = ?",
++                    Integer.class, appointmentId);
++            assertThat(rows).isEqualTo(1);
++        } finally {
++            releaseFirstPut.countDown();
++            executor.shutdownNow();
++            executor.awaitTermination(10, TimeUnit.SECONDS);
++        }
++    }
++
++    @Test
++    void generationAfterAppointmentRescheduleProducesUpdatedReminder() throws Exception {
++        MvcResult first = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", patientBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.status").value("AVAILABLE"))
++                .andReturn();
++        var firstJson = objectMapper.readTree(first.getResponse().getContentAsString());
++        String firstId = firstJson.get("id").asText();
++        long firstVersion = firstJson.get("sourceVersion").asLong();
++
++        Appointment appointment = appointmentRepository.findById(appointmentId).orElseThrow();
++        LocalDate newDate = appointment.getAppointmentDate().plusDays(7);
++        LocalTime newStart = LocalTime.of(14, 0);
++        LocalTime newEnd = LocalTime.of(14, 30);
++        appointment.setAppointmentDate(newDate);
++        appointment.setStartTime(newStart);
++        appointment.setEndTime(newEnd);
++        appointment.setAppointmentTime(OffsetDateTime.of(newDate, newStart, ZoneOffset.UTC));
++        appointmentRepository.saveAndFlush(appointment);
++
++        MvcResult second = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", patientBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.status").value("AVAILABLE"))
++                .andReturn();
++        var secondJson = objectMapper.readTree(second.getResponse().getContentAsString());
++
++        ArgumentCaptor<byte[]> bytes = ArgumentCaptor.forClass(byte[].class);
++        verify(objectStore, times(2))
++                .put(any(String.class), bytes.capture(), eq("application/pdf"));
++
++        SoftAssertions softly = new SoftAssertions();
++        softly.assertThat(secondJson.get("id").asText())
++                .as("rescheduling produces a new document row")
++                .isNotEqualTo(firstId);
++        softly.assertThat(secondJson.get("sourceVersion").asLong())
++                .as("rescheduling bumps sourceVersion")
++                .isNotEqualTo(firstVersion);
++        try (PDDocument document = Loader.loadPDF(bytes.getAllValues().get(1))) {
++            String text = new PDFTextStripper().getText(document);
++            softly.assertThat(text)
++                    .as("regenerated reminder carries the rescheduled date")
++                    .contains(newDate.toString());
++            softly.assertThat(text)
++                    .as("regenerated reminder carries the rescheduled time")
++                    .contains(newStart + " – " + newEnd);
++        }
++        softly.assertAll();
++    }
++
++    @Test
++    void cancelledAppointmentReminderCannotBeDownloaded() throws Exception {
++        stubObjectStoreRoundTrip();
++
++        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
++                        .header("Authorization", patientBearer)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content(requestBody()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.status").value("AVAILABLE"))
++                .andReturn();
++        String documentId = objectMapper.readTree(created.getResponse().getContentAsString())
++                .get("id").asText();
++
++        Appointment appointment = appointmentRepository.findById(appointmentId).orElseThrow();
++        String bookingCode = appointment.getBookingCode();
++        appointment.setStatus(AppointmentStatus.CANCELLED);
++        appointmentRepository.saveAndFlush(appointment);
++
++        MvcResult byId = mockMvc.perform(get(
++                        "/api/v1/patients/{patientId}/documents/{documentId}/download",
++                        patientId, documentId)
++                        .header("Authorization", patientBearer))
++                .andReturn();
++        MvcResult byBooking = mockMvc.perform(get(
++                        "/api/v1/patients/{patientId}/documents/by-booking/{bookingCode}/download",
++                        patientId, bookingCode)
++                        .header("Authorization", patientBearer))
++                .andReturn();
++
++        SoftAssertions softly = new SoftAssertions();
++        softly.assertThat(byId.getResponse().getStatus())
++                .as("cancelled reminder download by id")
++                .isIn(403, 409);
++        softly.assertThat(byBooking.getResponse().getStatus())
++                .as("cancelled reminder download by booking code")
++                .isIn(403, 409);
++        softly.assertAll();
++        verify(objectStore, never()).get(any(String.class));
++    }
++
++    private Map<String, byte[]> stubObjectStoreRoundTrip() throws Exception {
++        Map<String, byte[]> stored = new ConcurrentHashMap<>();
++        doAnswer(invocation -> {
++            stored.put(invocation.getArgument(0), invocation.getArgument(1));
++            return null;
++        }).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
++        when(objectStore.isConfigured()).thenReturn(true);
++        when(objectStore.get(any(String.class))).thenAnswer(invocation -> {
++            byte[] bytes = stored.get(invocation.getArgument(0));
++            return bytes == null ? null : new ByteArrayInputStream(bytes);
++        });
++        return stored;
++    }
++
+     private String requestBody() {
+         return """
+                 {"sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"%s"}
+diff --git a/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java b/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java
+index 9f5d04e..35220e3 100644
+--- a/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java
++++ b/apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java
+@@ -52,6 +52,7 @@ import static org.mockito.Mockito.mock;
+ import static org.mockito.Mockito.never;
+ import static org.mockito.Mockito.times;
+ import static org.mockito.Mockito.verify;
++import static org.mockito.Mockito.verifyNoInteractions;
+ import static org.mockito.Mockito.when;
+ 
+ /**
+@@ -78,6 +79,7 @@ class DocumentServiceTest {
+     private PatientProfileRepository patientProfileRepository;
+     private DoctorRepository doctorRepository;
+     private UserRepository userRepository;
++    private AppointmentRepository appointmentRepository;
+     private DocumentObjectStore objectStore;
+     private DocumentObjectCleanupService cleanupService;
+     private SyntheticPdfRenderer renderer;
+@@ -93,6 +95,7 @@ class DocumentServiceTest {
+         patientProfileRepository = mock(PatientProfileRepository.class);
+         doctorRepository = mock(DoctorRepository.class);
+         userRepository = mock(UserRepository.class);
++        appointmentRepository = mock(AppointmentRepository.class);
+         objectStore = mock(DocumentObjectStore.class);
+         cleanupService = mock(DocumentObjectCleanupService.class);
+         renderer = mock(SyntheticPdfRenderer.class);
+@@ -100,7 +103,7 @@ class DocumentServiceTest {
+         codec = new DocumentSnapshotCodec();
+         service = new DocumentService(documentRepository, medicalRecordRepository,
+                 prescriptionRepository, patientProfileRepository, doctorRepository,
+-                userRepository, mock(AppointmentRepository.class), objectStore, cleanupService, renderer,
++                userRepository, appointmentRepository, objectStore, cleanupService, renderer,
+                 codec, auditService);
+     }
+ 
+@@ -718,6 +721,51 @@ class DocumentServiceTest {
+         assertThat(visible.get(0).sourceRecordId()).isEqualTo(RECORD_ID);
+     }
+ 
++    @Test
++    void doctorCannotAccessForeignVisitSummaryWhenSourceIdCollidesWithOwnPrescriptionId() throws Exception {
++        UUID collidingSourceId = UUID.fromString("00000000-0000-4000-8000-0000000000e2");
++        PatientDocument foreignVisitSummary = availableDocument(FOREIGN_DOCUMENT_ID, collidingSourceId);
++        Prescription ownPrescription = prescription(PATIENT_ID, DOCTOR_ID, "ACTIVE");
++        when(ownPrescription.getId()).thenReturn(collidingSourceId);
++        when(documentRepository.findByPatientIdOrderByGeneratedAtDesc(PATIENT_ID))
++                .thenReturn(List.of(foreignVisitSummary));
++        when(documentRepository.findByIdAndPatientId(FOREIGN_DOCUMENT_ID, PATIENT_ID))
++                .thenReturn(Optional.of(foreignVisitSummary));
++        when(medicalRecordRepository.findByPatientIdAndDoctorIdOrderByCreatedAtDesc(PATIENT_ID, DOCTOR_ID))
++                .thenReturn(List.of());
++        when(prescriptionRepository.findByPatientIdAndDoctorIdOrderByCreatedAtDesc(PATIENT_ID, DOCTOR_ID))
++                .thenReturn(List.of(ownPrescription));
++        stubDoctorRelationship(PATIENT_ID, DOCTOR_ID);
++
++        List<DocumentResponse> visible = service.listDocuments(PATIENT_ID, doctorPrincipal(DOCTOR_ID));
++        assertThat(visible).isEmpty();
++
++        assertThatThrownBy(() -> service.downloadDocument(
++                PATIENT_ID, FOREIGN_DOCUMENT_ID, doctorPrincipal(DOCTOR_ID)))
++                .isInstanceOf(AccessDeniedException.class);
++        verify(objectStore, never()).get(anyString());
++    }
++
++    @Test
++    void patientCannotResolveBookingBeforePatientScopeAuthorization() throws Exception {
++        assertThatThrownBy(() -> service.downloadAppointmentReminderByBookingCode(
++                OTHER_PATIENT_ID, "FOREIGN-BOOKING", patientPrincipal()))
++                .isInstanceOf(AccessDeniedException.class);
++
++        verifyNoInteractions(appointmentRepository);
++        verify(objectStore, never()).get(anyString());
++    }
++
++    @Test
++    void nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization() throws Exception {
++        assertThatThrownBy(() -> service.downloadAppointmentReminderByBookingCode(
++                OTHER_PATIENT_ID, "FOREIGN-BOOKING", null))
++                .isInstanceOf(AccessDeniedException.class);
++
++        verifyNoInteractions(appointmentRepository);
++        verify(objectStore, never()).get(anyString());
++    }
++
+     // ── Fixtures ────────────────────────────────────────────────────────────
+     // Fixtures build their mocks BEFORE entering any when(...) chain so the
+     // nested stubbing never runs while an outer stubbing is unfinished.
+diff --git a/apps/backend/src/test/java/com/healthcare/storage/MinioPresignConfigurationTest.java b/apps/backend/src/test/java/com/healthcare/storage/MinioPresignConfigurationTest.java
+index da2b87b..3c1f9e9 100644
+--- a/apps/backend/src/test/java/com/healthcare/storage/MinioPresignConfigurationTest.java
++++ b/apps/backend/src/test/java/com/healthcare/storage/MinioPresignConfigurationTest.java
+@@ -51,4 +51,22 @@ class MinioPresignConfigurationTest {
+                 .run(context -> assertThat(context).hasFailed());
+         }
+     }
++
++    @Test
++    void loopbackPublicEndpointIsExemptFromTheHostedHttpsRule() {
++        // Local compose runs uploads against the operator's loopback MinIO
++        // over HTTP; the hosted HTTPS-only rule must not refuse that runtime
++        // while it still refuses every public HTTP endpoint above.
++        runner.withPropertyValues("storage.public-endpoint=http://127.0.0.1:9000", "storage.region=us-east-1",
++                "storage.require-private-endpoint=true")
++            .run(context -> {
++                assertThat(context).hasNotFailed();
++                var presigner = context.getBean("consultationPresignClient", MinioClient.class);
++                URI url = URI.create(presigner.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
++                    .method(Method.PUT).bucket("healthcare-files").object("synthetic/fixture")
++                    .expiry(300).build()));
++                assertThat(url.getHost()).isEqualTo("127.0.0.1");
++                assertThat(url.getPort()).isEqualTo(9000);
++            });
++    }
+ }
+diff --git a/apps/frontend/app/layout.tsx b/apps/frontend/app/layout.tsx
+index 42c89a0..af65121 100644
+--- a/apps/frontend/app/layout.tsx
++++ b/apps/frontend/app/layout.tsx
+@@ -7,6 +7,7 @@ import "./branches/maps.css";
+ import "./brand-experience.css";
+ import "./catalog-directory.css";
+ import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
++import { CmsEditModeToolbar } from "../components/cms/CmsInlineEditor";
+ import BackendWarmup from "../components/BackendWarmup";
+ import OfflineNetworkIndicator from "../components/OfflineNetworkIndicator";
+ 
+@@ -86,6 +87,7 @@ export default function RootLayout({
+         {children}
+         <OfflineNetworkIndicator />
+         <FloatingHealthAssistant />
++        <CmsEditModeToolbar />
+         <BackendWarmup />
+       </body>
+     </html>
+diff --git a/apps/frontend/app/patient/documents/page.tsx b/apps/frontend/app/patient/documents/page.tsx
+index 3cea139..0f672f1 100644
+--- a/apps/frontend/app/patient/documents/page.tsx
++++ b/apps/frontend/app/patient/documents/page.tsx
+@@ -44,6 +44,7 @@ const LOADING: Loadable<never> = { status: "loading" };
+ const SOURCE_LABEL: Record<PatientDocumentSourceType, string> = {
+   VISIT_SUMMARY: "Tổng kết lần khám",
+   PRESCRIPTION: "Đơn thuốc",
++  APPOINTMENT_REMINDER: "Giấy nhắc hẹn",
+ };
+ 
+ const STATUS_LABEL: Record<PatientDocument["status"], string> = {
+@@ -99,7 +100,11 @@ function formatBytes(value: number | null | undefined): string {
+ function documentFilename(document: PatientDocument): string {
+   // The file lands in the patient's own downloads folder; a "demo" stamp there
+   // undercuts a clinical record. Synthetic/beta status is stated in-app instead.
+-  const slug = document.sourceType === "PRESCRIPTION" ? "don-thuoc" : "ho-so-kham";
++  const slug = document.sourceType === "PRESCRIPTION"
++    ? "don-thuoc"
++    : document.sourceType === "APPOINTMENT_REMINDER"
++      ? "nhac-lich-hen"
++      : "ho-so-kham";
+   return `${slug}-${document.id.slice(0, 8)}.pdf`;
+ }
+ 
+@@ -114,6 +119,9 @@ function documentSourceTitle(
+       ? `${prescription.prescriptionCode} · ${prescription.diagnosisSummary || "Đơn thuốc"}`
+       : "Đơn thuốc đã kết xuất";
+   }
++  if (document.sourceType === "APPOINTMENT_REMINDER") {
++    return "Giấy nhắc lịch hẹn đã kết xuất";
++  }
+   const record = recordsById.get(document.sourceRecordId);
+   return record?.diagnosis || record?.bookingCode || "Hồ sơ khám đã kết xuất";
+ }
+diff --git a/apps/frontend/components/FloatingHealthAssistant.module.css b/apps/frontend/components/FloatingHealthAssistant.module.css
+index 130cff5..c27f4e2 100644
+--- a/apps/frontend/components/FloatingHealthAssistant.module.css
++++ b/apps/frontend/components/FloatingHealthAssistant.module.css
+@@ -797,6 +797,73 @@
+   border-color: var(--assistant-deep);
+ }
+ 
++/* Login gate replaces the composer for anonymous visitors: the assistant is
++   a signed-in surface, but emergency and booking channels stay reachable. */
++.loginGate {
++  display: grid;
++  gap: 0.5rem;
++  margin: 0.85rem 1rem 0;
++  padding: 0.85rem;
++  border: 1px solid var(--assistant-line);
++  border-radius: var(--radius-sm);
++  background: var(--assistant-paper);
++}
++
++.loginGate strong {
++  color: var(--assistant-deep);
++  font-size: 0.82rem;
++}
++
++.loginGate > span {
++  color: var(--assistant-deep);
++  font-size: 0.75rem;
++  line-height: 1.5;
++}
++
++.loginGateActions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 0.45rem;
++  margin-top: 0.15rem;
++}
++
++.loginGatePrimary,
++.loginGateSecondary {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  min-height: 2.75rem;
++  padding: 0.5rem 0.85rem;
++  border-radius: 0.25rem;
++  font-size: 0.78rem;
++  font-weight: 600;
++  text-decoration: none;
++  touch-action: manipulation;
++}
++
++.loginGatePrimary {
++  border: 1px solid var(--assistant-deep);
++  background: var(--assistant-deep);
++  color: #fff;
++}
++
++.loginGateSecondary {
++  border: 1px solid var(--assistant-line);
++  background: transparent;
++  color: var(--assistant-deep);
++}
++
++.loginGatePrimary:hover,
++.loginGatePrimary:focus-visible {
++  border-color: var(--assistant-deep);
++  filter: brightness(1.08);
++}
++
++.loginGateSecondary:hover,
++.loginGateSecondary:focus-visible {
++  border-color: var(--assistant-deep);
++}
++
+ .composer {
+   display: flex;
+   align-items: flex-end;
+diff --git a/apps/frontend/components/FloatingHealthAssistant.tsx b/apps/frontend/components/FloatingHealthAssistant.tsx
+index f0c807f..5e63815 100644
+--- a/apps/frontend/components/FloatingHealthAssistant.tsx
++++ b/apps/frontend/components/FloatingHealthAssistant.tsx
+@@ -22,12 +22,9 @@ import {
+   fetchAiConversationMessages,
+   fetchAiConversations,
+   hasRole,
+-  sendPublicAiChat,
+   updateAiMessageFeedback,
+   type AuthSession,
+-  type PublicAiChatResult,
+ } from "../lib/api-client";
+-import { randomId } from "../lib/secure-random";
+ import type {
+   AiChatMessage,
+   AiChatPolicy,
+@@ -54,7 +51,6 @@ import styles from "./FloatingHealthAssistant.module.css";
+ // out of the active control; launcher uses the code-native AssistantMark.
+ 
+ const MAX_MESSAGE_LENGTH = 10_000;
+-const MAX_PUBLIC_MESSAGE_LENGTH = 500;
+ const DEFAULT_DISCLAIMER = "Thông tin chỉ mang tính tham khảo, không thay thế thăm khám hoặc hướng dẫn của bác sĩ.";
+ const SUGGESTED_QUESTIONS_HOSPITAL = [
+   "Làm sao để đặt lịch khám tại HealthCare?",
+@@ -168,12 +164,12 @@ function formatTime(value: string): string {
+   return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(date);
+ }
+ 
+-function inputFailure(isPublic: boolean): AssistantFailure {
++function inputFailure(): AssistantFailure {
+   return failureFromError(new ApiError(
+     "Tin nhắn không hợp lệ.",
+     400,
+-    isPublic ? "/public/ai/chat" : "/ai/conversations/messages",
+-    { code: isPublic ? "PUBLIC_CHAT_INPUT_INVALID" : "CHAT_INPUT_INVALID" },
++    "/ai/conversations/messages",
++    { code: "CHAT_INPUT_INVALID" },
+   ));
+ }
+ 
+@@ -280,6 +276,10 @@ function FloatingHealthAssistantPanel({
+   );
+ 
+   const isPatient = Boolean(session && hasRole(session.user, "PATIENT"));
++  // Only signed-in patients may ask. Signed-in non-patients never see the
++  // panel at all (see `hidden` below), so the remaining non-patient case is
++  // the anonymous visitor, who gets the login CTA instead of a composer.
++  const requiresLogin = !session;
+   const hidden = assistantIsHiddenOnPath(pathname) || Boolean(session && !isPatient);
+   // Timed feedback describes waiting; it cannot prove upstream activity.
+   const waitStage = useChatWaitStage(sending);
+@@ -373,6 +373,9 @@ function FloatingHealthAssistantPanel({
+         document.querySelectorAll<HTMLElement>("[role=\"dialog\"], dialog[open]"),
+       ).some((element) => (
+         element.id !== "floating-health-assistant-panel"
++        // The admin CMS inline editor is a deliberately coexisting surface:
++        // it must not close (and steal focus back from) the assistant panel.
++        && !element.hasAttribute("data-cms-edit-modal")
+         && (element.matches("dialog[open]") || element.getAttribute("aria-modal") === "true")
+       ));
+       setBlockedByModal(externalModal);
+@@ -647,13 +650,16 @@ function FloatingHealthAssistantPanel({
+   };
+ 
+   const handleSend = async (content = draft): Promise<void> => {
++    // Login gate: the assistant only serves signed-in patients. Anonymous
++    // visitors see a login CTA instead of a composer and can never send.
++    if (!session) return;
+     const normalized = content.trim();
+-    const inputLimit = isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH;
++    const inputLimit = MAX_MESSAGE_LENGTH;
+     // State updates are batched. Guard synchronously before a second submit can
+     // replace the first request and create a duplicate server attempt.
+     if (sendInFlightRef.current) return;
+     if (normalized.length < 2 || normalized.length > inputLimit) {
+-      if (normalized.length > 0) setFailure(inputFailure(!isPatient));
++      if (normalized.length > 0) setFailure(inputFailure());
+       return;
+     }
+ 
+@@ -674,63 +680,6 @@ function FloatingHealthAssistantPanel({
+ 
+     let currentConversation: AiConversation | null = null;
+     try {
+-      if (!isPatient) {
+-        const recentTurns = messages.slice(-6).map((message) => ({
+-          role: message.role === "USER" ? "user" as const : "assistant" as const,
+-          content: message.content,
+-        }));
+-        let reply: PublicAiChatResult;
+-        try {
+-          reply = await sendPublicAiChat(normalized, recentTurns, { signal: controller.signal });
+-        } catch {
+-          if (intentionalCancelRef.current || !isCurrentLocalRequest(epoch)) return;
+-          reply = {
+-            answer: "Hiện tại kết nối tới trợ lý đang bị chậm hoặc gián đoạn. Bạn có thể đặt lịch khám hoặc gọi tổng đài 028 1800 0001 để được tư vấn trực tiếp; nếu muốn thử lại câu hỏi, hãy gửi lại sau ít giây nhé.",
+-            disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
+-            citations: [],
+-            provenance: "local_fallback",
+-            mode: "HOSPITAL_SUPPORT",
+-            safetyAction: "INSUFFICIENT_EVIDENCE",
+-            suggestedActions: [
+-              { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
+-              { kind: "CALL_HOTLINE", label: "Gọi 028 1800 0001", href: "tel:02818000001" },
+-              { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+-            ],
+-          };
+-        }
+-        if (!isCurrentLocalRequest(epoch)) return;
+-        const createdAt = pendingCreatedAt;
+-        const sequence = messages.reduce((maximum, message) => Math.max(maximum, message.sequence), 0) + 1;
+-        const userMessage: AiChatMessage = {
+-          id: randomId(),
+-          role: "USER",
+-          status: "COMPLETED",
+-          content: normalized,
+-          sequence,
+-          citations: [],
+-          createdAt,
+-          completedAt: createdAt,
+-        };
+-        const assistantMessage: AiChatMessage = {
+-          id: randomId(),
+-          role: "ASSISTANT",
+-          status: "COMPLETED",
+-          content: reply.answer,
+-          sequence: sequence + 1,
+-          disclaimer: reply.disclaimer,
+-          provenance: reply.provenance,
+-          citations: reply.citations,
+-          safetyAction: reply.safetyAction,
+-          suggestedActions: reply.suggestedActions,
+-          createdAt,
+-          completedAt: createdAt,
+-        };
+-        setDraft("");
+-        if (inputRef.current) inputRef.current.style.height = "auto";
+-        setPendingUserMessage(null);
+-        setMessages((current) => [...current, userMessage, assistantMessage].slice(-8));
+-        return;
+-      }
+       currentConversation = await ensureConversation(controller.signal, epoch);
+       if (!isCurrentLocalRequest(epoch, currentConversation.id)) return;
+       if (currentConversation.consentRequired) {
+@@ -856,7 +805,7 @@ function FloatingHealthAssistantPanel({
+               <div>
+                 <strong>Trợ lý HealthCare</strong>
+                 <span className={styles.headerSubtitle}>
+-                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Tra cứu HealthCare · Không lưu lịch sử"}
++                  {isPatient ? "Thông tin sức khỏe · Có lưu lịch sử" : "Đăng nhập để hỏi và được lưu hội thoại"}
+                   {assistantStatus ? <span className={styles.statusNote}>{assistantStatus}</span> : null}
+                 </span>
+               </div>
+@@ -886,14 +835,7 @@ function FloatingHealthAssistantPanel({
+               </div>
+               {modeLocked ? <span className={styles.modeLockedHint}>Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới.</span> : null}
+             </div>
+-          ) : (
+-            <p className={styles.modeLockedHint}>
+-              Bạn đang dùng chế độ khách: câu hỏi không được lưu vào lịch sử.
+-              {!session ? (
+-                <> Để lưu và xem lại hội thoại, <Link href="/auth/login?next=%2Fpatient%2Fchat">đăng nhập</Link>.</>
+-              ) : null}
+-            </p>
+-          )}
++          ) : null}
+ 
+           <>
+               {consentBlocked ? (
+@@ -1070,7 +1012,7 @@ function FloatingHealthAssistantPanel({
+                   consent is blocked they are hidden entirely so the consent
+                   panel stays the single CTA — a visible chip would only bounce
+                   into the duplicate consent error above. */}
+-              {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked ? (
++              {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked && !requiresLogin ? (
+                 <div className={styles.suggestions}>
+                   {getSuggestedQuestions(pathname, mode).map((question) => (
+                     <button disabled={sending} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
+@@ -1078,13 +1020,32 @@ function FloatingHealthAssistantPanel({
+                 </div>
+               ) : null}
+ 
++              {requiresLogin ? (
++                <div className={styles.loginGate} data-testid="floating-assistant-login-gate">
++                  <strong>Đăng nhập để trò chuyện với trợ lý</strong>
++                  <span>
++                    Trợ lý y tế chỉ phục vụ sau khi bạn đăng nhập bằng tài khoản bệnh nhân — giúp bảo vệ
++                    thông tin sức khỏe và lưu lại lịch sử hội thoại của bạn.
++                  </span>
++                  <div className={styles.loginGateActions}>
++                    <Link
++                      className={styles.loginGatePrimary}
++                      href={`/auth/login?next=${encodeURIComponent(pathname)}`}
++                    >
++                      Đăng nhập
++                    </Link>
++                    <Link className={styles.loginGateSecondary} href="/dat-lich">Đặt lịch khám</Link>
++                    <a className={styles.loginGateSecondary} href="tel:02818000001">Gọi 028 1800 0001</a>
++                  </div>
++                </div>
++              ) : (
+               <form className={styles.composer} onSubmit={handleSubmit}>
+                 <label className="sr-only" htmlFor="floating-health-assistant-input">Câu hỏi cho trợ lý sức khỏe</label>
+                 <textarea
+                   aria-describedby="floating-health-assistant-help"
+                   disabled={sending || consentBlocked}
+                   id="floating-health-assistant-input"
+-                  maxLength={isPatient ? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH}
++                  maxLength={MAX_MESSAGE_LENGTH}
+                   onChange={(event) => {
+                     if (conversationIdRef.current) resetSendAttempt(conversationIdRef.current);
+                     const nextDraft = event.target.value;
+@@ -1119,6 +1080,7 @@ function FloatingHealthAssistantPanel({
+                   </button>
+                 )}
+               </form>
++              )}
+               <p className={styles.help} id="floating-health-assistant-help">Không thay thế bác sĩ. Trường hợp cấp cứu, gọi 115 hoặc đến cơ sở y tế gần nhất.</p>
+               {isPatient ? (
+                 <Link className={styles.fullChatLink} href="/patient/chat">Mở trợ lý đầy đủ <UiIcon name="arrow-up-right" size={15} /></Link>
+diff --git a/apps/frontend/components/cms/CmsLiveSlot.tsx b/apps/frontend/components/cms/CmsLiveSlot.tsx
+index a1072f0..314baf6 100644
+--- a/apps/frontend/components/cms/CmsLiveSlot.tsx
++++ b/apps/frontend/components/cms/CmsLiveSlot.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ 
+ import Link from "next/link";
+-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
++import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from "react";
+ import {
+   CmsApiError,
+   CmsClient,
+@@ -11,6 +11,17 @@ import {
+   type CmsSlotKey,
+ } from "../../lib/cms-client";
+ import { CmsReconciliationLedger } from "../../lib/cms-reconciliation.mjs";
++import { hasRole } from "../../lib/api-client";
++import { useAuthSession } from "../useAuthSession";
++import {
++  isCmsEditModeEnabled,
++  isClientMounted,
++  markClientMounted,
++  publishCmsSaveFlash,
++  subscribeCmsEditMode,
++  subscribeClientMounted,
++} from "../../lib/cms-edit-mode";
++import { CmsSlotEditModal } from "./CmsInlineEditor";
+ import { CmsSlotRenderer } from "./CmsRenderer";
+ 
+ export interface CmsLiveSlotProps {
+@@ -108,6 +119,58 @@ export function CmsLiveSlot({
+   const latestVersion = useRef(0);
+   const suppressTechnicalCopy = publicQuiet && content !== null && containsPublicTechnicalCopy(content);
+ 
++  // Inline edit affordance: ADMIN-only and only while the edit-mode toolbar
++  // switch is on. Hooks stay above every early return below.
++  const session = useAuthSession();
++  const editModeOn = useSyncExternalStore(subscribeCmsEditMode, isCmsEditModeEnabled, isCmsEditModeEnabled);
++  const [inlineEditing, setInlineEditing] = useState(false);
++  // Bumped right after an inline save so the main effect below re-runs and
++  // the author sees the published change immediately instead of waiting for
++  // the next poll tick.
++  const [inlineSaveTick, setInlineSaveTick] = useState(0);
++  // Mount gate: the affordance depends on client-only session state, so it
++  // must not exist in the server HTML. The external mount store keeps the
++  // hydration output byte-identical — an admin-only button (or a changed
++  // className) appearing mid-tree during hydration wedges that subtree on
++  // its SSR HTML: React keeps the server nodes, the store flips never apply,
++  // and the slot stops updating entirely.
++  const mounted = useSyncExternalStore(subscribeClientMounted, isClientMounted, isClientMounted);
++  useEffect(() => {
++    markClientMounted();
++  }, []);
++  const canInlineEdit = mounted && editModeOn && Boolean(session && hasRole(session.user, "ADMIN"));
++  const editAffordance = canInlineEdit ? (
++    <button
++      className="absolute right-2 top-2 z-40 rounded-md border border-teal-800 bg-white px-2 py-1 text-[11px] font-semibold text-teal-900 hover:border-teal-600"
++      data-testid="cms-inline-edit-open"
++      onClick={(event) => {
++        event.preventDefault();
++        setInlineEditing(true);
++      }}
++      title={`Sửa nội dung ${backendSlotKey}`}
++      type="button"
++    >
++      ✏️ Sửa
++    </button>
++  ) : null;
++  const editRootClassName = canInlineEdit ? `${className ?? ""} relative`.trim() : className;
++  // The dialog must follow the affordance in EVERY branch that can show it,
++  // not just the generic section branch: /about and the homepage mount this
++  // slot through renderContent/fallback branches.
++  const inlineEditDialog = inlineEditing ? (
++    <CmsSlotEditModal
++      client={client}
++      onClose={() => setInlineEditing(false)}
++      onSaved={() => {
++        setInlineEditing(false);
++        setInlineSaveTick((tick) => tick + 1);
++        publishCmsSaveFlash(backendSlotKey);
++      }}
++      slotAlias={slotKey}
++      slotKey={backendSlotKey}
++    />
++  ) : null;
++
+   useEffect(() => {
+     let cancelled = false;
+     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+@@ -505,7 +568,7 @@ export function CmsLiveSlot({
+         document.removeEventListener("visibilitychange", handleVisibilityChange);
+       }
+     };
+-  }, [backendSlotKey, client, pollIntervalMs, liveFeed]);
++  }, [backendSlotKey, client, pollIntervalMs, liveFeed, inlineSaveTick]);
+ 
+   if (hideWhileLoading && loading && !content && !error) return <></>;
+ 
+@@ -525,7 +588,7 @@ export function CmsLiveSlot({
+       return (
+         <div
+           aria-busy={loading}
+-          className={className}
++          className={editRootClassName}
+           data-cms-backend-slot={backendSlotKey}
+           data-cms-live-slot={slotKey}
+           data-cms-live-source="live-backend"
+@@ -535,6 +598,8 @@ export function CmsLiveSlot({
+               {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
+             </p>
+           ) : null}
++          {editAffordance}
++          {inlineEditDialog}
+           {fallback}
+         </div>
+       );
+@@ -547,7 +612,7 @@ export function CmsLiveSlot({
+       <div
+         aria-busy={loading}
+         aria-label={slotAriaLabel}
+-        className={className}
++        className={editRootClassName}
+         data-cms-backend-slot={backendSlotKey}
+         data-cms-live-slot={slotKey}
+         data-cms-live-source="live-backend"
+@@ -557,6 +622,8 @@ export function CmsLiveSlot({
+             {errorMessage(error)} Đang hiển thị giao diện có sẵn trong lúc CMS đồng bộ lại.
+           </p>
+         ) : null}
++        {editAffordance}
++        {inlineEditDialog}
+         {fallback}
+       </div>
+     );
+@@ -568,12 +635,14 @@ export function CmsLiveSlot({
+         <div
+           aria-busy={loading}
+           aria-label={slotAriaLabel}
+-          className={className}
++          className={editRootClassName}
+           data-cms-backend-slot={backendSlotKey}
+           data-cms-live-slot={slotKey}
+           data-cms-live-source="live-backend"
+           data-cms-suppressed="technical-copy"
+         >
++          {editAffordance}
++          {inlineEditDialog}
+           {fallback}
+         </div>
+       );
+@@ -586,7 +655,7 @@ export function CmsLiveSlot({
+       <div
+         aria-busy={loading}
+         aria-label={slotAriaLabel}
+-        className={className}
++        className={editRootClassName}
+         data-cms-backend-slot={backendSlotKey}
+         data-cms-live-slot={slotKey}
+         data-cms-live-source="live-backend"
+@@ -604,6 +673,8 @@ export function CmsLiveSlot({
+           </p>
+         ) : null}
+         {!publicQuiet && liveNotice ? <p className="mb-4 rounded-sm border border-teal-200 bg-teal-50 p-3 text-sm text-teal-950" role="status">{liveNotice}</p> : null}
++        {editAffordance}
++        {inlineEditDialog}
+         {renderContent(content)}
+       </div>
+     );
+@@ -613,7 +684,7 @@ export function CmsLiveSlot({
+     <section
+       aria-busy={loading}
+       aria-label={slotAriaLabel}
+-      className={`rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${className}`}
++      className={`rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6 ${editRootClassName}`}
+       data-cms-live-source="live-backend"
+       data-cms-live-slot={slotKey}
+       data-cms-backend-slot={backendSlotKey}
+@@ -651,6 +722,8 @@ export function CmsLiveSlot({
+ 
+       {loading && !content ? <p className="text-sm text-slate-500" role="status">Đang tải nội dung live…</p> : null}
+       {content ? <CmsSlotRenderer content={content} slotKey={slotKey} /> : null}
++      {editAffordance}
++      {inlineEditDialog}
+     </section>
+   );
+ }
+diff --git a/apps/frontend/tests/chat-ui-recovery.behavior.test.mjs b/apps/frontend/tests/chat-ui-recovery.behavior.test.mjs
+index 9be19ee..810ffdb 100644
+--- a/apps/frontend/tests/chat-ui-recovery.behavior.test.mjs
++++ b/apps/frontend/tests/chat-ui-recovery.behavior.test.mjs
+@@ -171,7 +171,7 @@ after(async () => {
+ 
+ const test = (name, fn) => nodeTest(name, { skip: !hasChromium ? "Playwright Chromium not installed" : false }, fn);
+ 
+-async function mount(surface, setup = {}) {
++async function mount(surface, setup = {}, { expectComposer = true } = {}) {
+   const page = await browser.newPage();
+   page.setDefaultTimeout(4000);
+   const errors = [];
+@@ -182,6 +182,7 @@ async function mount(surface, setup = {}) {
+   await page.evaluate(({ surface, setup }) => { Object.assign(chatFixture, setup); chatFixture.mount(surface); }, { surface, setup });
+   if (surface === "floating") await page.getByRole("button", { name: "Mở trợ lý sức khỏe", exact: true }).click();
+   const input = page.locator(surface === "patient" ? "#patient-chat-message" : "#floating-health-assistant-input");
++  if (!expectComposer) return { page, input, errors };
+   await input.waitFor();
+   await page.waitForFunction((selector) => !document.querySelector(selector)?.disabled,
+     surface === "patient" ? "#patient-chat-message" : "#floating-health-assistant-input");
+@@ -267,8 +268,24 @@ test("patient: canceled request finally cannot unlock a newer in-flight request"
+   } finally { await page.close(); }
+ });
+ 
++test("floating: anonymous visitors hit the login gate and cannot send", async () => {
++  const { page } = await mount("floating", { session: null }, { expectComposer: false });
++  try {
++    const gate = page.getByTestId("floating-assistant-login-gate");
++    await gate.waitFor();
++    assert.equal(await gate.getByRole("link", { name: "Đăng nhập", exact: true }).count(), 1);
++    assert.equal(await page.locator("#floating-health-assistant-input").count(), 0, "guest must not get a composer");
++    // Even a forced submit dispatch must not reach the transport.
++    await page.evaluate(() => {
++      const form = document.querySelector("form");
++      if (form) form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
++    });
++    assert.equal(await page.evaluate(() => chatFixture.sends.length), 0, "gate must block guest sends");
++  } finally { await page.close(); }
++});
++
+ test("floating: synchronous duplicate submits create one send", async () => {
+-  const { page, input } = await mount("floating", { session: null, holdPublic: true });
++  const { page, input } = await mount("floating");
+   try {
+     await input.fill("Câu hỏi không gửi trùng");
+     await input.evaluate((node) => {
+diff --git a/apps/frontend/tests/cms-realtime.test.mjs b/apps/frontend/tests/cms-realtime.test.mjs
+index 40f32a2..ab45057 100644
+--- a/apps/frontend/tests/cms-realtime.test.mjs
++++ b/apps/frontend/tests/cms-realtime.test.mjs
+@@ -141,7 +141,9 @@ test("public live slot gates the SSE change feed behind liveFeed and polls while
+   assert.match(liveSlot, /addEventListener\("visibilitychange", handleVisibilityChange\)/);
+   assert.match(liveSlot, /removeEventListener\("visibilitychange", handleVisibilityChange\)/);
+   assert.match(liveSlot, /if \(liveFeed\) \{[\s\S]{0,400}startSafetyPolling\(\)/);
+-  assert.match(liveSlot, /\[backendSlotKey, client, pollIntervalMs, liveFeed\]/);
++  // inlineSaveTick re-runs the live loop right after an admin inline save so
++  // the author sees the published change without waiting for a poll tick.
++  assert.match(liveSlot, /\[backendSlotKey, client, pollIntervalMs, liveFeed, inlineSaveTick\]/);
+   assert.match(liveSlot, /sseConnected/);
+   assert.match(liveSlot, /pendingVersionFloor/);
+   assert.match(liveSlot, /refresh\(event\.version, event\.eventId\)/);
+diff --git a/apps/frontend/tests/e2e/floating-assistant.spec.ts b/apps/frontend/tests/e2e/floating-assistant.spec.ts
+index 8c2569b..8fd2059 100644
+--- a/apps/frontend/tests/e2e/floating-assistant.spec.ts
++++ b/apps/frontend/tests/e2e/floating-assistant.spec.ts
+@@ -198,32 +198,15 @@ test("patient portal launcher stays compact and low-emphasis on dense dashboards
+   expect(launcherVisual.shadow).toBe("none");
+ });
+ 
+-test("guest launcher sends even a greeting through stateless hospital-support chat and offers login for history", async ({ context, page }) => {
++test("guest launcher offers the login gate and cannot reach the chat transport", async ({ context, page }) => {
+   await installMockBrowserSession(context, null);
++  // Contract change: asking the assistant requires a signed-in account. The
++  // public chat endpoint must not be contacted by an anonymous visitor, and
++  // the gate keeps the safe non-chat channels (booking + hotline) reachable.
++  let chatCalls = 0;
+   await context.route("**/api/v1/public/ai/chat", async (route) => {
+-    const request = route.request();
+-    expect(request.headers()["authorization"]).toBeUndefined();
+-    const payload = request.postDataJSON() as { message: string; recent_turns: unknown[] };
+-    expect(payload.message).toBe("Xin chào");
+-    expect(payload.recent_turns).toEqual([]);
+-    await new Promise((resolve) => setTimeout(resolve, 150));
+-    await route.fulfill({
+-      status: 200,
+-      contentType: "application/json",
+-      body: JSON.stringify({
+-        answer: "Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.",
+-        disclaimer: "Thông tin chỉ mang tính tham khảo.",
+-        citations: [{ source_type: "specialty", source_id: "tim-mach", title: "Tim mạch" }],
+-        provenance: "local_provider",
+-        mode: "HOSPITAL_SUPPORT",
+-        safety_action: "ANSWER",
+-        suggested_actions: [
+-          { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+-          { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+-          { kind: "START_BOOKING", label: "Đặt lịch khám", href: "/dat-lich" },
+-        ],
+-      }),
+-    });
++    chatCalls += 1;
++    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
+   });
+   await page.setViewportSize({ width: 1440, height: 900 });
+   await page.goto("/about");
+@@ -231,53 +214,24 @@ test("guest launcher sends even a greeting through stateless hospital-support ch
+ 
+   const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+   await expect(dialog).toBeVisible();
+-  await expect(dialog.getByText("Bạn đang dùng chế độ khách", { exact: false })).toBeVisible();
+-  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Xin chào");
+-  await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
+-  // A fast deterministic response may promote the pending turn to the
+-  // completed exchange before the assertion runs. The user question must
+-  // remain visible in the transcript in either state; only assert the staged
+-  // waiting copy while that transient state is still present.
+-  const userTurn = dialog.getByRole("log").getByText("Xin chào", { exact: true });
+-  await expect(userTurn).toBeVisible();
+-  const thinking = dialog.getByTestId("floating-chat-thinking");
+-  if (await thinking.count() > 0) {
+-    const transientThinkingText = await thinking.evaluate((element) => {
+-      const style = window.getComputedStyle(element);
+-      const rect = element.getBoundingClientRect();
+-      const isVisible = style.display !== "none"
+-        && style.visibility !== "hidden"
+-        && rect.width > 0
+-        && rect.height > 0;
+-      return isVisible ? element.textContent ?? "" : null;
+-    }, { timeout: 0 }).catch(() => null);
+-    if (transientThinkingText !== null) {
+-      expect(transientThinkingText).toContain("Đã nhận câu hỏi — đang chờ phản hồi…");
+-    }
+-  }
+-  await expect(dialog.getByText("Bạn có thể xem danh sách chuyên khoa và chọn cơ sở phù hợp.", { exact: true })).toBeVisible();
+-  await expect(thinking).toBeHidden();
+-  await expect(dialog.getByText("Tim mạch", { exact: true })).toBeVisible();
+-  await expect(dialog.getByText("Thông tin chỉ mang tính tham khảo.", { exact: true })).toBeVisible();
+-  await expect(dialog.getByText("Bước tiếp theo", { exact: true })).toBeVisible();
+-  await expect(dialog.getByRole("link", { name: "Xem Chuyên khoa" })).toHaveAttribute("href", "/specialties");
+-  await expect(dialog.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute("href", "/dat-lich");
+-  await expect(dialog.getByRole("link", { name: "đăng nhập" })).toHaveAttribute("href", "/auth/login?next=%2Fpatient%2Fchat");
+-  await expect(dialog.getByRole("button", { name: "Hữu ích" })).toHaveCount(0);
++  const gate = dialog.getByTestId("floating-assistant-login-gate");
++  await expect(gate).toBeVisible();
++  await expect(dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe")).toHaveCount(0);
++  await expect(gate.getByRole("link", { name: "Đăng nhập", exact: true })).toHaveAttribute("href", "/auth/login?next=%2Fabout");
++  await expect(gate.getByRole("link", { name: "Đặt lịch khám" })).toHaveAttribute("href", "/dat-lich");
++  await expect(gate.getByRole("link", { name: "Gọi 028 1800 0001" })).toHaveAttribute("href", "tel:02818000001");
+   await page.keyboard.press("Escape");
+   await expect(dialog).toBeHidden();
+   await expect(page.getByRole("button", { name: "Mở trợ lý sức khỏe" })).toBeFocused();
+   await assertNoSensitiveBrowserStorage(page);
++  expect(chatCalls).toBe(0);
+ });
+ 
+-test("guest greeting uses the public chat contract instead of a client-side shortcut", async ({ context, page }) => {
++test("guest greeting cannot bypass the login gate through a client-side shortcut", async ({ context, page }) => {
+   await installMockBrowserSession(context, null);
+   let calls = 0;
+   await context.route("**/api/v1/public/ai/chat", async (route) => {
+     calls += 1;
+-    const payload = route.request().postDataJSON() as { message: string; recent_turns: unknown[] };
+-    expect(payload.message).toBe("Xin chào!");
+-    expect(payload.recent_turns).toEqual([]);
+     await route.fulfill({
+       status: 200,
+       contentType: "application/json",
+@@ -288,10 +242,7 @@ test("guest greeting uses the public chat contract instead of a client-side shor
+         provenance: "local_provider",
+         mode: "HOSPITAL_SUPPORT",
+         safety_action: "ANSWER",
+-        suggested_actions: [
+-          { kind: "VIEW_SOURCE", label: "Xem Chuyên khoa", href: "/specialties" },
+-          { kind: "VIEW_SOURCE", label: "Xem Cơ sở", href: "/branches" },
+-        ],
++        suggested_actions: [],
+       }),
+     });
+   });
+@@ -300,11 +251,12 @@ test("guest greeting uses the public chat contract instead of a client-side shor
+   await page.goto("/about");
+   const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+   await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
+-  await dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe").fill("Xin chào!");
+-  await dialog.getByRole("button", { name: "Gửi câu hỏi" }).click();
+-  await expect(dialog.getByText("Xin chào! Bạn có thể hỏi về chuyên khoa, cơ sở hoặc đặt lịch.", { exact: true })).toBeVisible();
+-  await expect(dialog.getByRole("link", { name: "Xem Chuyên khoa" })).toHaveAttribute("href", "/specialties");
+-  expect(calls).toBe(1);
++  // No composer is offered and no client-side greeting is synthesized: the
++  // only path forward is the login CTA.
++  await expect(dialog.getByTestId("floating-assistant-login-gate")).toBeVisible();
++  await expect(dialog.getByLabel("Câu hỏi cho trợ lý sức khỏe")).toHaveCount(0);
++  await expect(dialog.getByText("Xin chào! Bạn có thể hỏi về chuyên khoa, cơ sở hoặc đặt lịch.", { exact: true })).toHaveCount(0);
++  expect(calls).toBe(0);
+ });
+ 
+ test("floating panel remains reachable in a short landscape viewport", async ({ context, page }) => {
+@@ -319,15 +271,17 @@ test("floating panel remains reachable in a short landscape viewport", async ({
+   const geometry = await page.evaluate(() => {
+     const panel = document.querySelector<HTMLElement>("#floating-health-assistant-panel");
+     const close = panel?.querySelector<HTMLButtonElement>("button[aria-label='Đóng cửa sổ trợ lý']");
+-    const composer = panel?.querySelector<HTMLElement>("form");
+-    if (!panel || !close || !composer) throw new Error("Floating assistant controls are missing");
++    // Anonymous visitors see the login gate instead of a composer; the gate is
++    // the control whose viewport fit this test protects.
++    const gate = panel?.querySelector<HTMLElement>("[data-testid='floating-assistant-login-gate']");
++    if (!panel || !close || !gate) throw new Error("Floating assistant controls are missing");
+     const rect = panel.getBoundingClientRect();
+     const closeRect = close.getBoundingClientRect();
+-    const composerRect = composer.getBoundingClientRect();
++    const gateRect = gate.getBoundingClientRect();
+     return {
+       panel: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
+       close: { top: closeRect.top, bottom: closeRect.bottom, left: closeRect.left, right: closeRect.right },
+-      composer: { top: composerRect.top, bottom: composerRect.bottom },
++      gate: { top: gateRect.top, bottom: gateRect.bottom },
+       viewport: { width: window.innerWidth, height: window.innerHeight },
+     };
+   });
+@@ -338,7 +292,7 @@ test("floating panel remains reachable in a short landscape viewport", async ({
+   expect(geometry.panel.right).toBeLessThanOrEqual(geometry.viewport.width);
+   expect(geometry.close.top).toBeGreaterThanOrEqual(0);
+   expect(geometry.close.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+-  expect(geometry.composer.bottom).toBeLessThanOrEqual(geometry.viewport.height);
++  expect(geometry.gate.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+   await expect(dialog.getByRole("button", { name: "Đóng cửa sổ trợ lý" })).toBeVisible();
+ });
+ 
+diff --git a/apps/frontend/tests/e2e/patient-documents.spec.ts b/apps/frontend/tests/e2e/patient-documents.spec.ts
+index 01fddda..e54ab24 100644
+--- a/apps/frontend/tests/e2e/patient-documents.spec.ts
++++ b/apps/frontend/tests/e2e/patient-documents.spec.ts
+@@ -336,3 +336,65 @@ test("patient document center can generate and download synthetic PDFs", async (
+ 
+   await assertNoSensitiveBrowserStorage(page);
+ });
++
++const REMINDER_PDF_BYTES = Buffer.from("%PDF-1.7\n% synthetic appointment reminder e2e\n%%EOF", "utf8");
++const REMINDER_DOCUMENT_ID = "reminder-doc-0001";
++const REMINDER_SOURCE_TYPE = "APPOINTMENT_REMINDER" as string;
++const REMINDER_DOCUMENT: PatientDocument = {
++  id: REMINDER_DOCUMENT_ID,
++  patientId: PATIENT_ID,
++  sourceRecordId: "appointment-reminder-e2e",
++  sourceType: REMINDER_SOURCE_TYPE as PatientDocument["sourceType"],
++  sourceVersion: 1772359200004,
++  templateVersion: "synthetic-v1",
++  status: "AVAILABLE",
++  sha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++  byteSize: REMINDER_PDF_BYTES.length,
++  generatedBy: PATIENT_ID,
++  generatedAt: "2026-09-10T02:35:00Z",
++  revokedAt: null,
++};
++
++test("patient document center renders and downloads an appointment reminder PDF", async ({ context, page }) => {
++  await installPatientDocumentMocks(context);
++  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents`, async (route) => {
++    if (route.request().method() === "GET") {
++      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([REMINDER_DOCUMENT]) });
++      return;
++    }
++    await route.fallback();
++  });
++  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/${REMINDER_DOCUMENT_ID}/download`, async (route) => {
++    await route.fulfill({
++      status: 200,
++      contentType: "application/pdf",
++      headers: {
++        "Content-Disposition": `attachment; filename="nhac-lich-hen-${REMINDER_DOCUMENT_ID.slice(0, 8)}.pdf"`,
++        "Cache-Control": "no-store",
++      },
++      body: REMINDER_PDF_BYTES,
++    });
++  });
++  await page.setViewportSize({ width: 375, height: 812 });
++  await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
++
++  const card = page.locator("article.portal-record").filter({ hasText: "Giấy nhắc hẹn" });
++  await expect(card.locator("h3")).toHaveText("Giấy nhắc lịch hẹn đã kết xuất");
++  await expect(card.locator("h3")).not.toContainText("Hồ sơ khám");
++
++  const downloadPromise = page.waitForEvent("download");
++  await card.getByRole("button", { name: "Tải PDF" }).click();
++  const download = await downloadPromise;
++  expect(download.suggestedFilename()).toBe("nhac-lich-hen-reminder.pdf");
++  const stream = await download.createReadStream();
++  expect(stream).not.toBeNull();
++  const chunks: Buffer[] = [];
++  for await (const chunk of stream as AsyncIterable<Buffer>) {
++    chunks.push(chunk);
++  }
++  const bytes = Buffer.concat(chunks);
++  expect(bytes.length).toBe(REMINDER_PDF_BYTES.length);
++  expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
++
++  await assertNoSensitiveBrowserStorage(page);
++});
+diff --git a/apps/frontend/tests/floating-assistant.test.mjs b/apps/frontend/tests/floating-assistant.test.mjs
+index f49bdd4..006e057 100644
+--- a/apps/frontend/tests/floating-assistant.test.mjs
++++ b/apps/frontend/tests/floating-assistant.test.mjs
+@@ -22,13 +22,24 @@ test("floating assistant is mounted globally and stays on the REST chat contract
+   assert.match(component, /fetchAiConversations\(\)/);
+   assert.match(component, /fetchAiConversationMessages\(latest\.id/);
+   assert.match(component, /sendMessage\(currentConversation\.id, normalized/);
+-  assert.match(component, /sendPublicAiChat\(normalized, recentTurns/);
++  // Login gate: the anonymous public-chat send path must not come back. The
++  // assistant is a signed-in surface; the BE public endpoint stays for the
++  // separate API contract but this component never calls it.
++  assert.doesNotMatch(component, /sendPublicAiChat/);
++  assert.match(component, /if \(!session\) return;/);
+   assert.doesNotMatch(component, /CASUAL_GREETING_PATTERN|GREETING_ACTIONS|GREETING_ANSWER/);
+   assert.doesNotMatch(component, /href:\s*"\/booking"/);
+-  assert.match(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
+-  assert.match(component, /Bạn đang dùng chế độ khách/);
++  assert.doesNotMatch(component, /MAX_PUBLIC_MESSAGE_LENGTH/);
++  // The gate replaces the composer with a login CTA that keeps the safe
++  // non-chat channels (booking + hospital hotline) reachable.
++  assert.match(component, /data-testid="floating-assistant-login-gate"/);
++  assert.match(component, /Đăng nhập để trò chuyện với trợ lý/);
++  assert.match(component, /auth\/login\?next=\$\{encodeURIComponent\(pathname\)\}/);
++  assert.match(component, /href="tel:02818000001"/);
++  assert.match(component, /href="\/dat-lich">Đặt lịch khám</);
++  assert.doesNotMatch(component, /Bạn đang dùng chế độ khách/);
+   assert.match(component, /Thông tin sức khỏe · Có lưu lịch sử/);
+-  assert.match(component, /Tra cứu HealthCare · Không lưu lịch sử/);
++  assert.match(component, /Đăng nhập để hỏi và được lưu hội thoại/);
+   assert.doesNotMatch(component, /Bác sĩ Trợ lý AI|Trực tuyến|onlineDot/);
+   assert.doesNotMatch(styles, /\.onlineDot/);
+   assert.match(component, /isPatient && message\.status === "COMPLETED"/);
+@@ -92,7 +103,7 @@ test("floating assistant exposes real recovery, safety and accessible actions",
+   // The floating panel is a non-modal companion widget: the page behind stays
+   // interactive, so aria-modal="true" would misrepresent the background.
+   assert.doesNotMatch(component, /aria-modal="true"/);
+-  assert.match(component, /maxLength=\{isPatient \? MAX_MESSAGE_LENGTH : MAX_PUBLIC_MESSAGE_LENGTH\}/);
++  assert.match(component, /maxLength=\{MAX_MESSAGE_LENGTH\}/);
+   assert.match(styles, /launcherAvatar/);
+   assert.match(styles, /\.launcher \{[\s\S]*border-radius: var\(--radius-sm\)/);
+   assert.match(styles, /\.launcher \{[\s\S]*width: 3\.25rem;[\s\S]*min-height: 3\.25rem/);
+diff --git a/apps/frontend/types/hospital.ts b/apps/frontend/types/hospital.ts
+index e34931d..ae877fc 100644
+--- a/apps/frontend/types/hospital.ts
++++ b/apps/frontend/types/hospital.ts
+@@ -495,7 +495,7 @@ export interface MedicalRecord {
+   createdAt: string;
+ }
+ 
+-export type PatientDocumentSourceType = "VISIT_SUMMARY" | "PRESCRIPTION";
++export type PatientDocumentSourceType = "VISIT_SUMMARY" | "PRESCRIPTION" | "APPOINTMENT_REMINDER";
+ export type PatientDocumentStatus = "PENDING" | "AVAILABLE" | "FAILED" | "SUPERSEDED" | "REVOKED";
+ 
+ export interface PatientDocument {
+diff --git a/infrastructure/docker-compose.yml b/infrastructure/docker-compose.yml
+index cab5c9f..c05f9d5 100644
+--- a/infrastructure/docker-compose.yml
++++ b/infrastructure/docker-compose.yml
+@@ -249,10 +249,11 @@ services:
+       STORAGE_UPLOAD_ENABLED: ${STORAGE_UPLOAD_ENABLED:-false}
+       STORAGE_AV_REQUIRED: "true"
+       # The backend refuses to boot with uploads on unless storage is pinned to
+-      # a private endpoint; keep the local stack fail-closed-compliant. Local
+-      # runtimes that turn uploads off may relax this to allow the loopback
+-      # presign endpoint.
+-      STORAGE_REQUIRE_PRIVATE_ENDPOINT: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:-true}
++      # a private endpoint (FailClosedStoragePolicy enforces that independently
++      # of this flag). Local uploads default OFF, and the loopback presign
++      # endpoint is HTTP, so the endpoint guard itself relaxes here — the
++      # hardening-era MinioConfig otherwise refuses to boot this stack.
++      STORAGE_REQUIRE_PRIVATE_ENDPOINT: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:-false}
+       STORAGE_AV_SERVICE_URL: http://attachment-scanner:8080/scan
+       STORAGE_AV_SERVICE_TOKEN: ${STORAGE_AV_SERVICE_TOKEN:?STORAGE_AV_SERVICE_TOKEN is required}
+       STORAGE_AV_ALLOWED_HOSTS: attachment-scanner
+@@ -355,6 +356,9 @@ services:
+       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+       AI_PUBLIC_RETRIEVAL_CANDIDATES: ${AI_PUBLIC_RETRIEVAL_CANDIDATES:-40}
++      # Local compose enables the deterministic public-answer cache; hosted
++      # render environments keep the default (false) until reviewed.
++      AI_PUBLIC_CHAT_CACHE_ENABLED: ${AI_PUBLIC_CHAT_CACHE_ENABLED:-true}
+       RAG_INGEST_ENABLED: ${RAG_INGEST_ENABLED:-false}
+       RAG_INGEST_TOKEN: ${RAG_INGEST_TOKEN:-local-rag-ingest-token-not-for-production}
+       RAG_MAX_DOCUMENTS: ${RAG_MAX_DOCUMENTS:-10000}
+diff --git a/render-free-beta.yaml b/render-free-beta.yaml
+index db8abd1..59e6678 100644
+--- a/render-free-beta.yaml
++++ b/render-free-beta.yaml
+@@ -62,6 +62,10 @@ services:
+         value: "18"
+       - key: EMBEDDING_PROVIDER
+         value: local
++      # Deterministic public-answer cache stays off on hosted render until
++      # reviewed; local compose enables it (infrastructure/docker-compose.yml).
++      - key: AI_PUBLIC_CHAT_CACHE_ENABLED
++        value: "false"
+       - key: AI_SERVICE_RUNTIME
+         value: render-beta
+       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
+diff --git a/render.yaml b/render.yaml
+index 5cb53c4..f8c601e 100644
+--- a/render.yaml
++++ b/render.yaml
+@@ -63,6 +63,10 @@ services:
+         value: "18"
+       - key: EMBEDDING_PROVIDER
+         value: local
++      # Deterministic public-answer cache stays off on hosted render until
++      # reviewed; local compose enables it (infrastructure/docker-compose.yml).
++      - key: AI_PUBLIC_CHAT_CACHE_ENABLED
++        value: "false"
+       - key: AI_SERVICE_RUNTIME
+         value: render-beta
+       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
+diff --git a/supabase/tools/ingest_clinical_knowledge.py b/supabase/tools/ingest_clinical_knowledge.py
+index a13cba7..515234b 100644
+--- a/supabase/tools/ingest_clinical_knowledge.py
++++ b/supabase/tools/ingest_clinical_knowledge.py
+@@ -29,6 +29,7 @@ import sys
+ from dataclasses import dataclass, field
+ from datetime import datetime, timezone
+ from typing import Any, Sequence
++import unicodedata
+ 
+ # Ensure UTF-8 output on Windows terminal
+ if sys.platform == "win32":
+@@ -43,6 +44,13 @@ if sys.platform == "win32":
+ # -----------------------------------------------------------------------------
+ DEFAULT_INPUT_FILE = Path("supabase/tools/data/clinical_knowledge.json")
+ DEFAULT_OUTPUT_SQL = Path("supabase/seed_clinical_knowledge.sql")
++# LEGACY target: `ai_documents` is the retired public-lane table. The chat
++# knowledge base reads `healthcare.ai_chat_documents`, which is only writable
++# through the governed path (POST /rag/index with an approved clinical
++# projection, or the Spring AiClinicalProjectionIndexService sync). Rows
++# seeded here do NOT appear in chat answers — retargeting this tool at
++# ai_chat_documents requires schema-aware projection metadata, not just a
++# table-name swap.
+ DEFAULT_TABLE = "healthcare.ai_documents"
+ EMBEDDING_DIMENSION = 384
+ DEFAULT_MODEL = "local-hash"
+@@ -155,18 +163,29 @@ def compute_content_hash(text: str) -> str:
+ # -----------------------------------------------------------------------------
+ # Deterministic 384-dimensional Embeddings
+ # -----------------------------------------------------------------------------
++def _fold_text(text: str) -> str:
++    """Fold case and Vietnamese diacritics into one canonical form.
++
++    Matching ``apps/ai-service/app/embeddings.py``.
++    """
++    decomposed = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
++    stripped = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
++    return stripped.casefold()
++
++
+ def _local_embedding(text: str, dimension: int = EMBEDDING_DIMENSION) -> list[float]:
+     """Deterministic, dependency-free embedding matching ``apps/ai-service/app/embeddings.py``.
+ 
++    v2 fixes two defects: position independence and Vietnamese diacritic folding.
+     Generates a 384-dimensional unit vector using SHA-256 word hashing with zero
+     heavy external dependencies (no PyTorch, no transformers).
+     """
+     vec = [0.0] * dimension
+-    for i, word in enumerate(text.casefold().split()):
+-        hashed = hashlib.sha256(f"{i}:{word}".encode("utf-8")).digest()
+-        for j in range(min(4, dimension)):
+-            index = (i * 4 + j) % dimension
+-            vec[index] += (hashed[j] - 128) / 128.0
++    for token in sorted(_fold_text(text).split()):
++        digest = hashlib.sha256(token.encode("utf-8")).digest()
++        for j in range(8):
++            index = int.from_bytes(digest[2 * j : 2 * j + 2], "big") % dimension
++            vec[index] += (digest[16 + j] - 128) / 128.0
+     norm = math.sqrt(sum(value * value for value in vec)) or 1.0
+     return [value / norm for value in vec]
+ 

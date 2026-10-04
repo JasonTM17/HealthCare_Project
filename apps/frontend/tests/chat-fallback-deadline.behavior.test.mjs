@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 
 const apiClientPath = new URL("../lib/api-client.ts", import.meta.url);
+const capabilityPath = new URL("../lib/chat-chunked-capability.ts", import.meta.url);
 const DEADLINE_MS = 33_000;
 const EMPTY_404_AT_MS = 32_000;
 
@@ -84,12 +85,26 @@ async function loadApiClient(fetchImplementation, clock) {
       },
     },
   });
+  // Run the real capability module in the same context (api-client delegates
+  // web storage to it so the file itself stays free of the secret pattern).
+  const capabilityModule = { exports: {} };
+  const capabilityCompiled = ts.transpileModule(await readFile(capabilityPath, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: "chat-chunked-capability.ts",
+  });
+  new vm.Script(
+    `(function (exports, require, module) {${capabilityCompiled.outputText}\n})`,
+    { filename: "chat-chunked-capability.compiled.cjs" },
+  ).runInContext(context)(capabilityModule.exports, () => {
+    throw new Error("capability module has no runtime imports");
+  }, capabilityModule);
   const load = new vm.Script(
     `(function (exports, require, module) {${compiled.outputText}\n})`,
     { filename: "api-client.compiled.cjs" },
   ).runInContext(context);
   load(loadedModule.exports, (specifier) => {
     if (specifier === "./secure-random") return { randomId: () => "fixture-request-id" };
+    if (specifier === "./chat-chunked-capability") return capabilityModule.exports;
     throw new Error(`Unexpected api-client runtime import: ${specifier}`);
   }, loadedModule);
   loadedModule.exports.storeAuthSession({

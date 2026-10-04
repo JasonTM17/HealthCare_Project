@@ -44,6 +44,78 @@ def test_index_empty_search_returns_empty() -> None:
     assert index.search([1.0, 0.0]) == []
 
 
+def test_title_coverage_anchors_named_entity_above_luckier_hash_vector() -> None:
+    """Regression: a question naming the entity must surface that entity.
+
+    With hash embeddings the vector score is near-noise, and query-length
+    normalization dilutes body overlap for long questions. The old formula let
+    an unrelated document outrank the named specialty, which pushed the named
+    entity below the relevance threshold and ended the turn as
+    INSUFFICIENT_EVIDENCE. Title coverage is the deterministic anchor.
+
+    Fixture arithmetic (question "chuyên khoa tim mạch ở đâu", 6 tokens):
+    - cardio: vector 0.8, body overlap 3/6, title coverage 2/2 -> old 0.725,
+      new 0.85.
+    - audio: vector 1.0, body overlap 2/6, title coverage 0 -> 0.833 both.
+    The old formula ranked audio first; the new formula ranks cardio first.
+    """
+
+    index = RagIndex()
+    index.add(_doc(
+        "cardio",
+        "Tim mạch",
+        "Khám và điều trị bệnh lý tim, mạch máu, tăng huyết áp. Đau tức ngực khi gắng sức.",
+        [1.0, 0.0, 0.0],
+    ))
+    index.add(_doc(
+        "audio",
+        "Thính học",
+        "Đâu là chỗ ở kênh này.",
+        [0.8, 0.6, 0.0],
+    ))
+
+    hits = index.search([0.8, 0.6, 0.0], top_k=2, query_text="chuyên khoa tim mạch ở đâu")
+    assert len(hits) == 2
+    assert hits[0][0].source_id == "cardio", "question naming the title must rank that document first"
+    assert hits[0][1] == pytest.approx(0.85)
+    assert hits[1][1] == pytest.approx(0.75 + 0.25 * (2 / 6))
+    for _, score in hits:
+        assert 0.0 <= score <= 1.0
+
+
+def test_title_coverage_documented_patient_lane_trade_off() -> None:
+    """Pin the accepted retrieval trade-off for the patient two-step lane.
+
+    Decision (2026-10-03, quality pass round 3): the title-coverage term is
+    kept for ALL lanes, including the patient two-step contract, instead of
+    being scoped to the public lane only. Rationale: scoping it off regressed
+    the grounded "chuyên khoa tim mạch" patient answer that the product owner
+    explicitly accepted, while every citation still resolves to approved
+    content only (no data exposure) and the 0.35 relevance threshold is
+    unchanged. This test pins the widened recall so any future re-scoping is
+    a deliberate, reviewed change rather than an accident.
+    """
+
+    index = RagIndex()
+    index.add(_doc("cardio", "Tim mạch", "Khám và điều trị bệnh lý tim, mạch máu.", [1.0, 0.0, 0.0]))
+    index.add(_doc("audio", "Thính học", "Khám thính học.", [0.0, 1.0, 0.0]))
+
+    hits = index.search([0.0, 1.0, 0.0], top_k=2, query_text="chuyên khoa tim mạch")
+    ranked = [doc.source_id for doc, _ in hits]
+    assert "cardio" in ranked, "named entity must stay retrievable on the patient lane"
+    for _, score in hits:
+        assert 0.0 <= score <= 1.0
+
+
+def test_title_coverage_without_query_text_keeps_vector_only_ranking() -> None:
+    index = RagIndex()
+    index.add(_doc("cardio", "Tim mạch", "Khám tim mạch.", [1.0, 0.0, 0.0]))
+    index.add(_doc("audio", "Thính học", "Khám thính học.", [0.0, 1.0, 0.0]))
+
+    hits = index.search([1.0, 0.0, 0.0], top_k=2)
+    assert hits[0][0].source_id == "cardio"
+
+
 def test_service_ingest_and_remove() -> None:
     service = RagService()
     service.ingest("branch", "hcm", "Chi nhánh", "Khám tại cơ sở.", [1.0, 0.0])

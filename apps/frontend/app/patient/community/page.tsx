@@ -26,7 +26,7 @@ export default function PatientCommunityPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isCancelled: () => boolean = () => false) => {
     setLoading(true);
     setError(null);
     try {
@@ -34,23 +34,27 @@ export default function PatientCommunityPage() {
         fetchArticles(0, 50),
         fetchSpecialties(),
       ]);
+      if (isCancelled()) return articlePage.content;
       setArticles(articlePage.content);
       setSpecialties(specList.content);
       return articlePage.content;
     } catch {
-      setError("Không thể tải danh sách bài viết cộng đồng.");
+      if (!isCancelled()) setError("Không thể tải danh sách bài viết cộng đồng.");
       return [];
     } finally {
-      setLoading(false);
+      if (!isCancelled()) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const task = Promise.resolve().then(loadData);
-    const unsubscribe = subscribeToCatalogChange(async () => {
-      await loadData();
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+    const task = Promise.resolve().then(() => loadData(isCancelled));
+    const unsubscribe = subscribeToCatalogChange(() => {
+      void loadData(isCancelled);
     });
     return () => {
+      cancelled = true;
       void task;
       unsubscribe();
     };
@@ -97,8 +101,14 @@ export default function PatientCommunityPage() {
               Cộng đồng Y khoa & Cẩm nang Sức khỏe
             </h1>
             <p className="text-sm text-slate-600 mt-1">
-              Người bệnh có thể theo dõi bài viết chuyên môn từ các Bác sĩ, đọc như báo y tế chính thống, đặt câu hỏi trao đổi trực tiếp và tham gia bình luận y tế an toàn.
+              Theo dõi các bài viết chuyên môn do đội ngũ y khoa biên soạn, cập nhật định kỳ như báo y tế chính thống. Nếu có thắc mắc riêng, bạn có thể gửi câu hỏi để được đội ngũ bác sĩ trả lời.
             </p>
+            <Link
+              className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-teal-700 px-4 text-sm font-bold text-teal-800 no-underline hover:bg-teal-50"
+              href="/patient/health-questions"
+            >
+              Đặt câu hỏi cho đội ngũ y khoa
+            </Link>
 
             {/* Specialty Filter Chips */}
             <div className="mt-4 flex flex-wrap gap-2">
@@ -173,7 +183,7 @@ export default function PatientCommunityPage() {
                     <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
                       <span className="inline-flex items-center gap-1">
                         <UiIcon name="clock" size={13} />
-                        <span>{article.readingMinutes || 5} phút đọc</span>
+                        <span>{typeof article.readingMinutes === "number" ? `${article.readingMinutes} phút đọc` : "Đang cập nhật"}</span>
                       </span>
                       <span className="text-xs text-teal-800 font-semibold group-hover:underline">Đọc toàn bộ bài báo →</span>
                     </div>
@@ -189,7 +199,7 @@ export default function PatientCommunityPage() {
                   <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
                     <span className="font-semibold text-slate-700 inline-flex items-center gap-1.5">
                       <UiIcon name="stethoscope" size={14} />
-                      <span>{article.authorName || "Bác sĩ Bệnh viện"}</span>
+                      <span>{article.authorName || "Đang cập nhật"}</span>
                     </span>
                     <span className="font-bold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1">
                       <UiIcon name="book-open" size={13} />

@@ -1,5 +1,6 @@
 package com.healthcare.storage.config;
 
+import com.healthcare.storage.FailClosedStoragePolicy;
 import io.minio.MinioClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -83,10 +84,16 @@ public class MinioConfig {
                 || !("https".equals(external.getScheme()) || "http".equals(external.getScheme()))) {
             throw new IllegalStateException("Public object storage endpoint must be an HTTP(S) origin");
         }
-        if (requirePrivateEndpoint && !"https".equals(external.getScheme())) {
+        if (requirePrivateEndpoint && !"https".equals(external.getScheme())
+                && !FailClosedStoragePolicy.isLoopbackEndpoint(publicEndpoint)) {
+            // Hosted runtimes must sign over HTTPS; a loopback public endpoint
+            // is the operator's own machine (local compose uploads), which the
+            // hosted rule is not meant to refuse.
             throw new IllegalStateException("Hosted browser object storage requires HTTPS");
         }
-        StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, publicEndpoint, accessKey, secretKey);
+        if (!FailClosedStoragePolicy.isLoopbackEndpoint(publicEndpoint)) {
+            StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, publicEndpoint, accessKey, secretKey);
+        }
         // Explicit region prevents MinIO from making bucket-location requests
         // through the browser endpoint, which may not be reachable in Docker.
         if (region == null || region.isBlank()) {
