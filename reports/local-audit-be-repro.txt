@@ -3,22 +3,22 @@ WARNING: sun.misc.Unsafe::staticFieldBase has been called by com.google.inject.i
 WARNING: Please consider reporting this to the maintainers of class com.google.inject.internal.aop.HiddenClassDefiner
 WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
 [INFO] Scanning for projects...
-[INFO] 
+[INFO]
 [INFO] -----------------< com.healthcare:healthcare-backend >------------------
 [INFO] Building healthcare-backend 0.1.0-SNAPSHOT
 [INFO]   from pom.xml
 [INFO] --------------------------------[ jar ]---------------------------------
-[INFO] 
+[INFO]
 [INFO] --- resources:3.3.1:resources (default-resources) @ healthcare-backend ---
 [INFO] Copying 3 resources from src\main\resources to target\classes
 [INFO] Copying 123 resources from src\main\resources to target\classes
-[INFO] 
+[INFO]
 [INFO] --- compiler:3.14.0:compile (default-compile) @ healthcare-backend ---
 [INFO] Nothing to compile - all classes are up to date.
-[INFO] 
+[INFO]
 [INFO] --- resources:3.3.1:testResources (default-testResources) @ healthcare-backend ---
 [INFO] Copying 3 resources from src\test\resources to target\test-classes
-[INFO] 
+[INFO]
 [INFO] --- compiler:3.14.0:testCompile (default-testCompile) @ healthcare-backend ---
 [INFO] Recompiling the module because of changed source code.
 [INFO] Compiling 183 source files with javac [debug parameters release 21] to target\test-classes
@@ -26,10 +26,10 @@ WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
 [INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/appointment/AppointmentBookingIntegrationTest.java: Recompile with -Xlint:deprecation for details.
 [INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/ai/AiChatContractsTest.java: Some input files use unchecked or unsafe operations.
 [INFO] /D:/HealthCare_Project/apps/backend/src/test/java/com/healthcare/ai/AiChatContractsTest.java: Recompile with -Xlint:unchecked for details.
-[INFO] 
+[INFO]
 [INFO] --- surefire:3.5.3:test (default-test) @ healthcare-backend ---
 [INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
-[INFO] 
+[INFO]
 [INFO] -------------------------------------------------------
 [INFO]  T E S T S
 [INFO] -------------------------------------------------------
@@ -39,12 +39,12 @@ WARNING: sun.misc.Unsafe::staticFieldBase will be removed in a future release
 12:39:34.382 [main] INFO org.testcontainers.DockerClientFactory -- Testcontainers version: 1.20.4
 12:39:35.087 [main] INFO org.testcontainers.dockerclient.DockerClientProviderStrategy -- Found Docker environment with Environment variables, system properties and defaults. Resolved dockerHost=npipe:////./pipe/dockerDesktopLinuxEngine
 12:39:35.090 [main] INFO org.testcontainers.DockerClientFactory -- Docker host IP address is localhost
-12:39:35.127 [main] INFO org.testcontainers.DockerClientFactory -- Connected to docker: 
+12:39:35.127 [main] INFO org.testcontainers.DockerClientFactory -- Connected to docker:
   Server Version: 29.8.1
   API Version: 1.56
   Operating System: Docker Desktop
   Total Memory: 15862 MB
-  Labels: 
+  Labels:
     com.docker.desktop.address=npipe://\\.\pipe\docker_cli
 12:39:35.554 [main] INFO tc.testcontainers/ryuk:0.11.0 -- Creating container for image: testcontainers/ryuk:0.11.0
 12:39:35.953 [main] INFO tc.testcontainers/ryuk:0.11.0 -- Container testcontainers/ryuk:0.11.0 is starting: 0f5d7d9eb3d90d512072f667023598b038b2e6c24b8a1085242778c7af99b85a
@@ -716,7 +716,7 @@ MockHttpServletResponse:
           Cookies = []
 [ERROR] Tests run: 5, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 44.22 s <<< FAILURE! -- in com.healthcare.document.DocumentGenerationIntegrationTest
 [ERROR] com.healthcare.document.DocumentGenerationIntegrationTest.concurrentSameSourceGenerationReusesOneRowAndObject -- Time elapsed: 1.015 s <<< FAILURE!
-org.opentest4j.AssertionFailedError: 
+org.opentest4j.AssertionFailedError:
 
 expected: 201
  but was: 500
@@ -726,40 +726,40 @@ expected: 201
 	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
 
 [ERROR] com.healthcare.document.DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder -- Time elapsed: 1.190 s <<< FAILURE!
-org.assertj.core.error.AssertJMultipleFailuresError: 
+org.assertj.core.error.AssertJMultipleFailuresError:
 
 Multiple Failures (6 failures)
 -- failure 1 --
-[doctor list includes generated id] 
+[doctor list includes generated id]
 Expecting actual:
   "[]"
 to contain:
-  "adeb93ad-2621-4fd6-8c6a-92ea4666b59e" 
+  "adeb93ad-2621-4fd6-8c6a-92ea4666b59e"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:313)
 -- failure 2 --
-[doctor download status] 
+[doctor download status]
 expected: 200
  but was: 403
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:317)
 -- failure 3 --
-[download content type] 
+[download content type]
 Expecting actual:
   "application/json;charset=UTF-8"
 to start with:
   "application/pdf"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:319)
 -- failure 4 --
-[downloaded length equals stored object length] 
+[downloaded length equals stored object length]
 expected: 660011
  but was: 264
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:321)
 -- failure 5 --
-[downloaded sha256 equals stored object sha256] 
+[downloaded sha256 equals stored object sha256]
 expected: "2068d498d322990441a8e20ab6c3ca5866dffbfbd5d69505687ab114f05fe849"
  but was: "cfe99097acb8f5cfbd17807cf684f6dd6cfdcad2267987d80a082ca3f4e1df80"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:323)
 -- failure 6 --
-[downloaded payload is a PDF] 
+[downloaded payload is a PDF]
 expected: "%PDF-"
  but was: "{"tim"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:325)
@@ -771,7 +771,7 @@ at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGenera
 [INFO] Running com.healthcare.document.DocumentServiceTest
 [ERROR] Tests run: 25, Failures: 2, Errors: 0, Skipped: 0, Time elapsed: 2.517 s <<< FAILURE! -- in com.healthcare.document.DocumentServiceTest
 [ERROR] com.healthcare.document.DocumentServiceTest.nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization -- Time elapsed: 0.011 s <<< FAILURE!
-java.lang.AssertionError: 
+java.lang.AssertionError:
 
 Expecting actual throwable to be an instance of:
   org.springframework.security.access.AccessDeniedException
@@ -787,7 +787,7 @@ but was:
 	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
 
 [ERROR] com.healthcare.document.DocumentServiceTest.patientCannotResolveBookingBeforePatientScopeAuthorization -- Time elapsed: 0.010 s <<< FAILURE!
-java.lang.AssertionError: 
+java.lang.AssertionError:
 
 Expecting actual throwable to be an instance of:
   org.springframework.security.access.AccessDeniedException
@@ -802,50 +802,50 @@ but was:
 	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
 	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
 
-[INFO] 
+[INFO]
 [INFO] Results:
-[INFO] 
-[ERROR] Failures: 
-[ERROR]   DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder:326 
+[INFO]
+[ERROR] Failures:
+[ERROR]   DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder:326
 Multiple Failures (6 failures)
 -- failure 1 --
-[doctor list includes generated id] 
+[doctor list includes generated id]
 Expecting actual:
   "[]"
 to contain:
-  "adeb93ad-2621-4fd6-8c6a-92ea4666b59e" 
+  "adeb93ad-2621-4fd6-8c6a-92ea4666b59e"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:313)
 -- failure 2 --
-[doctor download status] 
+[doctor download status]
 expected: 200
  but was: 403
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:317)
 -- failure 3 --
-[download content type] 
+[download content type]
 Expecting actual:
   "application/json;charset=UTF-8"
 to start with:
   "application/pdf"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:319)
 -- failure 4 --
-[downloaded length equals stored object length] 
+[downloaded length equals stored object length]
 expected: 660011
  but was: 264
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:321)
 -- failure 5 --
-[downloaded sha256 equals stored object sha256] 
+[downloaded sha256 equals stored object sha256]
 expected: "2068d498d322990441a8e20ab6c3ca5866dffbfbd5d69505687ab114f05fe849"
  but was: "cfe99097acb8f5cfbd17807cf684f6dd6cfdcad2267987d80a082ca3f4e1df80"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:323)
 -- failure 6 --
-[downloaded payload is a PDF] 
+[downloaded payload is a PDF]
 expected: "%PDF-"
  but was: "{"tim"
 at DocumentGenerationIntegrationTest.assignedDoctorCanListAndDownloadTheirGeneratedAppointmentReminder(DocumentGenerationIntegrationTest.java:325)
-[ERROR]   DocumentGenerationIntegrationTest.concurrentSameSourceGenerationReusesOneRowAndObject:263 
+[ERROR]   DocumentGenerationIntegrationTest.concurrentSameSourceGenerationReusesOneRowAndObject:263
 expected: 201
  but was: 500
-[ERROR]   DocumentServiceTest.nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization:738 
+[ERROR]   DocumentServiceTest.nullPrincipalCannotResolveBookingBeforePatientScopeAuthorization:738
 Expecting actual throwable to be an instance of:
   org.springframework.security.access.AccessDeniedException
 but was:
@@ -854,7 +854,7 @@ but was:
 	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
 	at com.healthcare.document.service.DocumentService.downloadAppointmentReminderByBookingCode(DocumentService.java:373)
 	...(80 remaining lines not displayed - this can be changed with Assertions.setMaxStackTraceElementsDisplayed)
-[ERROR]   DocumentServiceTest.patientCannotResolveBookingBeforePatientScopeAuthorization:728 
+[ERROR]   DocumentServiceTest.patientCannotResolveBookingBeforePatientScopeAuthorization:728
 Expecting actual throwable to be an instance of:
   org.springframework.security.access.AccessDeniedException
 but was:
@@ -863,9 +863,9 @@ but was:
 	at java.base/java.util.Optional.orElseThrow(Optional.java:403)
 	at com.healthcare.document.service.DocumentService.downloadAppointmentReminderByBookingCode(DocumentService.java:373)
 	...(80 remaining lines not displayed - this can be changed with Assertions.setMaxStackTraceElementsDisplayed)
-[INFO] 
+[INFO]
 [ERROR] Tests run: 30, Failures: 4, Errors: 0, Skipped: 0
-[INFO] 
+[INFO]
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD FAILURE
 [INFO] ------------------------------------------------------------------------
@@ -873,13 +873,13 @@ but was:
 [INFO] Finished at: 2026-10-04T12:40:21+07:00
 [INFO] ------------------------------------------------------------------------
 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.3:test (default-test) on project healthcare-backend: There are test failures.
-[ERROR] 
+[ERROR]
 [ERROR] See D:\HealthCare_Project\apps\backend\target\surefire-reports for the individual test results.
 [ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
 [ERROR] -> [Help 1]
-[ERROR] 
+[ERROR]
 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
 [ERROR] Re-run Maven using the -X switch to enable full debug logging.
-[ERROR] 
+[ERROR]
 [ERROR] For more information about the errors and possible solutions, please read the following articles:
 [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
