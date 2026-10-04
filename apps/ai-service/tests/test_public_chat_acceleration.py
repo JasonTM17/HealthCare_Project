@@ -193,7 +193,9 @@ def test_different_top_k_misses_cache_and_reslices_citations(
 
     narrow = _post_chat(client, "gói khám tổng quát giá bao nhiêu", top_k=1)
     assert counting.search_calls == 2, "a different top_k must not reuse the cached answer shape"
-    assert len(narrow["citations"]) <= 1
+    narrow_citations = narrow["citations"]
+    assert isinstance(narrow_citations, list)
+    assert len(narrow_citations) <= 1
 
 
 def test_is_cacheable_public_response_contract() -> None:
