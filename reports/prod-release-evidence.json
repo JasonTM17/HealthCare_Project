@@ -1,0 +1,71 @@
+{
+  "release": {
+    "sha": "bc2e109fa362648f607973dd6026ac0e6f05f179",
+    "parent_sha": "a23ef76af03a8c116f393c947aeaf41ec94121ee",
+    "captured_at": "2026-10-04T20:45:00Z"
+  },
+  "ci": {
+    "run_id": 37231449718,
+    "conclusion": "success",
+    "sha": "bc2e109"
+  },
+  "image_publish": {
+    "run_id": 37231199344,
+    "backend_digest": "sha256:647ac596858d73f3643e3c9fedbbf3053b16ab26019bd0d330bbc9892e0c8fe9",
+    "pinned_in": [
+      "render.yaml",
+      "render-free-beta.yaml",
+      "infrastructure/tests/test_render_blueprint_contract.py"
+    ]
+  },
+  "deployments": {
+    "backend": {
+      "service": "srv-daigprh5efls73dfau00",
+      "deploy": "dep-db1bfhm0tbcc73adl0h0",
+      "status": "live",
+      "rollback_prior_live": "dep-db1b8kfavr4c73b44mrg"
+    },
+    "ai": {
+      "service": "srv-daigq6vqj5pc73a284l0",
+      "deploy": "dep-db1b835ckfvc73disa90",
+      "status": "live",
+      "ref": "bc2e109"
+    },
+    "vercel": {
+      "project": "prj_Ec8etEj50ojj3kI8s2XGm1spEDwM",
+      "deploy": "dpl_6aCzMZZu3PRtzSBYq7UPGTCG6FvK",
+      "status": "READY",
+      "domains": [
+        "www.healthcare.id.vn",
+        "healthcare.id.vn"
+      ]
+    },
+    "supabase": {
+      "project": "awaknzhadjglbfkhigck",
+      "flyway_latest": "V110 success 2026-10-04",
+      "verify_only": true
+    }
+  },
+  "hosted_canaries": {
+    "backend_health": "PASS UP liveness+readiness",
+    "ai_livez": "PASS ok",
+    "public_chat_branch_grounding": "PASS 'Cơ sở 4' grounded w/ address+phone+hours, 2.0s; 'Cơ sở 17' 0.7s",
+    "public_chat_safety": "PASS dose-directive REFUSE 0.6s",
+    "public_chat_remote_provider": "PASS remote_provider path 7.4s",
+    "public_catalog_apis": "PASS hospital/branches+specialties+doctors 200 via BFF",
+    "homepage_cms_render": "PASS h1 'Đồng hành cùng sức khỏe gia đình' (CMS-driven)",
+    "auth_wall": "PASS /api/v1/documents unauth 401",
+    "patient_authenticated_flows": "BLOCKED no production credentials (LocalDemo!2026 is local fixture only; not resetting prod passwords)",
+    "pdf_byte_integrity": "BLOCKED requires authenticated patient session on prod",
+    "cms_publish_rollback_prod": "NOT_RUN production CMS write not authorized"
+  },
+  "incidents": [
+    {
+      "id": "env-wipe-1",
+      "cause": "PUT /v1/services/{id}/env-vars (collection) is replace-all semantics, not merge",
+      "impact": "backend env vars wiped at ~20:21Z; 3 subsequent deploys exited nonZeroExit:1 (no DATABASE_URL); prior live instance unaffected",
+      "resolution": "46 env vars restored per-var via PUT /env-vars/{key}; sources: ai-service env (SUPABASE_DB_URL, tokens), redis connection-info, local .env (JWT/BFF/origins), render.yaml literals; redeploy live dep-db1bfhm0tbcc73adl0h0",
+      "followup": "Vercel BACKEND_BFF_SERVICE_TOKEN/BACKEND_INTERNAL_URL/BFF_PUBLIC_ORIGIN synced to same values; BFF chain verified end-to-end"
+    }
+  ]
+}

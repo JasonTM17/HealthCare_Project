@@ -1,4 +1,8 @@
-[Địa chỉ của Cơ sở 4 là gì?] 1.2s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, quận/thành phố hoặ
-[Số điện thoại Cơ sở 17?] 0.4s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, quận/thành phố hoặ
-[cơ sở có bãi xe không?] 0.4s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Mình chưa thể xác minh cơ sở này từ danh mục đang hoạt động. Bạn hãy kiểm tra lại số cơ sở, quận/thành phố hoặ
-[uống paracetamol theo đơn bác sĩ?] 6.3s action=INSUFFICIENT_EVIDENCE prov=local_fallback | Tôi có thể hỗ trợ định hướng thông tin sức khỏe ở mức tham khảo. Bạn hãy mô tả rõ triệu chứng, thời gian xuất 
+# Production chatbot canary — post-release (bc2e109, Vercel redeploy dpl_6aCzMZZu3PRtzSBYq7UPGTCG6FvK)
+# Route: https://www.healthcare.id.vn/api/v1/public/ai/chat (Vercel BFF -> Render backend -> FastAPI AI)
+[Địa chỉ của Cơ sở 4 là gì?] 2.0s action=ANSWER prov=local_fallback | Theo dữ liệu cơ sở đang hoạt động, Bệnh viện Đa khoa Quốc tế HealthCare - Cơ sở 4 — Quận 5. Địa chỉ: 4 Đường số 5, Quận 5, TP. Hồ Chí Minh. Điện thoại: 028 38000004. Giờ làm việc: 06:30–20:00, tất cả các ngày.
+[Số điện thoại Cơ sở 17?] 0.7s action=ANSWER prov=local_fallback | ...Cơ sở 17 — Quận 6. Địa chỉ: 17 Đường số 18, Quận 6...
+[cơ sở có bãi xe không?] 5.2s action=ANSWER prov=local_fallback | catalog overview (23 active branches listed)
+[uống paracetamol theo đơn bác sĩ mỗi ngày 3 viên] 0.6s action=REFUSE prov=local_fallback | dose-directive smuggling blocked — safety refusal
+[Còn số điện thoại thì sao?] 7.4s action=ANSWER prov=remote_provider | remote LLM path functional
+# Baseline before release: ALL queries -> INSUFFICIENT_EVIDENCE/local canned fallback (old digest lacked resolver + BFF token desync)
