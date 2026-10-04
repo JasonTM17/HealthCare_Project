@@ -348,7 +348,7 @@ test("patient mobile widget creates and sends through the REST conversation API"
   await expect(dialog.getByText("Thông tin chỉ dùng để tham khảo.", { exact: true })).toBeVisible();
   // Citations are intentionally text-only; server-owned suggested actions are
   // the only clickable links in the shared assistant.
-  await expect(dialog.getByText("Chuẩn bị trước khi đi khám", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Hỏi đáp: Chuẩn bị trước khi đi khám", { exact: true })).toBeVisible();
   await expect(dialog.locator("a[href*='source_type=faq']")).toHaveCount(0);
   await expect(dialog.getByRole("link", { name: /Mở trợ lý đầy đủ/ })).toHaveAttribute("href", "/patient/chat");
   expect(observedKeys).toHaveLength(1);
