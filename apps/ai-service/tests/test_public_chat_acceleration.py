@@ -188,7 +188,7 @@ def test_different_top_k_misses_cache_and_reslices_citations(
     monkeypatch.setattr(main.settings, "ai_public_chat_cache_enabled", True)
 
     client = TestClient(main.app)
-    broad = _post_chat(client, "gói khám tổng quát giá bao nhiêu", top_k=3)
+    _post_chat(client, "gói khám tổng quát giá bao nhiêu", top_k=3)
     assert counting.search_calls == 1
 
     narrow = _post_chat(client, "gói khám tổng quát giá bao nhiêu", top_k=1)

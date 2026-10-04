@@ -6,7 +6,7 @@ Running 3 tests using 1 worker
   x  3 [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell (26.1s)
 
 
-  1) [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals 
+  1) [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -62,7 +62,7 @@ Running 3 tests using 1 worker
 
     Error Context: test-results\local-audit-live\live-compose-demo-live-Com-2ed49-nt-doctor-and-admin-portals-chromium\error-context.md
 
-  2) [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope 
+  2) [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope
 
     Error: expect(received).toEqual(expected) // deep equality
 
@@ -97,7 +97,7 @@ Running 3 tests using 1 worker
 
     Error Context: test-results\local-audit-live\live-compose-demo-live-Com-d66ef-and-enforces-document-scope-chromium\error-context.md
 
-  3) [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell 
+  3) [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell
 
     Error: expect(locator).toHaveAttribute(expected) failed
 
@@ -133,6 +133,6 @@ Running 3 tests using 1 worker
     Error Context: test-results\local-audit-live\live-compose-demo-live-Com-2ac69-ack-update-the-public-shell-chromium\error-context.md
 
   3 failed
-    [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals 
-    [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope 
-    [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell 
+    [chromium] › tests\e2e\live-compose-demo.spec.ts:1044:7 › live Compose role-based demo › books through the public UI and appears in patient, doctor, and admin portals
+    [chromium] › tests\e2e\live-compose-demo.spec.ts:1082:7 › live Compose role-based demo › issues all three PDF classes through real clinical APIs and enforces document scope
+    [chromium] › tests\e2e\live-compose-demo.spec.ts:1274:7 › live Compose role-based demo › live CMS homepage hero publish and rollback update the public shell

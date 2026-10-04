@@ -21,21 +21,21 @@
     _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
 
 app\main.py:123
-  <REPO>\apps\ai-service\app\main.py:123: DeprecationWarning: 
+  <REPO>\apps\ai-service\app\main.py:123: DeprecationWarning:
           on_event is deprecated, use lifespan event handlers instead.
-  
+
           Read more about it in the
           [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
+
     @app.on_event("startup")
 
 .venv\Lib\site-packages\fastapi\applications.py:4681
-  <REPO>\apps\ai-service\.venv\Lib\site-packages\fastapi\applications.py:4681: DeprecationWarning: 
+  <REPO>\apps\ai-service\.venv\Lib\site-packages\fastapi\applications.py:4681: DeprecationWarning:
           on_event is deprecated, use lifespan event handlers instead.
-  
+
           Read more about it in the
           [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
-          
+
     return self.router.on_event(event_type)  # ty: ignore[deprecated]
 
 tests/test_chat_cancellation.py::test_real_client_disconnect_closes_fastapi_provider_socket
