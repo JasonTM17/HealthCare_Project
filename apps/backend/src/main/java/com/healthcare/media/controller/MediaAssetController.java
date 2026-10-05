@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +48,16 @@ public class MediaAssetController {
             @AuthenticationPrincipal UserDetails userDetails) throws IOException {
         MediaAssetResponse response = mediaAssetService.uploadImage(file, purpose, userDetails);
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Xóa tệp đa phương tiện", description = "Xóa ảnh do chính mình tải lên; quản trị viên có thể xóa bất kỳ ảnh nào")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('PATIENT', 'DOCTOR', 'ADMIN')")
+    public ResponseEntity<Void> deleteMedia(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        mediaAssetService.deleteMedia(id, userDetails);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Tải dữ liệu tệp đa phương tiện", description = "Truy xuất nội dung tệp hình ảnh theo ID")

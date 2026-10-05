@@ -103,6 +103,16 @@ test("C4 underline is not left as a dangling tag", () => {
   assert.equal((markdown.match(/<\/u>/g) ?? []).length, 1);
 });
 
+test("C4 underline survives <ins> and style-carried variants", () => {
+  const ins = htmlToMarkdown("<p>Dùng <ins>đúng liều</ins> mỗi ngày.</p>");
+  assert.ok(ins.includes("<u>đúng liều</u>"), `<ins> underline lost: ${ins}`);
+
+  const styled = htmlToMarkdown(
+    '<p>Dùng <span style="text-decoration: underline">đúng liều</span> mỗi ngày.</p>'
+  );
+  assert.ok(styled.includes("<u>đúng liều</u>"), `style underline lost: ${styled}`);
+});
+
 // -- C5: callouts with nested blocks ---------------------------------------------
 
 test("C5 a callout containing a nested div is not truncated", () => {

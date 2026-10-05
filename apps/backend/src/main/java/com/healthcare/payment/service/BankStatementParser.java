@@ -44,7 +44,14 @@ public final class BankStatementParser {
             }
             String content = cells[1].trim();
             String reference = cells.length == 3 ? cells[2].trim() : null;
-            if (content.isBlank() || (reference != null && (reference.isBlank() || reference.length() > 100))) {
+            // Bound the persisted column widths: transfer_content is
+            // VARCHAR(64) and amount NUMERIC(12,2). Over-bound lines must be
+            // counted invalid here — letting them reach the INSERT aborts the
+            // whole import while earlier REQUIRES_NEW matches stay committed
+            // with no recoverable provenance.
+            if (content.isBlank() || content.length() > 64
+                    || (reference != null && (reference.isBlank() || reference.length() > 100))
+                    || amount.precision() - amount.scale() > 10 || amount.scale() > 2) {
                 invalid++;
                 continue;
             }

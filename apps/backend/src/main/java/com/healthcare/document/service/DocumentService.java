@@ -25,6 +25,8 @@ import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
+import jakarta.persistence.EntityManager;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -71,6 +73,7 @@ public class DocumentService {
     private final SyntheticPdfRenderer renderer;
     private final DocumentSnapshotCodec snapshotCodec;
     private final ClinicalAccessAuditService auditService;
+    private final EntityManager entityManager;
 
     public DocumentService(
             PatientDocumentRepository documentRepository,
@@ -84,7 +87,8 @@ public class DocumentService {
             DocumentObjectCleanupService cleanupService,
             SyntheticPdfRenderer renderer,
             DocumentSnapshotCodec snapshotCodec,
-            ClinicalAccessAuditService auditService) {
+            ClinicalAccessAuditService auditService,
+            EntityManager entityManager) {
         this.documentRepository = documentRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.prescriptionRepository = prescriptionRepository;
@@ -97,6 +101,7 @@ public class DocumentService {
         this.renderer = renderer;
         this.snapshotCodec = snapshotCodec;
         this.auditService = auditService;
+        this.entityManager = entityManager;
     }
 
     public record DocumentDownload(PatientDocument document, InputStream stream) {
@@ -114,8 +119,18 @@ public class DocumentService {
             GenerateDocumentRequest request,
             UserDetails principal) {
         authorizePatientScope(patientId, principal);
-        documentRepository.acquireGenerationLock(
-                "DOCUMENT_GENERATION:" + request.sourceType().name() + ":" + request.sourceRecordId());
+        // Bound the advisory-lock wait: a waiter holds a main-pool connection
+        // for the holder's entire render + object upload, so an unbounded wait
+        // can exhaust the pool. 5s then a clean 409 beats a pool stall.
+        entityManager.createNativeQuery("SET LOCAL lock_timeout = '5s'").executeUpdate();
+        try {
+            documentRepository.acquireGenerationLock(
+                    "DOCUMENT_GENERATION:" + request.sourceType().name() + ":" + request.sourceRecordId());
+        } catch (PessimisticLockingFailureException exception) {
+            auditService.record(principal, patientId, TARGET_DOCUMENT,
+                request.sourceRecordId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY);
+            throw new BusinessException(409, "Tài liệu đang được tạo, vui lòng thử lại sau giây lát");
+        }
         PatientProfile patient = patientProfileRepository.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
 
@@ -389,6 +404,19 @@ public class DocumentService {
         }
         if (!objectStore.isConfigured()) {
             throw new BusinessException(503, "Kho đối tượng chưa được cấu hình");
+        }
+        // Revoke can commit between the AVAILABLE check above and the object
+        // fetch; refresh re-reads the row under READ_COMMITTED (the
+        // persistence-context cache would otherwise return stale state).
+        try {
+            entityManager.refresh(document);
+        } catch (jakarta.persistence.EntityNotFoundException exception) {
+            document.setStatus(DocumentStatus.REVOKED);
+        }
+        if (document.getStatus() != DocumentStatus.AVAILABLE) {
+            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
         }
         try {
             InputStream stream = objectStore.get(document.getObjectKey());

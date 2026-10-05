@@ -86,7 +86,7 @@ public class ApiEmailSender {
             HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() / 100 != 2) {
                 log.warn("Resend API send failed recipient={} status={} body={}",
-                    recipient, response.statusCode(),
+                    maskRecipient(recipient), response.statusCode(),
                     response.body() == null ? "" : response.body().substring(0, Math.min(400, response.body().length())));
                 throw new com.healthcare.exception.BusinessException(
                     503,
@@ -94,10 +94,10 @@ public class ApiEmailSender {
                     "Email delivery is temporarily unavailable"
                 );
             }
-            log.info("Email delivered via Resend API recipient={} subject={}", recipient, subject);
+            log.info("Email delivered via Resend API recipient={} subject={}", maskRecipient(recipient), subject);
         } catch (java.io.IOException | InterruptedException exception) {
             log.warn("Resend API send failed recipient={} transport error={}",
-                recipient, exception.getMessage());
+                maskRecipient(recipient), exception.getMessage());
             if (exception instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
@@ -107,5 +107,19 @@ public class ApiEmailSender {
                 "Email delivery is temporarily unavailable"
             );
         }
+    }
+
+    /** Masked local part keeps logs debuggable without writing mailbox PII. */
+    static String maskRecipient(String recipient) {
+        if (recipient == null) {
+            return "<null>";
+        }
+        int at = recipient.indexOf('@');
+        if (at < 0) {
+            return "***";
+        }
+        String local = recipient.substring(0, at);
+        String maskedLocal = local.length() <= 1 ? "*" : local.charAt(0) + "***";
+        return maskedLocal + recipient.substring(at);
     }
 }

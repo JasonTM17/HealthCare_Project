@@ -5,9 +5,11 @@ import PortalChrome from "../../../components/PortalChrome";
 import {
   ApiError,
   changePassword,
+  deleteMediaAsset,
   fetchPatientAiCreditStatus,
   fetchPatientProfile,
   hasRole,
+  mediaAssetIdFromUrl,
   updatePatientProfile,
   type AiCreditStatus,
   type PatientGender,
@@ -212,6 +214,7 @@ export default function PatientProfilePage() {
     setSavingProfile(true);
     setProfileNotice(null);
     try {
+      const previousAvatarUrl = profile?.avatarUrl || "";
       const updated = await updatePatientProfile({
         fullName: fullName.trim(),
         dateOfBirth: dateOfBirth || undefined,
@@ -225,6 +228,15 @@ export default function PatientProfilePage() {
         allergies: allergies.trim() || undefined,
       });
       setProfile(updated);
+      // The persisted avatar changed → the previous media asset is now
+      // unreferenced. Best-effort cleanup after commit; a failed delete only
+      // leaves an orphan, never blocks the saved profile.
+      const orphanedId = previousAvatarUrl !== (updated.avatarUrl || "")
+        ? mediaAssetIdFromUrl(previousAvatarUrl)
+        : null;
+      if (orphanedId) {
+        deleteMediaAsset(orphanedId).catch(() => undefined);
+      }
       setProfileNotice({ tone: "success", text: "Hồ sơ sức khỏe cá nhân đã được lưu thành công." });
       showToast({
         tone: "success",

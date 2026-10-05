@@ -7,6 +7,7 @@ import {
   broadcastCatalogChange,
   createArticleComment,
   deleteArticleComment,
+  deleteMediaAsset,
   doctorCreateArticle,
   doctorDeleteArticle,
   doctorListArticles,
@@ -17,6 +18,7 @@ import {
   fetchArticles,
   fetchSpecialties,
   hasRole,
+  mediaAssetIdFromUrl,
   subscribeToCatalogChange,
   type AdminArticlePayload,
   type Article,
@@ -134,6 +136,9 @@ export default function DoctorArticlesPage() {
   // Editorial Reading View ("Đọc như 1 bài báo")
   const [readingArticle, setReadingArticle] = useState<Article | null>(null);
   const readingArticleRef = useRef<Article | null>(null);
+  // The cover URL as last persisted, captured when the editor opens — used
+  // after a successful save to retire the now-unreferenced media asset.
+  const persistedCoverUrlRef = useRef("");
   const [readingComments, setReadingComments] = useState<ArticleComment[]>([]);
   const [loadingReadingComments, setLoadingReadingComments] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -270,6 +275,7 @@ export default function DoctorArticlesPage() {
       setSummary(article.summary || "");
       setBody(article.body || "");
       setCoverImageUrl(article.coverImageUrl || "");
+      persistedCoverUrlRef.current = article.coverImageUrl || "";
       setActive(article.active !== false);
     } else {
       setEditingSlug(null);
@@ -280,6 +286,7 @@ export default function DoctorArticlesPage() {
       setSummary("");
       setBody("");
       setCoverImageUrl("");
+      persistedCoverUrlRef.current = "";
       setActive(true);
     }
     setError(null);
@@ -354,6 +361,13 @@ export default function DoctorArticlesPage() {
       } else {
         await doctorCreateArticle(payload);
         setSuccess("Đã đăng bài viết y khoa mới thành công! Bài viết sẽ hiển thị trong Cẩm nang sức khỏe của bệnh viện khi được xuất bản công khai.");
+      }
+      // Persisted cover changed → previous uploaded asset is unreferenced.
+      const orphanedId = persistedCoverUrlRef.current !== (payload.coverImageUrl ?? "")
+        ? mediaAssetIdFromUrl(persistedCoverUrlRef.current)
+        : null;
+      if (orphanedId) {
+        deleteMediaAsset(orphanedId).catch(() => undefined);
       }
       broadcastCatalogChange({ kind: "article", action: editingSlug ? "updated" : "created", slug: finalSlug });
       setShowEditor(false);

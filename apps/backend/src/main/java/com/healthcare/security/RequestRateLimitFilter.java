@@ -239,6 +239,12 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         if ("POST".equals(method) && path.startsWith("/api/v1/appointments/")) {
             return new LimitRule("appointments", appointmentLimit);
         }
+        // 2b. Public slot-availability reads are unauthenticated: without a
+        // bucket they are an unlimited availability-scraping and doctor-ID
+        // enumeration oracle plus a DB-load amplifier.
+        if ("GET".equals(method) && path.matches("^/api/v1/appointments/doctors/[^/]+/slots$")) {
+            return new LimitRule("slots", defaultPostLimit);
+        }
 
         // 3. Payment gateway webhooks
         if ("POST".equals(method) && path.equals("/api/v1/payments/webhooks/bank-transfer")) {
@@ -323,10 +329,14 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             return new LimitRule("clinical", clinicalLimit);
         }
 
-        // 11. Media, file and document uploads
+        // 11. Media, file and document uploads/generation. Patient document
+        // generation lives under /api/v1/patients/{id}/documents — the old
+        // /api/v1/documents prefix never matched the real path, so document
+        // generation fell through to the 60/min catch-all.
         if ("POST".equals(method) && (path.equals("/api/v1/media/upload")
                 || path.equals("/api/v1/files/upload")
-                || path.startsWith("/api/v1/documents"))) {
+                || path.startsWith("/api/v1/documents")
+                || path.matches("^/api/v1/patients/[^/]+/documents.*"))) {
             return new LimitRule("uploads", uploadLimit);
         }
 

@@ -301,8 +301,12 @@ export default function PatientDocumentsPage() {
       setNotice({ tone: "success", message: "Đã tạo tài liệu PDF. Bạn có thể tải về khi trạng thái chuyển sang “Sẵn sàng tải”." });
     } catch (error) {
       if (isStale(expectedSession, runId)) return;
-      if (getErrorStatus(error) === 401) clearAuthSession();
-      setNotice({ tone: "error", message: getErrorMessage(error) });
+      if (getErrorStatus(error) === 401) {
+        clearAuthSession();
+        setNotice({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
+      } else {
+        setNotice({ tone: "error", message: getErrorMessage(error) });
+      }
     } finally {
       if (!isStale(expectedSession, runId)) setGeneratingKey(null);
     }
@@ -315,13 +319,17 @@ export default function PatientDocumentsPage() {
     setDownloadingId(document.id);
     setNotice(null);
     try {
-      await downloadPatientDocument(profile.data.id, document.id, documentFilename(document));
+      await downloadPatientDocument(profile.data.id, document.id, documentFilename(document), { byteSize: document.byteSize });
       if (isStale(expectedSession, runId)) return;
       setNotice({ tone: "success", message: "Đã bắt đầu tải PDF về máy." });
     } catch (error) {
       if (isStale(expectedSession, runId)) return;
-      if (getErrorStatus(error) === 401) clearAuthSession();
-      setNotice({ tone: "error", message: getErrorMessage(error) });
+      if (getErrorStatus(error) === 401) {
+        clearAuthSession();
+        setNotice({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
+      } else {
+        setNotice({ tone: "error", message: getErrorMessage(error) });
+      }
     } finally {
       if (!isStale(expectedSession, runId)) setDownloadingId(null);
     }

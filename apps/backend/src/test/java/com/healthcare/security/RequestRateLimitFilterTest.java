@@ -167,6 +167,33 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void rateLimitsPublicDoctorSlotAvailabilityReads() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.default-post-limit", "2")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+        String slotsPath = "/api/v1/appointments/doctors/11111111-2222-3333-4444-555555555555/slots";
+
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            MockHttpServletResponse response = invoke(
+                filter, accepted, "GET", slotsPath, "198.51.100.9"
+            );
+            if (attempt == 3) {
+                assertThat(response.getStatus()).isEqualTo(429);
+                assertThat(response.getHeader("Retry-After")).isNotBlank();
+            }
+        }
+        assertThat(accepted).hasValue(2);
+
+        // Same-path POSTs and other public GETs are not part of this bucket.
+        MockHttpServletResponse other = invoke(
+            filter, accepted, "GET", "/api/v1/hospital/doctors", "198.51.100.9"
+        );
+        assertThat(other.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void trustedBffUsesCanonicalClientIpAsRateLimitKey() throws Exception {
         MockEnvironment environment = rateLimitEnvironment();
         RequestRateLimitFilter filter = filter(environment);

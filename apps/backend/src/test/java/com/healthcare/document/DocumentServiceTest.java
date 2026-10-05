@@ -29,6 +29,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.CannotAcquireLockException;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -84,6 +87,7 @@ class DocumentServiceTest {
     private DocumentObjectCleanupService cleanupService;
     private SyntheticPdfRenderer renderer;
     private ClinicalAccessAuditService auditService;
+    private EntityManager entityManager;
     private DocumentService service;
     private DocumentSnapshotCodec codec;
 
@@ -100,11 +104,15 @@ class DocumentServiceTest {
         cleanupService = mock(DocumentObjectCleanupService.class);
         renderer = mock(SyntheticPdfRenderer.class);
         auditService = mock(ClinicalAccessAuditService.class);
+        entityManager = mock(EntityManager.class);
+        Query lockTimeoutQuery = mock(Query.class);
+        when(entityManager.createNativeQuery(anyString())).thenReturn(lockTimeoutQuery);
+        when(lockTimeoutQuery.executeUpdate()).thenReturn(1);
         codec = new DocumentSnapshotCodec();
         service = new DocumentService(documentRepository, medicalRecordRepository,
                 prescriptionRepository, patientProfileRepository, doctorRepository,
                 userRepository, appointmentRepository, objectStore, cleanupService, renderer,
-                codec, auditService);
+                codec, auditService, entityManager);
     }
 
     @Test
@@ -677,6 +685,64 @@ class DocumentServiceTest {
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
                 eq(document.getId().toString()), eq(ClinicalAccessAuditService.ACTION_DOWNLOAD),
                 eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
+    @Test
+    void downloadRevalidatesStateAndDeniesDocumentRevokedBeforeObjectFetch() throws Exception {
+        PatientDocument document = availableDocument();
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        // Simulate a revoke committing between the initial status check and
+        // the revalidation: refresh flips the row state.
+        org.mockito.Mockito.doAnswer(invocation -> {
+            document.setStatus(DocumentStatus.REVOKED);
+            return null;
+        }).when(entityManager).refresh(document);
+
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("thu hồi");
+
+        verify(objectStore, never()).get(anyString());
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(document.getId().toString()), eq(ClinicalAccessAuditService.ACTION_DOWNLOAD),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
+    }
+
+    @Test
+    void downloadDeniesWhenRowWasDeletedBeforeObjectFetch() throws Exception {
+        PatientDocument document = availableDocument();
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        doThrow(new jakarta.persistence.EntityNotFoundException("row gone"))
+                .when(entityManager).refresh(document);
+
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(objectStore, never()).get(anyString());
+    }
+
+    @Test
+    void generationLockTimeoutFailsClosedWithRetryableConflict() throws Exception {
+        stubPatientExists(PATIENT_ID);
+        doThrow(new CannotAcquireLockException("lock_timeout exceeded"))
+                .when(documentRepository).acquireGenerationLock(anyString());
+
+        assertThatThrownBy(() -> service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("status")
+                .isEqualTo(409);
+
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(RECORD_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+        verify(documentRepository, never()).saveAndFlush(any());
     }
 
     @Test

@@ -3463,6 +3463,7 @@ export async function downloadPatientDocument(
   patientId: string,
   documentId: string,
   filename = "tai-lieu-tong-hop.pdf",
+  expected?: { byteSize?: number | null },
 ): Promise<void> {
   const path = `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/download`;
   const response = await withAuthenticatedSession(path, async () => {
@@ -3480,6 +3481,15 @@ export async function downloadPatientDocument(
     }
   });
   const blob = await response.blob();
+  // A cleanly-ending truncated upstream stream produces a complete-looking
+  // blob; verify what we actually received before offering it for save.
+  if (typeof expected?.byteSize === "number" && expected.byteSize > 0 && blob.size !== expected.byteSize) {
+    throw new ApiError("Tệp PDF tải về không đầy đủ, vui lòng thử lại.", 0, path, { code: "DOWNLOAD_SIZE_MISMATCH" });
+  }
+  const header = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
+  if (header.length >= 5 && new TextDecoder().decode(header) !== "%PDF-") {
+    throw new ApiError("Tệp tải về không phải định dạng PDF hợp lệ.", 0, path, { code: "DOWNLOAD_NOT_PDF" });
+  }
   const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = blobUrl;
@@ -3718,5 +3728,30 @@ export async function uploadMediaAsset(file: File, purpose = "GENERAL"): Promise
   return getAuthenticatedJson<MediaAssetResponse>("/media/upload", {
     method: "POST",
     body: formData,
+  });
+}
+
+/** Extracts the asset id from an `/api/v1/media/{id}` URL; null for anything else. */
+export function mediaAssetIdFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = /\/api\/v1\/media\/([0-9a-fA-F-]{36})\/?$/.exec(url);
+  return match ? match[1] : null;
+}
+
+export async function deleteMediaAsset(assetId: string): Promise<void> {
+  const path = `/media/${encodeURIComponent(assetId)}`;
+  await withAuthenticatedSession(path, async () => {
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+    } catch {
+      throw new ApiError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.", 0, path);
+    }
+    if (!response.ok && response.status !== 404) {
+      throw await apiErrorFromResponse(response, path, "Không thể xóa tệp hình ảnh.");
+    }
   });
 }

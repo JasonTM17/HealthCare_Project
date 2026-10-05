@@ -76,7 +76,11 @@ export default function DoctorDetailPage() {
         jobTitle: doctor.title || "Bác sĩ chuyên khoa",
         medicalSpecialty: doctor.specialtyName || "Y đa khoa",
         description: doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm tại Hệ thống Bệnh viện Đa khoa HealthCare",
-        image: getDoctorPhoto(doctor) ? `${safeSiteOrigin()}${getDoctorPhoto(doctor)}` : undefined,
+        image: (() => {
+          const photo = getDoctorPhoto(doctor);
+          if (!photo) return undefined;
+          return /^https?:\/\//i.test(photo) ? photo : `${safeSiteOrigin()}${photo}`;
+        })(),
         worksFor: {
           "@type": "MedicalOrganization",
           name: "Hệ thống Bệnh viện Đa khoa HealthCare",

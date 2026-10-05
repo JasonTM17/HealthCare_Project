@@ -285,6 +285,11 @@ export function RichTextEditor({
   const [imageAlt, setImageAlt] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  // In-flight guard shared by every upload entry point (modal drop/file
+  // input, textarea drop/paste, TinyMCE handler): a second trigger during an
+  // active upload would start a parallel request whose loser's asset is
+  // orphaned server-side.
+  const uploadInFlightRef = useRef(false);
   const [isDraggingImageModal, setIsDraggingImageModal] = useState(false);
   const [isDirectUploading, setIsDirectUploading] = useState(false);
   const [directUploadError, setDirectUploadError] = useState<string | null>(null);
@@ -725,20 +730,25 @@ export function RichTextEditor({
           setDirectUploadError(message);
           throw new Error(message);
         }
+        if (uploadInFlightRef.current) {
+          throw new Error("Đang có ảnh đang tải lên, vui lòng chờ hoàn tất.");
+        }
+        uploadInFlightRef.current = true;
         try {
           setIsDirectUploading(true);
           const blob = blobInfo.blob();
           const file = new File([blob], blobInfo.filename() || "article-media.png", { type: blob.type });
           const uploadRes = await uploadMediaAsset(file, purpose);
-          setIsDirectUploading(false);
           return uploadRes.url;
         } catch (err) {
-          setIsDirectUploading(false);
           const message = err instanceof ApiError
             ? presentApiError(err.code, err.status)
             : "Không thể tải ảnh lên máy chủ bệnh viện.";
           setDirectUploadError(message);
           throw new Error(message);
+        } finally {
+          uploadInFlightRef.current = false;
+          setIsDirectUploading(false);
         }
       },
     }),
@@ -1279,6 +1289,10 @@ export function RichTextEditor({
 
   // Process file upload helper
   const processImageFile = async (file: File): Promise<string | null> => {
+    if (uploadInFlightRef.current) {
+      setImageUploadError("Đang có ảnh đang tải lên, vui lòng chờ hoàn tất.");
+      return null;
+    }
     if (!file.type.startsWith("image/")) {
       setImageUploadError("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP, GIF).");
       return null;
@@ -1289,6 +1303,7 @@ export function RichTextEditor({
     }
 
     setImageUploadError(null);
+    uploadInFlightRef.current = true;
     setIsUploadingImage(true);
 
     try {
@@ -1303,6 +1318,7 @@ export function RichTextEditor({
       setImageUploadError(msg);
       return null;
     } finally {
+      uploadInFlightRef.current = false;
       setIsUploadingImage(false);
     }
   };
@@ -1331,6 +1347,12 @@ export function RichTextEditor({
     const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
     if (files.length > 0) {
       e.preventDefault();
+      if (uploadInFlightRef.current) {
+        setDirectUploadError("Đang có ảnh đang tải lên, vui lòng chờ hoàn tất.");
+        setTimeout(() => setDirectUploadError(null), 6000);
+        return;
+      }
+      uploadInFlightRef.current = true;
       setIsDirectUploading(true);
       setDirectUploadError(null);
       try {
@@ -1348,6 +1370,7 @@ export function RichTextEditor({
         setDirectUploadError(msg);
         setTimeout(() => setDirectUploadError(null), 6000);
       } finally {
+        uploadInFlightRef.current = false;
         setIsDirectUploading(false);
       }
     }
@@ -1368,6 +1391,12 @@ export function RichTextEditor({
 
     if (imageFiles.length > 0) {
       e.preventDefault();
+      if (uploadInFlightRef.current) {
+        setDirectUploadError("Đang có ảnh đang tải lên, vui lòng chờ hoàn tất.");
+        setTimeout(() => setDirectUploadError(null), 6000);
+        return;
+      }
+      uploadInFlightRef.current = true;
       setIsDirectUploading(true);
       setDirectUploadError(null);
       try {
@@ -1384,6 +1413,7 @@ export function RichTextEditor({
         setDirectUploadError(msg);
         setTimeout(() => setDirectUploadError(null), 6000);
       } finally {
+        uploadInFlightRef.current = false;
         setIsDirectUploading(false);
       }
     }

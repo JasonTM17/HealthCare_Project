@@ -1,0 +1,7 @@
+=== Focused surefire results v5.1 (working tree over HEAD d5a73d4, image a2b01403) ===
+Tests run: 30, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.491 s -- in com.healthcare.ai.AiChatContractsTest
+Tests run: 22, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.666 s -- in com.healthcare.ai.AiChatSourceResolverTest
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.072 s -- in com.healthcare.ai.chat.service.AiChatSourceResolverKnowledgeBridgeTest
+Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.096 s -- in com.healthcare.ai.chat.ChatSafetyAndChunkerTest
+Tests run: 8, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.031 s -- in com.healthcare.ai.chat.service.ChatSuggestedActionResolverTest
+Tests run: 62, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.388 s -- in com.healthcare.ai.PublicAiChatControllerTest
