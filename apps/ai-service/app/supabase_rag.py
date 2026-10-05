@@ -18,6 +18,7 @@ import json
 import logging
 import math
 import re
+import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import wraps
@@ -241,6 +242,12 @@ class SupabaseRagStore:
     ) -> None:
         self.config = config
         self._connection_factory = connection_factory
+        # The active embedding profile only changes on reindex; caching it
+        # briefly removes a dedicated connection + GROUP BY from every
+        # search/ingest pre-check while the per-connection _assert_profile
+        # stays authoritative inside each statement's own transaction.
+        self._active_profile_cache_until = 0.0
+        self._active_profile_cache_value: tuple[str, ProviderProvenance] | None = None
         self._table = f"{_quote_identifier(config.schema)}.{_quote_identifier(config.table)}"
         self._rpc = f"{_quote_identifier(config.schema)}.{_quote_identifier(config.rpc)}"
         self._vector_type = f"extensions.vector({config.embedding_dimension})"
@@ -452,8 +459,14 @@ class SupabaseRagStore:
         return _profile_tuple(*rows[0][:2])
 
     def active_profile(self) -> tuple[str, ProviderProvenance] | None:
+        now = time.monotonic()
+        if now < self._active_profile_cache_until:
+            return self._active_profile_cache_value
         with self._connection() as connection:
-            return self._read_active_profile(connection)
+            profile = self._read_active_profile(connection)
+        self._active_profile_cache_value = profile
+        self._active_profile_cache_until = now + 30.0
+        return profile
 
     def health_probe(self) -> bool:
         """Verify the database and protected projection are reachable.
@@ -856,8 +869,10 @@ class PersistentRagService(RagService):
         *,
         max_documents: int = 5_000,
         fallback_to_memory: bool = False,
+        probe_cache_ttl_seconds: float = 10.0,
     ) -> None:
         super().__init__(max_documents=max_documents)
+        self._probe_cache_ttl = probe_cache_ttl_seconds
         self.store = store
         self.fallback_to_memory = fallback_to_memory
         self.persistence_available = False
@@ -886,6 +901,12 @@ class PersistentRagService(RagService):
         # local-only until the durable authority answers cleanly again.
         self._durable_probe_unhealthy = False
         self._durable_probe_supported = callable(getattr(self.store, "health_probe", None))
+        # Readiness probes are read-only SELECTs — they must not queue behind
+        # the mutation lock (an ingest burst otherwise flaps /readyz and can
+        # trigger a platform restart). A short TTL keeps probe storms off the
+        # database while still fencing mutations promptly on real outages.
+        self._probe_cache_until = 0.0
+        self._probe_cache_value = False
         try:
             self._hydrate()
             self.persistence_available = True
@@ -1039,30 +1060,39 @@ class PersistentRagService(RagService):
     def health_probe(self) -> bool:
         """Check durable RAG readiness without silently using stale memory."""
 
-        with self._mutation_lock:
-            if self._durable_probe_supported:
-                try:
-                    healthy = bool(self.store.health_probe())
-                    self.persistence_available = healthy
-                    self._durable_probe_unhealthy = not healthy
-                    if healthy:
-                        self._durable_authority_seen = True
-                    return healthy
-                except SupabaseRagContractError:
-                    self._durable_probe_unhealthy = True
+        now = time.monotonic()
+        if now < self._probe_cache_until:
+            return self._probe_cache_value
+
+        if self._durable_probe_supported:
+            try:
+                healthy = bool(self.store.health_probe())
+                self.persistence_available = healthy
+                self._durable_probe_unhealthy = not healthy
+                if healthy:
                     self._durable_authority_seen = True
-                    self.persistence_available = False
-                    return False
-                except Exception as error:
-                    self._durable_probe_unhealthy = True
-                    self.persistence_available = False
-                    if self._durable_authority_seen:
-                        return False
+                result = healthy
+            except SupabaseRagContractError:
+                self._durable_probe_unhealthy = True
+                self._durable_authority_seen = True
+                self.persistence_available = False
+                result = False
+            except Exception as error:
+                self._durable_probe_unhealthy = True
+                self.persistence_available = False
+                if self._durable_authority_seen:
+                    result = False
+                else:
                     self._fallback_or_raise(error)
-                    return False
-            if not self.persistence_available:
-                return self.fallback_to_memory and not self._durable_authority_seen
-            return True
+                    result = False
+        elif not self.persistence_available:
+            result = self.fallback_to_memory and not self._durable_authority_seen
+        else:
+            result = True
+
+        self._probe_cache_value = result
+        self._probe_cache_until = now + self._probe_cache_ttl
+        return result
 
     @_mutation_guard
     def ingest(

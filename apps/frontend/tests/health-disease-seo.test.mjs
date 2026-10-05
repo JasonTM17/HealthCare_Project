@@ -49,7 +49,9 @@ test("general article detail resolves route-specific metadata on the server", as
   assert.match(server, /import "server-only"/);
   assert.match(server, /readHealthcareBffRuntimeConfig\(\)/);
   assert.match(server, /"X-Healthcare-Bff-Token": runtime\.serviceToken/);
-  assert.match(server, /cache: "no-store"/);
+  // Published metadata is still server-resolved, now with a bounded 5-minute
+  // revalidation instead of a Render round-trip on every request.
+  assert.match(server, /next: \{ revalidate: 300 \}/);
   assert.match(server, /redirect: "manual"/);
   // A disease guide is not served on /articles/<slug>, matching the client gate.
   assert.match(server, /value\.contentKind === "DISEASE_GUIDE"/);

@@ -62,10 +62,10 @@ services:
         value: "18"
       - key: EMBEDDING_PROVIDER
         value: local
-      # Deterministic public-answer cache stays off on hosted render until
-      # reviewed; local compose enables it (infrastructure/docker-compose.yml).
+      # Bounded (256 entries / 300s) public-answer cache. Repeat catalog
+      # questions return in <10ms instead of a full retrieve+generate pass.
       - key: AI_PUBLIC_CHAT_CACHE_ENABLED
-        value: "false"
+        value: "true"
       - key: AI_SERVICE_RUNTIME
         value: render-beta
       - key: AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL
@@ -169,16 +169,41 @@ services:
 
       # Low-memory footprint tuning for Render Free 512MB RAM constraint.
       # Caps heap, metaspace, code cache, and thread stack size to prevent OOM restart.
+      # ExitOnOutOfMemoryError turns a metaspace/heap OOM into a fast restart
+      # instead of a zombie instance serving 500s while /actuator/health
+      # still reports UP (documented failure mode at this 128m cap).
       - key: JAVA_TOOL_OPTIONS
-        value: "-XX:+UseSerialGC -Xms64m -Xmx180m -XX:MaxMetaspaceSize=128m -Xss384k -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom"
+        value: "-XX:+UseSerialGC -Xms64m -Xmx180m -XX:MaxMetaspaceSize=128m -Xss384k -XX:+ExitOnOutOfMemoryError -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -Djava.security.egd=file:/dev/./urandom"
       - key: MALLOC_ARENA_MAX
         value: "2"
+      # ~20 @Scheduled jobs shared one thread; a catalog-sync or warm-check
+      # burst starved the 50ms chat-cancel reconcile loop.
+      - key: SPRING_TASK_SCHEDULING_POOL_SIZE
+        value: "4"
+      # 50ms reconcile polling produced ~370 Redis EVALs per chat turn; 250ms
+      # stays well under the lease TTL with ~5x fewer ops.
+      - key: AI_CHAT_CANCELLATION_OWNER_POLL_INTERVAL_MS
+        value: "250"
+      # Swagger/OpenAPI model builds ~10-30MB lazily into the 180MB heap and
+      # is not a production surface here.
+      - key: SPRINGDOC_API_DOCS_ENABLED
+        value: "false"
+      - key: SPRINGDOC_SWAGGER_UI_ENABLED
+        value: "false"
+      # Expose micrometer metrics so heap/pool/GC pressure is observable
+      # (BFF-gated like every other non-public endpoint).
+      - key: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+        value: "health,info,metrics"
+      # The 60s clinical warm-check runs an unbounded approved-source select;
+      # 5min still keeps the ai-service warm without the per-minute churn.
+      - key: AI_RAG_INGEST_WARM_CHECK_DELAY_MS
+        value: "300000"
       - key: SERVER_TOMCAT_THREADS_MAX
         value: "16"
       - key: SERVER_TOMCAT_THREADS_MIN_SPARE
         value: "2"
       - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
-        value: "5"
+        value: "8"
       - key: SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE
         value: "1"
 

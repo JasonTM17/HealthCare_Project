@@ -54,14 +54,22 @@ test("public chrome and browser icon reuse the original shield-heart brand mark"
 });
 
 test("root layout renders content immediately without a blocking brand splash", async () => {
-  const layout = await read("app/layout.tsx");
+  const [layout, deferredWidgets] = await Promise.all([
+    read("app/layout.tsx"),
+    read("components/DeferredClientWidgets.tsx"),
+  ]);
 
-  assert.doesNotMatch(layout, /next\/font\/google/);
+  // Fonts are self-hosted via next/font (build-time download); the forbidden
+  // thing is the render-blocking external stylesheet, not self-hosting.
+  assert.doesNotMatch(layout, /fonts\.googleapis\.com/);
   assert.doesNotMatch(layout, /BrandSplash/);
   assert.doesNotMatch(layout, /healthcare-brand-intro-v1/);
   assert.match(layout, /type="application\/ld\+json"/);
   assert.match(layout, /JSON\.stringify\([\s\S]*\.replace\(\/<\/g, "\\\\u003c"\)/);
-  assert.match(layout, /<body[^>]*>[\s\S]*\{children\}[\s\S]*<FloatingHealthAssistant \/>[\s\S]*<\/body>/);
+  // The assistant mounts via the deferred client island so its bundle stays
+  // out of the initial payload; the island itself must still render it.
+  assert.match(layout, /<body[^>]*>[\s\S]*\{children\}[\s\S]*<DeferredClientWidgets \/>[\s\S]*<\/body>/);
+  assert.match(deferredWidgets, /import\("\.\/FloatingHealthAssistant"\)/);
 });
 
 test("live CSS uses one documented primary teal without dual live brand greens", async () => {
@@ -83,10 +91,12 @@ test("live CSS uses one documented primary teal without dual live brand greens",
 test("typography variables provide deterministic font fallbacks without build-time remote fetches", async () => {
   const styles = await read("app/styles.css");
 
-  assert.match(styles, /--font-be-vietnam-pro:\s*"Be Vietnam Pro"/);
+  // The family leads with the self-hosted next/font variable and still names
+  // Be Vietnam Pro as its fallback.
+  assert.match(styles, /--font-be-vietnam-pro:\s*var\(--font-next-bvp\),\s*"Be Vietnam Pro"/);
   // Inter is not loaded by layout.tsx; the sans/body stack leads with the
   // actually-loaded Be Vietnam Pro (wave-2 font-stack cleanup).
-  assert.match(styles, /--font-inter:\s*"Be Vietnam Pro"/);
+  assert.match(styles, /--font-inter:\s*var\(--font-next-bvp\),\s*"Be Vietnam Pro"/);
   assert.doesNotMatch(styles, /--font-inter:\s*"Inter"/);
   assert.match(styles, /--font-display:\s*var\(--font-be-vietnam-pro\)/);
   assert.match(styles, /--font-body:\s*var\(--font-inter\)/);

@@ -1188,6 +1188,9 @@ def test_health_probe_can_recover_after_a_failed_probe() -> None:
         store,  # type: ignore[arg-type]
         max_documents=5,
         fallback_to_memory=True,
+        # Probe caching would hide the recovery; disable it so each call
+        # exercises a real store probe.
+        probe_cache_ttl_seconds=0,
     )
 
     assert service.health_probe() is False
@@ -1203,6 +1206,29 @@ def test_health_probe_can_recover_after_a_failed_probe() -> None:
     )
 
     assert store.upsert_called is True
+
+
+def test_health_probe_caches_within_ttl_to_keep_readiness_cheap() -> None:
+    class CountingProbeStore:
+        probe_calls = 0
+
+        def list_documents(self) -> list[RagDocument]:
+            return []
+
+        def health_probe(self) -> bool:
+            self.probe_calls += 1
+            return True
+
+    store = CountingProbeStore()
+    service = PersistentRagService(
+        store,  # type: ignore[arg-type]
+        max_documents=5,
+        fallback_to_memory=True,
+    )
+
+    assert service.health_probe() is True
+    assert service.health_probe() is True
+    assert store.probe_calls == 1
 
 
 def test_remove_fails_closed_after_a_later_bad_health_probe() -> None:

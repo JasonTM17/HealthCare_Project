@@ -5,11 +5,12 @@ import test from "node:test";
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
 test("cms inline editor is admin-only, client-only and rides the existing admin PUT", async () => {
-  const [editor, liveSlot, store, layout] = await Promise.all([
+  const [editor, liveSlot, store, layout, deferredWidgets] = await Promise.all([
     read("components/cms/CmsInlineEditor.tsx"),
     read("components/cms/CmsLiveSlot.tsx"),
     read("lib/cms-edit-mode.ts"),
     read("app/layout.tsx"),
+    read("components/DeferredClientWidgets.tsx"),
   ]);
 
   // Admin gate: the toolbar and the per-slot affordance both require an
@@ -31,9 +32,11 @@ test("cms inline editor is admin-only, client-only and rides the existing admin 
   assert.match(store, /sessionStorage/);
   assert.doesNotMatch(store, /localStorage/);
   assert.match(store, /export function hydrateCmsEditMode/);
-  // Client-only mount: the layout mounts the toolbar next to the assistant;
-  // no public route file gains route-segment config from this feature.
-  assert.match(layout, /CmsEditModeToolbar/);
+  // Client-only mount: the layout mounts the toolbar next to the assistant
+  // through the deferred client island; no public route file gains
+  // route-segment config from this feature.
+  assert.match(layout, /<DeferredClientWidgets \/>/);
+  assert.match(deferredWidgets, /CmsEditModeToolbar/);
 });
 
 test("cms edit mode never appears for signed-out visitors on public slots", async () => {

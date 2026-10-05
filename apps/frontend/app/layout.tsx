@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Be_Vietnam_Pro } from "next/font/google";
 import { SITE_URL, indexingAllowed } from "../lib/site-url";
 import "./styles.css";
 import "./effects.css";
@@ -6,10 +7,20 @@ import "./typography.css";
 import "./branches/maps.css";
 import "./brand-experience.css";
 import "./catalog-directory.css";
-import FloatingHealthAssistant from "../components/FloatingHealthAssistant";
-import { CmsEditModeToolbar } from "../components/cms/CmsInlineEditor";
 import BackendWarmup from "../components/BackendWarmup";
+import DeferredClientWidgets from "../components/DeferredClientWidgets";
 import OfflineNetworkIndicator from "../components/OfflineNetworkIndicator";
+
+// Self-hosted via next/font: removes the render-blocking Google Fonts
+// stylesheet + third-party DNS/TLS from every page's critical path.
+const beVietnamPro = Be_Vietnam_Pro({
+  subsets: ["latin", "vietnamese"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  style: ["normal", "italic"],
+  variable: "--font-next-bvp",
+  display: "swap",
+});
+
 
 function safeJsonLdStringify(data: unknown): string {
   return JSON.stringify(data)
@@ -62,15 +73,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="vi" data-scroll-behavior="smooth" suppressHydrationWarning
+      className={beVietnamPro.variable}>
       <body suppressHydrationWarning>
         <script
           type="application/ld+json"
@@ -86,8 +90,7 @@ export default function RootLayout({
         />
         {children}
         <OfflineNetworkIndicator />
-        <FloatingHealthAssistant />
-        <CmsEditModeToolbar />
+        <DeferredClientWidgets />
         <BackendWarmup />
       </body>
     </html>
