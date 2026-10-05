@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 679a2ca (PR #85: bounded chat turns, unwedgeable
-# send state machines, RAG statement timeout, local-hash-v2 embeddings).
+# release line, built from de653e8 (chat-lane contract fixes: declined-source
+# safety replies, greeting retry card, browser/BFF timeout pairing).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:647ac596858d73f3643e3c9fedbbf3053b16ab26019bd0d330bbc9892e0c8fe9"
+    "sha256:09f6e26e936684c7ab2c0fb4ceba54fb6bb985593dfbe6286329d778b2834d51"
 )
 
 
