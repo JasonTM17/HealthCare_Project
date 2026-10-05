@@ -224,9 +224,8 @@ async function resolveDemoDoctor(): Promise<{ branch: Branch; doctor: Doctor; sp
  * Fails loudly with a BLOCKED marker when the demo doctor has no same-day
  * availability left, rather than silently skipping the oracle.
  */
-async function findBookableSameDaySelection(): Promise<BookableDemoSlot> {
+async function findBookableSameDaySelection(doctorSession: BrowserSession): Promise<BookableDemoSlot> {
   const demoDoctor = await resolveDemoDoctor();
-  const doctorSession = await loginApi(DEMO_DOCTOR_EMAIL);
   const doctorProfile = await apiJson<Doctor>("/doctor/profile", {}, doctorSession);
   const allBranches = (await apiJson<PageEnvelope<Branch>>("/hospital/branches?size=100")).content;
   const doctorBranchIds = doctorProfile.branchIds?.length
@@ -237,20 +236,20 @@ async function findBookableSameDaySelection(): Promise<BookableDemoSlot> {
   const candidateBranches = allBranches.filter((item) => doctorBranchIds.includes(item.id));
   const date = businessDate(0);
 
-  // The public slot list is per-branch; the hold layer also denies a start
-  // time the doctor already occupies at ANY branch. Exclude those times
-  // up-front so the selected slot survives the transactional guard.
+  // The public slot list is per-branch; the hold layer denies any candidate
+  // whose [start,end) interval OVERLAPS an active appointment at ANY branch
+  // (PENDING_CONFIRMATION with live hold, CONFIRMED, CHECKED_IN, IN_PROGRESS).
+  // Exclude overlapping intervals up-front so the selection survives the
+  // transactional guard.
   const todaysAppointments = await apiJson<PageEnvelope<AppointmentDetails>>(
     `/doctor/appointments?date=${encodeURIComponent(date)}&page=0&size=100`,
     {},
     doctorSession,
   );
-  const OCCUPYING_STATUSES = new Set(["PENDING", "CONFIRMED", "CHECKED_IN", "IN_PROGRESS"]);
-  const occupiedTimes = new Set(
-    todaysAppointments.content
-      .filter((item) => OCCUPYING_STATUSES.has(item.status) && item.startTime)
-      .map((item) => item.startTime!.slice(0, 5)),
-  );
+  const OCCUPYING_STATUSES = new Set(["PENDING_CONFIRMATION", "CONFIRMED", "CHECKED_IN", "IN_PROGRESS"]);
+  const occupiedIntervals = todaysAppointments.content
+    .filter((item) => OCCUPYING_STATUSES.has(item.status) && item.startTime && item.endTime)
+    .map((item) => ({ start: item.startTime!, end: item.endTime! }));
 
   for (const branch of candidateBranches.length ? candidateBranches : [demoDoctor.branch]) {
     const query = new URLSearchParams({ date, branchId: branch.id });
@@ -260,7 +259,9 @@ async function findBookableSameDaySelection(): Promise<BookableDemoSlot> {
     const slot = slots.find(
       (item) => item.available
         && item.branchId === branch.id
-        && !occupiedTimes.has(item.startTime.slice(0, 5)),
+        && !occupiedIntervals.some(
+          (occupied) => item.startTime < occupied.end && item.endTime > occupied.start,
+        ),
     );
     if (slot) {
       return { ...demoDoctor, branch, date, slot };
@@ -272,10 +273,15 @@ async function findBookableSameDaySelection(): Promise<BookableDemoSlot> {
   );
 }
 
-/** Any bookable slot (today-first, then future days) for the payment journey. */
+/**
+ * Future-day bookable slot for the payment journeys. Same-day slots are a
+ * scarce fixture reserved for the clinical test (its CHECKED_IN transition is
+ * today-gated), so payment scans start at offset 1 — payment submission has
+ * no same-day requirement.
+ */
 async function findBookableSelection(): Promise<BookableDemoSlot> {
   const demoDoctor = await resolveDemoDoctor();
-  for (let offset = 0; offset <= 21; offset += 1) {
+  for (let offset = 1; offset <= 21; offset += 1) {
     const date = businessDate(offset);
     const query = new URLSearchParams({ date, branchId: demoDoctor.branch.id });
     const slots = await apiJson<TimeSlot[]>(
@@ -334,7 +340,7 @@ test(
     const doctorProfile = await apiJson<Doctor>("/doctor/profile", {}, doctorSession);
     const patientProfile = await apiJson<{ id: string }>("/patient/profile", {}, patientSession);
 
-    const selection = await findBookableSameDaySelection();
+    const selection = await findBookableSameDaySelection(doctorSession);
 
     // ── hold → real Mailpit OTP → confirm ───────────────────────────────
     const bookingCode = await holdSlot(
@@ -408,14 +414,12 @@ test(
     expect(doctorView, "appointment must stay on the doctor list").toBeTruthy();
     expect(doctorView!.status).toBe("COMPLETED");
 
-    const patientList = await apiJson<PageEnvelope<AppointmentDetails>>(
-      "/patient/appointments?page=0&size=50",
+    const patientView = await apiJson<AppointmentDetails>(
+      `/appointments/${encodeURIComponent(bookingCode)}?phone=${encodeURIComponent(DEMO_PATIENT.phone)}`,
       {},
       patientSession,
     );
-    const patientView = patientList.content.find((item) => item.bookingCode === bookingCode);
-    expect(patientView).toBeTruthy();
-    expect(patientView!.status).toBe("COMPLETED");
+    expect(patientView.status).toBe("COMPLETED");
 
     // ── patient sees the authored record ────────────────────────────────
     const records = await apiJson<MedicalRecord[]>("/patient/medical-records", {}, patientSession);
@@ -442,10 +446,9 @@ test(
     const pdfBytes = Buffer.from(await pdfResponse.arrayBuffer());
     expect(pdfBytes.subarray(0, 5).toString("latin1")).toBe("%PDF-");
     expect(pdfBytes.length).toBeGreaterThan(1_000);
-    if (document.sha256) {
-      const { createHash } = await import("node:crypto");
-      expect(createHash("sha256").update(pdfBytes).digest("hex")).toBe(document.sha256);
-    }
+    expect(document.sha256, "backend must return the issued sha256").toBeTruthy();
+    const { createHash } = await import("node:crypto");
+    expect(createHash("sha256").update(pdfBytes).digest("hex")).toBe(document.sha256);
   },
 );
 
@@ -532,6 +535,7 @@ test(
       },
       patientSession,
     );
+    expect(submitted.status).toBe("PENDING_VERIFICATION");
     const paymentId = submitted.id;
     const approved = await apiJson<BankTransferPayment>(
       `/admin/payments/${encodeURIComponent(paymentId)}`,

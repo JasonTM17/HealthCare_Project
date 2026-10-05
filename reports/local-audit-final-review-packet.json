@@ -4,14 +4,14 @@
   "frozen": true,
   "frozenDate": "2026-10-04",
   "controller": "Team Lead",
-  "targetHead": "ccba16621e61ed9d1dbf0571c1ea6450dff822f1",
-  "targetIdentity": "Frozen committed HEAD ccba16621e61ed9d1dbf0571c1ea6450dff822f1",
+  "targetHead": "5d44a1db8a4048cb2484890b50bbd0b9dcb0cae9",
+  "targetIdentity": "Frozen committed HEAD 20cfdbbebae23cc1e2bed5f87b89b7d1a9f2a3c9",
   "manifestAlgorithm": "Git blob SHA-1 from controller-executed git hash-object in listed path order",
   "reviewerHashVerificationLimit": "Native read-only reviewers cannot execute hashing. Inspect exact scoped sources and report this limit. The controller will recheck all blob identities after reviews; any changed member invalidates that member's review.",
   "sourceManifest": [
     {
       "path": "apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java",
-      "gitBlob": "1e539173c90d2caf063c2e8f03b510210d76071d"
+      "gitBlob": "5a72807becf32aba65abfc765ea378911c702c1b"
     },
     {
       "path": "apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java",
@@ -35,7 +35,7 @@
     },
     {
       "path": "apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java",
-      "gitBlob": "411c1b703d7f7aba317dd07dff6d7acf339c3aa5"
+      "gitBlob": "695523f1258fff8868a93db2b6e2762d15efac26"
     },
     {
       "path": "apps/ai-service/app/chatbot.py",
@@ -91,7 +91,7 @@
     },
     {
       "path": "apps/frontend/tests/e2e/live-compose-lifecycle.spec.ts",
-      "gitBlob": "ab1f0a9de6ba8b60d5b39f34ef762b8ab536a1d1"
+      "gitBlob": "8406adb41431784d6595c0a4b70b9dd6729f7108"
     },
     {
       "path": "apps/backend/src/main/java/com/healthcare/auth/mail/AfterCommitEmailSender.java",
@@ -107,15 +107,15 @@
     },
     {
       "path": "apps/backend/src/main/java/com/healthcare/media/service/MediaAssetService.java",
-      "gitBlob": "136fcf426ad2fbe6c4450f555d316d3074cb0d6b"
+      "gitBlob": "8a0d2173d76092b01f26ae37445dcdb6eff2dfb1"
     },
     {
       "path": "apps/backend/src/main/java/com/healthcare/payment/service/BankStatementParser.java",
-      "gitBlob": "a04041e1eafa1a41fc59ad35d78dcf536c28fd60"
+      "gitBlob": "7f0148e0b456e49b303181528eefbcc30437d916"
     },
     {
       "path": "apps/backend/src/main/java/com/healthcare/security/RequestRateLimitFilter.java",
-      "gitBlob": "6505555ba3978207dc0edf4b3650774c06e1d3ff"
+      "gitBlob": "c83f43dea3d64d9300002c957fe2f01681acfa04"
     },
     {
       "path": "apps/backend/src/test/java/com/healthcare/auth/mail/ApiEmailSenderMaskTest.java",
@@ -123,19 +123,19 @@
     },
     {
       "path": "apps/backend/src/test/java/com/healthcare/media/MediaAssetServiceTest.java",
-      "gitBlob": "791fb3be3c598ebb5d0c30b9c4c0da657603e6f9"
+      "gitBlob": "cf827d62ebbe67faac7d10cb4f628222d56d5ce1"
     },
     {
       "path": "apps/backend/src/test/java/com/healthcare/payment/service/BankStatementParserTest.java",
-      "gitBlob": "019c3813a1b8d4071471daa80998adb8ee12f99d"
+      "gitBlob": "6739ebdee6037789a5259ef2c02152fa4da30b10"
     },
     {
       "path": "apps/backend/src/test/java/com/healthcare/security/RequestRateLimitFilterTest.java",
-      "gitBlob": "f0850c6f69a6a39a1f9aa0d414223f0451755260"
+      "gitBlob": "4e7b88cb16bae2833f1106fc0bccaa581e4c9880"
     },
     {
       "path": "apps/frontend/app/doctor/articles/page.tsx",
-      "gitBlob": "a785d8631c3dd6ee0eef8b817b166332be4194c1"
+      "gitBlob": "6377f070794a669c5c24aff8b53978d397f2b879"
     },
     {
       "path": "apps/frontend/app/doctor/profile/page.tsx",
@@ -147,7 +147,7 @@
     },
     {
       "path": "apps/frontend/app/patient/profile/page.tsx",
-      "gitBlob": "21712748ab7eb8fcdf599028d08482c286235ebf"
+      "gitBlob": "4d93efd2dcbb722ab99b86f246b6686b8297c513"
     },
     {
       "path": "apps/frontend/components/ImageUpload.tsx",
@@ -159,19 +159,19 @@
     },
     {
       "path": "apps/frontend/components/editor/RichContentRenderer.tsx",
-      "gitBlob": "1c3659faf3b39ecb2e36a861bbaa43ba58d011d5"
+      "gitBlob": "da78d2faa69ee9ec3325969d0c2ea329b83c321d"
     },
     {
       "path": "apps/frontend/components/editor/RichTextEditor.tsx",
-      "gitBlob": "231fd6c7f8fa62f931fa31433285cdf32110ec94"
+      "gitBlob": "8ae7bba04620413831f4fb4db151bf541d987eb4"
     },
     {
       "path": "apps/frontend/lib/api-client.ts",
-      "gitBlob": "ff443dd9548f31acf1673f0e57cf86a4099192a3"
+      "gitBlob": "03e9d2556dc82f8c22eb904819c60e473cd1cc75"
     },
     {
       "path": "apps/frontend/tests/editor-round-trip.test.mjs",
-      "gitBlob": "4c398f11b984be9b981113ea4f380c43c3379a08"
+      "gitBlob": "cc154cc56eaf0cdaaf16da9910681159a91591f8"
     },
     {
       "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java",
@@ -212,6 +212,10 @@
     {
       "path": "apps/backend/src/test/java/com/healthcare/ai/chat/service/ChatSuggestedActionResolverTest.java",
       "gitBlob": "bfef327d6e35ba0692a374dc3e842e42ff1e4208"
+    },
+    {
+      "path": "apps/frontend/tests/e2e/live-compose-clinical-payment.spec.ts",
+      "gitBlob": "536b42e0c4fa7e2f05aa1470ce6750b8f043c746"
     }
   ],
   "authority": "R0: source and captured evidence only; no writes, commands, peers, service calls, DB queries, secrets, production, commits, push, deployment, or release sign-off",
@@ -307,6 +311,6 @@
   ],
   "acceptanceState": "NOT_ACCEPTED; first independent repaired-snapshot review may return blockers and will be followed by rework, broader verification, fresh review, and the Team Lead verdict",
   "runtime": "Native read-only Explore fallback executing specialist role instructions; actual underlying model is unknown and model-family independence/production qualification is not established",
-  "identity": "Scoped Git blob SHA-1 manifest refreshed on committed HEAD ccba16621e61ed9d1dbf0571c1ea6450dff822f1 covering chatbot v5.1 (b5a99e5) + remediation wave (ccba166) changed files plus prior audit scope; 51 files",
-  "revision": "v2-refresh-after-v5.1-chatbot-wave11"
+  "identity": "Scoped Git blob SHA-1 manifest on frozen committed HEAD 20cfdbbebae23cc1e2bed5f87b89b7d1a9f2a3c9 (chatbot b5a99e5 + remediation ccba166 + wukong-fix baf5ffa); 51 files",
+  "revision": "v2-refresh-after-v5.1-chatbot-wave111"
 }
