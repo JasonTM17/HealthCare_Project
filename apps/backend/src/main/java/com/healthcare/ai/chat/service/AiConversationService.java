@@ -1045,8 +1045,22 @@ public class AiConversationService {
             String idempotencyKey,
             String content) {
         AiConversation conversation = requireOwnedForUpdate(conversationId, userId);
-        ensureModeEnabled(conversation.getMode());
-        requireCurrentConsent(conversation);
+        // Crisis bypass ahead of the mode and consent gates (same ordering
+        // invariant as the public endpoints): the canned 115 guidance is a
+        // fixed safety answer, not the provider processing those gates
+        // protect — a disabled mode or a stale consent version must not turn
+        // a crisis message into a bare 503/428. Ownership still runs first:
+        // nothing is emitted for a conversation the caller does not own, and
+        // the idempotency/in-flight gates below still apply — a replayed
+        // crisis key returns its stored exchange, and a genuinely in-flight
+        // send still conflicts.
+        SanitizedAiResponse freeAnswer = ChatMedicalSafety.containsEmergencyInputCue(content)
+            ? safetyResponse(conversation.getMode(), "EMERGENCY", content)
+            : null;
+        if (freeAnswer == null) {
+            ensureModeEnabled(conversation.getMode());
+            requireCurrentConsent(conversation);
+        }
         recoverStaleInFlight(conversation);
         var existing = messageRepository.findByConversationIdAndIdempotencyKey(
             conversationId,
@@ -1126,10 +1140,11 @@ public class AiConversationService {
         // the credit check using the same detection the public controller and
         // the local fallback already trust
         // (ChatMedicalSafety#containsEmergencyInputCue — no second lexicon).
-        // When it matches, the answer is the canned static EMERGENCY text
-        // produced by safetyResponse with zero provider work, carried as the
-        // prepared free answer; complete() waives the EMERGENCY outcome, so no
-        // credit is charged for it even when the patient can pay.
+        // The check itself now sits further up — before the mode/consent
+        // gates — and its canned EMERGENCY answer arrives here as the
+        // prepared free answer with zero provider work; complete() waives the
+        // EMERGENCY outcome, so no credit is charged for it even when the
+        // patient can pay.
         // Weekly refill (V108), after the crisis bypass: an emergency answer
         // never touches credits, so it does not need — and must not trigger —
         // a grant. Placing the refill right before the balance gate is what
@@ -1148,10 +1163,7 @@ public class AiConversationService {
         // sees the abort, the chat turn is not poisoned, and the gate runs
         // against the balance as it is. AiCreditService#
         // refillPatientCreditsWeekly documents the contract.
-        SanitizedAiResponse freeAnswer = null;
-        if (ChatMedicalSafety.containsEmergencyInputCue(content)) {
-            freeAnswer = safetyResponse(conversation.getMode(), "EMERGENCY", content);
-        } else {
+        if (freeAnswer == null) {
             if (aiCreditService != null) {
                 try {
                     aiCreditService.refillPatientCreditsWeekly(userId);
