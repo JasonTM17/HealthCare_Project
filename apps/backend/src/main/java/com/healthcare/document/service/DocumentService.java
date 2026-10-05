@@ -126,11 +126,21 @@ public class DocumentService {
         try {
             documentRepository.acquireGenerationLock(
                     "DOCUMENT_GENERATION:" + request.sourceType().name() + ":" + request.sourceRecordId());
+            // lock_timeout stays armed for the rest of the transaction, so a
+            // later contended row lock surfaces the same way as a contended
+            // advisory lock — map both to the retryable 409, not a 500.
+            return generateDocumentLocked(patientId, request, principal);
         } catch (PessimisticLockingFailureException exception) {
             auditService.record(principal, patientId, TARGET_DOCUMENT,
                 request.sourceRecordId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY);
             throw new BusinessException(409, "Tài liệu đang được tạo, vui lòng thử lại sau giây lát");
         }
+    }
+
+    private DocumentResponse generateDocumentLocked(
+            UUID patientId,
+            GenerateDocumentRequest request,
+            UserDetails principal) {
         PatientProfile patient = patientProfileRepository.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found with ID: " + patientId));
 
@@ -420,9 +430,24 @@ public class DocumentService {
         }
         try {
             InputStream stream = objectStore.get(document.getObjectKey());
+            // Re-validate once more after the fetch: a revoke that committed
+            // during objectStore.get must not hand out a live stream.
+            try {
+                entityManager.refresh(document);
+            } catch (jakarta.persistence.EntityNotFoundException exception) {
+                document.setStatus(DocumentStatus.REVOKED);
+            }
+            if (document.getStatus() != DocumentStatus.AVAILABLE) {
+                stream.close();
+                auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
+                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+                throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
+            }
             auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW);
             return new DocumentDownload(document, stream);
+        } catch (AccessDeniedException | BusinessException exception) {
+            throw exception;
         } catch (Exception exception) {
             auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);

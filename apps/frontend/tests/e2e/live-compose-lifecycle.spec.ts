@@ -288,23 +288,40 @@ test("live appointment lifecycle: hold→OTP→confirm→reschedule→double-boo
   });
   expect(confirmed.status).not.toBe("CANCELLED");
 
-  // ── double-book negative: the same slot must no longer be holdable ───
+  // ── slot occupancy: the taken start time must flip to unavailable ────
+  const occupiedSlots = await apiJson<TimeSlot[]>(
+    `/appointments/doctors/${encodeURIComponent(selection.doctor.id)}/slots?` +
+    `date=${selection.date}&branchId=${selection.branch.id}`,
+  );
+  const takenSlot = occupiedSlots.find(
+    (item) => item.startTime === selection.slot.startTime && item.branchId === selection.branch.id,
+  );
+  expect(takenSlot, "booked slot must remain visible in the public slot list").toBeTruthy();
+  expect(takenSlot!.available).toBe(false);
+
+  // ── double-book negative: a DIFFERENT guest identity must be denied ──
+  // A distinct email/phone rules out a same-holder duplicate guard as the
+  // deny reason — only slot occupancy can explain the rejection.
   const conflict = await apiStatus("/appointments/hold", {
     method: "POST",
     body: JSON.stringify({
       doctorId: selection.doctor.id,
       appointmentDate: selection.date,
       startTime: selection.slot.startTime,
-      fullName: DEMO_PATIENT.name,
-      phone: DEMO_PATIENT.phone,
-      email: DEMO_PATIENT.email,
+      fullName: "Khách Kiểm Tra Lifecycle",
+      phone: "0900000099",
+      email: "lifecycle-probe@healthcare.local",
       reasonForVisit: "Live Compose lifecycle E2E: double-book probe.",
       specialtyId: selection.specialty.id,
       branchId: selection.branch.id,
       privacyConsent: true,
     }),
-  }, patientSession);
-  expect([400, 409, 422, 423]).toContain(conflict.status);
+  });
+  expect(conflict.status).toBe(409);
+  // The denial must come from the slot-occupancy guard, not request validation:
+  // the hold payload is valid, so a 4xx for any other reason (validation,
+  // rate limit, auth) fails this oracle.
+  expect(conflict.body).toMatch(/vừa có người đặt|đang được giữ chỗ|giữ chỗ/u);
 
   // ── reschedule to the alternate slot (authenticated owner) ──────────
   const rescheduled = await apiJson<AppointmentDetails>(
@@ -330,6 +347,21 @@ test("live appointment lifecycle: hold→OTP→confirm→reschedule→double-boo
   );
   const doctorView = doctorList.content.find((item) => item.bookingCode === bookingCode);
   expect(doctorView, "appointment must appear in the doctor portal list").toBeTruthy();
+  // The doctor-side view must reflect the rescheduled slot, proving it reads
+  // the live appointment row rather than a stale projection.
+  expect(doctorView!.appointmentDate?.startsWith(alternate.date)).toBeTruthy();
+  expect(doctorView!.startTime?.startsWith(alternate.slot.startTime.slice(0, 5))).toBeTruthy();
+
+  // Patient-side cross-check: the same appointment must carry this doctor's
+  // id on the patient's own list — scoping the work to the right physician.
+  const patientList = await apiJson<PageEnvelope<AppointmentDetails>>(
+    "/patient/appointments?page=0&size=50",
+    {},
+    patientSession,
+  );
+  const patientView = patientList.content.find((item) => item.bookingCode === bookingCode);
+  expect(patientView, "appointment must appear in the patient portal list").toBeTruthy();
+  expect(patientView!.doctorId).toBe(selection.doctor.id);
 
   // ── owner cancel → terminal CANCELLED via public lookup ─────────────
   const cancelled = await apiJson<AppointmentDetails>(

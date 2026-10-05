@@ -203,18 +203,44 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         );
     }
 
+    private String decodePath(String raw) {
+        if (raw == null || raw.indexOf('%') < 0) {
+            return raw;
+        }
+        StringBuilder decoded = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char c = raw.charAt(i);
+            if (c == '%' && i + 2 < raw.length()) {
+                int hi = Character.digit(raw.charAt(i + 1), 16);
+                int lo = Character.digit(raw.charAt(i + 2), 16);
+                if (hi >= 0 && lo >= 0) {
+                    decoded.append((char) ((hi << 4) + lo));
+                    i += 2;
+                    continue;
+                }
+            }
+            decoded.append(c);
+        }
+        return decoded.toString();
+    }
+
     private LimitRule ruleFor(HttpServletRequest request) {
         String method = request.getMethod();
-        String rawPath = request.getRequestURI();
+        // getRequestURI is undecoded per the servlet spec; rules must match the
+        // same decoded path Spring routes on, or %XX smuggling evades every bucket.
+        String rawPath = decodePath(request.getRequestURI());
         String path = (rawPath != null && rawPath.length() > 1 && rawPath.endsWith("/"))
             ? rawPath.substring(0, rawPath.length() - 1)
             : rawPath;
         if (path == null) {
             return null;
         }
+        // Spring MVC serves HEAD implicitly on @GetMapping: the handler and its
+        // DB query still execute, so HEAD must share the read buckets.
+        String effectiveMethod = "HEAD".equals(method) ? "GET" : method;
 
         // 1. Authentication and identity endpoints
-        if ("POST".equals(method) && (path.equals("/api/v1/auth/login")
+        if ("POST".equals(effectiveMethod) && (path.equals("/api/v1/auth/login")
                 || path.equals("/api/v1/auth/browser-sessions")
                 || path.equals("/api/v1/auth/register") || path.equals("/api/v1/auth/refresh")
                 || path.equals("/api/v1/auth/email-verifications/confirm")
@@ -236,35 +262,35 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
 
         // 2. Appointment booking and lifecycle management
-        if ("POST".equals(method) && path.startsWith("/api/v1/appointments/")) {
+        if ("POST".equals(effectiveMethod) && path.startsWith("/api/v1/appointments/")) {
             return new LimitRule("appointments", appointmentLimit);
         }
         // 2b. Public slot-availability reads are unauthenticated: without a
         // bucket they are an unlimited availability-scraping and doctor-ID
         // enumeration oracle plus a DB-load amplifier.
-        if ("GET".equals(method) && path.matches("^/api/v1/appointments/doctors/[^/]+/slots$")) {
+        if ("GET".equals(effectiveMethod) && path.matches("^/api/v1/appointments/doctors/[^/]+/slots$")) {
             return new LimitRule("slots", defaultPostLimit);
         }
 
         // 3. Payment gateway webhooks
-        if ("POST".equals(method) && path.equals("/api/v1/payments/webhooks/bank-transfer")) {
+        if ("POST".equals(effectiveMethod) && path.equals("/api/v1/payments/webhooks/bank-transfer")) {
             return new LimitRule("payment-webhook", webhookLimit);
         }
 
         // 4. Payment submissions, statement imports and administrative refunds
-        if (("POST".equals(method) && path.matches("^/api/v1/patient/appointments/[^/]+/payment/submit$"))
-                || ("POST".equals(method) && path.equals("/api/v1/admin/payments/statements/import"))
-                || ("PATCH".equals(method) && path.matches("^/api/v1/admin/payments/[^/]+(?:/refund)?$"))) {
+        if (("POST".equals(effectiveMethod) && path.matches("^/api/v1/patient/appointments/[^/]+/payment/submit$"))
+                || ("POST".equals(effectiveMethod) && path.equals("/api/v1/admin/payments/statements/import"))
+                || ("PATCH".equals(effectiveMethod) && path.matches("^/api/v1/admin/payments/[^/]+(?:/refund)?$"))) {
             return new LimitRule("payments", paymentLimit);
         }
 
         // 5. Job applications
-        if ("POST".equals(method) && path.matches("^/api/v1/careers/jobs/[^/]+/applications$")) {
+        if ("POST".equals(effectiveMethod) && path.matches("^/api/v1/careers/jobs/[^/]+/applications$")) {
             return new LimitRule("career-applications", careerApplicationLimit);
         }
 
         // 6. Public triage recommendation
-        if ("POST".equals(method) && path.equals("/api/v1/public/specialty-recommendation")) {
+        if ("POST".equals(effectiveMethod) && path.equals("/api/v1/public/specialty-recommendation")) {
             return new LimitRule("public-triage", publicTriageLimit);
         }
 
@@ -272,12 +298,12 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         // when an active chat needs to stop. Untrusted requests still use a
         // separate bounded bucket, and the controller independently verifies
         // the same credential before writing cancellation state.
-        if ("POST".equals(method)
+        if ("POST".equals(effectiveMethod)
                 && path.matches("^/api/v1/internal/ai/chat-cancellations/[0-9a-fA-F-]{36}$")
                 && bffRequestVerifier.isTrusted(request)) {
             return null;
         }
-        if ("POST".equals(method) && path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
+        if ("POST".equals(effectiveMethod) && path.startsWith("/api/v1/internal/ai/chat-cancellations/")) {
             return new LimitRule("ai-chat-cancellation", aiCancellationLimit);
         }
 
@@ -285,16 +311,16 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         // cannot create unbounded guest records while the public AI bucket
         // remains unchanged. Heartbeats are exempt only for the trusted BFF;
         // the controller also validates each single-use Redis permit.
-        if ("POST".equals(method)
+        if ("POST".equals(effectiveMethod)
                 && path.matches("^/api/v1/internal/ai/chat-leases/[0-9a-fA-F-]{36}/renew$")
                 && bffRequestVerifier.isTrusted(request)) {
             return null;
         }
-        if ("POST".equals(method)
+        if ("POST".equals(effectiveMethod)
                 && path.matches("^/api/v1/internal/ai/chat-leases/[0-9a-fA-F-]{36}/open$")) {
             return new LimitRule("ai-chat-lease-open", aiLimit);
         }
-        if ("POST".equals(method) && path.startsWith("/api/v1/internal/ai/chat-leases/")) {
+        if ("POST".equals(effectiveMethod) && path.startsWith("/api/v1/internal/ai/chat-leases/")) {
             return new LimitRule("ai-chat-lease-control", aiCancellationLimit);
         }
 
@@ -304,27 +330,27 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         // a legitimate sender sharing one NAT address. Mutations keep the
         // shared "ai" bucket.
         if (path.startsWith("/api/v1/ai/") || path.equals("/api/v1/public/ai/chat")) {
-            if ("GET".equals(method) || "HEAD".equals(method)) {
+            if ("GET".equals(effectiveMethod) || "HEAD".equals(effectiveMethod)) {
                 return null;
             }
             return new LimitRule("ai", aiLimit);
         }
 
         // 8. Consultations (patient, doctor, admin)
-        if ("POST".equals(method) && (path.startsWith("/api/v1/patient/consultations")
+        if ("POST".equals(effectiveMethod) && (path.startsWith("/api/v1/patient/consultations")
                 || path.startsWith("/api/v1/doctor/consultations")
                 || path.startsWith("/api/v1/admin/consultations"))) {
             return new LimitRule("consultations", consultationLimit);
         }
 
         // 9. Care plans (doctor creation/management, patient item completion)
-        if ("POST".equals(method) && (path.startsWith("/api/v1/doctor/care-plans")
+        if ("POST".equals(effectiveMethod) && (path.startsWith("/api/v1/doctor/care-plans")
                 || path.startsWith("/api/v1/patient/care-plans"))) {
             return new LimitRule("care-plans", carePlanLimit);
         }
 
         // 10. Clinical records and diagnostic results
-        if ("POST".equals(method) && (path.startsWith("/api/v1/clinical/")
+        if ("POST".equals(effectiveMethod) && (path.startsWith("/api/v1/clinical/")
                 || path.matches("^/api/v1/doctor/patients/[^/]+/diagnostic-results.*"))) {
             return new LimitRule("clinical", clinicalLimit);
         }
@@ -333,7 +359,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         // generation lives under /api/v1/patients/{id}/documents — the old
         // /api/v1/documents prefix never matched the real path, so document
         // generation fell through to the 60/min catch-all.
-        if ("POST".equals(method) && (path.equals("/api/v1/media/upload")
+        if ("POST".equals(effectiveMethod) && (path.equals("/api/v1/media/upload")
                 || path.equals("/api/v1/files/upload")
                 || path.startsWith("/api/v1/documents")
                 || path.matches("^/api/v1/patients/[^/]+/documents.*"))) {
@@ -341,7 +367,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
 
         // 12. Doctor article publication
-        if ("POST".equals(method) && path.equals("/api/v1/doctor/articles")) {
+        if ("POST".equals(effectiveMethod) && path.equals("/api/v1/doctor/articles")) {
             return new LimitRule("doctor-articles", doctorArticleLimit);
         }
 
@@ -351,19 +377,19 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         // matching only /api/v1/articles/... meant comment posts fell through to
         // the catch-all default-post tier and the tighter community limit never
         // applied to the endpoint it was written for.
-        if ("POST".equals(method) && (path.startsWith("/api/v1/patient/health-questions")
+        if ("POST".equals(effectiveMethod) && (path.startsWith("/api/v1/patient/health-questions")
                 || path.matches("^/api/v1/(?:hospital/)?articles/[^/]+/comments.*"))) {
             return new LimitRule("community", communityLimit);
         }
 
         // 14. Admin backoffice mutations
-        if (("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method))
+        if (("POST".equals(effectiveMethod) || "PUT".equals(effectiveMethod) || "PATCH".equals(effectiveMethod) || "DELETE".equals(effectiveMethod))
                 && path.startsWith("/api/v1/admin/")) {
             return new LimitRule("admin-mutations", adminMutationLimit);
         }
 
         // 15. Catch-all for ANY other mutation endpoint (ensures 100% of mutation APIs are rate-limited)
-        if ("POST".equals(method) || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method)) {
+        if ("POST".equals(effectiveMethod) || "PUT".equals(effectiveMethod) || "PATCH".equals(effectiveMethod) || "DELETE".equals(effectiveMethod)) {
             return new LimitRule("default-post", defaultPostLimit);
         }
 

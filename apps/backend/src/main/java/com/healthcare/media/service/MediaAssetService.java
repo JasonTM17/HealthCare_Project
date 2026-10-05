@@ -134,18 +134,25 @@ public class MediaAssetService {
                 .map(User::getId)
                 .orElse(null);
 
-            uploaderRole = userDetails.getAuthorities().stream()
+            java.util.Set<String> roles = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .filter(a -> a.startsWith("ROLE_"))
                 .map(a -> a.substring(5))
-                .findFirst()
-                .orElse("USER");
+                .collect(java.util.stream.Collectors.toSet());
+            // findFirst() on an unordered authority stream is nondeterministic
+            // for multi-role accounts; resolve by descending privilege so a
+            // PATIENT+DOCTOR principal is not silently treated as patient-only.
+            uploaderRole = roles.contains("ADMIN") ? "ADMIN"
+                : roles.contains("DOCTOR") ? "DOCTOR"
+                : roles.contains("PATIENT") ? "PATIENT"
+                : roles.stream().findFirst().orElse("USER");
         }
 
         // Every stored asset is publicly retrievable by id, so the only
         // purpose a patient may claim is their own avatar — anything else
         // would let a patient publish arbitrary images under the clinic
-        // domain labeled as catalog content.
+        // domain labeled as catalog content. A principal that also carries a
+        // staff role resolved above is bound by that role instead.
         if ("PATIENT".equals(uploaderRole) && !"PATIENT_AVATAR".equals(normalizedPurpose)) {
             throw new BusinessException(403, "Bạn không có quyền tải ảnh cho mục đích này.");
         }

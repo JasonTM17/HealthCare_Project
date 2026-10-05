@@ -86,4 +86,42 @@ class BankStatementParserTest {
         assertThat(result.rows().getFirst().transferContent()).isEqualTo("HC 0001");
         assertThat(result.rows().getFirst().bankReference()).isNull();
     }
+
+    @Test
+    void unicodeSpaceBlankContentCountsInvalid() {
+        // U+00A0 (and other Unicode separators) are not Character.isWhitespace:
+        // a visually-blank transfer content must never reach the INSERT.
+        var result = BankStatementParser.parse(
+            "200000;HC 0001;FT-001\n"
+                + "100000; ;FT-002\n"
+                + "100000; ;FT-003\n");
+
+        assertThat(result.invalidLines()).isEqualTo(2);
+        assertThat(result.rows()).hasSize(1);
+    }
+
+    @Test
+    void malformedFirstDataLineWithDigitsCountsInvalid() {
+        // A header line is digit-free; a first line carrying digits whose
+        // amount does not parse is a malformed data row — counted, not dropped.
+        var result = BankStatementParser.parse(
+            "N/A;REAL PAYMENT;FT-1\n"
+                + "200000;HC 0001;FT-002\n");
+
+        assertThat(result.invalidLines()).isEqualTo(1);
+        assertThat(result.rows()).hasSize(1);
+    }
+
+    @Test
+    void commaDecimalInsideSemicolonRowDoesNotSplitIntoPhantomCells() {
+        // Semicolon-dialect row with a comma decimal amount: splitting on both
+        // separators would fabricate a plausible but wrong row.
+        var result = BankStatementParser.parse(
+            "1234,56;HC 0001\n"
+                + "200000;HC 0002;FT-002\n");
+
+        assertThat(result.invalidLines()).isEqualTo(1);
+        assertThat(result.rows()).hasSize(1);
+        assertThat(result.rows().getFirst().transferContent()).isEqualTo("HC 0002");
+    }
 }
