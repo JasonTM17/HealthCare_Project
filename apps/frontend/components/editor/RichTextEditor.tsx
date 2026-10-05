@@ -75,7 +75,8 @@ function containsHtml(value: string): boolean {
  */
 function normalizedInsertUrl(url: string): string | null {
   const trimmed = url.trim();
-  if (!trimmed || trimmed.startsWith("//")) return null;
+  // WHATWG treats "\\" as "/", so /\\host or \\/path would escape the origin.
+  if (!trimmed || trimmed.startsWith("//") || trimmed.includes("\\")) return null;
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")) return trimmed;
   return null;
 }
@@ -1785,11 +1786,13 @@ export function RichTextEditor({
         </button>
         <button
           aria-label="Danh sách kiểm tra"
-          className="rounded-[3px] px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-teal-900 cursor-pointer"
-          disabled={disabled || viewMode === "preview"}
+          className="rounded-[3px] px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-teal-900 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={disabled || viewMode === "preview" || viewMode === "tinymce"}
           onClick={() => prefixLines("- [ ] ")}
           onMouseDown={(e) => e.preventDefault()}
-          title="Danh sách kiểm tra (- [ ])"
+          title={viewMode === "tinymce"
+            ? "Danh sách kiểm tra chỉ khả dụng ở chế độ Markdown — chuyển sang trình soạn thảo Markdown để dùng"
+            : "Danh sách kiểm tra (- [ ])"}
           type="button"
         >
           ☑ Kiểm tra

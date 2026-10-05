@@ -350,22 +350,27 @@ export default function DoctorArticlesPage() {
       readingMinutes: parseInt(readingMinutes, 10) || 5,
       summary: summary.trim(),
       body: storedBody,
-      coverImageUrl: coverImageUrl.trim() || undefined,
+      // An empty string clears the stored cover server-side (trimToNull);
+      // omitting the key would silently keep the old asset referenced.
+      coverImageUrl: coverImageUrl.trim(),
       active,
     };
 
     try {
-      if (editingSlug) {
-        await doctorUpdateArticle(editingSlug, payload);
-        setSuccess("Đã cập nhật bài viết y khoa thành công!");
-      } else {
-        await doctorCreateArticle(payload);
-        setSuccess("Đã đăng bài viết y khoa mới thành công! Bài viết sẽ hiển thị trong Cẩm nang sức khỏe của bệnh viện khi được xuất bản công khai.");
-      }
+      const saved = editingSlug
+        ? await doctorUpdateArticle(editingSlug, payload)
+        : await doctorCreateArticle(payload);
+      setSuccess(editingSlug
+        ? "Đã cập nhật bài viết y khoa thành công!"
+        : "Đã đăng bài viết y khoa mới thành công! Bài viết sẽ hiển thị trong Cẩm nang sức khỏe của bệnh viện khi được xuất bản công khai.");
       // Persisted cover changed → previous uploaded asset is unreferenced.
-      const orphanedId = persistedCoverUrlRef.current !== (payload.coverImageUrl ?? "")
+      // Diff against the server echo so a still-referenced asset is never
+      // deleted (e.g. when the backend declined to apply the removal).
+      const persistedCover = saved.coverImageUrl ?? "";
+      const orphanedId = persistedCoverUrlRef.current !== persistedCover
         ? mediaAssetIdFromUrl(persistedCoverUrlRef.current)
         : null;
+      persistedCoverUrlRef.current = persistedCover;
       if (orphanedId) {
         deleteMediaAsset(orphanedId).catch(() => undefined);
       }

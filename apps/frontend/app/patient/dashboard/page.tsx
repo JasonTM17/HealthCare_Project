@@ -10,6 +10,7 @@ import {
   ApiError,
   cancelPatientAppointment,
   clearAuthSession,
+  deleteMediaAsset,
   downloadProtectedFile,
   fetchBankTransferPayment,
   fetchPatientProfile,
@@ -23,6 +24,7 @@ import {
   hasRole,
   markAllNotificationsAsRead,
   markNotificationAsRead,
+  mediaAssetIdFromUrl,
   rescheduleAppointment,
   submitBankTransfer,
   updatePatientProfile,
@@ -1397,19 +1399,28 @@ export default function PatientDashboardPage() {
     setProfileOperation("saving");
     setProfileNotice(null);
     try {
+      const previousAvatarUrl = profile?.status === "success" ? profile.data.avatarUrl ?? "" : "";
       const saved = await updatePatientProfile({
         fullName: profileForm.fullName.trim(),
         dateOfBirth: profileForm.dateOfBirth || undefined,
         gender: profileForm.gender || undefined,
-        address: profileForm.address.trim() || undefined,
-        emergencyContactName: profileForm.emergencyContactName.trim() || undefined,
-        emergencyContactPhone: profileForm.emergencyContactPhone.trim() || undefined,
-        avatarUrl: profileForm.avatarUrl.trim() || undefined,
-        medicalHistory: profileForm.medicalHistory.trim() || undefined,
-        allergies: profileForm.allergies.trim() || undefined,
-        bloodType: profileForm.bloodType.trim() || undefined,
+        address: profileForm.address.trim(),
+        emergencyContactName: profileForm.emergencyContactName.trim(),
+        emergencyContactPhone: profileForm.emergencyContactPhone.trim(),
+        // Blank strings persist as null so avatar/field removal actually saves.
+        avatarUrl: profileForm.avatarUrl.trim(),
+        medicalHistory: profileForm.medicalHistory.trim(),
+        allergies: profileForm.allergies.trim(),
+        bloodType: profileForm.bloodType.trim(),
       });
       setProfile({ status: "success", data: saved });
+      // Persisted avatar changed → the previous media asset is unreferenced.
+      const orphanedId = previousAvatarUrl !== (saved.avatarUrl ?? "")
+        ? mediaAssetIdFromUrl(previousAvatarUrl)
+        : null;
+      if (orphanedId) {
+        deleteMediaAsset(orphanedId).catch(() => undefined);
+      }
       setProfileNotice("Đã cập nhật hồ sơ cá nhân và tiền sử bệnh thành công.");
     } catch (error) {
       setProfileNotice(getErrorMessage(error));

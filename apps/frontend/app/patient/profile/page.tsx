@@ -219,13 +219,15 @@ export default function PatientProfilePage() {
         fullName: fullName.trim(),
         dateOfBirth: dateOfBirth || undefined,
         gender,
-        avatarUrl: avatarUrl.trim() || undefined,
-        address: address.trim() || undefined,
-        emergencyContactName: emergencyContactName.trim() || undefined,
-        emergencyContactPhone: emergencyContactPhone.trim() || undefined,
-        bloodType: bloodType.trim() || undefined,
-        medicalHistory: medicalHistory.trim() || undefined,
-        allergies: allergies.trim() || undefined,
+        // Blank strings are sent deliberately: the backend maps them to null,
+        // so clearing a field actually persists instead of being ignored.
+        avatarUrl: avatarUrl.trim(),
+        address: address.trim(),
+        emergencyContactName: emergencyContactName.trim(),
+        emergencyContactPhone: emergencyContactPhone.trim(),
+        bloodType: bloodType.trim(),
+        medicalHistory: medicalHistory.trim(),
+        allergies: allergies.trim(),
       });
       setProfile(updated);
       // The persisted avatar changed → the previous media asset is now
