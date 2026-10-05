@@ -77,7 +77,10 @@ export function isSafeUrl(url: string): boolean {
     trimmed.startsWith("vbscript:") ||
     trimmed.startsWith("data:") ||
     trimmed.startsWith("//") ||
-    trimmed.startsWith("\\\\")
+    trimmed.startsWith("\\\\") ||
+    // WHATWG URL parsing treats "\\" as "/", so /\\evil.example or \\/x
+    // silently resolve to //evil.example — same check as the CMS validator.
+    trimmed.includes("\\")
   ) {
     return false;
   }
@@ -277,6 +280,23 @@ function isTableSeparator(line: string): boolean {
 }
 
 /**
+ * Splits a markdown table row on unescaped pipes. `toTableCell` writes `\|`
+ * for literal pipes inside cells, so a raw `split("|")` silently re-parses
+ * escaped content (e.g. dosage text "5 mg \| 3 lần/ngày") into phantom
+ * columns. Leading/trailing border pipes are only stripped when unescaped.
+ */
+function parseTableRow(row: string): string[] {
+  let trimmedRow = row.trim();
+  if (trimmedRow.startsWith("|")) trimmedRow = trimmedRow.slice(1);
+  if (trimmedRow.endsWith("|") && !trimmedRow.endsWith("\\|")) {
+    trimmedRow = trimmedRow.slice(0, -1);
+  }
+  return trimmedRow
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.trim().replace(/\\\|/g, "|"));
+}
+
+/**
  * Checks whether lines starting at index `i` form the start of a valid markdown table.
  */
 function isTableStart(lines: string[], i: number): boolean {
@@ -435,21 +455,14 @@ export function parseMarkdownBlocks(rawText: string, depth = 0): ParsedBlock[] {
       }
 
       if (tableLines.length >= 2 && isTableSeparator(tableLines[1])) {
-        const parseRow = (r: string): string[] => {
-          let trimmedRow = r.trim();
-          if (trimmedRow.startsWith("|")) trimmedRow = trimmedRow.slice(1);
-          if (trimmedRow.endsWith("|")) trimmedRow = trimmedRow.slice(0, -1);
-          return trimmedRow.split("|").map((c) => c.trim());
-        };
-
-        const headers = parseRow(tableLines[0]);
-        const alignments: ("left" | "center" | "right")[] = parseRow(tableLines[1]).map((cell) => {
+        const headers = parseTableRow(tableLines[0]);
+        const alignments: ("left" | "center" | "right")[] = parseTableRow(tableLines[1]).map((cell) => {
           const c = cell.trim();
           if (c.startsWith(":") && c.endsWith(":")) return "center";
           if (c.endsWith(":")) return "right";
           return "left";
         });
-        const rows = tableLines.slice(2).map(parseRow);
+        const rows = tableLines.slice(2).map(parseTableRow);
         blocks.push({
           type: "table",
           headers,
@@ -920,13 +933,17 @@ const HTML_NAMED_ENTITY_MAP: Record<string, string> = {
 export function decodeHtmlEntities(text: string): string {
   if (!text) return "";
   return text.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]+);/gi, (match, entity: string) => {
+    const inRange = (cp: number) => Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff;
     if (entity.startsWith("#x") || entity.startsWith("#X")) {
       const codePoint = Number.parseInt(entity.slice(2), 16);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+      // Out-of-range values (&#x110000;, &#99999999;) throw in fromCodePoint
+      // and would crash the whole public render path — fall back to the
+      // literal entity instead of unbounded decoding.
+      return inRange(codePoint) ? String.fromCodePoint(codePoint) : match;
     }
     if (entity.startsWith("#")) {
       const codePoint = Number.parseInt(entity.slice(1), 10);
-      return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+      return inRange(codePoint) ? String.fromCodePoint(codePoint) : match;
     }
     return HTML_NAMED_ENTITY_MAP[entity] ?? match;
   });
@@ -1495,7 +1512,12 @@ export function markdownToHtml(md: string): string {
     return md;
   }
 
-  const lines = md.split(/\r?\n/);
+  const lines = md.split(/\r?\n/).map((sourceLine) =>
+    // Checklist source lines (- [ ] item) have no TinyMCE checklist widget;
+    // degrade them to the same marker glyphs the public renderer shows so
+    // the editor never displays a literal "[ ]" the author might "fix".
+    sourceLine.replace(/^(\s*[-*+]\s+)\[([ xX])\]\s+/, (_m, bullet, mark) =>
+      `${bullet}${mark.toLowerCase() === "x" ? "☑" : "☐"} `));
   const htmlParts: string[] = [];
   let i = 0;
 
@@ -1505,13 +1527,21 @@ export function markdownToHtml(md: string): string {
     // close the attribute the pattern just opened. The substitutions below
     // insert real tags after this point, so they are deliberately not escaped.
     let s = escapeHtmlText(text);
+    // Stored markdown keeps underline as a literal <u> tag (htmlToMarkdown
+    // emits it); restore the tag after escaping so the editor shows real
+    // underline instead of visible "&lt;u&gt;" markup.
+    s = s.replace(/&lt;u&gt;/g, "<u>").replace(/&lt;\/u&gt;/g, "</u>");
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt, url) =>
       `<img src="${escapeHtmlAttribute(url)}" alt="${escapeHtmlAttribute(alt)}" />`);
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, url) =>
       `<a href="${escapeHtmlAttribute(url)}">${label}</a>`);
+    s = s.replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>");
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/__([^_]+)__/g, "<strong>$1</strong>");
     s = s.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<em>$1</em>");
+    // CommonMark intra-word underscore isolation — same rule the display
+    // parser uses so covid_19_vaccine and ICD_10_CM never italicize.
+    s = s.replace(/(?:^|(?<=[\s\p{P}]))_([^_]+)_(?:$|(?=[\s\p{P}]))/gu, "<em>$1</em>");
     s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
     s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
     return s;
@@ -1616,14 +1646,8 @@ export function markdownToHtml(md: string): string {
         i++;
       }
       if (tableLines.length >= 2 && isTableSeparator(tableLines[1])) {
-        const parseRow = (r: string) => {
-          let tr = r.trim();
-          if (tr.startsWith("|")) tr = tr.slice(1);
-          if (tr.endsWith("|")) tr = tr.slice(0, -1);
-          return tr.split("|").map((c) => c.trim());
-        };
-        const headers = parseRow(tableLines[0]);
-        const rows = tableLines.slice(2).map(parseRow);
+        const headers = parseTableRow(tableLines[0]);
+        const rows = tableLines.slice(2).map(parseTableRow);
         const ths = headers.map((h) => `<th scope="col">${formatInline(h)}</th>`).join("");
         const trs = rows.map((r) => `<tr>${r.map((c) => `<td>${formatInline(c)}</td>`).join("")}</tr>`).join("");
         htmlParts.push(`<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`);

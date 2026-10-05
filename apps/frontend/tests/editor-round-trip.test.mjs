@@ -50,7 +50,7 @@ function extractConverters() {
   const lastConverter = slice.lastIndexOf("export function markdownToHtml(");
   const end = findFunctionEnd(slice, lastConverter);
 
-  const preamble = ["isTableSeparator", "isTableStart"].map(grabFunction).join("\n\n");
+  const preamble = ["isTableSeparator", "isTableStart", "parseTableRow"].map(grabFunction).join("\n\n");
 
   const { outputText } = ts.transpileModule(`${preamble}\n\n${slice.slice(0, end)}`, {
     compilerOptions: {
@@ -446,4 +446,47 @@ test("C14 the guard still flags in-flight uploads after the escaping fixes", () 
   assert.equal(hasUnresolvedInlineUpload("![sơ đồ v2](blob:https://h/x)"), true);
   assert.equal(hasUnresolvedInlineUpload('<img src="data:image/png;base64,AA==" />'), true);
   assert.equal(hasUnresolvedInlineUpload("![sơ đồ v2](/media/x%281%29.png)"), false);
+});
+
+// -- Wave-3 editor-review regressions --------------------------------------------
+
+test("R5 an escaped cell pipe does not create a phantom column on re-open", () => {
+  const html =
+    "<table><tr><th>Thuốc</th><th>Liều</th></tr>"
+    + "<tr><td>Amlodipine</td><td>5 mg | 3 lần/ngày</td></tr></table>";
+
+  const markdown = htmlToMarkdown(html);
+  const reOpened = markdownToHtml(markdown);
+  const bodyCells = reOpened.split("<td>").slice(1);
+
+  assert.equal(bodyCells.length, 2, `phantom column appeared: ${reOpened}`);
+  assert.ok(reOpened.includes("5 mg | 3 lần/ngày"), `pipe content lost: ${reOpened}`);
+});
+
+test("R6 an out-of-range numeric entity cannot crash the converter", () => {
+  assert.doesNotThrow(() => htmlToMarkdown("<p>&#x110000;</p>"));
+  assert.doesNotThrow(() => htmlToMarkdown("<p>&#99999999;</p>"));
+  // In-range entities still decode normally.
+  assert.ok(htmlToMarkdown("<p>Nhiệt độ 37&#8451;</p>").includes("37℃"));
+});
+
+test("R4 stored underline re-opens as real underline, not literal markup", () => {
+  const html = markdownToHtml("Dùng <u>đúng liều</u> mỗi ngày.");
+  assert.ok(html.includes("<u>đúng liều</u>"), `underline shown as markup: ${html}`);
+  assert.ok(!html.includes("&lt;u&gt;"), `literal tag visible: ${html}`);
+});
+
+test("R4 bold-italic and underscore emphasis survive re-open", () => {
+  const html = markdownToHtml("***rất quan trọng*** và _nhẹ nhàng_ hơn.");
+  assert.ok(html.includes("<strong><em>rất quan trọng</em></strong>"), html);
+  assert.ok(html.includes("<em>nhẹ nhàng</em>"), html);
+  // Intra-word underscores in clinical identifiers stay literal.
+  assert.ok(markdownToHtml("ICD_10_CM").includes("ICD_10_CM"));
+});
+
+test("R4 a checklist source line degrades to a visible marker, not '[ ]'", () => {
+  const html = markdownToHtml("- [ ] Tái khám sau 2 tuần\n- [x] Uống đủ nước");
+  assert.ok(html.includes("☐ Tái khám sau 2 tuần"), html);
+  assert.ok(html.includes("☑ Uống đủ nước"), html);
+  assert.ok(!html.includes("[ ]"), html);
 });

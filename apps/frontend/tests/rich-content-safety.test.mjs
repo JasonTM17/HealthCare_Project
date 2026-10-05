@@ -40,6 +40,11 @@ test("renderInlineMarkdown sanitizes image and link URLs with an allowlist", asy
   assert.equal(isSafeUrlFn("data:text/html,<script>alert(1)</script>"), false);
   assert.equal(isSafeUrlFn("https://healthcare.id.vn/articles"), true);
   assert.equal(isSafeUrlFn("/articles/phac-do-dieu-tri"), true);
+  // WHATWG URL parsing treats "\\" as "/", so these silently resolve to
+  // //evil.example and must be rejected like a protocol-relative URL.
+  assert.equal(isSafeUrlFn("/\\evil.example/x"), false);
+  assert.equal(isSafeUrlFn("\\/evil.example"), false);
+  assert.equal(isSafeUrlFn("https:\\evil.example"), false);
 });
 
 test("htmlToMarkdown strips script and style tag blocks", async () => {
