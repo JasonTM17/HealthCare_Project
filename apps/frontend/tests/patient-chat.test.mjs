@@ -307,5 +307,6 @@ test("patient chat blocks the create paths for a policy-unlisted mode", async ()
   // the always-available support mode once the policy arrives — unless the
   // user already chose a mode or is viewing a persisted conversation.
   assert.match(page, /if \(!chatPolicy \|\| modeTouchedRef\.current \|\| activeConversation \|\| selectedConversationId\) return;/);
-  assert.match(page, /if \(!chatPolicy\.enabledModes\?\.includes\(selectedMode\)\) setSelectedMode\("HOSPITAL_SUPPORT"\);/);
+  assert.match(page, /if \(chatPolicy\.enabledModes\?\.includes\(selectedMode\)\) return;/);
+  assert.match(page, /setTimeout\(\(\) => setSelectedMode\("HOSPITAL_SUPPORT"\), 0\)/);
 });

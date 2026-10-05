@@ -30,7 +30,7 @@ test("Flow 1: Empty / whitespace / short prompts are rejected before network and
   );
   assert.match(
     source,
-    /disabled=\{!selectedConversationId \|\| sendLocked \|\| !draftIsValid \|\| currentConsentRequired\}/,
+    /disabled=\{!selectedConversationId \|\| sendLocked \|\| !draftIsValid \|\| currentConsentRequired \|\| selectedModeUnavailable\}/,
     "Send button must be disabled when draft is invalid",
   );
 
@@ -172,7 +172,7 @@ test("Flow 1: Quota debiting contract is strictly transactional upon completed a
   );
   assert.match(
     backendService,
-    /containsEmergencyInputCue\(content\)\) \{[\s\S]*freeAnswer = safetyResponse\(conversation\.getMode\(\), "EMERGENCY", content\)/,
+    /freeAnswer = ChatMedicalSafety\.containsEmergencyInputCue\(content\)\s*\?\s*safetyResponse\(conversation\.getMode\(\), "EMERGENCY", content\)\s*:\s*null;/,
     "a crisis message must resolve to the free canned emergency answer before the credit gate",
   );
 
