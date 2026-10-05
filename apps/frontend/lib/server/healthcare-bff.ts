@@ -76,7 +76,8 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
   "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|cap\\s+cuu|"
     + "dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|kho\\s+tho(?:\\s+du\\s+doi)?|"
     + "meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
-    + "co\\s+giat(?!\\s*(?:ui|la|giu?|do|quan|ao|khan)(?:\\s|$))|"
+    + "co\\s+giat(?!\\s*(?:ui|la|giu?|quan|ao|khan)(?:\\s|$))"
+    + "(?!\\s*do\\b(?!\\s+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))|"
     + "heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|shortness\\s+of\\s+breath|"
     + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
     + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
@@ -85,10 +86,10 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     + "difficultybreathing|cantbreathe|cannotbreathe|notbreathing|severebleeding|"
     + "suddencollapse|lossofconsciousness|nhoimaucotim|ngungtim|ngungtho|battinh|matythuc|"
     + "suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|want\\s+to\\s+die|self\\s+harm|"
-    + "(?:(?:muon|dinh|tinh|quyet)\\s+tu\\s+tu"
-    + "|nghi\\s+(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
+    + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
+    + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
     + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
-    + "khong\\s+muon\\s+song|tutu|tusat|muonchet|khongmuonsong|cogiat|"
+    + "khong\\s+muon\\s+song|tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|cogiat|"
     + "that\\s+nguc|dau\\s+nguc\\s+lan|khong\\s+tho\\s+duoc|yeu\\s+liet|liet\\s+nua\\s+nguoi|"
     + "ngat\\s+xiu|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
     + "nhoi\\s+mau\\s+tim|va\\s+mo\\s+hoi\\s+lanh|mo\\s+mat\\s+dot\\s+ngot|soc\\s+phan\\s+ve|"
@@ -676,7 +677,9 @@ function readPublicChatMessage(body: ArrayBuffer | undefined): string {
   if (!body) return "";
   try {
     const parsed = JSON.parse(Buffer.from(body).toString("utf8")) as { message?: unknown };
-    return typeof parsed.message === "string" ? parsed.message.slice(0, 500) : "";
+    // 4096 matches the backend EMERGENCY_SCAN_LIMIT: the fallback must spot a
+    // crisis cue in an overlong message the same way the backend does.
+    return typeof parsed.message === "string" ? parsed.message.slice(0, 4096) : "";
   } catch {
     return "";
   }
@@ -1252,7 +1255,10 @@ export async function proxyHealthcareRequest(
         });
         if (!openResponse.ok) {
           await cancelUpstreamBody(openResponse, "BFF_CHAT_LEASE_OPEN_REJECTED");
-          if (chatLeaseScope === "PUBLIC_CHAT" && PUBLIC_AI_FALLBACK_STATUSES.has(openResponse.status)) {
+          if (chatLeaseScope === "PUBLIC_CHAT") {
+            // Any lease-open rejection degrades to the safe public answer —
+            // a 4xx (bad lease state, origin config) must not surface a bare
+            // 502 in front of a possibly-crisis message either.
             stopLeaseHeartbeat();
             return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
           }

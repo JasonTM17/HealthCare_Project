@@ -73,7 +73,14 @@ public final class ChatMedicalSafety {
             + "(?!\\s+(?>(?:" + VEHICLE_CUE + "))\\b"
             + "(?!\\s+(?:" + BODY_PART_CUE + ")\\b))|dau\\s+(?:(?>"
             + VEHICLE_CUE + ")\\s+)?(?:" + BODY_PART_CUE + ")|kho\\s+tho|"
-            + "sot|ngat|co\\s+giat|chay\\s+mau|tu\\s+tu|chan\\s+doan|ke\\s+don|"
+            + "sot|ngat|co\\s+giat(?!\\s*(?:ui|la|giu?|quan|ao|khan)(?:\\s|$))"
+            + "(?!\\s*do\\b(?!\\s+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))"
+            + "|chay\\s+mau|"
+            // Same volition/thinking-idiom guard as EMERGENCY_INPUT_CUE:
+            // folded "từ từ" (slowly) must not mark input clinically-protected.
+            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
+            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
+            + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|chan\\s+doan|ke\\s+don|"
             + "(?:uong|dung|mua|ke|don|tiem|boi|chich|xit|giam|tang|ngung|cat|pha)\\s+thuoc|"
             + "(?<!(?<![a-z0-9])(?:nha|quay|hang) )thuoc(?!\\s+(?:khoa|co\\s+so|benh\\s+vien|thanh\\s+pho)\\b)|"
             + "lieu\\s+thuoc|trieu\\s+chung|non|tieu\\s+chay|chong\\s+mat|"
@@ -93,7 +100,7 @@ public final class ChatMedicalSafety {
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
-    private static final int EMERGENCY_SCAN_LIMIT = 4096;
+    public static final int EMERGENCY_SCAN_LIMIT = 4096;
     private static final Pattern EMERGENCY_INPUT_CUE = Pattern.compile(
         "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|"
             + "stroke|cap\\s+cuu|dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|"
@@ -101,7 +108,12 @@ public final class ChatMedicalSafety {
             // "co giat" (convulsion) must not fire on the amenity question
             // "co giat ui/la/..." (laundry service) — same spelling after
             // diacritic folding, so the exclusion list follows the word.
-            + "co\\s+giat(?!\\s*(?:ui|la|giu?|do|quan|ao|khan)(?:\\s|$))|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
+            // "do" is doubly ambiguous: "giặt đồ" (laundry) and "do" (because
+            // of). It suppresses the alert only when a medical-reason word
+            // does NOT follow — "co giật do sốt cao" stays an emergency.
+            + "co\\s+giat(?!\\s*(?:ui|la|giu?|quan|ao|khan)(?:\\s|$))"
+            + "(?!\\s*do\\b(?!\\s+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))"
+            + "|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
             + "shortness\\s+of\\s+breath|difficulty\\s+breathing|cant\\s+breathe|"
             + "cannot\\s+breathe|not\\s+breathing|severe\\s+bleeding|unresponsive|"
             + "collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
@@ -116,10 +128,14 @@ public final class ChatMedicalSafety {
             // volition/thinking idiom precedes it ("muốn/định/tính/quyết tự
             // tử", "nghĩ (đến việc|về|tới) tự tử", "có ý (định) tự tử"); the
             // concatenated "tutu" and unambiguous phrases keep full recall.
-            + "(?:(?:muon|dinh|tinh|quyet)\\s+tu\\s+tu"
-            + "|nghi\\s+(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
+            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
+            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
             + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
-            + "khong\\s+muon\\s+song|tutu|tusat|muonchet|khongmuonsong|cogiat)(?![a-z0-9])",
+            + "khong\\s+muon\\s+song|"
+            // Joined "tutu" counts when it opens a token and does not continue
+            // into a benign word ("tutuc", "tutuong") — same prefix contract as
+            // ai-service's stream-start squash rule.
+            + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|cogiat)(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
 

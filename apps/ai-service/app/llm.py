@@ -764,11 +764,12 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|kho\W+tho\b|meo\W+mieng\b|yeu\W+liet\b"
     # "co giat" (convulsion) folds identically to "có giặt" (laundry amenity
     # question); escalate only when the next word is not a laundry noun.
-    r"|co\W+giat\b(?!\W+(?:ui|la|giu?|do|quan|ao|khan)\b)"
+    r"|co\W+giat\b(?!\W+(?:ui|la|giu?|quan|ao|khan)\b)"
+    r"(?!\W+do\b(?!\W+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))"
     # "tu tu" is both "tự tử" and benign "từ từ" (slowly); require a volition
     # or thinking idiom in front, as in app.emergency_terms._TUTU_CRISIS.
-    r"|(?:(?:muon|dinh|tinh|quyet)\W+tu\W+tu"
-    r"|nghi\W+(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
+    r"|(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+tu\W+tu"
+    r"|nghi\W+(?!ngoi\b)(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
     r"|co\W+y\W+(?:dinh\W+)?tu\W+tu)\b"
     r"|dot\W+quy\b|tai\W+bien(?:\W+mach\W+mau\W+nao)?\b|dau\W+tim\b|nhoi\W+mau\W+co\W+tim\b|ngung\W+tho\b|ngung\W+tim\b|bat\W+tinh\b|mat\W+y\W+thuc\b"
     r"|dau\W+(?:sau\W+)?xuong\W+uc\b|sau\W+xuong\W+uc\b|xuong\W+uc\b"

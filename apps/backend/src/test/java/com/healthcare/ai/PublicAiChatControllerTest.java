@@ -737,7 +737,11 @@ class PublicAiChatControllerTest {
         for (String message : List.of(
             "tôi sẽ đi từ từ đến bệnh viện",
             "có giặt ủi ở đây không",
-            "có giặt đồ không nhỉ")) {
+            "có giặt đồ không nhỉ",
+            // "nghỉ ngơi từ từ" (rest slowly) must not read as "nghĩ ... tự tử".
+            "tôi cần nghỉ ngơi từ từ",
+            // Joined benign opening: "từ từ thôi" — not "tự tử".
+            "tututhoi nhe bac si")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))
@@ -763,7 +767,12 @@ class PublicAiChatControllerTest {
             "tôi đang nghĩ đến việc tự tử",
             "tôi nghĩ về tự tử nhiều",
             "tôi đang muốn chết",
-            "tôi không muốn sống nữa")) {
+            "tôi không muốn sống nữa",
+            // Joined-syllable crisis typed at token start ("tự tử trôi").
+            "tututroi buon qua",
+            // "do" here is "because of", not laundry "đồ" — the reason word
+            // after it must keep the emergency firing.
+            "bé co giật do sốt cao")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))
@@ -1236,6 +1245,39 @@ class PublicAiChatControllerTest {
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForArticle())
             .chat(new PublicAiChatController.PublicChatRequest(
                 "x".repeat(501), null), null))
+            .isInstanceOfSatisfying(com.healthcare.exception.BusinessException.class,
+                ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(400);
+                    assertThat(ex.getCode()).isEqualTo("VALIDATION_ERROR");
+                });
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void crisisCueInsideScanWindowStillReturnsEmergencyGuidance() {
+        // Window boundary, inner edge: the cue sits past the 500-char limit
+        // but inside the 4096-char scan window, so it must still fire.
+        AiService aiService = mock(AiService.class);
+
+        Map<String, Object> body = new PublicAiChatController(
+            aiService, resolverForArticle(), null, null, false)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "x".repeat(600) + " tôi muốn tự tử", null), null)
+            .getBody();
+
+        assertThat(body).containsEntry("safety_action", "EMERGENCY");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void crisisCuePastScanWindowFallsBackToLengthValidation() {
+        // Window boundary, outer edge: a cue starting after char 4096 is not
+        // scanned, so the overlong message degrades to the normal 400.
+        AiService aiService = mock(AiService.class);
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForArticle())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "x".repeat(4200) + " tôi muốn tự tử", null), null))
             .isInstanceOfSatisfying(com.healthcare.exception.BusinessException.class,
                 ex -> {
                     assertThat(ex.getStatus()).isEqualTo(400);

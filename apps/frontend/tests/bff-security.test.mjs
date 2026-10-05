@@ -642,6 +642,10 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "unresponsive",
     "cannot breathe",
     "yeu nua nguoi",
+    // Joined-syllable crisis at token start ("tự tử trôi") and the
+    // "do = because of" form ("co giật do sốt cao") must still fire.
+    "tututroi buon qua",
+    "bé co giật do sốt cao",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -670,6 +674,9 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "tôi sẽ đi từ từ đến bệnh viện",
     "phòng khám có giặt ủi không",
     "cho hỏi có giặt đồ không nhỉ",
+    // "nghỉ ngơi từ từ" is benign, and joined "từ từ thôi" is not "tự tử".
+    "tôi cần nghỉ ngơi từ từ",
+    "tututhoi nhe bac si",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {

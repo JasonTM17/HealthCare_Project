@@ -159,7 +159,11 @@ public class PublicAiChatController {
 
         String userMessage = request.message().trim();
         List<Map<String, String>> recentTurns = mappedTurns;
-        ChatMode publicMode = ChatSuggestedActionResolver.publicMode(userMessage);
+        // Mode classification runs before the length rejection, so it must
+        // see only the same bounded window the emergency scan uses — an
+        // oversized body must not amplify into unbounded regex work.
+        ChatMode publicMode = ChatSuggestedActionResolver.publicMode(
+            userMessage.substring(0, Math.min(userMessage.length(), ChatMedicalSafety.EMERGENCY_SCAN_LIMIT)));
         payload.put("mode", publicMode.name());
         // Emergency guidance runs before every other gate on this endpoint —
         // the same invariant the public triage service enforces: an overlong
