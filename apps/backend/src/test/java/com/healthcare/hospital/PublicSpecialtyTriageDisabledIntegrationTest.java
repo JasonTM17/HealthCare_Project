@@ -47,4 +47,32 @@ class PublicSpecialtyTriageDisabledIntegrationTest extends AbstractRedisIntegrat
                 org.hamcrest.Matchers.containsString("115")))
             .andExpect(jsonPath("$.specialty_resolution").value("UNRESOLVED"));
     }
+
+    @Test
+    void overlongEmergencyStillReturnsGuidanceInsteadOfLengthRejection() throws Exception {
+        // A crisis phrase buried past the 500-char limit must still win over
+        // the length check — the DTO only enforces @NotBlank so the service
+        // can order emergency detection ahead of every other rejection.
+        String padding = "đau đầu nhẹ ".repeat(60);
+        mockMvc.perform(post("/api/v1/public/specialty-recommendation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "symptoms", padding + "tôi muốn chết"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.urgency_level").value("EMERGENCY"))
+            .andExpect(jsonPath("$.clinical_advice").value(
+                org.hamcrest.Matchers.containsString("115")));
+    }
+
+    @Test
+    void suicideCueReturnsGuidanceWhenFeatureDisabled() throws Exception {
+        mockMvc.perform(post("/api/v1/public/specialty-recommendation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "symptoms", "tôi đang nghĩ đến việc tự tử"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.urgency_level").value("EMERGENCY"))
+            .andExpect(jsonPath("$.clinical_advice").value(
+                org.hamcrest.Matchers.containsString("115")));
+    }
 }

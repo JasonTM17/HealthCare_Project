@@ -3,7 +3,6 @@ package com.healthcare.hospital.controller;
 import com.healthcare.hospital.service.PublicSpecialtyTriageService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,6 +31,9 @@ public class PublicSpecialtyTriageController {
         return ResponseEntity.ok(publicSpecialtyTriageService.triage(request.symptoms()));
     }
 
-    public record PublicTriageRequest(@NotBlank @Size(min = 2, max = 500) String symptoms) {
+    // Only @NotBlank here: the service must see overlong input so the
+    // emergency check can run before the length rejection — a long crisis
+    // message still gets the 115 guidance, not a bare 400.
+    public record PublicTriageRequest(@NotBlank String symptoms) {
     }
 }

@@ -40,13 +40,13 @@ public class PublicSpecialtyTriageService {
      * normalized (diacritic-folded, đ→d) lexicon the AI safety boundary and
      * the public chat controller use, so this endpoint cannot drift from it.
      * This pattern carries ONLY the few acute expressions the shared lexicon
-     * does not list — tự sát, xuất huyết, đau tim, unconscious — kept as an
-     * explicit remainder so adopting the shared vocabulary cannot silently
-     * lose coverage this endpoint already had. It is matched against
-     * accent-folded text, never raw input.
+     * does not list — xuất huyết, đau tim, unconscious — kept as an explicit
+     * remainder so adopting the shared vocabulary cannot silently lose
+     * coverage this endpoint already had. It is matched against accent-folded
+     * text, never raw input.
      */
     private static final Pattern EMERGENCY_SUPPLEMENT = Pattern.compile(
-        "(?<![a-z0-9])(?:tu\\s+sat|xuat\\s+huyet|dau\\s+tim|unconscious)(?![a-z0-9])",
+        "(?<![a-z0-9])(?:xuat\\s+huyet|dau\\s+tim|unconscious)(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE
     );
     private static final Pattern PII = Pattern.compile(
@@ -68,21 +68,24 @@ public class PublicSpecialtyTriageService {
     @Transactional(readOnly = true)
     public Map<String, Object> triage(String rawSymptoms) {
         String symptoms = rawSymptoms == null ? "" : rawSymptoms.trim();
-        if (symptoms.length() < 2 || symptoms.length() > 500) {
-            throw new BusinessException(400, ErrorCodes.VALIDATION_ERROR,
-                "Mô tả triệu chứng phải dài từ 2 đến 500 ký tự.");
-        }
-        // Emergency check runs FIRST, before every rejection path (audit A4):
-        // a crisis message that also carries PII or a diagnose-shaped phrase
-        // must still receive the 115 guidance, never a 422 with none — and
-        // never a 503 from the feature flag, which an operator flipping the
-        // switch must not be able to turn into a lost crisis response.
+        // Emergency check runs FIRST, before every other rejection path
+        // (audit A4): a crisis message that is overlong, carries PII, or a
+        // diagnose-shaped phrase must still receive the 115 guidance, never
+        // a bare 400/422 — and never a 503 from the feature flag, which an
+        // operator flipping the switch must not be able to turn into a lost
+        // crisis response. The request DTO therefore only enforces
+        // {@code @NotBlank} (an empty input cannot be a crisis message);
+        // the length check below runs after emergency detection.
         // Detection is delegated to the shared ChatMedicalSafety lexicon —
         // normalized and diacritic-folded, so an accent-free "dau nguc du
         // doi" matches — instead of this class keeping its own diacritic-
         // anchored list that could drift from the AI safety boundary.
         if (isEmergency(symptoms)) {
             return emergencyPayload();
+        }
+        if (symptoms.length() < 2 || symptoms.length() > 500) {
+            throw new BusinessException(400, ErrorCodes.VALIDATION_ERROR,
+                "Mô tả triệu chứng phải dài từ 2 đến 500 ký tự.");
         }
         if (!enabled) {
             throw new BusinessException(503, ErrorCodes.AI_UNAVAILABLE, "Public specialty triage is disabled");

@@ -1130,6 +1130,42 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void publicEducationLaneHonorsHealthEducationKillSwitch() {
+        AiService aiService = mock(AiService.class);
+        PublicAiChatController controller = new PublicAiChatController(
+            aiService, resolverForArticle(), null, null, false);
+
+        assertThatThrownBy(() -> controller.chat(
+            new PublicAiChatController.PublicChatRequest(
+                "Bài viết nào hướng dẫn đo huyết áp?", null), null))
+            .isInstanceOfSatisfying(com.healthcare.exception.BusinessException.class,
+                ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(503);
+                    assertThat(ex.getCode()).isEqualTo("AI_UNAVAILABLE");
+                });
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void publicEducationEmergencyStillAnswersWhenKillSwitchOff() {
+        AiService aiService = mock(AiService.class);
+        PublicAiChatController controller = new PublicAiChatController(
+            aiService, resolverForArticle(), null, null, false);
+
+        Map<String, Object> body = controller.chat(
+            new PublicAiChatController.PublicChatRequest(
+                "Tôi đang muốn chết, cho tôi bài viết về bệnh", null), null)
+            .getBody();
+
+        assertThat(body).containsEntry("safety_action", "EMERGENCY");
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
     void keepsMixedFaqBookingQuestionInOperationalMode() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(

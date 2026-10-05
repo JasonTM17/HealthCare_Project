@@ -677,11 +677,19 @@ function FloatingHealthAssistantPanel({
   const conversationModeUnavailable = Boolean(
     conversation?.mode && !modeAvailable(conversation.mode),
   );
+  // With no conversation yet, the provider's pending `mode` is what a create
+  // would carry — a clinical mode can sit there without any picker gating
+  // (picked while enabled then the flag flipped, seeded by account settings,
+  // or set before the fresh policy arrived). Gate every send affordance on
+  // the mode a request would actually use, not only the persisted one.
+  const sendModeUnavailable = conversationModeUnavailable || (!conversation && !modeAvailable(mode));
   const visibleMessages = messages.slice(-THREAD_VISIBLE_LIMIT);
   const threadTruncated = messages.length > visibleMessages.length;
 
   const ensureConversation = async (signal: AbortSignal, epoch: number): Promise<AiConversation> => {
     if (conversation) return conversation;
+    // Defense in depth: never issue a create for a policy-unlisted mode.
+    if (!modeAvailable(mode)) throw Object.assign(new Error("mode unavailable"), { code: "AI_UNAVAILABLE" });
     const created = await createAiConversation({ mode, consentAccepted: false, signal });
     if (isCurrentLocalRequest(epoch)) syncConversation(created);
     return created;
@@ -690,6 +698,9 @@ function FloatingHealthAssistantPanel({
   async function handleModeChange(nextMode: ChatMode): Promise<void> {
     if (nextMode === mode || creatingMode || sending || consentBusy) return;
     if (!isPatient && nextMode !== "HOSPITAL_SUPPORT") return;
+    // Same fail-closed rule as the send paths: a mode the policy does not
+    // list would 503 at create, so refuse it here instead.
+    if (!modeAvailable(nextMode)) return;
     if (!conversation) {
       setMode(nextMode);
       return;
@@ -787,7 +798,7 @@ function FloatingHealthAssistantPanel({
     // Defense in depth: retry/suggestion call sites re-enter here without the
     // composer's disabled attribute — refuse sends on a disabled-mode
     // conversation so they cannot reach the backend's 503.
-    if (conversationModeUnavailable) return;
+    if (sendModeUnavailable) return;
     const normalized = content.trim();
     const inputLimit = MAX_MESSAGE_LENGTH;
     // State updates are batched. Guard synchronously before a second submit can
@@ -913,7 +924,7 @@ function FloatingHealthAssistantPanel({
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (draft.trim().length >= 2 && !sending && !consentBlocked && !conversationModeUnavailable) {
+    if (draft.trim().length >= 2 && !sending && !consentBlocked && !sendModeUnavailable) {
       event.currentTarget.form?.requestSubmit();
     }
   };
@@ -981,9 +992,11 @@ function FloatingHealthAssistantPanel({
           ) : null}
 
           <>
-              {conversationModeUnavailable ? (
+              {sendModeUnavailable ? (
                 <section className={styles.consentPanel} role="note">
-                  <p>Chế độ của cuộc trò chuyện này tạm chưa khả dụng. Bạn có thể đọc lại lịch sử, hoặc bắt đầu cuộc trò chuyện mới bằng một mục đích đang mở.</p>
+                  <p>{conversationModeUnavailable
+                    ? "Chế độ của cuộc trò chuyện này tạm chưa khả dụng. Bạn có thể đọc lại lịch sử, hoặc bắt đầu cuộc trò chuyện mới bằng một mục đích đang mở."
+                    : "Mục đích trò chuyện này tạm chưa khả dụng. Hãy chọn một mục đích đang mở."}</p>
                 </section>
               ) : null}
               {consentBlocked ? (
@@ -1029,7 +1042,7 @@ function FloatingHealthAssistantPanel({
                           const index = messages.indexOf(message);
                           const previous = index > 0 ? messages[index - 1] : null;
                           if (!previous || previous.role !== "USER" || pendingUserMessage) return null;
-                          return <button disabled={conversationModeUnavailable} onClick={() => void handleSend(previous.content)} type="button">Thử lại</button>;
+                          return <button disabled={sendModeUnavailable} onClick={() => void handleSend(previous.content)} type="button">Thử lại</button>;
                         })()}
                       </div>
                     ) : null}
@@ -1168,7 +1181,7 @@ function FloatingHealthAssistantPanel({
                     </strong>
                     <span>{failure.message}</span>
                   </div>
-                  {failure.retryable && lastFailedContent ? <button disabled={conversationModeUnavailable} onClick={() => void handleSend(lastFailedContent)} type="button">Thử lại</button> : null}
+                  {failure.retryable && lastFailedContent ? <button disabled={sendModeUnavailable} onClick={() => void handleSend(lastFailedContent)} type="button">Thử lại</button> : null}
                 </div>
               ) : null}
 
@@ -1181,7 +1194,7 @@ function FloatingHealthAssistantPanel({
               {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked && !requiresLogin ? (
                 <div className={styles.suggestions}>
                   {getSuggestedQuestions(pathname, mode).map((question) => (
-                    <button disabled={sending || conversationModeUnavailable} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
+                    <button disabled={sending || sendModeUnavailable} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
                   ))}
                 </div>
               ) : null}
@@ -1210,7 +1223,7 @@ function FloatingHealthAssistantPanel({
                 <label className="sr-only" htmlFor="floating-health-assistant-input">Câu hỏi cho trợ lý sức khỏe</label>
                 <textarea
                   aria-describedby="floating-health-assistant-help"
-                  disabled={sending || consentBlocked || conversationModeUnavailable}
+                  disabled={sending || consentBlocked || sendModeUnavailable}
                   id="floating-health-assistant-input"
                   maxLength={MAX_MESSAGE_LENGTH}
                   onChange={(event) => {
@@ -1242,7 +1255,7 @@ function FloatingHealthAssistantPanel({
                     <UiIcon name="x" size={17} />
                   </button>
                 ) : (
-                  <button aria-label="Gửi câu hỏi" className={styles.sendButton} disabled={consentBlocked || conversationModeUnavailable || draft.trim().length < 2} title="Gửi câu hỏi" type="submit">
+                  <button aria-label="Gửi câu hỏi" className={styles.sendButton} disabled={consentBlocked || sendModeUnavailable || draft.trim().length < 2} title="Gửi câu hỏi" type="submit">
                     <UiIcon name="send" size={17} />
                   </button>
                 )}

@@ -290,3 +290,22 @@ test("patient chat locks every send path when the conversation mode is unavailab
   assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| currentConsentRequired \|\| selectedModeUnavailable\}/);
   assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| !draftIsValid \|\| currentConsentRequired \|\| selectedModeUnavailable\}/);
 });
+
+test("patient chat blocks the create paths for a policy-unlisted mode", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  // Wukong CE-1a regression: `selectedMode` can hold a disabled mode without
+  // any picker gating — seeded from `accountSettings.chatDefaultMode` or
+  // synced by `loadThread` from a conversation whose mode was later disabled.
+  // The create button, the create handler, the mode-select create, and the
+  // save-as-default affordance must all refuse to issue a doomed request.
+  assert.match(page, /if \(!modeAvailable\(selectedMode\)\) \{\s*setConversationFailure\(\{\s*code: "AI_UNAVAILABLE"/);
+  assert.match(page, /disabled=\{interactionLocked \|\| !modeAvailable\(selectedMode\)\}/);
+  assert.match(page, /nextMode === selectedMode\) return;\s*if \(!modeAvailable\(nextMode\)\) return;/);
+  assert.match(page, /disabled=\{settingsBusy \|\| !accountSettings \|\| !modeAvailable\(selectedMode\)\}/);
+  // A persisted default that no longer exists in the policy degrades back to
+  // the always-available support mode once the policy arrives — unless the
+  // user already chose a mode or is viewing a persisted conversation.
+  assert.match(page, /if \(!chatPolicy \|\| modeTouchedRef\.current \|\| activeConversation \|\| selectedConversationId\) return;/);
+  assert.match(page, /if \(!chatPolicy\.enabledModes\?\.includes\(selectedMode\)\) setSelectedMode\("HOSPITAL_SUPPORT"\);/);
+});

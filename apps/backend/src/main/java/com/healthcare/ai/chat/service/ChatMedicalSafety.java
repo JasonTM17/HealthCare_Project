@@ -106,7 +106,8 @@ public final class ChatMedicalSafety {
             + "shortnessofbreath|difficultybreathing|cantbreathe|cannotbreathe|notbreathing|"
             + "severebleeding|suddencollapse|lossofconsciousness|nhoimauco\\s+tim|ngungtim|"
             + "ngungtho|battinh|matythuc|suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
-            + "want\\s+to\\s+die|self\\s+harm|tutu|cogiat)(?![a-z0-9])",
+            + "want\\s+to\\s+die|self\\s+harm|tu\\s+tu|tu\\s+sat|muon\\s+chet|"
+            + "khong\\s+muon\\s+song|tutu|tusat|muonchet|khongmuonsong|cogiat)(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
 
