@@ -318,14 +318,40 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
     [
         "tôi muốn tự tử",
         "em định tự sát",
+        "tôi đang nghĩ đến việc tự tử",
+        "tôi nghĩ về tự tử nhiều",
+        "tôi có ý tự tử",
         "tôi không muốn sống nữa",
         "chán sống quá",
+        "bệnh nhân đang co giật",
+        "trẻ đang co giật liên tục",
     ],
 )
 def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
     """Widening the consult rule must not have narrowed self-harm recall."""
 
     assert _crisis_detected(_normalize_sensitive_text(paraphrase)) is True
+
+
+@pytest.mark.parametrize(
+    "paraphrase",
+    [
+        # "từ từ" (slowly) folds to the same letters as "tự tử" — spaced or
+        # squashed — and must stay silent unless an intent idiom precedes it.
+        "tôi sẽ đi từ từ đến bệnh viện",
+        "nói chuyện từ từ thôi nhé",
+        "dituture thoi ban oi",
+        # "có giặt" (laundry) folds to the same letters as "co giật"
+        # (convulsion); the amenity question must not raise the banner.
+        "phòng khám có giặt ủi không",
+        "cho hỏi có giặt đồ không nhỉ",
+        "khu vực có giặt là không",
+    ],
+)
+def test_benign_folded_lookalikes_stay_silent(paraphrase: str) -> None:
+    """Folded benign phrasing must not degrade into crisis guidance."""
+
+    assert _crisis_detected(_normalize_sensitive_text(paraphrase)) is False
 
 
 def test_emergency_hit_accepts_normalised_variants_directly() -> None:

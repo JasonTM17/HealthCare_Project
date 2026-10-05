@@ -761,7 +761,15 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     # Every short alternative below carries an explicit trailing boundary. Without
     # it "tu\W*tu" matched inside "tự túc" and "tư tưởng", so an ordinary question
     # about self-catered meals raised the 115 banner.
-    r"|kho\W+tho\b|meo\W+mieng\b|yeu\W+liet\b|co\W+giat\b|tu\W+tu\b"
+    r"|kho\W+tho\b|meo\W+mieng\b|yeu\W+liet\b"
+    # "co giat" (convulsion) folds identically to "có giặt" (laundry amenity
+    # question); escalate only when the next word is not a laundry noun.
+    r"|co\W+giat\b(?!\W+(?:ui|la|giu?|do|quan|ao|khan)\b)"
+    # "tu tu" is both "tự tử" and benign "từ từ" (slowly); require a volition
+    # or thinking idiom in front, as in app.emergency_terms._TUTU_CRISIS.
+    r"|(?:(?:muon|dinh|tinh|quyet)\W+tu\W+tu"
+    r"|nghi\W+(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
+    r"|co\W+y\W+(?:dinh\W+)?tu\W+tu)\b"
     r"|dot\W+quy\b|tai\W+bien(?:\W+mach\W+mau\W+nao)?\b|dau\W+tim\b|nhoi\W+mau\W+co\W+tim\b|ngung\W+tho\b|ngung\W+tim\b|bat\W+tinh\b|mat\W+y\W+thuc\b"
     r"|dau\W+(?:sau\W+)?xuong\W+uc\b|sau\W+xuong\W+uc\b|xuong\W+uc\b"
     r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song\b|muon\W+chet\b|chet\W+di\b|ket\W+thuc\W+cuoc\W+(?:doi|song)\b"

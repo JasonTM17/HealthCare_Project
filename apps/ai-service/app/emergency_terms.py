@@ -153,8 +153,9 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "co that thanh quan",
     "anaphylaxis",
     "anaphylactic",
-    # Seizure, coma, loss of consciousness.
-    "co giat",
+    # Seizure, coma, loss of consciousness. "co giat" itself lives in
+    # _CO_GIAT_CRISIS below: folded, it collides with the amenity question
+    # "có giặt (ủi/là/đồ...)" so it carries a laundry-noun exclusion.
     "dong kinh",
     "dong kinh lien tuc",
     "san giat",
@@ -224,7 +225,6 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "tim tai",
     "thop lom",
     "tre kho tho",
-    "tre co giat",
     "tre sot cao",
     "sot cao khong ha",
     "tre li bi",
@@ -242,7 +242,10 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
 # Unambiguous self-harm intent. These escalate regardless of framing because the
 # vocabulary itself cannot be read as anything else in a hospital context.
 SELF_HARM_TERMS: Final[tuple[str, ...]] = (
-    "tu tu",
+    # "tu tu" is NOT here: folded, it is also the everyday adverb "từ từ"
+    # (slowly). It lives in _TUTU_CRISIS below, which requires a volition or
+    # thinking idiom before it ("muốn/định/tính/quyết tự tử",
+    # "nghĩ (đến việc|về|tới) tự tử", "có ý (định) tự tử").
     "tu sat",
     "tu ket lieu",
     "tu lam dau",
@@ -597,6 +600,22 @@ def _compile_squash_matcher(terms: tuple[str, ...]) -> tuple[str, ...]:
     )
 
 
+# "co giat" (convulsion) folds identically to "có giặt" (laundry service — a
+# real amenity question this endpoint answers). It escalates only when the
+# word after it is not a laundry noun ("giặt ủi/là/giũ/đồ/quần áo/khăn").
+_CO_GIAT_CRISIS: Final[re.Pattern[str]] = re.compile(
+    r"\bco\W+giat\b(?!\W+(?:ui|la|giu?|do|quan|ao|khan)\b)"
+)
+
+# Spaced "tu tu" is both "tự tử" (self-harm) and the everyday adverb
+# "từ từ" (slowly). It escalates only behind a volition or thinking idiom;
+# the concatenated "tutu" keeps its own benign-continuation disambiguation.
+_TUTU_CRISIS: Final[re.Pattern[str]] = re.compile(
+    r"\b(?:(?:muon|dinh|tinh|quyet)\W+tu\W+tu"
+    r"|nghi\W+(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
+    r"|co\W+y\W+(?:dinh\W+)?tu\W+tu)\b"
+)
+
 _TIER1_BOUNDARY = _compile_boundary_matcher(TIER1_TERMS)
 _SELF_HARM_BOUNDARY = _compile_boundary_matcher(SELF_HARM_TERMS)
 _INTENT_BOUND_SELF_HARM_BOUNDARY = _compile_boundary_matcher(INTENT_BOUND_SELF_HARM_TERMS)
@@ -605,12 +624,30 @@ _AMBIGUOUS_BOUNDARY = _compile_boundary_matcher(AMBIGUOUS_SELF_HARM_TERMS)
 _CORROBORATOR_BOUNDARY = _compile_boundary_matcher(SELF_HARM_CORROBORATORS)
 _CONSULT_FRAME_BOUNDARY = _compile_boundary_matcher(CONSULT_FRAME_TERMS)
 
-_TIER1_SQUASHED = _compile_squash_matcher(TIER1_TERMS)
-# "tutu" is added by hand: it is shorter than the distinctive-only threshold,
-# but it is the one short term whose joined-syllable form visitors actually type
-# ("tututroi"). _squashed_self_harm_hit resolves its ambiguity against the
-# benign words it also opens ("tự túc", "tư tưởng").
-_SELF_HARM_SQUASHED = (*_compile_squash_matcher(SELF_HARM_TERMS), "tutu")
+# "cogiat" is appended by hand after leaving TIER1_TERMS for the laundry
+# collision. A laundry noun still follows it in the squash stream
+# ("cogiatui..." = "có giặt ủi"), so _squashed_tier1_hit re-applies the
+# same exclusion as _CO_GIAT_CRISIS instead of matching it bare.
+_TIER1_SQUASHED = (*_compile_squash_matcher(TIER1_TERMS), "cogiat")
+# Joined "tutu" keeps the same contract as spaced "tu tu": it only counts
+# behind a volition/thinking marker. Bare "tutu" inside a squash stream
+# cannot be told apart from benign "từ từ" mid-sentence ("ditutu" =
+# "đi từ từ"), and the old next-character continuation check only ever
+# resolved word-openings like "tutuc"/"tutuong" — never that case.
+_SELF_HARM_SQUASHED = (
+    *_compile_squash_matcher(SELF_HARM_TERMS),
+    "muontutu",
+    "dinhtutu",
+    "tinhtutu",
+    "quyettutu",
+    "nghitutu",
+    "nghidentutu",
+    "nghidenviectutu",
+    "nghivetutu",
+    "nghitoitutu",
+    "coytutu",
+    "coydinhtutu",
+)
 
 # Precompiled once: each rule becomes (symptom matcher, marker matcher, minimum
 # distinct markers). Compiling inside the request path would rebuild these
@@ -637,27 +674,19 @@ def _boundary_hit(pattern: re.Pattern[str] | None, text: str) -> bool:
     return bool(pattern is not None and pattern.search(text))
 
 
-# Squashed "tutu" is genuinely ambiguous. It is the self-harm phrase "tự tử"
-# ("tu tu"), and it is also the opening of ordinary words: "tự túc"
-# (self-catered), "tư tưởng" (thought), "túi tiền", "tuỳ", "tùng". Word-boundary
-# matching already reads "tự tử" correctly, so the squashed net only needs to
-# catch inputs where the visitor joined the syllables ("tututroi"). Those are
-# distinguished by what follows the matched run: a benign continuation makes it
-# a different word, anything else leaves it a self-harm phrase.
+# Benign words that open with "tutu": "tự túc", "tư tưởng", "túi tiền",
+# "tuỳ", "tùng". Any other continuation at stream start reads as joined
+# self-harm ("tututroi").
 _TUTU_BENIGN_CONTINUATIONS: Final[frozenset[str]] = frozenset("conjuy")
 
 
 def _squashed_self_harm_hit(squashed: str) -> bool:
-    for term in _SELF_HARM_SQUASHED:
-        start = squashed.find(term)
-        while start != -1:
-            if term != "tutu":
-                return True
-            following = squashed[start + len(term) : start + len(term) + 1]
-            if following not in _TUTU_BENIGN_CONTINUATIONS:
-                return True
-            start = squashed.find(term, start + 1)
-    return False
+    if any(term in squashed for term in _SELF_HARM_SQUASHED):
+        return True
+    # Bare "tutu" is only trusted at the very start of the message stream:
+    # mid-stream it cannot be told apart from benign "từ từ" ("ditutu" =
+    # "đi từ từ"), and intent compounds already cover the marked cases.
+    return squashed.startswith("tutu") and squashed[4:5] not in _TUTU_BENIGN_CONTINUATIONS
 
 
 def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
@@ -671,6 +700,10 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
     for variant in variants:
         if _boundary_hit(_TIER1_BOUNDARY, variant):
             return True
+        if _CO_GIAT_CRISIS.search(variant):
+            return True
+        if _TUTU_CRISIS.search(variant):
+            return True
         if _boundary_hit(_SELF_HARM_BOUNDARY, variant):
             return True
         if _intent_bound_self_harm_hit(variant):
@@ -680,10 +713,27 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
         if _severity_bound_hit(variant):
             return True
         squashed = _squash_text(variant)
-        if any(term in squashed for term in _TIER1_SQUASHED):
+        if _squashed_tier1_hit(squashed):
             return True
         if _squashed_self_harm_hit(squashed):
             return True
+    return False
+
+
+_CO_GIAT_SQUASHED_LAUNDRY: Final[tuple[str, ...]] = ("ui", "la", "gi", "do", "quan", "ao", "khan")
+
+
+def _squashed_tier1_hit(squashed: str) -> bool:
+    for term in _TIER1_SQUASHED:
+        if term != "cogiat":
+            if term in squashed:
+                return True
+            continue
+        start = squashed.find(term)
+        while start != -1:
+            if not squashed[start + len(term) :].startswith(_CO_GIAT_SQUASHED_LAUNDRY):
+                return True
+            start = squashed.find(term, start + 1)
     return False
 
 
