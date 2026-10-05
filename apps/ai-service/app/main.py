@@ -903,7 +903,13 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
     similarity_thresh = getattr(settings, "ai_chat_similarity_threshold", 0.45)
     is_complex = is_complex_multisymptom_query(message)
 
-    if request.public_support_chat and hits and not public_hospital_support_remote_enabled(settings):
+    if request.public_support_chat and hits:
+        # The cheap grounded answer runs first regardless of the remote
+        # flag: catalog/FAQ questions answer locally in <1s while remote
+        # escalation is reserved for questions the grounded lane cannot
+        # answer. Previously the flag skipped this lane entirely and every
+        # public question paid the 5-15s provider call.
+        local_response = None
         try:
             grounded_request = ChatGenerateRequest(
                 message=message,
@@ -946,12 +952,23 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
                 ],
                 synthetic_beta=request.synthetic_beta,
             )
-            response = generate_chat_response(
+            local_response = generate_chat_response(
                 grounded_request, settings, rag_service, cancellation=cancellation
             )
         except ChatContractError:
             # A stale/malformed local projection must degrade to navigation
             # guidance, never to an answer that is only apparently grounded.
+            local_response = None
+        # Escalate only a failure to answer (contract error or insufficient
+        # evidence). A deliberate safety outcome — REFUSE, EMERGENCY,
+        # HUMAN_HANDOFF — is fail-closed: the provider must never get a
+        # second shot at a refused question.
+        if local_response is not None and (
+            not public_hospital_support_remote_enabled(settings)
+            or local_response.safety_action != ChatSafetyAction.INSUFFICIENT_EVIDENCE
+        ):
+            response = local_response
+        else:
             response = resolve_chat(
                 message,
                 settings,

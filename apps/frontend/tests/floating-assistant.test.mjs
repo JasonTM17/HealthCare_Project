@@ -5,14 +5,18 @@ import test from "node:test";
 const read = (relativePath) => readFile(new URL(`../${relativePath}`, import.meta.url), "utf8");
 
 test("floating assistant is mounted globally and stays on the REST chat contract", async () => {
-  const [layout, component, provider, styles] = await Promise.all([
+  const [layout, deferredWidgets, component, provider, styles] = await Promise.all([
     read("app/layout.tsx"),
+    read("components/DeferredClientWidgets.tsx"),
     read("components/FloatingHealthAssistant.tsx"),
     read("components/AssistantProvider.tsx"),
     read("components/FloatingHealthAssistant.module.css"),
   ]);
 
-  assert.match(layout, /FloatingHealthAssistant/);
+  // Still mounted on every route — via the deferred client island that keeps
+  // the assistant bundle out of the initial page payload.
+  assert.match(layout, /<DeferredClientWidgets \/>/);
+  assert.match(deferredWidgets, /FloatingHealthAssistant/);
   assert.match(component, /pathname === "\/patient\/chat"/);
   assert.match(component, /hasRole\(session\.user, "PATIENT"\)/);
   assert.match(component, /styles\.rootPatient/);

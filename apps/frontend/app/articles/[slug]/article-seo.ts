@@ -56,7 +56,10 @@ async function fetchBackendJson(path: string): Promise<unknown> {
   const timeoutId = setTimeout(() => controller.abort(), BACKEND_REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(target, {
-      cache: "no-store",
+      // Article metadata is published, slow-changing content — cache at the
+      // edge for 5 minutes instead of paying a Render round-trip on every
+      // page request (observed to block TTFB up to the 5s timeout).
+      next: { revalidate: 300 },
       headers: {
         Accept: "application/json",
         "X-Healthcare-Bff-Token": runtime.serviceToken,

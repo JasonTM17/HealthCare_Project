@@ -724,6 +724,18 @@ public class AiConversationService {
         SanitizedAiResponse deterministicBranch = deterministicBranchResponse(mode, content, turns);
         if (deterministicBranch != null) return deterministicBranch;
 
+        // A greeting needs no upstream retrieval: the server-owned welcome
+        // copy is complete and cannot hallucinate. The public lane already
+        // short-circuits GREETING the same way (PublicAiChatController), so
+        // this keeps the patient lane from paying a provider round-trip for
+        // "xin chào" — observed ~6s on production for a static answer.
+        if (mode == ChatMode.HOSPITAL_SUPPORT
+                && !ChatMedicalSafety.containsProtectedInputCue(content)
+                && ChatSuggestedActionResolver.classify(content)
+                    == ChatSuggestedActionResolver.HospitalSupportIntent.GREETING) {
+            return hospitalSupportResponse(content);
+        }
+
         Map<String, Object> request = new LinkedHashMap<>();
         request.put("message", content);
         request.put("mode", mode.name());

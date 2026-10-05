@@ -792,6 +792,10 @@ function createBrowserResponse(
       || apiPath.startsWith("/api/v1/hospital/packages")
       || apiPath.startsWith("/api/v1/hospital/articles")
       || apiPath.startsWith("/api/v1/hospital/faqs")
+      // Published CMS slots are public, cacheable content; the events stream
+      // stays uncached (SSE), and /admin/cms/* is out of scope by prefix.
+      || (apiPath.startsWith("/api/v1/cms/content")
+        && !apiPath.startsWith("/api/v1/cms/content/events"))
     );
 
   // GET /api/v1/media/{id} serves public immutable bytes whose TTL the

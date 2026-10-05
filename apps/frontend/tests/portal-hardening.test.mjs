@@ -223,11 +223,12 @@ test("typography rules globally enforce Be Vietnam Pro for Vietnamese UI", async
     read("tailwind.config.ts"),
   ]);
 
-  // CSS variables in styles.css
-  assert.match(styles, /--font-be-vietnam-pro:\s*"Be Vietnam Pro"/);
+  // CSS variables in styles.css — the family leads with the self-hosted
+  // next/font variable and still names Be Vietnam Pro as its fallback.
+  assert.match(styles, /--font-be-vietnam-pro:\s*var\(--font-next-bvp\),\s*"Be Vietnam Pro"/);
   // Inter is never loaded by app/layout.tsx, so the sans/body stack must not
   // lead with it (wave-2 font-stack cleanup) — Be Vietnam Pro leads instead.
-  assert.match(styles, /--font-inter:\s*"Be Vietnam Pro"/);
+  assert.match(styles, /--font-inter:\s*var\(--font-next-bvp\),\s*"Be Vietnam Pro"/);
   assert.doesNotMatch(styles, /--font-inter:\s*"Inter"/);
   assert.match(styles, /--font-display:\s*var\(--font-be-vietnam-pro\)/);
   assert.match(styles, /--font-body:\s*var\(--font-inter\)/);
@@ -241,10 +242,12 @@ test("typography rules globally enforce Be Vietnam Pro for Vietnamese UI", async
   );
   assert.match(typography, /html\[lang="vi"\]\s*\{\s*font-synthesis:\s*none;\s*text-rendering:\s*optimizeLegibility;\s*\}/);
 
-  // Root HTML layout attributes & font preloading
+  // Root HTML layout attributes & self-hosted font wiring. Fonts must come
+  // from next/font (build-time download, served from the same origin) — never
+  // the render-blocking fonts.googleapis.com stylesheet again.
   assert.match(layout, /<html lang="vi"/);
-  assert.match(layout, /fonts\.googleapis\.com\/css2\?family=Be\+Vietnam\+Pro/);
-  assert.match(layout, /family=Plus\+Jakarta\+Sans/);
+  assert.match(layout, /next\/font\/google/);
+  assert.doesNotMatch(layout, /fonts\.googleapis\.com\/css2/);
 
   // Tailwind configuration
   assert.match(tailwind, /display:\s*\["var\(--font-be-vietnam-pro\)"/);

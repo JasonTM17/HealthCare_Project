@@ -34,8 +34,8 @@
   --color-primary-container: var(--color-teal-800);
   --color-secondary: #7c5800;
   --color-tertiary: #20302f;
-  --font-be-vietnam-pro: "Be Vietnam Pro", "Noto Sans", "Segoe UI", sans-serif;
-  --font-inter: "Be Vietnam Pro", "Noto Sans", "Segoe UI", sans-serif;
+  --font-be-vietnam-pro: var(--font-next-bvp), "Be Vietnam Pro", "Noto Sans", "Segoe UI", sans-serif;
+  --font-inter: var(--font-next-bvp), "Be Vietnam Pro", "Noto Sans", "Segoe UI", sans-serif;
   --font-display: var(--font-be-vietnam-pro);
   --font-body: var(--font-inter);
   --sp-1: 0.25rem;
