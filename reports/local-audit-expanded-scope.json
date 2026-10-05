@@ -194,7 +194,7 @@
     },
     {
       "path": "apps/frontend/tests/e2e/live-compose-clinical-payment.spec.ts",
-      "gitBlob": "fc095d268e2b54c46f9e53cf200a880543c086ce"
+      "gitBlob": "d4213ed54130307272f54142a1925e3d2e27d916"
     }
   ],
   "hashPolicy": "Controller Git blob SHA-1 manifest; native read-only reviewers cannot hash, so report this limitation. Controller rechecks anchors after reviews. Direct dependencies may be read for tracing but are not silently claimed identity-bound.",
@@ -235,5 +235,5 @@
   ],
   "identity": "Scoped Git blob SHA-1 manifest on frozen committed HEAD 20cfdbbebae23cc1e2bed5f87b89b7d1a9f2a3c9 (chatbot b5a99e5 + remediation ccba166 + wukong-fix baf5ffa); 45 files",
   "revision": "v2-refresh-after-v5.1-chatbot-wave111",
-  "targetHead": "97908ad5971595a8741fdeaf73ccd8ee4a940e52"
+  "targetHead": "7c58eeb62b159f00c003a458d4ca6c9720e24639"
 }
