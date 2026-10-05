@@ -567,7 +567,11 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   useEffect(() => {
     if (!chatPolicy || modeTouchedRef.current || activeConversation || selectedConversationId) return;
     if (selectedMode === "HOSPITAL_SUPPORT") return;
-    if (!chatPolicy.enabledModes?.includes(selectedMode)) setSelectedMode("HOSPITAL_SUPPORT");
+    if (chatPolicy.enabledModes?.includes(selectedMode)) return;
+    // Deferred out of the effect body (react-hooks/set-state-in-effect);
+    // a dep change before it fires cancels the stale correction.
+    const correction = setTimeout(() => setSelectedMode("HOSPITAL_SUPPORT"), 0);
+    return () => clearTimeout(correction);
   }, [activeConversation, chatPolicy, selectedConversationId, selectedMode]);
 
   useEffect(() => {
