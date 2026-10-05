@@ -1,114 +1,234 @@
 {
- "schema": "healthcare.expanded-local-audit.v1",
- "frozen": true,
- "controller": "Team Lead",
- "authority": "Local-only remediation and source/browser verification; no production queries/data writes, push/deploy, real payment rails, unrelated cleanup, credential discovery, global configuration or external private/PHI upload",
- "userPriority": [
-  "Deep specialist chatbot response correctness and safe grounded helpfulness",
-  "TinyMCE edit/replace image, persisted content and public homepage/page rendering",
-  "Patient payment submission and Admin verification/rejection",
-  "UI/UX improvements matching the existing Next.js components, with sanitized Stitch references"
- ],
- "workflow": "AgentKit scout -> debug -> bounded cause-aligned repair with exact regression -> test -> independent frozen-snapshot review -> Team Lead evidence verdict; no ship step",
- "route": "epic multi-domain high-risk local audit; deliberate specialists, not blind invocation of every kit/library",
- "sourceManifest": [
-  {
-   "path": "apps/frontend/components/editor/RichTextEditor.tsx",
-   "gitBlob": "c23dd09e4d6cec72942472576bfd6c4d2d1cadac"
-  },
-  {
-   "path": "apps/frontend/components/editor/RichContentRenderer.tsx",
-   "gitBlob": "18f36445fdf1379b0b155e6c3f8c5b9cf726c2f9"
-  },
-  {
-   "path": "apps/frontend/components/cms/CmsImageField.tsx",
-   "gitBlob": "6d97d110100f64b4037cd218be9f6bdbf21bb7b7"
-  },
-  {
-   "path": "apps/frontend/components/cms/CmsRenderer.tsx",
-   "gitBlob": "9dd2faa449fb84c49076e3da765b9acfb3dc35ad"
-  },
-  {
-   "path": "apps/frontend/components/cms/CmsInlineEditor.tsx",
-   "gitBlob": "f31a253b0eea2a43f062ea17dc425b259542b9c9"
-  },
-  {
-   "path": "apps/frontend/app/page.tsx",
-   "gitBlob": "081f6725915c8fe83690e35d46320d35d8d3d342"
-  },
-  {
-   "path": "apps/frontend/app/admin/payments/page.tsx",
-   "gitBlob": "43dce63613dc9d3f5093ea6c703b30cd9708f248"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/payment/service/BankTransferPaymentService.java",
-   "gitBlob": "84a0a81e1083799b5483ade4067a0b65bab931d6"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/payment/repository/BankTransferPaymentRepository.java",
-   "gitBlob": "74acd16efaf8ce5ea736b47fd39b6e96f19adba1"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/payment/controller/AdminPaymentController.java",
-   "gitBlob": "148e2be69b9ab614ea5a02692af4e0b367bfd7af"
-  },
-  {
-   "path": "apps/frontend/components/FloatingHealthAssistant.tsx",
-   "gitBlob": "21ad2949564fcbba17287bab673c3a5e8591940f"
-  },
-  {
-   "path": "apps/frontend/app/patient/chat/page.tsx",
-   "gitBlob": "3a5e1d2d38884dd23bb07348da37f0bdc99abec0"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiConversationService.java",
-   "gitBlob": "b59bd6818dc35794caff53b9f865631399ae6a08"
-  },
-  {
-   "path": "apps/ai-service/app/chatbot.py",
-   "gitBlob": "3cca937c6b91187fed5711eb02ac8e12d9cd5058"
-  },
-  {
-   "path": "apps/ai-service/app/llm.py",
-   "gitBlob": "0accadda5c4c00085afb8c85687aea7ee81a5376"
-  }
- ],
- "hashPolicy": "Controller Git blob SHA-1 manifest; native read-only reviewers cannot hash, so report this limitation. Controller rechecks anchors after reviews. Direct dependencies may be read for tracing but are not silently claimed identity-bound.",
- "writerOwnership": "One active owner per file; no reviewer edits. Existing user dirty/untracked work preserved. Do not implement an unsettled audit finding before Team Lead confirms the mechanism and authors consequential design/tests.",
- "specialistScopes": [
-  "AI contract/safety and response-evidence reviewer",
-  "TinyMCE serialization/upload/image replacement reviewer",
-  "Public CMS/media renderer and anonymous delivery reviewer",
-  "Admin payment state-machine/RBAC/concurrency reviewer",
-  "Kongming architecture/sequencing counsel",
-  "Advisor acceptance/product counsel; Wukong bound to confirmed load-bearing claims later"
- ],
- "acceptance": [
-  "Chatbot answers tested against captured authorized source facts, not plausible prose or unit pass counts. No fabrication of availability/price/contact, personal diagnosis/medication, private records or sources. Multiturn/history/SSE/timeout/quota boundaries explicit.",
-  "TinyMCE image is selected/replaced, serialized, stored through actual authorized API and rendered on the intended public page after refresh/navigation. Preview alone is not persistence proof. Failed upload remains clear and does not store ephemeral blob URL as a successful published asset.",
-  "Admin payment verification/rejection reaches exact final patient/payment state through normal local APIs, with duplicate/retry/concurrency and foreign/non-admin negative controls. No real bank transfer/refund, external gateway or real statement data.",
-  "Responsive/keyboard/empty/loading/error UX is usable in the current design; no unrelated component-library migration or unreviewed wholesale redesign.",
-  "Every FAIL/BLOCKED/NOT_RUN persists, including surviving Java21 Testcontainers job and Docker environment instability. No source-only/mock evidence elevated to production qualification."
- ],
- "settledObservations": [
-  "PDF three-class real local generation/download files and hash/size/parsing proof exist in separate frozen artifacts; do not regenerate those inputs merely for presentation.",
-  "Earlier normal-API clinical fixture was fully executed but its whole live test failed later console gate; replay must disclose no new writes.",
-  "Public CMS defaults to visible 60000ms polling, not SSE. Missing optional homepage.sidebar/footer 404 is documented, not arbitrary errors. Exact diagnostic/recovery artifacts exist.",
-  "Own CMS hero test state restored by Team Lead to original full payload at public version4; any new editor test needs captured owned publication and complete cleanup, not unowned rollback.",
-  "Current offline AI has 882 passing cases, but fresh heading/homoglyph/letter-spaced unsafe-source probes returned ANSWER/echo on the frozen llm source; they are confirmed gaps, not an exhaustive-safety pass.",
-  "Homepage already passes cmsHero.imageUrl to HomeHeroVisual. That visual has a sticky imageError state and currently does not reset it when imageUrl changes; this is a source-derived candidate, NOT execution-confirmed yet.",
-  "CMS RICH_TEXT body currently renders in a plain paragraph, while article RichContentRenderer supports editor HTML/Markdown paths; contract distinction must be resolved from actual authoring and server sanitizer behavior before any change."
- ],
- "stitchBoundary": "New private generic Healthcare Local UX Review Wireframes project created for sanitized UI references. No real names, medical/payment data, credentials, private URLs, source dumps or screenshots uploaded. Design proposals do not prove application functionality.",
- "runtime": "Own audit application localhost3330/backend8180 and internal AI8000; all nine own containers most recently healthy. Current Java21 runner and pending frontend/AI build must be checked/reused, not restarted from scratch. Unknown native review model; no provider-family/production qualification claim.",
- "notAuthorized": [
-  "Production Supabase/Render/Vercel",
-  "Paid real-provider canary",
-  "Actual bank/payment effects",
-  "Global MCP/skill/security policy edits",
-  "Existing clinical/PDF record deletion",
-  "Synthetic guard/allowlist or rate-limit changes to make QA pass"
- ],
- "identity": "Controller Git blob SHA-1 manifest refreshed v2 on working tree over HEAD d5a73d41e2b479852548297af8ac27827834f117 (includes uncommitted chatbot wave v5.1)",
- "revision": "v2-refresh-after-v5.1-chatbot-wave"
+  "schema": "healthcare.expanded-local-audit.v1",
+  "frozen": true,
+  "controller": "Team Lead",
+  "authority": "Local-only remediation and source/browser verification; no production queries/data writes, push/deploy, real payment rails, unrelated cleanup, credential discovery, global configuration or external private/PHI upload",
+  "userPriority": [
+    "Deep specialist chatbot response correctness and safe grounded helpfulness",
+    "TinyMCE edit/replace image, persisted content and public homepage/page rendering",
+    "Patient payment submission and Admin verification/rejection",
+    "UI/UX improvements matching the existing Next.js components, with sanitized Stitch references"
+  ],
+  "workflow": "AgentKit scout -> debug -> bounded cause-aligned repair with exact regression -> test -> independent frozen-snapshot review -> Team Lead evidence verdict; no ship step",
+  "route": "epic multi-domain high-risk local audit; deliberate specialists, not blind invocation of every kit/library",
+  "sourceManifest": [
+    {
+      "path": "apps/frontend/components/editor/RichTextEditor.tsx",
+      "gitBlob": "231fd6c7f8fa62f931fa31433285cdf32110ec94"
+    },
+    {
+      "path": "apps/frontend/components/editor/RichContentRenderer.tsx",
+      "gitBlob": "1c3659faf3b39ecb2e36a861bbaa43ba58d011d5"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsImageField.tsx",
+      "gitBlob": "6d97d110100f64b4037cd218be9f6bdbf21bb7b7"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsRenderer.tsx",
+      "gitBlob": "c2c5fbef3629762289bba62d5020e9996044a931"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsInlineEditor.tsx",
+      "gitBlob": "f31a253b0eea2a43f062ea17dc425b259542b9c9"
+    },
+    {
+      "path": "apps/frontend/app/page.tsx",
+      "gitBlob": "081f6725915c8fe83690e35d46320d35d8d3d342"
+    },
+    {
+      "path": "apps/frontend/app/admin/payments/page.tsx",
+      "gitBlob": "43dce63613dc9d3f5093ea6c703b30cd9708f248"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/payment/service/BankTransferPaymentService.java",
+      "gitBlob": "84a0a81e1083799b5483ade4067a0b65bab931d6"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/payment/repository/BankTransferPaymentRepository.java",
+      "gitBlob": "74acd16efaf8ce5ea736b47fd39b6e96f19adba1"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/payment/controller/AdminPaymentController.java",
+      "gitBlob": "148e2be69b9ab614ea5a02692af4e0b367bfd7af"
+    },
+    {
+      "path": "apps/frontend/components/FloatingHealthAssistant.tsx",
+      "gitBlob": "21ad2949564fcbba17287bab673c3a5e8591940f"
+    },
+    {
+      "path": "apps/frontend/app/patient/chat/page.tsx",
+      "gitBlob": "3a5e1d2d38884dd23bb07348da37f0bdc99abec0"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiConversationService.java",
+      "gitBlob": "b59bd6818dc35794caff53b9f865631399ae6a08"
+    },
+    {
+      "path": "apps/ai-service/app/chatbot.py",
+      "gitBlob": "3cca937c6b91187fed5711eb02ac8e12d9cd5058"
+    },
+    {
+      "path": "apps/ai-service/app/llm.py",
+      "gitBlob": "590521f80238a0e3c8f8d451626f851435384087"
+    },
+    {
+      "path": "apps/frontend/tests/e2e/live-compose-lifecycle.spec.ts",
+      "gitBlob": "ab1f0a9de6ba8b60d5b39f34ef762b8ab536a1d1"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/auth/mail/AfterCommitEmailSender.java",
+      "gitBlob": "39d265def07af2f2de465b0d5967c6dd5e169ca9"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/auth/mail/ApiEmailSender.java",
+      "gitBlob": "59821493d720b0c4f371e1981aab204c1e7f90cf"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java",
+      "gitBlob": "1e539173c90d2caf063c2e8f03b510210d76071d"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/media/controller/MediaAssetController.java",
+      "gitBlob": "7539fad9943f884dfd9f55a4fddec3b9a54930d1"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/media/service/MediaAssetService.java",
+      "gitBlob": "136fcf426ad2fbe6c4450f555d316d3074cb0d6b"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/payment/service/BankStatementParser.java",
+      "gitBlob": "a04041e1eafa1a41fc59ad35d78dcf536c28fd60"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/security/RequestRateLimitFilter.java",
+      "gitBlob": "6505555ba3978207dc0edf4b3650774c06e1d3ff"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/auth/mail/ApiEmailSenderMaskTest.java",
+      "gitBlob": "c721a8d228e1ba72644c90a8633ea02ab44621a9"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java",
+      "gitBlob": "411c1b703d7f7aba317dd07dff6d7acf339c3aa5"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/media/MediaAssetServiceTest.java",
+      "gitBlob": "791fb3be3c598ebb5d0c30b9c4c0da657603e6f9"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/payment/service/BankStatementParserTest.java",
+      "gitBlob": "019c3813a1b8d4071471daa80998adb8ee12f99d"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/security/RequestRateLimitFilterTest.java",
+      "gitBlob": "f0850c6f69a6a39a1f9aa0d414223f0451755260"
+    },
+    {
+      "path": "apps/frontend/app/doctor/articles/page.tsx",
+      "gitBlob": "a785d8631c3dd6ee0eef8b817b166332be4194c1"
+    },
+    {
+      "path": "apps/frontend/app/doctor/profile/page.tsx",
+      "gitBlob": "297f2bd5f9c06960af107ee59d476b7aee66effe"
+    },
+    {
+      "path": "apps/frontend/app/doctors/[slug]/page.tsx",
+      "gitBlob": "6726838fa39b3097601bdb10e1992da374752e47"
+    },
+    {
+      "path": "apps/frontend/app/patient/documents/page.tsx",
+      "gitBlob": "d495ea95daabbb3991a5b4541ee741f21f5f298e"
+    },
+    {
+      "path": "apps/frontend/app/patient/profile/page.tsx",
+      "gitBlob": "21712748ab7eb8fcdf599028d08482c286235ebf"
+    },
+    {
+      "path": "apps/frontend/components/ImageUpload.tsx",
+      "gitBlob": "12725cb203a7d96fab5fc717e670767c674dba8a"
+    },
+    {
+      "path": "apps/frontend/lib/api-client.ts",
+      "gitBlob": "ff443dd9548f31acf1673f0e57cf86a4099192a3"
+    },
+    {
+      "path": "apps/frontend/tests/editor-round-trip.test.mjs",
+      "gitBlob": "4c398f11b984be9b981113ea4f380c43c3379a08"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java",
+      "gitBlob": "1518443d31b01ddd462e989691623e199aad2949"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/ChatMedicalSafety.java",
+      "gitBlob": "33e9c0737d31e554c8443afa13cfb6064cf3734f"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/ChatSuggestedActionResolver.java",
+      "gitBlob": "2d90a926b0ec3ecf5dd362449f45c554d805fbee"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java",
+      "gitBlob": "cc505dab59a7eecada8a112c95e77f67e175b751"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/AiChatContractsTest.java",
+      "gitBlob": "6f93f4adaf1d08e6cf72ebc98f2aca973e9145dc"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java",
+      "gitBlob": "ab784d96663b4b7f8f20bbb2dff4210822104b28"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java",
+      "gitBlob": "df4f2d42655f11db89ce9419cedfd2f5fa6317da"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/chat/ChatSafetyAndChunkerTest.java",
+      "gitBlob": "4841afeabea550931fe10000ffd57171692ad14f"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/chat/service/ChatSuggestedActionResolverTest.java",
+      "gitBlob": "bfef327d6e35ba0692a374dc3e842e42ff1e4208"
+    }
+  ],
+  "hashPolicy": "Controller Git blob SHA-1 manifest; native read-only reviewers cannot hash, so report this limitation. Controller rechecks anchors after reviews. Direct dependencies may be read for tracing but are not silently claimed identity-bound.",
+  "writerOwnership": "One active owner per file; no reviewer edits. Existing user dirty/untracked work preserved. Do not implement an unsettled audit finding before Team Lead confirms the mechanism and authors consequential design/tests.",
+  "specialistScopes": [
+    "AI contract/safety and response-evidence reviewer",
+    "TinyMCE serialization/upload/image replacement reviewer",
+    "Public CMS/media renderer and anonymous delivery reviewer",
+    "Admin payment state-machine/RBAC/concurrency reviewer",
+    "Kongming architecture/sequencing counsel",
+    "Advisor acceptance/product counsel; Wukong bound to confirmed load-bearing claims later"
+  ],
+  "acceptance": [
+    "Chatbot answers tested against captured authorized source facts, not plausible prose or unit pass counts. No fabrication of availability/price/contact, personal diagnosis/medication, private records or sources. Multiturn/history/SSE/timeout/quota boundaries explicit.",
+    "TinyMCE image is selected/replaced, serialized, stored through actual authorized API and rendered on the intended public page after refresh/navigation. Preview alone is not persistence proof. Failed upload remains clear and does not store ephemeral blob URL as a successful published asset.",
+    "Admin payment verification/rejection reaches exact final patient/payment state through normal local APIs, with duplicate/retry/concurrency and foreign/non-admin negative controls. No real bank transfer/refund, external gateway or real statement data.",
+    "Responsive/keyboard/empty/loading/error UX is usable in the current design; no unrelated component-library migration or unreviewed wholesale redesign.",
+    "Every FAIL/BLOCKED/NOT_RUN persists, including surviving Java21 Testcontainers job and Docker environment instability. No source-only/mock evidence elevated to production qualification."
+  ],
+  "settledObservations": [
+    "PDF three-class real local generation/download files and hash/size/parsing proof exist in separate frozen artifacts; do not regenerate those inputs merely for presentation.",
+    "Earlier normal-API clinical fixture was fully executed but its whole live test failed later console gate; replay must disclose no new writes.",
+    "Public CMS defaults to visible 60000ms polling, not SSE. Missing optional homepage.sidebar/footer 404 is documented, not arbitrary errors. Exact diagnostic/recovery artifacts exist.",
+    "Own CMS hero test state restored by Team Lead to original full payload at public version4; any new editor test needs captured owned publication and complete cleanup, not unowned rollback.",
+    "Current offline AI has 882 passing cases, but fresh heading/homoglyph/letter-spaced unsafe-source probes returned ANSWER/echo on the frozen llm source; they are confirmed gaps, not an exhaustive-safety pass.",
+    "Homepage already passes cmsHero.imageUrl to HomeHeroVisual. That visual has a sticky imageError state and currently does not reset it when imageUrl changes; this is a source-derived candidate, NOT execution-confirmed yet.",
+    "CMS RICH_TEXT body currently renders in a plain paragraph, while article RichContentRenderer supports editor HTML/Markdown paths; contract distinction must be resolved from actual authoring and server sanitizer behavior before any change."
+  ],
+  "stitchBoundary": "New private generic Healthcare Local UX Review Wireframes project created for sanitized UI references. No real names, medical/payment data, credentials, private URLs, source dumps or screenshots uploaded. Design proposals do not prove application functionality.",
+  "runtime": "Own audit application localhost3330/backend8180 and internal AI8000; all nine own containers most recently healthy. Current Java21 runner and pending frontend/AI build must be checked/reused, not restarted from scratch. Unknown native review model; no provider-family/production qualification claim.",
+  "notAuthorized": [
+    "Production Supabase/Render/Vercel",
+    "Paid real-provider canary",
+    "Actual bank/payment effects",
+    "Global MCP/skill/security policy edits",
+    "Existing clinical/PDF record deletion",
+    "Synthetic guard/allowlist or rate-limit changes to make QA pass"
+  ],
+  "identity": "Scoped Git blob SHA-1 manifest refreshed on committed HEAD ccba16621e61ed9d1dbf0571c1ea6450dff822f1 covering chatbot v5.1 (b5a99e5) + remediation wave (ccba166) changed files plus prior audit scope; 45 files",
+  "revision": "v2-refresh-after-v5.1-chatbot-wave11"
 }

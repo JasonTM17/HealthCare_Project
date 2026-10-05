@@ -3486,8 +3486,16 @@ export async function downloadPatientDocument(
   if (typeof expected?.byteSize === "number" && expected.byteSize > 0 && blob.size !== expected.byteSize) {
     throw new ApiError("Tệp PDF tải về không đầy đủ, vui lòng thử lại.", 0, path, { code: "DOWNLOAD_SIZE_MISMATCH" });
   }
+  // Content-Length reflects the compressed transfer size under Content-Encoding;
+  // only compare against the uncompressed body when no encoding is declared.
+  const contentLength = response.headers.has("Content-Encoding")
+    ? NaN
+    : Number(response.headers.get("Content-Length") ?? NaN);
+  if (Number.isFinite(contentLength) && contentLength >= 0 && blob.size !== contentLength) {
+    throw new ApiError("Tệp PDF tải về không đầy đủ, vui lòng thử lại.", 0, path, { code: "DOWNLOAD_SIZE_MISMATCH" });
+  }
   const header = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
-  if (header.length >= 5 && new TextDecoder().decode(header) !== "%PDF-") {
+  if (header.length < 5 || new TextDecoder().decode(header) !== "%PDF-") {
     throw new ApiError("Tệp tải về không phải định dạng PDF hợp lệ.", 0, path, { code: "DOWNLOAD_NOT_PDF" });
   }
   const blobUrl = URL.createObjectURL(blob);

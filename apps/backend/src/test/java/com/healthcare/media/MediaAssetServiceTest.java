@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -304,5 +305,77 @@ class MediaAssetServiceTest {
 
         assertThat(response.id()).isEqualTo(assetId);
         assertThat(response.purpose()).isEqualTo("PATIENT_AVATAR");
+    }
+
+    @Test
+    void deleteMedia_allowsOwner() {
+        com.healthcare.user.entity.User owner = entityUser("patient@healthcare.local");
+        MediaAsset asset = new MediaAsset("a.png", "image/png", 8, new byte[] {1}, owner.getId(), "PATIENT", "PATIENT_AVATAR");
+        asset.setId(UUID.randomUUID());
+        when(mediaAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
+        when(userRepository.findByEmail("patient@healthcare.local")).thenReturn(Optional.of(owner));
+
+        mediaAssetService.deleteMedia(asset.getId(), principal("patient@healthcare.local", "PATIENT"));
+
+        verify(mediaAssetRepository).delete(asset);
+    }
+
+    @Test
+    void deleteMedia_deniesNonOwnerNonAdmin() {
+        MediaAsset asset = new MediaAsset("a.png", "image/png", 8, new byte[] {1}, UUID.randomUUID(), "PATIENT", "PATIENT_AVATAR");
+        asset.setId(UUID.randomUUID());
+        com.healthcare.user.entity.User other = entityUser("intruder@healthcare.local");
+        when(mediaAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
+        when(userRepository.findByEmail("intruder@healthcare.local")).thenReturn(Optional.of(other));
+
+        assertThatThrownBy(() -> mediaAssetService.deleteMedia(asset.getId(), principal("intruder@healthcare.local", "PATIENT")))
+            .isInstanceOf(AccessDeniedException.class);
+        verify(mediaAssetRepository, never()).delete(any());
+    }
+
+    @Test
+    void deleteMedia_allowsAdminForForeignAsset() {
+        MediaAsset asset = new MediaAsset("a.png", "image/png", 8, new byte[] {1}, UUID.randomUUID(), "DOCTOR", "DOCTOR_PORTRAIT");
+        asset.setId(UUID.randomUUID());
+        when(mediaAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
+
+        mediaAssetService.deleteMedia(asset.getId(), principal("admin@healthcare.local", "ADMIN"));
+
+        verify(mediaAssetRepository).delete(asset);
+    }
+
+    @Test
+    void deleteMedia_deniesAnonymousAndMissingAsset() {
+        MediaAsset asset = new MediaAsset("a.png", "image/png", 8, new byte[] {1}, UUID.randomUUID(), "DOCTOR", "DOCTOR_PORTRAIT");
+        asset.setId(UUID.randomUUID());
+        when(mediaAssetRepository.findById(asset.getId())).thenReturn(Optional.of(asset));
+        assertThatThrownBy(() -> mediaAssetService.deleteMedia(asset.getId(), null))
+            .isInstanceOf(AccessDeniedException.class);
+        verify(mediaAssetRepository, never()).delete(any());
+
+        UUID missing = UUID.randomUUID();
+        when(mediaAssetRepository.findById(missing)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> mediaAssetService.deleteMedia(missing, principal("admin@healthcare.local", "ADMIN")))
+            .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void uploadImage_multiRolePrincipalResolvesHigherPrivilegeRole() throws Exception {
+        byte[] pngBytes = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile("file", "portrait.png", "image/png", pngBytes);
+        // PATIENT listed first in the authority stream must not hide the
+        // DOCTOR privilege — catalog purpose is legitimate for this account.
+        UserDetails dual = new User("dual@healthcare.local", "secret",
+            java.util.List.of(new SimpleGrantedAuthority("ROLE_PATIENT"), new SimpleGrantedAuthority("ROLE_DOCTOR")));
+
+        UUID assetId = UUID.randomUUID();
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
+            MediaAsset asset = invocation.getArgument(0);
+            asset.setId(assetId);
+            return asset;
+        });
+
+        MediaAssetResponse response = mediaAssetService.uploadImage(file, "DOCTOR_PORTRAIT", dual);
+        assertThat(response.purpose()).isEqualTo("DOCTOR_PORTRAIT");
     }
 }

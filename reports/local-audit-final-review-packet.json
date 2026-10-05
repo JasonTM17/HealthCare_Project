@@ -1,188 +1,312 @@
 {
- "schema": "healthcare.local-review-packet.v1",
- "stage": "first repaired snapshot; pre-integration and pre-final acceptance",
- "frozen": true,
- "frozenDate": "2026-10-04",
- "controller": "Team Lead",
- "targetHead": "bbba6935851cdb630f5fd87717c47458a69e2d4e",
- "targetIdentity": "dirty main source snapshot v1 identified by the exact Git blob manifest below, not HEAD alone",
- "manifestAlgorithm": "Git blob SHA-1 from controller-executed git hash-object in listed path order",
- "reviewerHashVerificationLimit": "Native read-only reviewers cannot execute hashing. Inspect exact scoped sources and report this limit. The controller will recheck all blob identities after reviews; any changed member invalidates that member's review.",
- "sourceManifest": [
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java",
-   "gitBlob": "40e14e41f1d00aeff1796ce38e26a1bda25e26ba"
+  "schema": "healthcare.local-review-packet.v1",
+  "stage": "first repaired snapshot; pre-integration and pre-final acceptance",
+  "frozen": true,
+  "frozenDate": "2026-10-04",
+  "controller": "Team Lead",
+  "targetHead": "ccba16621e61ed9d1dbf0571c1ea6450dff822f1",
+  "targetIdentity": "Frozen committed HEAD ccba16621e61ed9d1dbf0571c1ea6450dff822f1",
+  "manifestAlgorithm": "Git blob SHA-1 from controller-executed git hash-object in listed path order",
+  "reviewerHashVerificationLimit": "Native read-only reviewers cannot execute hashing. Inspect exact scoped sources and report this limit. The controller will recheck all blob identities after reviews; any changed member invalidates that member's review.",
+  "sourceManifest": [
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/document/service/DocumentService.java",
+      "gitBlob": "1e539173c90d2caf063c2e8f03b510210d76071d"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java",
+      "gitBlob": "f4735820ea5a780085f750fc6fe8a122907a10db"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java",
+      "gitBlob": "11ee9cb7d80de2d4cb20dae76567b34197abbe38"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/document/service/DocumentObjectCleanupService.java",
+      "gitBlob": "f62c905bbc68a8e8b841292b6c4e817ca90975e2"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/clinical/service/ClinicalAccessAuditService.java",
+      "gitBlob": "5aef34c3c76e73abb0203f5275215d31a35c275d"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java",
+      "gitBlob": "24b7c3e14723af58a85f62530836a4d5d50a9fb9"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java",
+      "gitBlob": "411c1b703d7f7aba317dd07dff6d7acf339c3aa5"
+    },
+    {
+      "path": "apps/ai-service/app/chatbot.py",
+      "gitBlob": "3cca937c6b91187fed5711eb02ac8e12d9cd5058"
+    },
+    {
+      "path": "apps/ai-service/app/llm.py",
+      "gitBlob": "590521f80238a0e3c8f8d451626f851435384087"
+    },
+    {
+      "path": "apps/ai-service/tests/test_chatbot_contract.py",
+      "gitBlob": "25035265d6a28b230177b194e6ff4d13abd3b8c1"
+    },
+    {
+      "path": "apps/frontend/types/hospital.ts",
+      "gitBlob": "88a6473ecc468caad371bde4d6915afe0b8aa176"
+    },
+    {
+      "path": "apps/frontend/app/patient/documents/page.tsx",
+      "gitBlob": "d495ea95daabbb3991a5b4541ee741f21f5f298e"
+    },
+    {
+      "path": "apps/frontend/tests/e2e/patient-documents.spec.ts",
+      "gitBlob": "d8c20ba7192fa9aceb8b234f1796aa84d996f10a"
+    },
+    {
+      "path": "apps/frontend/lib/media-uploads.ts",
+      "gitBlob": "f587adb9dec3fdd3b138787e04f8ebe3a1711e32"
+    },
+    {
+      "path": "apps/frontend/lib/server/healthcare-bff.ts",
+      "gitBlob": "7ee1f434fcb6c9a5a9d09ef8ed7ca9ea2ff21fa4"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsLiveSlot.tsx",
+      "gitBlob": "b7da648febc32e5f5a3ee05c7a6280267bd0ceb1"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsInlineEditor.tsx",
+      "gitBlob": "f31a253b0eea2a43f062ea17dc425b259542b9c9"
+    },
+    {
+      "path": "apps/frontend/lib/cms-edit-mode.ts",
+      "gitBlob": "31b67a1b0aac152949ec58db6f693aa02d61cae5"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java",
+      "gitBlob": "d7c11d8f35b9c6cb7fec6670c6d27a5ada2f6533"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java",
+      "gitBlob": "ca9ec3d75b1d7e1b2551e6ddbb9200a284c0a903"
+    },
+    {
+      "path": "apps/frontend/tests/e2e/live-compose-lifecycle.spec.ts",
+      "gitBlob": "ab1f0a9de6ba8b60d5b39f34ef762b8ab536a1d1"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/auth/mail/AfterCommitEmailSender.java",
+      "gitBlob": "39d265def07af2f2de465b0d5967c6dd5e169ca9"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/auth/mail/ApiEmailSender.java",
+      "gitBlob": "59821493d720b0c4f371e1981aab204c1e7f90cf"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/media/controller/MediaAssetController.java",
+      "gitBlob": "7539fad9943f884dfd9f55a4fddec3b9a54930d1"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/media/service/MediaAssetService.java",
+      "gitBlob": "136fcf426ad2fbe6c4450f555d316d3074cb0d6b"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/payment/service/BankStatementParser.java",
+      "gitBlob": "a04041e1eafa1a41fc59ad35d78dcf536c28fd60"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/security/RequestRateLimitFilter.java",
+      "gitBlob": "6505555ba3978207dc0edf4b3650774c06e1d3ff"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/auth/mail/ApiEmailSenderMaskTest.java",
+      "gitBlob": "c721a8d228e1ba72644c90a8633ea02ab44621a9"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/media/MediaAssetServiceTest.java",
+      "gitBlob": "791fb3be3c598ebb5d0c30b9c4c0da657603e6f9"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/payment/service/BankStatementParserTest.java",
+      "gitBlob": "019c3813a1b8d4071471daa80998adb8ee12f99d"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/security/RequestRateLimitFilterTest.java",
+      "gitBlob": "f0850c6f69a6a39a1f9aa0d414223f0451755260"
+    },
+    {
+      "path": "apps/frontend/app/doctor/articles/page.tsx",
+      "gitBlob": "a785d8631c3dd6ee0eef8b817b166332be4194c1"
+    },
+    {
+      "path": "apps/frontend/app/doctor/profile/page.tsx",
+      "gitBlob": "297f2bd5f9c06960af107ee59d476b7aee66effe"
+    },
+    {
+      "path": "apps/frontend/app/doctors/[slug]/page.tsx",
+      "gitBlob": "6726838fa39b3097601bdb10e1992da374752e47"
+    },
+    {
+      "path": "apps/frontend/app/patient/profile/page.tsx",
+      "gitBlob": "21712748ab7eb8fcdf599028d08482c286235ebf"
+    },
+    {
+      "path": "apps/frontend/components/ImageUpload.tsx",
+      "gitBlob": "12725cb203a7d96fab5fc717e670767c674dba8a"
+    },
+    {
+      "path": "apps/frontend/components/cms/CmsRenderer.tsx",
+      "gitBlob": "c2c5fbef3629762289bba62d5020e9996044a931"
+    },
+    {
+      "path": "apps/frontend/components/editor/RichContentRenderer.tsx",
+      "gitBlob": "1c3659faf3b39ecb2e36a861bbaa43ba58d011d5"
+    },
+    {
+      "path": "apps/frontend/components/editor/RichTextEditor.tsx",
+      "gitBlob": "231fd6c7f8fa62f931fa31433285cdf32110ec94"
+    },
+    {
+      "path": "apps/frontend/lib/api-client.ts",
+      "gitBlob": "ff443dd9548f31acf1673f0e57cf86a4099192a3"
+    },
+    {
+      "path": "apps/frontend/tests/editor-round-trip.test.mjs",
+      "gitBlob": "4c398f11b984be9b981113ea4f380c43c3379a08"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java",
+      "gitBlob": "1518443d31b01ddd462e989691623e199aad2949"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/AiConversationService.java",
+      "gitBlob": "b59bd6818dc35794caff53b9f865631399ae6a08"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/ChatMedicalSafety.java",
+      "gitBlob": "33e9c0737d31e554c8443afa13cfb6064cf3734f"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/chat/service/ChatSuggestedActionResolver.java",
+      "gitBlob": "2d90a926b0ec3ecf5dd362449f45c554d805fbee"
+    },
+    {
+      "path": "apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java",
+      "gitBlob": "cc505dab59a7eecada8a112c95e77f67e175b751"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/AiChatContractsTest.java",
+      "gitBlob": "6f93f4adaf1d08e6cf72ebc98f2aca973e9145dc"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java",
+      "gitBlob": "ab784d96663b4b7f8f20bbb2dff4210822104b28"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java",
+      "gitBlob": "df4f2d42655f11db89ce9419cedfd2f5fa6317da"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/chat/ChatSafetyAndChunkerTest.java",
+      "gitBlob": "4841afeabea550931fe10000ffd57171692ad14f"
+    },
+    {
+      "path": "apps/backend/src/test/java/com/healthcare/ai/chat/service/ChatSuggestedActionResolverTest.java",
+      "gitBlob": "bfef327d6e35ba0692a374dc3e842e42ff1e4208"
+    }
+  ],
+  "authority": "R0: source and captured evidence only; no writes, commands, peers, service calls, DB queries, secrets, production, commits, push, deployment, or release sign-off",
+  "budget": {
+    "maximumStaticProbes": 7,
+    "requireH0AndTwoAlternatives": true,
+    "highSeverityIndependentConfirmationRequired": true
   },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/document/repository/PatientDocumentRepository.java",
-   "gitBlob": "f4735820ea5a780085f750fc6fe8a122907a10db"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/appointment/repository/AppointmentRepository.java",
-   "gitBlob": "11ee9cb7d80de2d4cb20dae76567b34197abbe38"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/document/service/DocumentObjectCleanupService.java",
-   "gitBlob": "f62c905bbc68a8e8b841292b6c4e817ca90975e2"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/clinical/service/ClinicalAccessAuditService.java",
-   "gitBlob": "5aef34c3c76e73abb0203f5275215d31a35c275d"
-  },
-  {
-   "path": "apps/backend/src/test/java/com/healthcare/document/DocumentGenerationIntegrationTest.java",
-   "gitBlob": "24b7c3e14723af58a85f62530836a4d5d50a9fb9"
-  },
-  {
-   "path": "apps/backend/src/test/java/com/healthcare/document/DocumentServiceTest.java",
-   "gitBlob": "7241ef8b8f7d6e2bc1b8e020d512843673b0b948"
-  },
-  {
-   "path": "apps/ai-service/app/chatbot.py",
-   "gitBlob": "3cca937c6b91187fed5711eb02ac8e12d9cd5058"
-  },
-  {
-   "path": "apps/ai-service/app/llm.py",
-   "gitBlob": "0accadda5c4c00085afb8c85687aea7ee81a5376"
-  },
-  {
-   "path": "apps/ai-service/tests/test_chatbot_contract.py",
-   "gitBlob": "25035265d6a28b230177b194e6ff4d13abd3b8c1"
-  },
-  {
-   "path": "apps/frontend/types/hospital.ts",
-   "gitBlob": "88a6473ecc468caad371bde4d6915afe0b8aa176"
-  },
-  {
-   "path": "apps/frontend/app/patient/documents/page.tsx",
-   "gitBlob": "4a75694bf756539630303c7c135cbe2a2ca2af4f"
-  },
-  {
-   "path": "apps/frontend/tests/e2e/patient-documents.spec.ts",
-   "gitBlob": "d8c20ba7192fa9aceb8b234f1796aa84d996f10a"
-  },
-  {
-   "path": "apps/frontend/lib/media-uploads.ts",
-   "gitBlob": "f587adb9dec3fdd3b138787e04f8ebe3a1711e32"
-  },
-  {
-   "path": "apps/frontend/lib/server/healthcare-bff.ts",
-   "gitBlob": "7ee1f434fcb6c9a5a9d09ef8ed7ca9ea2ff21fa4"
-  },
-  {
-   "path": "apps/frontend/components/cms/CmsLiveSlot.tsx",
-   "gitBlob": "b7da648febc32e5f5a3ee05c7a6280267bd0ceb1"
-  },
-  {
-   "path": "apps/frontend/components/cms/CmsInlineEditor.tsx",
-   "gitBlob": "f31a253b0eea2a43f062ea17dc425b259542b9c9"
-  },
-  {
-   "path": "apps/frontend/lib/cms-edit-mode.ts",
-   "gitBlob": "31b67a1b0aac152949ec58db6f693aa02d61cae5"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/storage/FailClosedStoragePolicy.java",
-   "gitBlob": "d7c11d8f35b9c6cb7fec6670c6d27a5ada2f6533"
-  },
-  {
-   "path": "apps/backend/src/main/java/com/healthcare/storage/config/FailClosedStorageSettings.java",
-   "gitBlob": "ca9ec3d75b1d7e1b2551e6ddbb9200a284c0a903"
-  }
- ],
- "authority": "R0: source and captured evidence only; no writes, commands, peers, service calls, DB queries, secrets, production, commits, push, deployment, or release sign-off",
- "budget": {
-  "maximumStaticProbes": 7,
-  "requireH0AndTwoAlternatives": true,
-  "highSeverityIndependentConfirmationRequired": true
- },
- "scope": "Complete audit-owned changes and their direct document/auth/AI/FE dependencies; additionally the listed user-owned CMS and storage boundaries, read-only. Other parts of the broad project audit remain unreviewed.",
- "outcome": "Improve local patient/doctor/admin FE/BE/AI workflows, real private PDF downloads and safety boundaries, with the user inspecting the final local build before any release.",
- "nonGoals": [
-  "Redesign",
-  "New clinical authority",
-  "Live paid provider canary",
-  "Shared or production database changes",
-  "Production push or deployment",
-  "Global configuration changes",
-  "Overwriting user-owned baseline work"
- ],
- "diff": "reports/local-audit-fix.patch",
- "baseline": "reports/local-audit-baseline.json",
- "baselinePatchLimit": "reports/local-audit-baseline.patch and early testdiff.patch have an encoding-fidelity problem and are NOT safe rollback patches. Do not apply them or reconstruct the initial baseline from current files.",
- "evidence": [
-  {
-   "path": "reports/local-audit-be-repro.txt",
-   "status": "FAIL before repair",
-   "scope": "30 narrow backend cases; 4 failures; real fresh PostgreSQL with mocked object storage"
-  },
-  {
-   "path": "reports/local-audit-be-fix.txt",
-   "status": "PASS",
-   "scope": "31 narrow backend cases; 0 failures/errors/skips; real fresh PostgreSQL with mocked object storage"
-  },
-  {
-   "path": "reports/local-audit-ai-unsafe-local.txt",
-   "status": "FAIL before repair",
-   "scope": "4 unsafe deterministic local echoes; doctor-conditional preparation control passed"
-  },
-  {
-   "path": "reports/local-audit-ai-fix.txt",
-   "status": "FAIL",
-   "scope": "5-file AI check: 348 passed, 1 failure depending on release-hold setting; do not ignore or relabel green"
-  },
-  {
-   "path": "reports/local-audit-ai-publicbranch-hold-true.txt",
-   "status": "FAIL before repair",
-   "scope": "Diagnostic public-branch configuration variant; no live provider calls"
-  },
-  {
-   "path": "reports/local-audit-ai-publicbranch-hold-absent.txt",
-   "status": "PASS before repair",
-   "scope": "15 public-branch tests under default hold-false; demonstrates ambient configuration dependence, not 14 independent product defects"
-  },
-  {
-   "path": "reports/local-audit-fe-reminder-red.txt",
-   "status": "FAIL before repair",
-   "scope": "New reminder card label missing against old frontend build; mocked API"
-  },
-  {
-   "path": "reports/local-audit-fe-reminder-green.txt",
-   "status": "PASS",
-   "scope": "3 mocked-API document UI E2E cases; reminder download stream inspected; not live MinIO"
-  },
-  {
-   "path": "reports/local-audit-pdf-observation.json",
-   "status": "PASS bounded manual observation",
-   "scope": "One visit-summary UI retry plus actual MinIO/Spring/BFF/browser download on baseline audit build: 660381 bytes, PDF magic and stored size/hash matched. Initial network body capture zero was inconclusive and product-bug claim was withdrawn."
-  }
- ],
- "invariants": [
-  "New and retried PDF generation for the same source is idempotent under concurrent application callers without PostgreSQL aborted-transaction errors.",
-  "Owning patients, admins, and exact typed issuing/assigned doctors can access only their authorized documents; cross-type UUID collisions never widen authority.",
-  "Unauthorized or null-principal patient paths fail before looking up booking-code existence.",
-  "Deterministic local source text never echoes personal diagnosis or medication directions; conditional doctor-directed preparation and negated caution remain usable.",
-  "Public operational facts never depend on a fabricated provider response or leak an unsafe URL/title through a validation-only mask.",
-  "Patient reminder UI names the supported backend document class correctly and downloads the expected PDF file.",
-  "Claims of valid PDF bytes must inspect the actual file/stream and size/hash, not only a network capture or download event."
- ],
- "controllerReviewQuestions": [
-  "Does the blocking advisory source lock introduce connection-pool starvation when multiple identical callers consume all connections while the first request needs REQUIRES_NEW cleanup/audit? The existing 2-caller test does not settle larger concurrency.",
-  "Does stripping URLs from the combined title/content during AI source validation leave a branch title URL in the rendered excerpt? Body URLs are stripped by the renderer, but titles are not.",
-  "Is the stop-medication masking exception narrow enough to require conditional doctor-directed preparation rather than allowing a bare imperative with a doctor phrase?",
-  "Does the remaining hold-true service-hours test failure expose an unsettled operational routing contract? Do not propose assertion weakening as the fix.",
-  "Frontend PDF-generation capability is still coupled to generic media uploads; listed user-owned storage posture bypasses still need review. Treat readiness concerns separately from passing local happy paths."
- ],
- "notRun": [
-  "Full affected-package checks",
-  "Final rebuild and running-build integration/E2E on repaired source",
-  "Live remote provider",
-  "Production Supabase/Render/Vercel",
-  "Cross-platform execution",
-  "Final post-rework independent review"
- ],
- "acceptanceState": "NOT_ACCEPTED; first independent repaired-snapshot review may return blockers and will be followed by rework, broader verification, fresh review, and the Team Lead verdict",
- "runtime": "Native read-only Explore fallback executing specialist role instructions; actual underlying model is unknown and model-family independence/production qualification is not established",
- "identity": "Controller Git blob SHA-1 manifest refreshed v2 on working tree over HEAD d5a73d41e2b479852548297af8ac27827834f117 (includes uncommitted chatbot wave v5.1)",
- "revision": "v2-refresh-after-v5.1-chatbot-wave"
+  "scope": "Complete audit-owned changes and their direct document/auth/AI/FE dependencies; additionally the listed user-owned CMS and storage boundaries, read-only. Other parts of the broad project audit remain unreviewed.",
+  "outcome": "Improve local patient/doctor/admin FE/BE/AI workflows, real private PDF downloads and safety boundaries, with the user inspecting the final local build before any release.",
+  "nonGoals": [
+    "Redesign",
+    "New clinical authority",
+    "Live paid provider canary",
+    "Shared or production database changes",
+    "Production push or deployment",
+    "Global configuration changes",
+    "Overwriting user-owned baseline work"
+  ],
+  "diff": "reports/local-audit-fix.patch",
+  "baseline": "reports/local-audit-baseline.json",
+  "baselinePatchLimit": "reports/local-audit-baseline.patch and early testdiff.patch have an encoding-fidelity problem and are NOT safe rollback patches. Do not apply them or reconstruct the initial baseline from current files.",
+  "evidence": [
+    {
+      "path": "reports/local-audit-be-repro.txt",
+      "status": "FAIL before repair",
+      "scope": "30 narrow backend cases; 4 failures; real fresh PostgreSQL with mocked object storage"
+    },
+    {
+      "path": "reports/local-audit-be-fix.txt",
+      "status": "PASS",
+      "scope": "31 narrow backend cases; 0 failures/errors/skips; real fresh PostgreSQL with mocked object storage"
+    },
+    {
+      "path": "reports/local-audit-ai-unsafe-local.txt",
+      "status": "FAIL before repair",
+      "scope": "4 unsafe deterministic local echoes; doctor-conditional preparation control passed"
+    },
+    {
+      "path": "reports/local-audit-ai-fix.txt",
+      "status": "FAIL",
+      "scope": "5-file AI check: 348 passed, 1 failure depending on release-hold setting; do not ignore or relabel green"
+    },
+    {
+      "path": "reports/local-audit-ai-publicbranch-hold-true.txt",
+      "status": "FAIL before repair",
+      "scope": "Diagnostic public-branch configuration variant; no live provider calls"
+    },
+    {
+      "path": "reports/local-audit-ai-publicbranch-hold-absent.txt",
+      "status": "PASS before repair",
+      "scope": "15 public-branch tests under default hold-false; demonstrates ambient configuration dependence, not 14 independent product defects"
+    },
+    {
+      "path": "reports/local-audit-fe-reminder-red.txt",
+      "status": "FAIL before repair",
+      "scope": "New reminder card label missing against old frontend build; mocked API"
+    },
+    {
+      "path": "reports/local-audit-fe-reminder-green.txt",
+      "status": "PASS",
+      "scope": "3 mocked-API document UI E2E cases; reminder download stream inspected; not live MinIO"
+    },
+    {
+      "path": "reports/local-audit-pdf-observation.json",
+      "status": "PASS bounded manual observation",
+      "scope": "One visit-summary UI retry plus actual MinIO/Spring/BFF/browser download on baseline audit build: 660381 bytes, PDF magic and stored size/hash matched. Initial network body capture zero was inconclusive and product-bug claim was withdrawn."
+    }
+  ],
+  "invariants": [
+    "New and retried PDF generation for the same source is idempotent under concurrent application callers without PostgreSQL aborted-transaction errors.",
+    "Owning patients, admins, and exact typed issuing/assigned doctors can access only their authorized documents; cross-type UUID collisions never widen authority.",
+    "Unauthorized or null-principal patient paths fail before looking up booking-code existence.",
+    "Deterministic local source text never echoes personal diagnosis or medication directions; conditional doctor-directed preparation and negated caution remain usable.",
+    "Public operational facts never depend on a fabricated provider response or leak an unsafe URL/title through a validation-only mask.",
+    "Patient reminder UI names the supported backend document class correctly and downloads the expected PDF file.",
+    "Claims of valid PDF bytes must inspect the actual file/stream and size/hash, not only a network capture or download event."
+  ],
+  "controllerReviewQuestions": [
+    "Does the blocking advisory source lock introduce connection-pool starvation when multiple identical callers consume all connections while the first request needs REQUIRES_NEW cleanup/audit? The existing 2-caller test does not settle larger concurrency.",
+    "Does stripping URLs from the combined title/content during AI source validation leave a branch title URL in the rendered excerpt? Body URLs are stripped by the renderer, but titles are not.",
+    "Is the stop-medication masking exception narrow enough to require conditional doctor-directed preparation rather than allowing a bare imperative with a doctor phrase?",
+    "Does the remaining hold-true service-hours test failure expose an unsettled operational routing contract? Do not propose assertion weakening as the fix.",
+    "Frontend PDF-generation capability is still coupled to generic media uploads; listed user-owned storage posture bypasses still need review. Treat readiness concerns separately from passing local happy paths."
+  ],
+  "notRun": [
+    "Full affected-package checks",
+    "Final rebuild and running-build integration/E2E on repaired source",
+    "Live remote provider",
+    "Production Supabase/Render/Vercel",
+    "Cross-platform execution",
+    "Final post-rework independent review"
+  ],
+  "acceptanceState": "NOT_ACCEPTED; first independent repaired-snapshot review may return blockers and will be followed by rework, broader verification, fresh review, and the Team Lead verdict",
+  "runtime": "Native read-only Explore fallback executing specialist role instructions; actual underlying model is unknown and model-family independence/production qualification is not established",
+  "identity": "Scoped Git blob SHA-1 manifest refreshed on committed HEAD ccba16621e61ed9d1dbf0571c1ea6450dff822f1 covering chatbot v5.1 (b5a99e5) + remediation wave (ccba166) changed files plus prior audit scope; 51 files",
+  "revision": "v2-refresh-after-v5.1-chatbot-wave11"
 }

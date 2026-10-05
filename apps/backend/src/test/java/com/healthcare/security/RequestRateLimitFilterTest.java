@@ -194,6 +194,59 @@ class RequestRateLimitFilterTest {
     }
 
     @Test
+    void percentEncodedSlotUriStillEntersSlotsBucket() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.default-post-limit", "2")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        // getRequestURI is undecoded; %73 decodes to 's'. Spring still routes
+        // this to the slots handler, so the bucket must match it too.
+        String encodedPath = "/api/v1/appointments/doctors/11111111-2222-3333-4444-555555555555/slot%73";
+        invoke(filter, accepted, "GET", encodedPath, "198.51.100.21");
+        invoke(filter, accepted, "GET", encodedPath, "198.51.100.21");
+        MockHttpServletResponse third = invoke(filter, accepted, "GET", encodedPath, "198.51.100.21");
+
+        assertThat(third.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(2);
+    }
+
+    @Test
+    void headRequestsShareTheGetBuckets() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.default-post-limit", "2")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        // Spring MVC serves HEAD implicitly on @GetMapping, so a HEAD flood
+        // still executes the handler and its DB query — it must not evade.
+        String slotsPath = "/api/v1/appointments/doctors/11111111-2222-3333-4444-555555555555/slots";
+        invoke(filter, accepted, "HEAD", slotsPath, "198.51.100.22");
+        invoke(filter, accepted, "HEAD", slotsPath, "198.51.100.22");
+        MockHttpServletResponse third = invoke(filter, accepted, "HEAD", slotsPath, "198.51.100.22");
+
+        assertThat(third.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(2);
+    }
+
+    @Test
+    void percentEncodedAuthPathStillEntersAuthBucket() throws Exception {
+        MockEnvironment environment = new MockEnvironment()
+            .withProperty("app.security.rate-limit.auth-limit", "1")
+            .withProperty("app.security.rate-limit.window-seconds", "60");
+        RequestRateLimitFilter filter = filter(environment);
+        AtomicInteger accepted = new AtomicInteger();
+
+        invoke(filter, accepted, "POST", "/api/v1/auth/logi%6E", "10.0.2.1");
+        MockHttpServletResponse repeated = invoke(filter, accepted, "POST", "/api/v1/auth/login", "10.0.2.1");
+
+        assertThat(repeated.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+    }
+
+    @Test
     void trustedBffUsesCanonicalClientIpAsRateLimitKey() throws Exception {
         MockEnvironment environment = rateLimitEnvironment();
         RequestRateLimitFilter filter = filter(environment);

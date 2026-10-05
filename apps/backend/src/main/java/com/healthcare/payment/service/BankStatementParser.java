@@ -30,11 +30,18 @@ public final class BankStatementParser {
             if (line.isEmpty()) {
                 continue;
             }
-            String[] cells = line.split("[;,]");
-            BigDecimal amount = cells.length >= 1 ? parseAmount(cells[0].trim()) : null;
-            // A leading non-numeric line is a column header, not an error.
+            // One dialect per line: a semicolon statement keeps commas inside
+            // fields (e.g. decimal amounts "1234,56"), only comma-only lines
+            // use the comma dialect.
+            String[] cells = line.contains(";") ? line.split(";") : line.split(",");
+            BigDecimal amount = cells.length >= 1 ? parseAmount(normalizeSpaces(cells[0]).trim()) : null;
+            // A leading non-numeric, digit-free line is a column header, not
+            // an error; a malformed first data row is counted, never dropped.
             if (!seenNonEmptyLine && amount == null) {
                 seenNonEmptyLine = true;
+                if (line.chars().anyMatch(Character::isDigit)) {
+                    invalid++;
+                }
                 continue;
             }
             seenNonEmptyLine = true;
@@ -42,15 +49,15 @@ public final class BankStatementParser {
                 invalid++;
                 continue;
             }
-            String content = cells[1].trim();
-            String reference = cells.length == 3 ? cells[2].trim() : null;
+            String content = normalizeSpaces(cells[1]).trim();
+            String reference = cells.length == 3 ? normalizeSpaces(cells[2]).trim() : null;
             // Bound the persisted column widths: transfer_content is
             // VARCHAR(64) and amount NUMERIC(12,2). Over-bound lines must be
             // counted invalid here — letting them reach the INSERT aborts the
             // whole import while earlier REQUIRES_NEW matches stay committed
             // with no recoverable provenance.
-            if (content.isBlank() || content.length() > 64
-                    || (reference != null && (reference.isBlank() || reference.length() > 100))
+            if (content.isEmpty() || content.length() > 64
+                    || (reference != null && (reference.isEmpty() || reference.length() > 100))
                     || amount.precision() - amount.scale() > 10 || amount.scale() > 2) {
                 invalid++;
                 continue;
@@ -58,6 +65,13 @@ public final class BankStatementParser {
             rows.add(new StatementRow(amount, content, reference));
         }
         return new ParseResult(List.copyOf(rows), invalid);
+    }
+
+    // String.trim/isBlank use Character.isWhitespace, which excludes NBSP and
+    // the other Unicode space separators a bank export can emit; normalize them
+    // to plain spaces so a visually-blank cell is truly blank.
+    private static String normalizeSpaces(String value) {
+        return value.replace(' ', ' ').replace(' ', ' ').replace(' ', ' ').replace(' ', ' ');
     }
 
     private static BigDecimal parseAmount(String value) {
