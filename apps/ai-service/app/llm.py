@@ -765,7 +765,7 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     # "co giat" (convulsion) folds identically to "có giặt" (laundry amenity
     # question); escalate only when the next word is not a laundry noun.
     r"|co\W+giat\b(?!\W*(?:ui|la|giu?|quan|ao|khan)\b)"
-    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\W+dau|o\W+day)\b))"
+    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day)\b))"
     # "tu tu" is both "tự tử" and benign "từ từ" (slowly); require a volition
     # or thinking idiom in front, as in app.emergency_terms._TUTU_CRISIS.
     r"|(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+tu\W+tu"

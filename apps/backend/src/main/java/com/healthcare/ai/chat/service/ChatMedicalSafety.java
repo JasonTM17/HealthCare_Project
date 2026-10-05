@@ -74,7 +74,7 @@ public final class ChatMedicalSafety {
             + "(?!\\s+(?:" + BODY_PART_CUE + ")\\b))|dau\\s+(?:(?>"
             + VEHICLE_CUE + ")\\s+)?(?:" + BODY_PART_CUE + ")|kho\\s+tho|"
             + "sot|ngat|co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
-            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\\W+dau|o\\W+day)\\b))"
+            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))"
             + "|chay\\s+mau|"
             // Same volition/thinking-idiom guard as EMERGENCY_INPUT_CUE:
             // folded "từ từ" (slowly) must not mark input clinically-protected.
@@ -96,7 +96,8 @@ public final class ChatMedicalSafety {
             + "cantbreathe|cannotbreathe|notbreathing|severebleeding|suddencollapse|"
             + "lossofconsciousness|nhoimauco\\s+tim|ngungtim|ngungtho|battinh|matythuc|"
             + "suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|want\\s+to\\s+die|self\\s+harm|"
-            + "tutu|cogiat)"
+            + "tutu|cogiat(?!(?:ui|la|gi|quan|ao|khan|"
+            + "do(?:(?:[^a-z0-9]|$)|(?:khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|oday|odau))))[a-z0-9]*)"
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
@@ -114,7 +115,7 @@ public final class ChatMedicalSafety {
             // suppresses only at clause end or before laundry-closing words;
             // every other continuation keeps the fail-safe default of firing.
             + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
-            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\\W+dau|o\\W+day)\\b))"
+            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))"
             + "|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
             + "shortness\\s+of\\s+breath|difficulty\\s+breathing|cant\\s+breathe|"
             + "cannot\\s+breathe|not\\s+breathing|severe\\s+bleeding|unresponsive|"
@@ -139,7 +140,13 @@ public final class ChatMedicalSafety {
             // start mid-message — broader than the ai-service squash rule,
             // which only trusts bare "tutu" at stream start; the direction is
             // over-fire (safe side).
-            + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|cogiat)(?![a-z0-9])",
+            + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|"
+            // Joined "cogiat" carries the squash-net contract: laundry prefixes
+            // and laundry-closing "do"+tail suppress; any other continuation
+            // ("cogiatdobinga" = co giật do bị ngã) fires — fail-safe.
+            + "cogiat(?!(?:ui|la|gi|quan|ao|khan|"
+            + "do(?:(?:[^a-z0-9]|$)|(?:khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|oday|odau))))[a-z0-9]*)"
+            + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
 

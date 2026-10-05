@@ -79,7 +79,7 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     + "dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|kho\\s+tho(?:\\s+du\\s+doi)?|"
     + "meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
     + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
-    + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\\W+dau|o\\W+day)\\b))|"
+    + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))|"
     + "heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|shortness\\s+of\\s+breath|"
     + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
     + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
@@ -91,7 +91,11 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
     + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
     + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
-    + "khong\\s+muon\\s+song|tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|cogiat|"
+    + "khong\\s+muon\\s+song|tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|"
+    // Joined "cogiat" mirrors the ai-service squash net: laundry prefixes and
+    // "do"+closing-particle suppress; other continuations ("cogiatdobinga")
+    // fire — fail-safe.
+    + "cogiat(?!(?:ui|la|gi|quan|ao|khan|do(?:(?:[^a-z0-9]|$)|(?:khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|oday|odau))))[a-z0-9]*|"
     + "that\\s+nguc|dau\\s+nguc\\s+lan|khong\\s+tho\\s+duoc|yeu\\s+liet|liet\\s+nua\\s+nguoi|"
     + "ngat\\s+xiu|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
     + "nhoi\\s+mau\\s+tim|va\\s+mo\\s+hoi\\s+lanh|mo\\s+mat\\s+dot\\s+ngot|soc\\s+phan\\s+ve|"
