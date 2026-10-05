@@ -578,3 +578,75 @@ test(
     expect(finalRead.status).toBe("REFUNDED");
   },
 );
+
+test(
+  "live payment stale-decision guard: a second admin PATCH on a decided payment is refused",
+  async () => {
+    test.setTimeout(120_000);
+    const patientSession = await loginApi(DEMO_PATIENT.email);
+    const adminSession = await loginApi(DEMO_ADMIN_EMAIL);
+
+    const selection = await findBookableSelection();
+    const bookingCode = await holdSlot(
+      selection,
+      "Live Compose stale-decision E2E: quyết định kép bị từ chối.",
+      patientSession,
+    );
+    const confirmed = await confirmBooking(bookingCode);
+    const appointmentId = confirmed.id;
+
+    const reference = `LIVE-STALE-${bookingCode}`;
+    const idempotencyKey = `apt-${appointmentId}-${reference}`.slice(0, 100);
+    const submitted = await apiJson<BankTransferPayment>(
+      `/patient/appointments/${encodeURIComponent(appointmentId)}/payment/submit`,
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({ transactionReference: reference }),
+      },
+      patientSession,
+    );
+    expect(submitted.status).toBe("PENDING_VERIFICATION");
+    const paymentId = submitted.id;
+
+    // First decision lands...
+    const decided = await apiJson<BankTransferPayment>(
+      `/admin/payments/${encodeURIComponent(paymentId)}`,
+      { method: "PATCH", body: JSON.stringify({ decision: "REJECT", reason: "stale-decision probe" }) },
+      adminSession,
+    );
+    expect(decided.status).toBe("REJECTED");
+
+    // ...a second decision on the same payment must be refused (409-style),
+    // not silently overwrite REJECTED with VERIFY.
+    const stale = await fetch(
+      apiUrl(`/admin/payments/${encodeURIComponent(paymentId)}`),
+      {
+        method: "PATCH",
+        headers: buildApiHeaders(
+          { method: "PATCH", body: JSON.stringify({ decision: "VERIFY" }) },
+          adminSession,
+        ),
+        body: JSON.stringify({ decision: "VERIFY" }),
+      },
+    );
+    expect(stale.status, "stale decision must be refused").toBeGreaterThanOrEqual(400);
+    expect(stale.status).toBeLessThan(500);
+
+    // Terminal state is untouched by the refused re-decision.
+    const reread = await apiJson<BankTransferPayment>(
+      `/patient/appointments/${encodeURIComponent(appointmentId)}/payment`,
+      {},
+      patientSession,
+    );
+    expect(reread.status).toBe("REJECTED");
+    expect(reread.rejectionReason).toContain("stale-decision");
+
+    // Cleanup: free the slot for future same-day runs.
+    await apiJson<AppointmentDetails>(
+      `/appointments/${encodeURIComponent(bookingCode)}/cancel`,
+      { method: "POST", body: JSON.stringify({ reason: "Live Compose stale-decision cleanup." }) },
+      patientSession,
+    );
+  },
+);

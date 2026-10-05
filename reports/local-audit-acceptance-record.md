@@ -78,3 +78,16 @@ Still NOT_RUN on this snapshot: stale/concurrent double-decision on the same
 payment (backend guarded by status transition, unit-covered); admin UI-level
 (browser page object) journey remains demonstrated by live-compose-demo UI
 test for approve; reject/refund UI clicks are API-level here.
+
+### Wave-5b — consolidated suite + stale-decision guard
+
+Fourth journey added to the spec: double admin decision on the same payment is
+refused (4xx, terminal state preserved). Full live-compose suite consolidated:
+8/8 PASS across two batches (auth rate-limit bucket sizing forces serial
+batching — environment constraint, not a product defect).
+
+| Spec | Status |
+|---|---|
+| live-compose-demo (booking+attachment+AV, PDF 3-class+scope, CMS hero publish/rollback) | PASS 3/3 |
+| live-compose-clinical-payment (doctor journey, reject, refund, stale-decision) | PASS 4/4 |
+| live-compose-lifecycle (hold→OTP→confirm→reschedule→double-book 409→cancel) | PASS 1/1 |
