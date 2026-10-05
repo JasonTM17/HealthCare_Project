@@ -1672,7 +1672,12 @@ public class AiConversationService {
         ChatSafetyAction safetyAction = parseSafety(response.get("safety_action"));
         TriageSummary triage = parseTriage(response.get("triage"), mode);
         List<AiChatSourceResolver.ResolvedSource> finalSources = new ArrayList<>();
-        if (!authorized.isEmpty()) {
+        // The exact-echo contract only applies when the provider claims an
+        // answer: a non-ANSWER turn (INSUFFICIENT_EVIDENCE, REFUSE, HANDOFF,
+        // EMERGENCY) legitimately reports used_sources=[] because it declined
+        // the authorized candidates. Requiring equality there turned every
+        // honest refusal into a 502 instead of a persisted degraded reply.
+        if (!authorized.isEmpty() && safetyAction == ChatSafetyAction.ANSWER) {
             if (!usedSourcesMatch(response.get("used_sources"), authorized)) {
                 throw invalidAiResponse();
             }
@@ -1964,12 +1969,21 @@ public class AiConversationService {
                     + "Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?";
         };
 
+        // A greeting already is the complete deterministic answer — nothing a
+        // retry could improve and no retrieval was ever needed — so it reports
+        // ANSWER (the "Hướng dẫn nhanh" chip) rather than the INSUFFICIENT
+        // retry banner. Every other intent keeps INSUFFICIENT_EVIDENCE: the
+        // canned navigation copy is a degraded stand-in for a grounded reply
+        // the retrieval path failed to produce.
+        ChatSafetyAction safety = intent == ChatSuggestedActionResolver.HospitalSupportIntent.GREETING
+            ? ChatSafetyAction.ANSWER
+            : ChatSafetyAction.INSUFFICIENT_EVIDENCE;
         return new SanitizedAiResponse(
             answer,
             SAFE_DISCLAIMER,
             "local_fallback",
             List.of(),
-            ChatSafetyAction.INSUFFICIENT_EVIDENCE,
+            safety,
             null,
             ChatSuggestedActionResolver.hospitalSupportFallback(content),
             "UNAVAILABLE",

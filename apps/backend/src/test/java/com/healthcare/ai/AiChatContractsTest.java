@@ -314,6 +314,85 @@ class AiChatContractsTest {
     }
 
     @Test
+    void insufficientEvidenceWithAuthorizedSourcesIsNotAContractError() {
+        // Reproduces the production 502: retrieval authorizes a specialty
+        // candidate, generation honestly declines it (INSUFFICIENT_EVIDENCE
+        // with used_sources=[]), and the strict echo check rejected the turn
+        // as AI_RESPONSE_INVALID instead of persisting the degraded reply.
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        UUID sourceId = UUID.randomUUID();
+        AiChatSourceResolver.ResolvedSource source = new AiChatSourceResolver.ResolvedSource(
+            "specialty", sourceId.toString(), "Thần kinh", "than-kinh", true, true,
+            "OPERATIONAL", null, null, null, null, "/specialties/than-kinh",
+            "/dat-lich?specialtyId=" + sourceId);
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            aiService,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object sanitized = ReflectionTestUtils.invokeMethod(
+            service,
+            "sanitize",
+            Map.of(
+                "answer", "Tôi chưa tìm thấy thông tin đủ tin cậy để trả lời.",
+                "provenance", "local_provider",
+                "safety_action", "INSUFFICIENT_EVIDENCE",
+                "used_sources", List.of()),
+            ChatMode.HOSPITAL_SUPPORT,
+            List.of(source),
+            "Tôi đau đầu chóng mặt kéo dài");
+
+        assertThat((ChatSafetyAction) ReflectionTestUtils.invokeMethod(sanitized, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
+        // The declined candidate must not surface as a citation either.
+        assertThat((List<?>) ReflectionTestUtils.invokeMethod(sanitized, "citations"))
+            .isEmpty();
+    }
+
+    @Test
+    void answerWithMismatchedUsedSourcesStillFailsClosed() {
+        // The exact-echo contract still applies to claimed answers: an ANSWER
+        // that does not echo every authorized source is fabrication risk.
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        UUID sourceId = UUID.randomUUID();
+        AiChatSourceResolver.ResolvedSource source = new AiChatSourceResolver.ResolvedSource(
+            "specialty", sourceId.toString(), "Thần kinh", "than-kinh", true, true,
+            "OPERATIONAL", null, null, null, null, "/specialties/than-kinh",
+            "/dat-lich?specialtyId=" + sourceId);
+
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            aiService,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+            service,
+            "sanitize",
+            Map.of(
+                "answer", "Bạn nên đến cơ sở gần nhất.",
+                "provenance", "local_provider",
+                "safety_action", "ANSWER",
+                "used_sources", List.of()),
+            ChatMode.HOSPITAL_SUPPORT,
+            List.of(source),
+            "Tôi đau đầu chóng mặt kéo dài"))
+            .isInstanceOf(BusinessException.class)
+            .extracting(error -> ((BusinessException) error).getCode())
+            .isEqualTo("AI_RESPONSE_INVALID");
+    }
+
+    @Test
     void groundedPatientChatCarriesOnlyDatabaseAuthorizedSyntheticAssertion() {
         AiService upstream = mock(AiService.class);
         com.healthcare.ai.chat.service.SyntheticBetaGuardService guard = mock(

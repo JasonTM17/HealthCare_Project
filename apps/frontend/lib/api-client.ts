@@ -633,8 +633,8 @@ async function withAuthenticatedSession<T>(
   }
 }
 
-async function getAuthenticatedJson<T>(path: string, init?: RequestInit): Promise<T> {
-  return withAuthenticatedSession(path, () => getJson<T>(path, init));
+async function getAuthenticatedJson<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  return withAuthenticatedSession(path, () => getJson<T>(path, init, timeoutMs));
 }
 
 interface SpecialtyRecommendationResponse {
@@ -2484,7 +2484,10 @@ export async function sendAiConversationMessage(
     headers: { "Idempotency-Key": idempotencyKey },
     body: JSON.stringify({ content }),
     signal: options.signal,
-  });
+  // The BFF allows 30s for the patient chat turn (lease + prepare + commit);
+  // the browser deadline must outlive it so the BFF's structured response —
+  // not a local abort — reaches the widget (see the pairing note above).
+  }, AI_STREAM_REQUEST_TIMEOUT_MS);
   return parseAiChatExchange(response, path);
 }
 
