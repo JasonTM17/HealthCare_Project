@@ -655,6 +655,10 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "con co giat do gi",
     "be co giat do cho no sot",
     "cogiatdobinga",
+    // Squash heads must not prefix-suppress crisis words (wave-11).
+    "cogiatlai",
+    "cogiatdotainan",
+    "cogiatdonhiemtrung",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -686,6 +690,10 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     // Clause-final / laundry-closing "đồ" shapes stay benign.
     "phòng khám có giặt đồ",
     "phòng khám có giặt đồ!",
+    // Fully-laundry squash chains stay quiet (wave-11 full-match).
+    "cogiatdokhong",
+    "cogiatuikhong",
+    "cogiatdo",
     // "nghỉ ngơi từ từ" is benign, and joined "từ từ thôi" is not "tự tử".
     "tôi cần nghỉ ngơi từ từ",
     "tututhoi nhe bac si",

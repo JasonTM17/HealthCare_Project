@@ -342,6 +342,13 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         # joined squash forms read the same way.
         "cogiatdobinga",
         "cogiatdogi",
+        # Squash heads must not prefix-suppress crisis continuations
+        # (Wukong wave-11): "lại" (again), "tai nạn" (accident),
+        # "nhiễm trùng" (infection), "hạ sốt" (fever dropped).
+        "cogiatlai",
+        "cogiatdotainan",
+        "cogiatdonhiemtrung",
+        "cogiatdohasot",
         "tututroi buon qua",
     ],
 )
@@ -369,6 +376,11 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         "phòng khám có giặt đồ",
         "phòng khám có giặt đồ ở đâu",
         "phòng khám có giặt đồ!",
+        # Squashed laundry chains must fully consume the token (wave-11).
+        "cogiatdokhong",
+        "cogiatuikhong",
+        "cogiatdo",
+        "cogiatquanao",
         # "nghỉ ngơi từ từ" (rest slowly) is not "nghĩ ... tự tử".
         "toi can nghi ngoi tu tu",
         # joined "từ từ thôi" at message start — a benign continuation.

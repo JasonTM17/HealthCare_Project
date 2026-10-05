@@ -736,21 +736,20 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
     return False
 
 
-# Squashed laundry continuations for "cogiat" — joined nouns only. "do" is
-# handled separately below because it is doubly ambiguous ("đồ" laundry vs
-# "do" because-of).
-_CO_GIAT_SQUASHED_LAUNDRY: Final[tuple[str, ...]] = ("ui", "la", "gi", "quan", "ao", "khan")
-# After squashed "do", suppression is allowed only when the stream ends or a
-# laundry-closing particle follows — "cogiatdokhong" (có giặt đồ không) stays
-# quiet, but "cogiatdobinga" (co giật do bị ngã) keeps firing. A closed-world
-# medical allowlist cannot enumerate every cause, so the default flips to
-# fire. One-letter particles are excluded: in a squash stream "a" would
-# wrongly swallow real words like "anhhuong". Reason-capable words (gi/cho/
-# tre/em/be/con/nguoi) are also excluded — "do gì"/"do cho nó sốt" are
-# because-of clauses, not laundry continuations (Wukong R1).
-_CO_GIAT_SQUASHED_DO_TAILS: Final[tuple[str, ...]] = (
-    "khong", "ko", "ha", "nhe", "nhi", "nho", "vay", "ta", "dc", "duoc",
-    "chu", "giu", "thue", "odau", "oday",
+# "do" is doubly ambiguous in squash ("đồ" laundry vs "do" because-of), and
+# Inside a squash stream there is no \b, so prefix matching is unsafe: "la"
+# would swallow "cogiatlai" (co giật lại) and "ta" would swallow
+# "cogiatdotainan" (do tai nạn) — Wukong wave-11 CE1/CE2. Suppression is
+# only allowed when the ENTIRE remainder is a chain of laundry units and/or
+# closing particles: "cogiatuikhong" (giặt ủi không), "cogiatdo" (giặt đồ),
+# "cogiatdokhongvay" stay quiet; any leftover non-particle residue — "lai",
+# "tainan", "binga" — fails the full-match and fires.
+# Bare "gi" is allowed only in FIRST position ("cogiatgi" = giặt gì,
+# benign); in a continuation it is reason-capable ("do gì" = because of
+# what) so the chain requires the full "giu" (giũ) there instead.
+_CO_GIAT_SQUASHED_SUPPRESS: Final[re.Pattern[str]] = re.compile(
+    r"(?:ui|la|giu?|quan|ao|khan|do)"
+    r"(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*\Z"
 )
 
 
@@ -763,14 +762,10 @@ def _squashed_tier1_hit(squashed: str) -> bool:
         start = squashed.find(term)
         while start != -1:
             rest = squashed[start + len(term) :]
-            if rest.startswith("do"):
-                if rest == "do" or rest[2:].startswith(_CO_GIAT_SQUASHED_DO_TAILS):
-                    start = squashed.find(term, start + 1)
-                    continue
-                return True
-            if not rest.startswith(_CO_GIAT_SQUASHED_LAUNDRY):
-                return True
-            start = squashed.find(term, start + 1)
+            if rest and _CO_GIAT_SQUASHED_SUPPRESS.match(rest):
+                start = squashed.find(term, start + 1)
+                continue
+            return True
     return False
 
 

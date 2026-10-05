@@ -95,7 +95,10 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     // Joined "cogiat" mirrors the ai-service squash net: laundry prefixes and
     // "do"+closing-particle suppress; other continuations ("cogiatdobinga")
     // fire — fail-safe.
-    + "cogiat(?!(?:ui|la|gi|quan|ao|khan|do(?:(?:[^a-z0-9]|$)|(?:khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|oday|odau))))[a-z0-9]*|"
+    // Squash streams have no \b — the remainder must fully consume as a
+    // laundry/particle chain to suppress ("cogiatdokhong" quiet;
+    // "cogiatlai"/"cogiatdobinga" fire — Wukong wave-11).
+    + "cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do)(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*)(?![a-z0-9]))[a-z0-9]*|"
     + "that\\s+nguc|dau\\s+nguc\\s+lan|khong\\s+tho\\s+duoc|yeu\\s+liet|liet\\s+nua\\s+nguoi|"
     + "ngat\\s+xiu|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
     + "nhoi\\s+mau\\s+tim|va\\s+mo\\s+hoi\\s+lanh|mo\\s+mat\\s+dot\\s+ngot|soc\\s+phan\\s+ve|"

@@ -283,3 +283,27 @@ as low-risk follow-up). Wukong wave-10 verdict: NOT_FALSIFIED +
 PROCEED_WITH_RESIDUAL_RISK; R1/R2 then repaired above, R3 (severity-marker
 over-fire on mixed fever+laundry) and R4 (null-verifier test seam) accepted
 as documented residuals.
+
+## Addendum 3 — wave-11 squash-boundary repair (post-a3adb78)
+
+Wukong wave-11 FALSIFIED the R2 port: suppression tails were prefix-matched
+inside squash streams where no  exists — "cogiatlai" (co giật lại) and
+"cogiatdotainan" (do tai nạn) silently suppressed. Repaired by switching all
+squash suppression to full-match chain semantics: the remainder after
+"cogiat" must consume entirely as laundry units (ui|la|giu?|quan|ao|khan|do)
+plus closing particles; bare "gi" is first-position-only so "cogiatdogi"
+(do gì = because of what) fires. Verified live 14/14: CE1-CE5 fire,
+cogiatdokhong/uikhong/do/quanao stay quiet.
+
+| Check | Result |
+|---|---|
+| ai-service pytest (all) | 965/965 |
+| test_emergency_recall | 135/135 |
+| PublicAiChatControllerTest | 73/73 |
+| ChatSafetyAndChunkerTest | 25/25 |
+| bff-security.test.mjs | 41/41 |
+| Live 14-row wave-11 matrix | all correct |
+
+Accepted residuals unchanged: baseline-recall kill-switch over-fires
+(intentional), `_triage_requires_local` over-fires (safe direction),
+"giặt đồ cho/gì" amenity over-fire (documented class).

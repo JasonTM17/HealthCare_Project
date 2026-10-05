@@ -793,7 +793,11 @@ class PublicAiChatControllerTest {
             // "nghỉ ngơi từ từ" (rest slowly) must not read as "nghĩ ... tự tử".
             "tôi cần nghỉ ngơi từ từ",
             // Joined benign opening: "từ từ thôi" — not "tự tử".
-            "tututhoi nhe bac si")) {
+            "tututhoi nhe bac si",
+            // Fully-laundry squash chains stay quiet (wave-11 full-match).
+            "cogiatdokhong",
+            "cogiatuikhong",
+            "cogiatdo")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))
@@ -834,7 +838,12 @@ class PublicAiChatControllerTest {
             "con co giat do gi",
             "be co giat do cho no sot",
             // Joined squash crisis at the Java layer too (Wukong R2).
-            "cogiatdobinga")) {
+            "cogiatdobinga",
+            // Squash heads must not prefix-suppress crisis words (wave-11):
+            // "lai" (lại), "tainan" (tai nạn), "nhiem trung" (nhiễm trùng).
+            "cogiatlai",
+            "cogiatdotainan",
+            "cogiatdonhiemtrung")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))

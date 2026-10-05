@@ -96,8 +96,11 @@ public final class ChatMedicalSafety {
             + "cantbreathe|cannotbreathe|notbreathing|severebleeding|suddencollapse|"
             + "lossofconsciousness|nhoimauco\\s+tim|ngungtim|ngungtho|battinh|matythuc|"
             + "suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|want\\s+to\\s+die|self\\s+harm|"
-            + "tutu|cogiat(?!(?:ui|la|gi|quan|ao|khan|"
-            + "do(?:(?:[^a-z0-9]|$)|(?:khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|oday|odau))))[a-z0-9]*)"
+            // Squash streams have no \b — suppression must consume the whole
+            // remainder as a laundry/particle chain, else "cogiatlai" (co
+            // giật lại) would silently suppress (Wukong wave-11).
+            + "tutu|cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do)"
+            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*)(?![a-z0-9]))[a-z0-9]*)"
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
@@ -141,11 +144,12 @@ public final class ChatMedicalSafety {
             // which only trusts bare "tutu" at stream start; the direction is
             // over-fire (safe side).
             + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|"
-            // Joined "cogiat" carries the squash-net contract: laundry prefixes
-            // and laundry-closing "do"+tail suppress; any other continuation
-            // ("cogiatdobinga" = co giật do bị ngã) fires — fail-safe.
-            + "cogiat(?!(?:ui|la|gi|quan|ao|khan|"
-            + "do(?:(?:[^a-z0-9]|$)|(?:khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|oday|odau))))[a-z0-9]*)"
+            // Joined "cogiat" carries the squash-net contract: the remainder
+            // must fully consume as a laundry/particle chain to suppress —
+            // "cogiatdokhong" stays quiet but "cogiatlai" and
+            // "cogiatdobinga" fire (Wukong wave-11).
+            + "cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do)"
+            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*)(?![a-z0-9]))[a-z0-9]*)"
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
