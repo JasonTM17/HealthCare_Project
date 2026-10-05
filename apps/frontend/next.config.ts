@@ -3,6 +3,11 @@ import type { NextConfig } from "next";
 const distDir = process.env.NEXT_DIST_DIR || ".next";
 const development = process.env.NODE_ENV !== "production";
 const productionBuild = !development && process.argv.some((argument) => argument === "build");
+// `upgrade-insecure-requests` must only ship where TLS actually terminates —
+// on a plain-HTTP deployment (local Compose, LAN preview) WebKit/Chromium
+// rewrite every subresource to https:// and the page loses CSS/JS/images.
+const upgradeInsecureRequests =
+  !development && process.env.CSP_UPGRADE_INSECURE_REQUESTS !== "0";
 
 // A production build without a real site URL silently ships placeholder
 // canonical/OG domains (`healthcare-beta.example`) and a disabled sitemap.
@@ -35,7 +40,7 @@ const contentSecurityPolicy = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  ...(development ? [] : ["upgrade-insecure-requests"]),
+  ...(upgradeInsecureRequests ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [

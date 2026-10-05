@@ -202,7 +202,9 @@ const Navbar: React.FC<NavbarProps> = ({ onOpenBooking, branches = [] }) => {
   return (
     <>
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <div className="utility-bar">
+      {/* Named region: screen readers must reach the hotline/hours strip as a
+          landmark instead of loose content outside any landmark (axe region). */}
+      <div aria-label="Liên hệ và giờ làm việc" className="utility-bar" role="region">
         <div className="utility-bar__inner">
           <div className="utility-bar__left">
             {contactHref ? (

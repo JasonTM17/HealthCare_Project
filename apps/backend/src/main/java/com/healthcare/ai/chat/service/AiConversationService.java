@@ -338,7 +338,11 @@ public class AiConversationService {
     @Transactional(readOnly = true)
     public ChatPolicyResponse policy(UserDetails principal) {
         currentUserId(principal);
-        return new ChatPolicyResponse(POLICY_VERSION, retentionDays, CONSENT_TEXT, remoteProviderEnabled);
+        List<ChatMode> enabledModes = new ArrayList<>();
+        enabledModes.add(ChatMode.HOSPITAL_SUPPORT);
+        if (symptomTriageEnabled) enabledModes.add(ChatMode.SYMPTOM_TRIAGE);
+        if (healthEducationEnabled) enabledModes.add(ChatMode.HEALTH_EDUCATION);
+        return new ChatPolicyResponse(POLICY_VERSION, retentionDays, CONSENT_TEXT, remoteProviderEnabled, enabledModes);
     }
 
     @Transactional

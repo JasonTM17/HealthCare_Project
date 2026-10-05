@@ -176,7 +176,10 @@ export default function AdminHealthQuestionsPage() {
   };
 
   return (
-    <main id="main-content" className="mx-auto max-w-6xl p-6 lg:p-10">
+    <div className="mx-auto max-w-6xl p-6 lg:p-10">
+      {/* Not <main> and no id="main-content": the admin layout already renders
+          the top-level main landmark carrying that id — a second one nests a
+          landmark and breaks the skip-link target (duplicate id). */}
       <header className="mb-8">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">Moderation</p>
         <h1 className="mt-2 text-3xl font-black text-teal-950">Hỏi đáp bệnh phổ biến</h1>
@@ -375,6 +378,6 @@ export default function AdminHealthQuestionsPage() {
         summaryLabel="Báo cáo đang xử lý"
         title="Gỡ nội dung này?"
       />
-    </main>
+    </div>
   );
 }

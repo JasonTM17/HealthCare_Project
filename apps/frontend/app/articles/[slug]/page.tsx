@@ -190,7 +190,9 @@ export default function ArticleDetailPage() {
         ) : null}
         {article ? (
           <div className="article-news-layout">
-            <main className="article-news-main">
+            {/* Not <main>: this sits inside the app shell's top-level <main>,
+                and nested main landmarks fail axe landmark-one-main. */}
+            <div className="article-news-main">
               <article className="resource-hero-card resource-hero-card--teal article-editorial-header">
                 <div className="article-editorial-header__badges">
                   <div className="resource-icon article-editorial-header__emblem" aria-hidden="true">
@@ -513,9 +515,11 @@ export default function ArticleDetailPage() {
                   <ArticleComments slug={article.slug} category={article.category} />
                 </div>
               </div>
-            </main>
+            </div>
 
-            <aside className="article-news-sidebar">
+            {/* Named complementary landmark — two unnamed <aside> on one page
+                share one accessible name and fail axe landmark-unique. */}
+            <aside aria-label="Tác giả và bài viết liên quan" className="article-news-sidebar">
               <div className="article-news-sidebar__card article-news-sidebar__doctor">
                 <div className="article-news-sidebar__doctor-header">
                   <div className="article-news-sidebar__doctor-avatar">

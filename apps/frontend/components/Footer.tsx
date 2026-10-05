@@ -68,7 +68,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
         <Link href="/chinh-sach-bao-mat">Chính sách bảo mật</Link>
       </nav>
 
-      <aside className="footer-contact">
+      <aside aria-label="Liên hệ và đường dây nóng" className="footer-contact">
         <p className="footer-contact__eyebrow">Kết nối trực tiếp</p>
         <h2>{emergencyBranch ? "Hotline cấp cứu" : "Liên hệ bệnh viện"}</h2>
         {contactHref ? (

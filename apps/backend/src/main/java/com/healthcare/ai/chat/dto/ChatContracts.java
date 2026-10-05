@@ -47,7 +47,8 @@ public final class ChatContracts {
         String policyVersion,
         int retentionDays,
         String consentText,
-        boolean remoteProviderEnabled
+        boolean remoteProviderEnabled,
+        List<ChatMode> enabledModes
     ) {
     }
 

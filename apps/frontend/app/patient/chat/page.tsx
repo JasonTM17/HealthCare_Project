@@ -643,6 +643,14 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
       ),
   );
   const sendLocked = sending;
+  // An existing conversation keeps its creation-time mode. If the runtime has
+  // since disabled that mode, the send path would 503 — block it honestly
+  // instead of letting the patient hit a silent server error.
+  const selectedModeUnavailable = Boolean(
+    selectedSummary?.mode
+      && chatPolicy?.enabledModes
+      && !chatPolicy.enabledModes.includes(selectedSummary.mode),
+  );
   const interactionLocked = sendLocked || creating || deleting || consentBusy;
   const normalizedDraft = draft.trim();
   const draftIsValid = normalizedDraft.length >= 2 && normalizedDraft.length <= MAX_MESSAGE_LENGTH;
@@ -1147,19 +1155,28 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
             <span>{activeConversation ? "Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới." : "Mỗi cuộc trò chuyện giữ một chế độ cố định."}</span>
           </div>
           <div aria-label="Mục đích cuộc trò chuyện" className={styles.modeOptions} role="group">
-            {ASSISTANT_MODE_OPTIONS.map((option) => (
-              <button
-                aria-pressed={selectedMode === option.value}
-                className={selectedMode === option.value ? styles.modeOptionActive : styles.modeOption}
-                disabled={interactionLocked || modeCreating}
-                key={option.value}
-                onClick={() => void handleModeSelect(option.value)}
-                title={option.description}
-                type="button"
-              >
-                <strong>{option.label}</strong>
-              </button>
-            ))}
+            {ASSISTANT_MODE_OPTIONS.map((option) => {
+              // Fail closed: when the policy lists modes, anything absent is a
+              // real 503 on the backend — show that state instead of offering
+              // a button that always fails and then re-creates HOSPITAL_SUPPORT.
+              const modeUnavailable = Boolean(
+                chatPolicy?.enabledModes && !chatPolicy.enabledModes.includes(option.value),
+              );
+              return (
+                <button
+                  aria-pressed={selectedMode === option.value}
+                  className={selectedMode === option.value ? styles.modeOptionActive : styles.modeOption}
+                  disabled={interactionLocked || modeCreating || modeUnavailable}
+                  key={option.value}
+                  onClick={() => void handleModeSelect(option.value)}
+                  title={modeUnavailable ? "Chế độ này tạm chưa khả dụng." : option.description}
+                  type="button"
+                >
+                  <strong>{option.label}</strong>
+                  {modeUnavailable ? <small>Tạm chưa khả dụng</small> : null}
+                </button>
+              );
+            })}
           </div>
           <div aria-label="Cấu hình trợ lý theo tài khoản" className={styles.assistantSettings}>
             <label className={styles.assistantSettingField}>
@@ -1386,7 +1403,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                 <textarea
                   aria-describedby={`patient-chat-help patient-chat-count${sendFailure ? " patient-chat-error" : ""}`}
                   aria-invalid={Boolean(sendFailure)}
-                  disabled={!selectedConversationId || sendLocked || currentConsentRequired}
+                  disabled={!selectedConversationId || sendLocked || currentConsentRequired || selectedModeUnavailable}
                   id="patient-chat-message"
                   maxLength={MAX_MESSAGE_LENGTH}
                   minLength={2}
@@ -1407,6 +1424,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                 <div className={styles.composerFooter}>
                   <div>
                     <p id="patient-chat-help">Enter để gửi, Shift + Enter để xuống dòng. Không nhập thông tin nhận dạng không cần thiết.</p>
+                    {selectedModeUnavailable ? <p className={styles.inFlightNotice}>Chế độ của cuộc trò chuyện này tạm chưa khả dụng. Bạn có thể đọc lại lịch sử hoặc mở cuộc trò chuyện mới ở chế độ khác.</p> : null}
                     {selectedSummary?.inFlight ? <p className={styles.inFlightNotice}>Tin nhắn trước có thể vẫn đang xử lý. Bạn có thể thử lại; máy chủ sẽ chỉ nhận yêu cầu mới khi lượt cũ đã hết hạn.</p> : null}
                     {sendFailure ? <p className={styles.composerError} id="patient-chat-error" role="alert">{sendFailure.message}</p> : null}
                   </div>
@@ -1424,7 +1442,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                     ) : null}
                     <button
                       className={styles.sendButton}
-                      disabled={!selectedConversationId || sendLocked || !draftIsValid || currentConsentRequired}
+                      disabled={!selectedConversationId || sendLocked || !draftIsValid || currentConsentRequired || selectedModeUnavailable}
                       type="submit"
                     >
                       <UiIcon name="send" size={18} />

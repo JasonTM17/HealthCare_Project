@@ -2337,6 +2337,7 @@ function parseAiChatPolicy(value: unknown, path: string): AiChatPolicy {
   const consentText = value.consentText ?? value.consent_text ?? value.content;
   const limitationText = value.limitationText ?? value.limitation_text;
   const remoteProviderEnabled = value.remoteProviderEnabled ?? value.remote_provider_enabled;
+  const enabledModesRaw = value.enabledModes ?? value.enabled_modes;
   if (
     typeof policyVersion !== "string" || !policyVersion.trim()
     || typeof retentionDays !== "number" || !Number.isInteger(retentionDays) || retentionDays <= 0
@@ -2350,6 +2351,9 @@ function parseAiChatPolicy(value: unknown, path: string): AiChatPolicy {
     consentText,
     limitationText: (limitationText as string | null | undefined) ?? null,
     remoteProviderEnabled: remoteProviderEnabled as boolean | undefined,
+    enabledModes: Array.isArray(enabledModesRaw)
+      ? enabledModesRaw.filter((mode): mode is ChatMode => isChatMode(mode))
+      : undefined,
   };
 }
 

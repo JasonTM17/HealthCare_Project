@@ -743,6 +743,10 @@ export interface AiChatPolicy {
   consentText: string;
   limitationText?: string | null;
   remoteProviderEnabled?: boolean;
+  /** Conversation modes the runtime accepts. Absent on older deployments →
+      callers keep prior behavior (all modes selectable) and rely on the
+      create call to surface a 503 for a genuinely disabled mode. */
+  enabledModes?: ChatMode[];
 }
 
 export interface AiTriageSummary {
