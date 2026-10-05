@@ -186,6 +186,18 @@ public class PublicAiChatController {
                 400, ErrorCodes.VALIDATION_ERROR,
                 "Message must be between 2 and 500 characters and contain no control characters");
         }
+        // Non-emergency public chat requires the trusted-BFF credential even
+        // when a deterministic lane below would answer it: those lanes read
+        // the live catalog and spend no provider budget, but this endpoint
+        // must not serve traffic that never crossed the BFF. Emergency
+        // guidance above stays fail-open by design; the provider path keeps
+        // its own credential + lease check inside runCancellableChat.
+        if (servletRequest != null && bffVerifier != null
+                && !bffVerifier.isTrusted(servletRequest)) {
+            throw new ResponseStatusException(
+                org.springframework.http.HttpStatus.UNAUTHORIZED,
+                "Trusted BFF credential is required");
+        }
         boolean protectedInput = ChatMedicalSafety.containsProtectedInputCue(userMessage);
         if (!protectedInput) {
             ChatSuggestedActionResolver.HospitalSupportIntent earlyIntent =
@@ -211,6 +223,22 @@ public class PublicAiChatController {
             }
             Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage, recentTurns);
             if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
+            // Broad catalog-navigation questions are served by the same
+            // verified builders the degraded path uses — a live
+            // specialty/branch overview or doctor list, then server-owned
+            // navigation copy — so they answer in milliseconds instead of a
+            // multi-second provider round-trip. An empty or unavailable
+            // catalog falls through to the static copy (fail-soft), never
+            // to an error.
+            if (earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.BOOKING
+                    || earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG
+                    || earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.DOCTOR) {
+                Map<String, Object> catalog = publicCatalogFallback(userMessage);
+                if (catalog != null) return ResponseEntity.ok(catalog);
+                Map<String, Object> support = publicNavigationCopy(
+                    userMessage, publicMode, "public_support_shortcut");
+                if (support != null) return ResponseEntity.ok(support);
+            }
         }
         if (!protectedInput
                 && ChatSuggestedActionResolver.classify(userMessage)

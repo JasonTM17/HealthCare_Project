@@ -50,11 +50,14 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
 
     @Test
     void publicProviderChatRequiresTrustedBffAndAnOpenedLivenessLease() throws Exception {
+        // A GENERAL question stays on the provider lane, so this request
+        // exercises both gates: untrusted traffic gets 401 before any lane,
+        // and a trusted request without an opened lease still fails with 503.
         String untrustedRequestId = UUID.randomUUID().toString();
         mockMvc.perform(post("/api/v1/public/ai/chat")
                 .header("X-Request-ID", untrustedRequestId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+                .content("{\"message\":\"Cho mình hỏi thông tin bệnh viện\"}"))
             .andExpect(status().isUnauthorized());
 
         String trustedWithoutLeaseRequestId = UUID.randomUUID().toString();
@@ -63,7 +66,7 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
                 .header("X-Healthcare-Original-Origin", "http://localhost:3000")
                 .header("X-Request-ID", trustedWithoutLeaseRequestId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+                .content("{\"message\":\"Cho mình hỏi thông tin bệnh viện\"}"))
             .andExpect(status().isServiceUnavailable());
 
         verify(aiService, never()).chat(anyMap(), any(ChatRequestCancellation.class));
@@ -93,7 +96,7 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
                             .header("X-Healthcare-Original-Origin", "http://localhost:3000")
                             .header("X-Request-ID", requestId)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+                            .content("{\"message\":\"Cho mình hỏi thông tin bệnh viện\"}"))
                         .andReturn();
                 } catch (Exception exception) {
                     throw new CompletionException(exception);
@@ -129,7 +132,7 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
         ));
 
         mockMvc.perform(trustedPublicChatRequest(requestId)
-                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\",\"recent_turns\":[]}"))
+                .content("{\"message\":\"Cho mình hỏi thông tin bệnh viện\",\"recent_turns\":[]}"))
             .andExpect(status().isOk())
             .andExpect(header().string("X-Request-ID", requestId))
             .andExpect(jsonPath("$.mode").value("HOSPITAL_SUPPORT"))
@@ -165,7 +168,7 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
 
         String requestId = UUID.randomUUID().toString();
         mockMvc.perform(trustedPublicChatRequest(requestId)
-                .content("{\"message\":\"Bệnh viện có chuyên khoa nào?\"}"))
+                .content("{\"message\":\"Cho mình hỏi thông tin bệnh viện\"}"))
             .andExpect(status().isBadGateway());
 
         assertThat(aiConversationRepository.count()).isZero();

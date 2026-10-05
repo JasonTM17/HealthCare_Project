@@ -183,7 +183,7 @@ class PublicAiChatControllerTest {
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
-                "  Chuyên khoa nào? ",
+                "  Cho mình hỏi thông tin bệnh viện ",
                 List.of(new PublicAiChatController.PublicChatTurn("user", "Xin chào"))
             ))
             .getBody();
@@ -199,7 +199,7 @@ class PublicAiChatControllerTest {
                 Map.of("kind", "VIEW_SOURCE", "label", "Tim mạch", "href", "/specialties/tim-mach"),
                 Map.of("kind", "START_BOOKING", "label", "Đặt lịch", "href", "/dat-lich?specialtyId=" + SPECIALTY_ID)));
         verify(aiService).chat(Map.of(
-            "message", "Chuyên khoa nào?",
+            "message", "Cho mình hỏi thông tin bệnh viện",
             "public_support_chat", true,
             "mode", "HOSPITAL_SUPPORT",
             "recent_turns", List.of(Map.of("role", "user", "content", "Xin chào"))
@@ -304,15 +304,11 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void replacesLocalBookingFallbackWithServerOwnedNavigationWithoutCitation() {
+    void answersBookingQuestionDeterministicallyWithoutProvider() {
+        // Booking how-to is server-owned navigation copy: no provider
+        // round-trip can improve it, so the deterministic lane answers
+        // instantly and never spends provider budget.
         AiService aiService = mock(AiService.class);
-        when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Đặt lịch khám trực tuyến tại HealthCare.",
-            "disclaimer", "Chỉ mang tính tham khảo.",
-            "provenance", "local_fallback",
-            "safety_action", "ANSWER",
-            "mode", "HOSPITAL_SUPPORT",
-            "citations", List.of()));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
@@ -323,11 +319,12 @@ class PublicAiChatControllerTest {
             .containsEntry("provenance", "local_fallback")
             .containsEntry("safety_action", "ANSWER")
             .containsEntry("citations", List.of())
-            .containsEntry("routingReason", "public_navigation_fallback")
+            .containsEntry("routingReason", "public_support_shortcut")
             .containsEntry("answer",
                 "Bạn có thể bắt đầu tại trang Đặt lịch khám: chọn chuyên khoa hoặc bác sĩ, "
                     + "sau đó chọn cơ sở và khung giờ còn trống. Nếu chưa biết nên bắt đầu từ đâu, "
                     + "hãy mở danh sách Chuyên khoa.");
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -428,10 +425,14 @@ class PublicAiChatControllerTest {
             .containsEntry("citations", List.of(
                 Map.of("source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch"),
                 Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", "Cơ sở 1")));
+        verify(aiService, never()).chat(any());
     }
 
     @Test
-    void answersCatalogNavigationWhenAiServiceIsTemporarilyUnavailable() {
+    void answersCatalogNavigationWithoutProvider() {
+        // Broad catalog questions resolve from the live catalog overview
+        // deterministically — the provider is never consulted, so the answer
+        // is identical whether or not the AI service is reachable.
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
             BAD_GATEWAY, "AI service is unavailable"));
@@ -445,8 +446,55 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "ANSWER")
             .containsEntry("provenance", "local_fallback")
             .containsEntry("mode", "HOSPITAL_SUPPORT")
+            .containsEntry("routingReason", "public_catalog_fallback")
             .containsKey("citations")
             .containsKey("suggested_actions");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void answersDoctorListQuestionFromLiveCatalogWithoutProvider() {
+        AiService aiService = mock(AiService.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveDoctorList())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cho xem danh sách bác sĩ", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_support_shortcut")
+            .containsEntry("citations", List.of(
+                Map.of("source_type", "doctor",
+                    "source_id", "00000000-0000-0000-0000-000000000005",
+                    "title", "BS Nguyễn Văn A — Da liễu")));
+        assertThat((String) body.get("answer")).contains("BS Nguyễn Văn A");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void catalogQuestionWithEmptyCatalogFallsToStaticNavigationCopy() {
+        // An empty catalog cannot compose a live list — the lane degrades
+        // to the same static copy instead of erroring or calling the
+        // provider for a source-dependent question.
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.catalogOverview()).thenReturn(AiChatSourceResolver.CatalogOverview.empty());
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Bệnh viện có chuyên khoa nào?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_support_shortcut")
+            .containsEntry("answer",
+                "Bạn muốn tra cứu mục nào? Hãy chọn Chuyên khoa, Bác sĩ hoặc Cơ sở & giờ làm việc "
+                    + "bên dưới để xem thông tin chính thức của HealthCare.");
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -738,6 +786,11 @@ class PublicAiChatControllerTest {
             "tôi sẽ đi từ từ đến bệnh viện",
             "có giặt ủi ở đây không",
             "có giặt đồ không nhỉ",
+            // Clause-final and laundry-closing "đồ" shapes stay benign.
+            "phòng khám có giặt đồ",
+            "phòng khám có giặt đồ cho khách không",
+            "phòng khám có giặt đồ ở đâu",
+            "phòng khám có giặt đồ!",
             // "nghỉ ngơi từ từ" (rest slowly) must not read as "nghĩ ... tự tử".
             "tôi cần nghỉ ngơi từ từ",
             // Joined benign opening: "từ từ thôi" — not "tự tử".
@@ -770,9 +823,13 @@ class PublicAiChatControllerTest {
             "tôi không muốn sống nữa",
             // Joined-syllable crisis typed at token start ("tự tử trôi").
             "tututroi buon qua",
-            // "do" here is "because of", not laundry "đồ" — the reason word
-            // after it must keep the emergency firing.
-            "bé co giật do sốt cao")) {
+            // "do" here is "because of", not laundry "đồ" — any causal
+            // continuation keeps the alert, not just listed reason words.
+            "bé co giật do sốt cao",
+            "bé co giật do bị ngã",
+            "co giat do di ung thuoc",
+            "co giat do uong nham thuoc",
+            "co giat do can benh")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))
@@ -1059,7 +1116,8 @@ class PublicAiChatControllerTest {
         // Every hospital-support intent now has a server-owned degraded
         // response (navigation copy, catalog overview, or honest
         // source-unavailable guidance), so a provider outage no longer
-        // dead-ends the assistant with a bare 502/503.
+        // dead-ends the assistant with a bare 502/503. Booking how-to is
+        // deterministic, so the outage is never even observed.
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest("Đặt lịch khám như thế nào?", null))
             .getBody();
@@ -1067,8 +1125,9 @@ class PublicAiChatControllerTest {
         assertThat(body)
             .containsEntry("safety_action", "ANSWER")
             .containsEntry("provenance", "local_fallback")
-            .containsEntry("routingReason", "public_ai_degraded_navigation");
+            .containsEntry("routingReason", "public_support_shortcut");
         assertThat((String) body.get("answer")).contains("Đặt lịch khám");
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -1314,10 +1373,7 @@ class PublicAiChatControllerTest {
             .getBody();
 
         assertThat(body).containsEntry("mode", "HOSPITAL_SUPPORT");
-        verify(aiService).chat(Map.of(
-            "message", "FAQ về đặt lịch khám",
-            "public_support_chat", true,
-            "mode", "HOSPITAL_SUPPORT"));
+        verify(aiService, never()).chat(any());
         verify(aiService, never()).retrieveChat(any());
         verify(aiService, never()).generateChat(any());
     }
@@ -1556,7 +1612,7 @@ class PublicAiChatControllerTest {
                 "/dat-lich?specialtyId=" + SPECIALTY_ID));
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolver)
-            .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có chuyên khoa nào?", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -1628,15 +1684,11 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void answersDoctorSpecialtyQuestionWithLiveDoctorListWhenAiFallsBackWithoutCitations() {
+    void answersDoctorSpecialtyQuestionWithLiveDoctorListWithoutProvider() {
+        // Doctor-directory questions resolve from the live catalog
+        // deterministically — the same verified rows the degraded path used
+        // to need an AI fallback to reach.
         AiService aiService = mock(AiService.class);
-        when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có.",
-            "disclaimer", "Chỉ mang tính tham khảo.",
-            "provenance", "local_fallback",
-            "safety_action", "ANSWER",
-            "mode", "HOSPITAL_SUPPORT",
-            "citations", List.of()));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveDoctorList())
             .chat(new PublicAiChatController.PublicChatRequest("Bác sĩ nào giỏi về da liễu?", null))
@@ -1649,10 +1701,11 @@ class PublicAiChatControllerTest {
             .containsEntry("provenance", "local_fallback")
             .containsEntry("mode", "HOSPITAL_SUPPORT")
             .containsEntry("safety_action", "ANSWER")
-            .containsEntry("routingReason", "public_navigation_fallback")
+            .containsEntry("routingReason", "public_support_shortcut")
             .containsEntry("citations", List.of(Map.of(
                 "source_type", "doctor", "source_id", "00000000-0000-0000-0000-000000000005",
                 "title", "BS Nguyễn Văn A — Da liễu")));
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -1692,10 +1745,11 @@ class PublicAiChatControllerTest {
         assertThat(body)
             .containsEntry("provenance", "local_fallback")
             .containsEntry("citations", List.of())
-            .containsEntry("routingReason", "public_ai_degraded_navigation")
+            .containsEntry("routingReason", "public_support_shortcut")
             .containsEntry("answer",
                 "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
                     + "sau đó chọn Đặt lịch khám nếu muốn tiếp tục.");
+        verify(aiService, never()).chat(any());
     }
 
     @Test

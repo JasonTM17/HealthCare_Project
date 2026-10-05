@@ -192,3 +192,53 @@ Documented residuals (accepted, not silently dropped):
 - SSE lane EMERGENCY arrives inside the `done` event (HTTP 200) — wire
   shape shares the same gated path; browser banner render unverified by
   automated browser test (contract-covered at API level).
+
+## Addendum — post-e631fb5 delta
+
+Wave-9 changes since `e631fb5`, committed as `4dd52f6` (local `main`,
+not yet pushed):
+
+1. **CE-NEW-1 fail-safe reversal (Wukong wave-9).** `co giat do <X>` laundry
+   suppression inverted across all 4 detectors: `do` now only counts as the
+   "đồ/laundry" sense when followed by a clause-end or laundry particle
+   (không/ko/ạ/hả/nhé…); any other continuation — e.g. "bé co giật do bị
+   ngã", "co giật do sốt cao" — fires EMERGENCY. Closed-world medical
+   allowlist removed; default is fail-safe fire. Laundry-particle boundary
+   widened `\W`-based so "có giặt đồ!" (punctuation) still suppresses.
+2. **Deterministic public-chat lanes expanded.** BOOKING / CATALOG / DOCTOR
+   intents now resolve through `publicCatalogFallback` /
+   `publicNavigationCopy` (live catalog data where available) instead of a
+   3–8s provider round trip — measured 0.03–0.35 s through the full local
+   BFF→backend chain.
+3. **Trust gate moved ahead of deterministic lanes.** Ordinary requests now
+   pass `BffRequestVerifier.isTrusted` before any deterministic shortcut —
+   closing the wave-8 gap where fast lanes bypassed the BFF credential
+   check. Emergency handling remains deliberately fail-open ahead of the
+   gate. Live: untrusted direct calls rejected 403 at the servlet filter
+   for deterministic-lane, greeting and emergency messages alike.
+4. **BFF lease-open 4xx regression pinned.** New test: `/open` returning
+   403/400 degrades a crisis message to the emergency-safe fallback
+   (EMERGENCY + tel:115), never reaches the provider.
+5. Dead `PUBLIC_AI_FALLBACK_STATUSES` set removed (upstream `>=500` clause
+   subsumed it); same-origin pin updated to the surviving predicate.
+6. Parity comments corrected: Java/BFF joined-`tutu` fires at any token
+   start (broader than Python's stream-start-only rule — over-fire, safe
+   side); the previous comment claimed identical semantics.
+
+| Check | Result | Artifact |
+|---|---|---|
+| PublicAiChatControllerTest | 73/73 | surefire |
+| PublicAiChatIntegrationTest | 6/6 | surefire (Testcontainers) |
+| AiConversationIntegrationTest | 42/42 | surefire (Testcontainers) |
+| PublicSpecialtyTriage{,Disabled}IntegrationTest | 7/7 + 4/4 | surefire (Testcontainers) |
+| ai-service pytest (all) | 955/955 | pytest |
+| bff-security.test.mjs | 41/41 | node --test |
+| same-origin-api.test.mjs | 10/10 | node --test |
+| Live matrix on rebuilt images | all correct | BFF :3330 → backend :8180 → ai-service |
+
+Live matrix highlights (rebuilt stack): deterministic BOOKING/CATALOG/
+DOCTOR lanes answer in 0.03–0.35 s with intent-specific action sets;
+"bé co giật do bị ngã" → EMERGENCY (CE-NEW-1 fix verified live);
+"có giặt giũ ở đây không" / "tôi sẽ đi từ từ đến bệnh viện" → ANSWER;
+"tôi muốn tự tử" → EMERGENCY + tel:115 at 0.03 s; untrusted direct
+backend calls → 403 across all lanes.
