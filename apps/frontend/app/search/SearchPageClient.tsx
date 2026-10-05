@@ -561,7 +561,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
                     role="tab"
                     aria-selected={isActive}
                     onClick={() => setActiveCategory(tab.key)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-sm border transition-colors cursor-pointer ${
+                    className={`min-h-11 px-3 py-1.5 text-xs font-semibold rounded-sm border transition-colors cursor-pointer ${
                       isActive
                         ? "border-[#003336] bg-[#003336] text-white"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"

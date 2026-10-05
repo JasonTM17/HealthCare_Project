@@ -1006,7 +1006,7 @@ export default function Home(): React.ReactElement {
                   ))}
                 </ol>
               </div>
-              <aside className="support-panel">
+              <aside aria-label="Hướng dẫn và bảo hiểm" className="support-panel">
                 <div className="support-panel__icon"><Icon name="shield-check" size={26} /></div>
                 <p className="section-note">Hướng dẫn và bảo hiểm</p>
                 <h3>Chuẩn bị thông tin cần thiết trước khi đến cơ sở.</h3>

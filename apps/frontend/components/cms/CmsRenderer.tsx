@@ -126,6 +126,12 @@ export interface CmsSlotRendererProps {
   headingLevel?: CmsRendererHeadingLevel;
 }
 
+const CMS_SLOT_ARIA_LABELS: Record<string, string> = {
+  hero: "Thông tin nổi bật từ bệnh viện",
+  body: "Nội dung chính do bệnh viện xuất bản",
+  sidebar: "Thông tin bên lề do bệnh viện xuất bản",
+};
+
 export function CmsSlotRenderer({
   slotKey,
   content,
@@ -134,7 +140,10 @@ export function CmsSlotRenderer({
 }: CmsSlotRendererProps): ReactElement {
   return (
     <section
-      aria-label={slotKey === "hero" ? "Thông tin nổi bật từ bệnh viện" : "Thông tin hỗ trợ từ bệnh viện"}
+      // Landmark names must be unique per page (axe landmark-unique): a route
+      // can render several CMS slots, so each key gets its own accessible name
+      // instead of sharing one generic "support" label.
+      aria-label={CMS_SLOT_ARIA_LABELS[slotKey] ?? `Nội dung ${slotKey} do bệnh viện xuất bản`}
       className={`cms-slot-renderer ${className}`}
       data-cms-slot={slotKey}
       data-cms-version={content?.version ?? undefined}

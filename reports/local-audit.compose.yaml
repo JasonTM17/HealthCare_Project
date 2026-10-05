@@ -4,6 +4,12 @@ services:
       SPRING_PROFILES_ACTIVE: local
       APP_SELF_WARMER_ENABLED: "false"
       AI_CHAT_SYNTHETIC_BETA_ASSERTED: "false"
+  frontend:
+    build:
+      args:
+        # Plain-HTTP audit stack: baked into routes-manifest.json at build
+        # time, so WebKit/Chromium must not see upgrade-insecure-requests.
+        CSP_UPGRADE_INSECURE_REQUESTS: "0"
   ai-service:
     environment:
       BACKEND_WARM_URL: ""

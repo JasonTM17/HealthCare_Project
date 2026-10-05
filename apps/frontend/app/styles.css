@@ -117,6 +117,20 @@ a {
   text-decoration: none;
 }
 
+/* Bare `grid` stacks (no grid-cols-*) create one implicit `auto` column sized
+   to max-content, so a child with wide unbreakable content stretches the whole
+   stack past the viewport. Pin the implicit column to the container width —
+   explicit grid-cols-* / grid-rows-* / grid-flow layouts are unaffected. */
+.grid:not([class*="grid-cols"]):not([class*="grid-rows"]):not([class*="grid-flow"]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Grid items default to min-width:auto (their min-content), which lets a wide
+   child overflow a constrained track. Allow children to shrink instead. */
+.grid > * {
+  min-width: 0;
+}
+
 button,
 input,
 textarea,
@@ -11155,6 +11169,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 .articles-hero__topic-pill {
   display: inline-flex;
   align-items: center;
+  min-height: 2.75rem;
   padding: 0.25rem 0.65rem;
   border: 1px solid oklch(85% 0.04 185);
   border-radius: var(--radius-sm);
@@ -11970,7 +11985,9 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 .reading-toolbar {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+  max-width: 100%;
   padding: 0.25rem 0.5rem;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -11980,7 +11997,9 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 .reading-toolbar__group {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.25rem;
+  min-width: 0;
 }
 
 .reading-toolbar__label {
@@ -11991,6 +12010,8 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
 }
 
 .reading-toolbar__btn {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: 0.2rem 0.45rem;
   font-size: 0.75rem;
   font-weight: 700;
@@ -12024,6 +12045,7 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
+  min-height: 2.75rem;
   padding: 0.2rem 0.55rem;
   font-size: 0.75rem;
   font-weight: 600;
@@ -12275,6 +12297,17 @@ body:has(.mobile-menu) [class*="FloatingHealthAssistant_root"] {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* The specialty CTA carries a long label ("Tìm hiểu chuyên khoa …") — the
+   shared --small rules pin it at max-content (nowrap + flex-shrink:0), which
+   overflows 320px viewports. Allow it to wrap and shrink inside the card. */
+.article-news-eatt-card__actions .outline-button {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
 }
 
 /* Patient Portal Tab Navigation & Dedicated View Headers */

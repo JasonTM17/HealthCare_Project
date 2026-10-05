@@ -662,6 +662,13 @@ function FloatingHealthAssistantPanel({
   if (hidden || blockedByModal) return null;
 
   const consentBlocked = conversationNeedsCurrentConsent(conversation, policy);
+  // A persisted conversation keeps its creation-time mode; if the runtime has
+  // since disabled that mode, sending would hit a 503 — block honestly.
+  const conversationModeUnavailable = Boolean(
+    conversation?.mode
+      && policy?.enabledModes
+      && !policy.enabledModes.includes(conversation.mode),
+  );
   const visibleMessages = messages.slice(-THREAD_VISIBLE_LIMIT);
   const threadTruncated = messages.length > visibleMessages.length;
 
@@ -937,25 +944,38 @@ function FloatingHealthAssistantPanel({
             <div aria-label="Chế độ trợ lý" className={styles.modePicker} role="group">
               <span className={styles.modeLegend}>Mục đích cuộc trò chuyện</span>
               <div className={styles.modeOptions}>
-                {ASSISTANT_MODE_OPTIONS.map((option) => (
-                  <button
-                    aria-pressed={mode === option.value}
-                    className={mode === option.value ? styles.modeOptionActive : styles.modeOption}
-                    disabled={creatingMode || sending || consentBusy}
-                    key={option.value}
-                    onClick={() => void handleModeChange(option.value)}
-                    title={option.description}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
+                {ASSISTANT_MODE_OPTIONS.map((option) => {
+                  // Fail closed: a mode absent from the runtime policy would
+                  // 503 on create — disable it instead of failing silently.
+                  const modeUnavailable = Boolean(
+                    policy?.enabledModes && !policy.enabledModes.includes(option.value),
+                  );
+                  return (
+                    <button
+                      aria-pressed={mode === option.value}
+                      className={mode === option.value ? styles.modeOptionActive : styles.modeOption}
+                      disabled={creatingMode || sending || consentBusy || modeUnavailable}
+                      key={option.value}
+                      onClick={() => void handleModeChange(option.value)}
+                      title={modeUnavailable ? "Chế độ này tạm chưa khả dụng." : option.description}
+                      type="button"
+                    >
+                      {option.label}
+                      {modeUnavailable ? " · tạm chưa khả dụng" : ""}
+                    </button>
+                  );
+                })}
               </div>
               {modeLocked ? <span className={styles.modeLockedHint}>Mỗi cuộc trò chuyện giữ một chế độ; chọn mục đích khác sẽ mở cuộc trò chuyện mới.</span> : null}
             </div>
           ) : null}
 
           <>
+              {conversationModeUnavailable ? (
+                <section className={styles.consentPanel} role="note">
+                  <p>Chế độ của cuộc trò chuyện này tạm chưa khả dụng. Bạn có thể đọc lại lịch sử, hoặc bắt đầu cuộc trò chuyện mới bằng một mục đích đang mở.</p>
+                </section>
+              ) : null}
               {consentBlocked ? (
                 <section aria-describedby="floating-assistant-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận trước khi trò chuyện</strong>
@@ -1180,7 +1200,7 @@ function FloatingHealthAssistantPanel({
                 <label className="sr-only" htmlFor="floating-health-assistant-input">Câu hỏi cho trợ lý sức khỏe</label>
                 <textarea
                   aria-describedby="floating-health-assistant-help"
-                  disabled={sending || consentBlocked}
+                  disabled={sending || consentBlocked || conversationModeUnavailable}
                   id="floating-health-assistant-input"
                   maxLength={MAX_MESSAGE_LENGTH}
                   onChange={(event) => {
@@ -1212,7 +1232,7 @@ function FloatingHealthAssistantPanel({
                     <UiIcon name="x" size={17} />
                   </button>
                 ) : (
-                  <button aria-label="Gửi câu hỏi" className={styles.sendButton} disabled={consentBlocked || draft.trim().length < 2} title="Gửi câu hỏi" type="submit">
+                  <button aria-label="Gửi câu hỏi" className={styles.sendButton} disabled={consentBlocked || conversationModeUnavailable || draft.trim().length < 2} title="Gửi câu hỏi" type="submit">
                     <UiIcon name="send" size={17} />
                   </button>
                 )}

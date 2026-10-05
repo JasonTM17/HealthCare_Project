@@ -315,6 +315,10 @@ services:
         # Local Compose builds the same-origin beta; hosted pipelines override
         # NEXT_PUBLIC_SITE_URL with their approved public origin.
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        # Build-time (headers are baked into routes-manifest.json): local
+        # plain-HTTP stacks must not emit upgrade-insecure-requests; hosted
+        # pipelines pass CSP_UPGRADE_INSECURE_REQUESTS=1 explicitly.
+        CSP_UPGRADE_INSECURE_REQUESTS: ${CSP_UPGRADE_INSECURE_REQUESTS:-0}
     restart: unless-stopped
     environment:
       # Browser traffic stays same-origin through the runtime Route Handler.

@@ -110,7 +110,11 @@ export function CmsLiveSlot({
   // Public callers already opt out of the source label. Treat that as a
   // patient-facing slot even when the older caller has not passed `quiet` yet.
   const publicQuiet = quiet || !showSourceLabel;
-  const slotAriaLabel = publicQuiet ? "Thông tin bệnh viện" : `Nội dung live ${slotKey}`;
+  // Unique landmark names per slot key — a page hosting several quiet slots
+  // must not emit duplicate "Thông tin bệnh viện" regions (axe landmark-unique).
+  const slotAriaLabel = publicQuiet
+    ? (slotKey === "hero" ? "Thông tin bệnh viện" : `Thông tin bệnh viện — ${slotKey}`)
+    : `Nội dung live ${slotKey}`;
   const [content, setContent] = useState<CmsContent | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
