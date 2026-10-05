@@ -173,7 +173,13 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
     }
 
     @Test
-    void ungroundedPreparationAnswerReturnsSafePublicResponse() throws Exception {
+    void ungroundedServiceAnswerReturnsSafePublicResponse() throws Exception {
+        // A SERVICE-classified question is not claimed by any deterministic
+        // shortcut, so it still reaches the provider lane — and an upstream
+        // ANSWER with zero verified citations must degrade to the
+        // source-dependent INSUFFICIENT_EVIDENCE fallback, never leak to the
+        // browser. (Preparation questions stopped exercising this path when
+        // the deterministic checklist lane took ownership of that intent.)
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Bạn phải nhịn ăn 12 giờ trước buổi khám tổng quát.",
             "disclaimer", "Chỉ mang tính tham khảo.",
@@ -185,7 +191,7 @@ class PublicAiChatIntegrationTest extends AbstractRedisIntegrationTest {
 
         String requestId = UUID.randomUUID().toString();
         mockMvc.perform(trustedPublicChatRequest(requestId)
-                .content("{\"message\":\"Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?\"}"))
+                .content("{\"message\":\"Bảng giá dịch vụ xét nghiệm tại HealthCare là bao nhiêu?\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.safety_action").value("INSUFFICIENT_EVIDENCE"))
             .andExpect(jsonPath("$.provenance").value("local_fallback"))

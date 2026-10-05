@@ -93,11 +93,15 @@ public final class ChatMedicalSafety {
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
+    private static final int EMERGENCY_SCAN_LIMIT = 4096;
     private static final Pattern EMERGENCY_INPUT_CUE = Pattern.compile(
         "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|"
             + "stroke|cap\\s+cuu|dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|"
             + "kho\\s+tho(?:\\s+du\\s+doi)?|meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
-            + "co\\s+giat|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
+            // "co giat" (convulsion) must not fire on the amenity question
+            // "co giat ui/la/..." (laundry service) — same spelling after
+            // diacritic folding, so the exclusion list follows the word.
+            + "co\\s+giat(?!\\s*(?:ui|la|gi|do|quan|ao|khan)(?:\\s|$))|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
             + "shortness\\s+of\\s+breath|difficulty\\s+breathing|cant\\s+breathe|"
             + "cannot\\s+breathe|not\\s+breathing|severe\\s+bleeding|unresponsive|"
             + "collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
@@ -106,7 +110,15 @@ public final class ChatMedicalSafety {
             + "shortnessofbreath|difficultybreathing|cantbreathe|cannotbreathe|notbreathing|"
             + "severebleeding|suddencollapse|lossofconsciousness|nhoimauco\\s+tim|ngungtim|"
             + "ngungtho|battinh|matythuc|suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
-            + "want\\s+to\\s+die|self\\s+harm|tu\\s+tu|tu\\s+sat|muon\\s+chet|"
+            + "want\\s+to\\s+die|self\\s+harm|"
+            // "tu tu" folds identically to the benign adverb "từ từ"
+            // (slowly), so the spaced form only counts as self-harm when a
+            // volition/thinking idiom precedes it ("muốn/định/tính/quyết tự
+            // tử", "nghĩ (đến việc|về|tới) tự tử", "có ý (định) tự tử"); the
+            // concatenated "tutu" and unambiguous phrases keep full recall.
+            + "(?:(?:muon|dinh|tinh|quyet)\\s+tu\\s+tu"
+            + "|nghi\\s+(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
+            + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
             + "khong\\s+muon\\s+song|tutu|tusat|muonchet|khongmuonsong|cogiat)(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
@@ -168,7 +180,14 @@ public final class ChatMedicalSafety {
      * downgrade an emergency and return a catalog navigation action.
      */
     public static boolean containsEmergencyInputCue(String input) {
-        String normalized = normalizeInput(input);
+        // Bound the scan on this unauthenticated boundary: normalization is
+        // linear but copies the whole message, and a crisis cue opens the
+        // message — anything buried past the window still reaches the
+        // length/content validation that runs right after this check.
+        String window = input != null && input.length() > EMERGENCY_SCAN_LIMIT
+            ? input.substring(0, EMERGENCY_SCAN_LIMIT)
+            : input;
+        String normalized = normalizeInput(window);
         return normalized != null && EMERGENCY_INPUT_CUE.matcher(normalized).find();
     }
 

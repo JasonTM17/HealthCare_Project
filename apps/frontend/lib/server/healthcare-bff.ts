@@ -63,44 +63,38 @@ const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 // instead (PUBLIC_HOTLINE_DISPLAY / PUBLIC_HOTLINE_TEL on the BFF host).
 const PUBLIC_HOTLINE_DISPLAY = process.env.PUBLIC_HOTLINE_DISPLAY?.trim() || "028 1800 0001";
 const PUBLIC_HOTLINE_TEL = process.env.PUBLIC_HOTLINE_TEL?.trim() || "tel:02818000001";
-const EMERGENCY_FALLBACK_TERMS = [
-  "dau nguc du doi",
-  "that nguc",
-  "dau nguc lan",
-  "kho tho",
-  "khong tho duoc",
-  "meo mieng",
-  "yeu liet",
-  "liet nua nguoi",
-  "ngat",
-  "chay mau khong cam",
-  "co giat",
-  "tu tu",
-  "tu sat",
-  "muon chet",
-  "dot quy",
-  "tai bien",
-  "dau tim",
-  "nhoi mau co tim",
-  "nhoi mau tim",
-  "ngung tho",
-  "ngung tim",
-  "bat tinh",
-  "mat y thuc",
-  "va mo hoi lanh",
-  "mo mat dot ngot",
-  "soc phan ve",
-  "ngo doc",
-  "stroke",
-  "heart attack",
-  "cardiac arrest",
-  "unconscious",
-  "end my life",
-  "kill myself",
-  "chest pain",
-  "shortness of breath",
-  "severe bleeding",
-] as const;
+// Port of the backend ChatMedicalSafety.EMERGENCY_INPUT_CUE lexicon — this
+// regex only runs while the backend is down, which is exactly when it must
+// not miss a crisis. Keep the alternation in parity with the Spring pattern
+// (diacritic-folded, spaced and concatenated forms, same boundary guards);
+// the trailing block carries extra Vietnamese terms the backend supplement
+// covers elsewhere, but it must never carry fewer than the backend.
+// Precision parity matters as much as recall: bare "tu tu"/"co giat" fold to
+// the benign "từ từ" (slowly) / "có giặt" (laundry), so they keep the same
+// volition-marker / laundry-exclusion guards as the backend.
+const EMERGENCY_FALLBACK_PATTERN = new RegExp(
+  "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|cap\\s+cuu|"
+    + "dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|kho\\s+tho(?:\\s+du\\s+doi)?|"
+    + "meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
+    + "co\\s+giat(?!\\s*(?:ui|la|gi|do|quan|ao|khan)(?:\\s|$))|"
+    + "heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|shortness\\s+of\\s+breath|"
+    + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
+    + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
+    + "nhoi\\s+mau\\s+co\\s+tim|ngung\\s+tim|ngung\\s+tho|bat\\s+tinh|mat\\s+y\\s+thuc|"
+    + "dotquy|taibien|capcuu|heartattack|cardiacarrest|chestpain|shortnessofbreath|"
+    + "difficultybreathing|cantbreathe|cannotbreathe|notbreathing|severebleeding|"
+    + "suddencollapse|lossofconsciousness|nhoimaucotim|ngungtim|ngungtho|battinh|matythuc|"
+    + "suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|want\\s+to\\s+die|self\\s+harm|"
+    + "(?:(?:muon|dinh|tinh|quyet)\\s+tu\\s+tu"
+    + "|nghi\\s+(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
+    + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
+    + "khong\\s+muon\\s+song|tutu|tusat|muonchet|khongmuonsong|cogiat|"
+    + "that\\s+nguc|dau\\s+nguc\\s+lan|khong\\s+tho\\s+duoc|yeu\\s+liet|liet\\s+nua\\s+nguoi|"
+    + "ngat\\s+xiu|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
+    + "nhoi\\s+mau\\s+tim|va\\s+mo\\s+hoi\\s+lanh|mo\\s+mat\\s+dot\\s+ngot|soc\\s+phan\\s+ve|"
+    + "ngo\\s+doc|unconscious)(?![a-z0-9])",
+  "iu"
+);
 const REQUEST_ID_HEADER = "X-Request-ID";
 
 const ALLOWED_METHODS = new Set(["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]);
@@ -199,10 +193,15 @@ function jsonError(status: number, code: string): Response {
 }
 
 function likelyEmergencyFallback(message: string): boolean {
-  const normalized = message.normalize("NFD").replace(/[\u0300-\u036f]/gu, "")
+  // Mirrors ChatMedicalSafety.normalizeInput + the bounded scan: NFD-fold,
+  // strip combining marks, đ→d, lowercase, punctuation→space — and only the
+  // first window is scanned, matching the backend's EMERGENCY_SCAN_LIMIT.
+  const normalized = message.slice(0, 4096).normalize("NFD").replace(/\p{M}+/gu, "")
     .replace(/[đĐ]/gu, "d")
-    .toLowerCase().replace(/\s+/gu, " ").trim();
-  return EMERGENCY_FALLBACK_TERMS.some((term) => normalized.includes(term));
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
+  return EMERGENCY_FALLBACK_PATTERN.test(normalized);
 }
 
 function publicAiChatFallbackResponse(message = ""): Response {

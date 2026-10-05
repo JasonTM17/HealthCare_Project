@@ -617,11 +617,7 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "EMERGENCY")
             .containsEntry("suggested_actions", List.of(
                 Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
-        verify(aiService).chat(Map.of(
-            "message", "Cơ sở số 2, tôi đau ngực dữ dội",
-            "public_support_chat", true,
-            "mode", "HOSPITAL_SUPPORT"
-        ));
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
     }
 
     @Test
@@ -646,11 +642,7 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "EMERGENCY")
             .containsEntry("suggested_actions", List.of(
                 Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
-        verify(aiService).chat(Map.of(
-            "message", "co so 2 stroke",
-            "public_support_chat", true,
-            "mode", "HOSPITAL_SUPPORT"
-        ));
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
     }
 
     @Test
@@ -670,11 +662,7 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "EMERGENCY")
             .containsEntry("suggested_actions", List.of(
                 Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
-        verify(aiService).chat(Map.of(
-            "message", "co so 2 stroke",
-            "public_support_chat", true,
-            "mode", "HOSPITAL_SUPPORT"
-        ));
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
     }
 
     @Test
@@ -700,11 +688,7 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "EMERGENCY")
             .containsEntry("suggested_actions", List.of(
                 Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
-        verify(aiService).chat(Map.of(
-            "message", "co so 2 dot-quy",
-            "public_support_chat", true,
-            "mode", "HOSPITAL_SUPPORT"
-        ));
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
     }
 
     @Test
@@ -730,7 +714,67 @@ class PublicAiChatControllerTest {
             .containsEntry("safety_action", "EMERGENCY")
             .containsEntry("suggested_actions", List.of(
                 Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
-        verify(aiService).chat(any());
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
+    }
+
+    @Test
+    void doesNotTreatBenignFoldedPhrasesAsEmergency() {
+        // Precision guard for the crisis lexicon: diacritic folding makes
+        // "từ từ" (slowly) → "tu tu" and "có giặt" (laundry) → "co giat",
+        // so the bare words must not be enough to trigger 115 guidance —
+        // the volition marker / laundry exclusion has to hold.
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Bạn có thể xem danh sách chuyên khoa.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "remote_provider",
+            "safety_action", "ANSWER",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of(Map.of(
+                "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch"))
+        ));
+
+        for (String message : List.of(
+            "tôi sẽ đi từ từ đến bệnh viện",
+            "có giặt ủi ở đây không",
+            "có giặt đồ không nhỉ")) {
+            Map<String, Object> body = new PublicAiChatController(
+                aiService, resolverForSpecialty())
+                .chat(new PublicAiChatController.PublicChatRequest(message, null))
+                .getBody();
+            // Any non-crisis outcome is fine here — ANSWER or the protected
+            // HUMAN_HANDOFF guardrail — as long as no 115 guidance fires.
+            assertThat(body.get("safety_action"))
+                .as("benign phrase must not short-circuit to EMERGENCY: %s", message)
+                .isNotEqualTo("EMERGENCY");
+            assertThat((List<Map<String, String>>) body.get("suggested_actions"))
+                .noneMatch(action -> "CALL_EMERGENCY".equals(action.get("kind")));
+        }
+    }
+
+    @Test
+    void keepsVolitionMarkedSelfHarmAsEmergency() {
+        // The positive side of the tightened lexicon: intent-marked and
+        // unambiguous self-harm phrasings still short-circuit to 115.
+        AiService aiService = mock(AiService.class);
+        for (String message : List.of(
+            "tôi muốn tự tử",
+            "tôi định tự tử",
+            "tôi đang nghĩ đến việc tự tử",
+            "tôi nghĩ về tự tử nhiều",
+            "tôi đang muốn chết",
+            "tôi không muốn sống nữa")) {
+            Map<String, Object> body = new PublicAiChatController(
+                aiService, resolverForSpecialty())
+                .chat(new PublicAiChatController.PublicChatRequest(message, null))
+                .getBody();
+            assertThat(body)
+                .as("crisis phrase must short-circuit to EMERGENCY: %s", message)
+                .containsEntry("safety_action", "EMERGENCY")
+                .containsEntry("suggested_actions", List.of(
+                    Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+        }
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
     }
 
     @Test
@@ -1162,6 +1206,52 @@ class PublicAiChatControllerTest {
         assertThat(body).containsEntry("safety_action", "EMERGENCY");
         verify(aiService, never()).retrieveChat(any());
         verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void overlongCrisisMessageStillReturnsEmergencyGuidance() {
+        // Wave-7 ordering: Bean Validation no longer size-gates `message`, so
+        // a crisis phrase past the 500-char limit reaches the emergency check
+        // instead of dying as a bare 400.
+        AiService aiService = mock(AiService.class);
+        PublicAiChatController controller = new PublicAiChatController(
+            aiService, resolverForArticle(), null, null, false);
+
+        Map<String, Object> body = controller.chat(
+            new PublicAiChatController.PublicChatRequest(
+                "đau đầu nhẹ ".repeat(60) + "tôi muốn chết", null), null)
+            .getBody();
+
+        assertThat(body).containsEntry("safety_action", "EMERGENCY");
+        verify(aiService, never()).chat(any());
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+    }
+
+    @Test
+    void overlongNonCrisisMessageStillFailsLengthValidation() {
+        AiService aiService = mock(AiService.class);
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForArticle())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "x".repeat(501), null), null))
+            .isInstanceOfSatisfying(com.healthcare.exception.BusinessException.class,
+                ex -> {
+                    assertThat(ex.getStatus()).isEqualTo(400);
+                    assertThat(ex.getCode()).isEqualTo("VALIDATION_ERROR");
+                });
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void controlCharacterMessageStillFailsValidation() {
+        AiService aiService = mock(AiService.class);
+
+        assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForArticle())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Xinchào", null), null))
+            .isInstanceOf(com.healthcare.exception.BusinessException.class);
         verify(aiService, never()).chat(any());
     }
 

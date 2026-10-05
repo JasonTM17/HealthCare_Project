@@ -161,6 +161,27 @@ public class PublicAiChatController {
         List<Map<String, String>> recentTurns = mappedTurns;
         ChatMode publicMode = ChatSuggestedActionResolver.publicMode(userMessage);
         payload.put("mode", publicMode.name());
+        // Emergency guidance runs before every other gate on this endpoint —
+        // the same invariant the public triage service enforces: an overlong
+        // or control-character-carrying crisis message still gets the 115
+        // fallback, never a bare 400, and never a kill-switch 503. This also
+        // short-circuits provider work for non-education crisis messages
+        // (previously they only reached the emergency fallback when upstream
+        // failed).
+        if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
+            return ResponseEntity.ok(publicSafetyFallback(
+                userMessage, "EMERGENCY", publicMode));
+        }
+        // Bean Validation only enforces @NotBlank on `message`; the length
+        // and control-character contract runs here, after the emergency
+        // check, for exactly that reason.
+        if (userMessage.length() < 2
+                || userMessage.length() > MAX_PUBLIC_MESSAGE_LENGTH
+                || CONTROL_CHARACTER_PATTERN.matcher(userMessage).find()) {
+            throw new BusinessException(
+                400, ErrorCodes.VALIDATION_ERROR,
+                "Message must be between 2 and 500 characters and contain no control characters");
+        }
         boolean protectedInput = ChatMedicalSafety.containsProtectedInputCue(userMessage);
         if (!protectedInput) {
             ChatSuggestedActionResolver.HospitalSupportIntent earlyIntent =
@@ -197,13 +218,9 @@ public class PublicAiChatController {
             if (greeting != null) return ResponseEntity.ok(greeting);
         }
         if (publicMode == ChatMode.HEALTH_EDUCATION) {
-            // A crisis cue keeps its 115 guidance even when the education
-            // lane is switched off — the same emergency-before-flag ordering
-            // the public specialty-triage service enforces.
-            if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
-                return ResponseEntity.ok(publicSafetyFallback(
-                    userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
-            }
+            // The emergency gate at the top of this method already returned
+            // for crisis cues — including EDUCATION-classified ones — so the
+            // kill switch below can only see non-crisis education requests.
             // AI_CHAT_HEALTH_EDUCATION_ENABLED is the operator kill switch
             // for every education path, authenticated or guest — falling
             // through to the upstream lane would let the flag be bypassed.
@@ -1660,10 +1677,12 @@ public class PublicAiChatController {
      */
     @JsonIgnoreProperties(ignoreUnknown = false)
     public static final class PublicChatRequest {
+        // Only @NotBlank: the handler must see overlong or control-character
+        // input so the emergency check can run before the length/charset
+        // rejection — a crisis message still gets the 115 guidance, not a
+        // bare 400 (same ordering as the public triage endpoint).
         @JsonProperty("message")
         @NotBlank
-        @Size(min = 2, max = MAX_PUBLIC_MESSAGE_LENGTH)
-        @Pattern(regexp = "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]*$")
         private final String message;
 
         @JsonProperty("recent_turns")

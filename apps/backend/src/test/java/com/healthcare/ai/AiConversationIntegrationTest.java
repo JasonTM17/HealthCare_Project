@@ -3,6 +3,7 @@ package com.healthcare.ai;
 import com.healthcare.AbstractRedisIntegrationTest;
 import com.healthcare.ai.chat.entity.AiConversation;
 import com.healthcare.ai.chat.entity.AiConversationStatus;
+import com.healthcare.ai.chat.entity.ChatMode;
 import com.healthcare.ai.chat.entity.AiMessage;
 import com.healthcare.ai.chat.entity.AiMessageRole;
 import com.healthcare.ai.chat.entity.AiMessageStatus;
@@ -725,6 +726,56 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
         assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
         assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(1);
         assertThat(ledgerBalanceAfter(patient.getId(), "AI_CHAT_WAIVED")).isEqualTo(3);
+    }
+
+    @Test
+    @WithMockUser(username = "patient.crisis-disabled-mode@example.com", roles = "PATIENT")
+    void emergencyMessageStillAnswersInADisabledModeConversation() throws Exception {
+        // Wave-7 ordering invariant: a crisis message must receive the canned
+        // 115 guidance even when the conversation's mode has since been
+        // switched off — the flag is a clinical-approval gate, not a way to
+        // swallow a crisis.
+        User patient = createUser("patient.crisis-disabled-mode@example.com");
+        createPatientProfile(patient, "0901002111", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        conversation.setMode(ChatMode.SYMPTOM_TRIAGE);
+        aiConversationRepository.saveAndFlush(conversation);
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversation.getId() + "/messages")
+                .header("Idempotency-Key", "crisis-disabled-mode-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Tôi đang muốn chết\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")));
+
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+    }
+
+    @Test
+    @WithMockUser(username = "patient.crisis-stale-consent@example.com", roles = "PATIENT")
+    void emergencyMessageStillAnswersOnStaleConsent() throws Exception {
+        // Same ordering for the consent gate: a stale consent version must not
+        // turn a crisis message into a bare 428.
+        User patient = createUser("patient.crisis-stale-consent@example.com");
+        createPatientProfile(patient, "0901002112", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        conversation.setConsentVersion("patient-chat-v0");
+        aiConversationRepository.saveAndFlush(conversation);
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversation.getId() + "/messages")
+                .header("Idempotency-Key", "crisis-stale-consent-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"đau ngực dữ dội và khó thở\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")));
     }
 
     @Test

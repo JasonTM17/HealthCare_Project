@@ -625,6 +625,72 @@ test("BFF keeps emergency guidance deterministic when public AI is unavailable",
   assert.match(body.answer, /115/);
 });
 
+test("BFF emergency fallback keeps parity with the backend self-harm lexicon", async () => {
+  // Kongming wave-7: the BFF shadow list must catch the same crisis phrases
+  // the Spring lexicon does — an outage is exactly when it must not miss.
+  const bff = await loadBff();
+  for (const message of [
+    "tôi không muốn sống nữa",
+    "tôi đang muốn chết",
+    "tôi muốn tự tử",
+    "tôi đang nghĩ đến việc tự tử",
+    "muốnchết quá",
+    "đang co giật liên tục",
+    "đang cấp cứu",
+    "I want to die",
+    "self harm",
+    "unresponsive",
+    "cannot breathe",
+    "yeu nua nguoi",
+  ]) {
+    const response = await bff.proxyHealthcareRequest(
+      browserRequest("/api/v1/public/ai/chat", {
+        method: "POST",
+        headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      }),
+      ["public", "ai", "chat"],
+      {
+        runtimeConfig,
+        fetchImpl: async () => Response.json({ unavailable: true }, { status: 503 }),
+      },
+    );
+    const body = await response.json();
+    assert.equal(
+      body.safety_action, "EMERGENCY",
+      `expected EMERGENCY fallback for: ${message}`,
+    );
+  }
+
+  // Precision parity: folded-benign phrases that merely contain "tu tu"
+  // (từ từ = slowly) or "co giat" (có giặt = laundry) must not degrade
+  // into crisis guidance — the outage fallback keeps the same exclusions
+  // as the backend lexicon.
+  for (const message of [
+    "tôi sẽ đi từ từ đến bệnh viện",
+    "phòng khám có giặt ủi không",
+    "cho hỏi có giặt đồ không nhỉ",
+  ]) {
+    const response = await bff.proxyHealthcareRequest(
+      browserRequest("/api/v1/public/ai/chat", {
+        method: "POST",
+        headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+        body: JSON.stringify({ message }),
+      }),
+      ["public", "ai", "chat"],
+      {
+        runtimeConfig,
+        fetchImpl: async () => Response.json({ unavailable: true }, { status: 503 }),
+      },
+    );
+    const body = await response.json();
+    assert.notEqual(
+      body.safety_action, "EMERGENCY",
+      `benign phrase must not be EMERGENCY: ${message}`,
+    );
+  }
+});
+
 test("BFF creates a UUID request id and returns the same trace handle to the browser", async () => {
   const bff = await loadBff();
   let upstreamRequestId = "";

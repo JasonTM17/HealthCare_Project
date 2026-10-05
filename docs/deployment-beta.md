@@ -94,18 +94,18 @@ contract, so record it in the dated snapshot section afterwards.
 
 | Flag (env) | Definition | Render beta | Enabled means | Enable requires |
 | --- | --- | --- | --- | --- |
-| `APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED` | application.yml:183 | **true** | public AI triage modal answers | already enabled on Render |
-| `AI_CHAT_SYMPTOM_TRIAGE_ENABLED` | application.yml:201 | false | SYMPTOM_TRIAGE chat mode | clinical approval of the mode |
-| `AI_CHAT_HEALTH_EDUCATION_ENABLED` | application.yml:202 | false | HEALTH_EDUCATION chat mode — authenticated lane **and** the guest `/public/ai/chat` education branch | clinical approval of the mode |
-| `AI_CHAT_CHUNKED_ENABLED` | application.yml:203 | false | SSE `/messages/stream` answers (cosmetic chunking) | none; rollback switch |
-| `AI_CHAT_REMOTE_PROVIDER_ENABLED` | application.yml:196 | false | remote LLM for patient chat | provider review + rollback plan |
-| `AI_CHAT_SYNTHETIC_BETA_ASSERTED` | application.yml:200 | false | synthetic fixture graph eligible | DB guard rows + flag conjunction |
-| `AI_RAG_INGEST_ENABLED` (backend) / `RAG_INGEST_ENABLED` (AI svc) | application.yml:210 / config.py:80 | true / true | clinical catalog pushes into the AI RAG index | both sides true, token configured |
-| `APP_PAYMENT_BANK_TRANSFER_ENABLED` | application.yml:67 | false | bank-transfer payment + webhook + admin reconciliation | bank account env vars; never the demo account |
+| `APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED` | `app.public.specialty-triage.enabled` | **true** | public AI triage modal answers | already enabled on Render |
+| `AI_CHAT_SYMPTOM_TRIAGE_ENABLED` | `ai.chat.symptom-triage-enabled` | false | SYMPTOM_TRIAGE chat mode | clinical approval of the mode |
+| `AI_CHAT_HEALTH_EDUCATION_ENABLED` | `ai.chat.health-education-enabled` | false | HEALTH_EDUCATION chat mode — authenticated lane **and** the guest `/public/ai/chat` education branch | clinical approval of the mode |
+| `AI_CHAT_CHUNKED_ENABLED` | `ai.chat.chunked-enabled` | false | SSE `/messages/stream` answers (cosmetic chunking) | none; rollback switch |
+| `AI_CHAT_REMOTE_PROVIDER_ENABLED` | `ai.chat.remote-provider-enabled` | false | remote LLM for patient chat | provider review + rollback plan |
+| `AI_CHAT_SYNTHETIC_BETA_ASSERTED` | `ai.chat.synthetic-beta-asserted` | false | synthetic fixture graph eligible | DB guard rows + flag conjunction |
+| `AI_RAG_INGEST_ENABLED` (backend) / `RAG_INGEST_ENABLED` (AI svc) | `ai.rag-ingest.enabled` / config.py `RAG_INGEST_ENABLED` | true / true | clinical catalog pushes into the AI RAG index | both sides true, token configured |
+| `APP_PAYMENT_BANK_TRANSFER_ENABLED` | `app.payment.bank-transfer.enabled` | false | bank-transfer payment + webhook + admin reconciliation | bank account env vars; never the demo account |
 | `APP_PAYMENT_BANK_TRANSFER_RETRY_ENABLED` | payment retry worker | false | retry persisted unmatched webhooks | requires V66, bank-transfer enabled, and configured webhook secret |
-| `STORAGE_UPLOAD_ENABLED` | application.yml:161 | false | direct-to-object-store uploads | private bucket + ClamAV worker provisioned |
-| `STORAGE_CONSULTATION_ENABLED` | application.yml:167 | false | consultation attachments (defaults to upload flag) | same as above |
-| `STORAGE_AV_REQUIRED` | application.yml:175 | false | fail-closed AV scan enforcement | scanner service reachable |
+| `STORAGE_UPLOAD_ENABLED` | `storage.upload-enabled` | false | direct-to-object-store uploads | private bucket + ClamAV worker provisioned |
+| `STORAGE_CONSULTATION_ENABLED` | `storage.consultation.enabled` | false | consultation attachments (defaults to upload flag) | same as above |
+| `STORAGE_AV_REQUIRED` | `storage.av.required` | false | fail-closed AV scan enforcement | scanner service reachable |
 | `NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY` (Vercel) | components/BranchMap.tsx:55 | unset | branch pages render embedded maps | Maps Embed API key; CSP `frame-src` already allows google.com |
 | `NEXT_PUBLIC_ALLOW_INDEXING` (Vercel) | `lib/site-url.ts` (`indexingAllowed`) | unset → **indexable** | robots/sitemap/metadata allow crawling of the public catalog | operator decision (2026-09-20): production is fully indexable; set `false` only to de-index deliberately |
 | `NEXT_PUBLIC_SITE_URL` (Vercel) | `lib/site-url.ts`, app/layout.tsx | unset → placeholder domain | canonical/OG URLs + sitemap base | required for production builds (build guard); must be the public HTTPS origin |
