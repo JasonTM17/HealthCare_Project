@@ -1,0 +1,23 @@
+# Local-audit only: packages a host-built .next so the WSL2 Docker daemon is
+# not asked to run the in-image Turbopack build (which has killed the engine
+# repeatedly). Build parity is preserved because the host build runs the same
+# `npm run build` with CSP_UPGRADE_INSECURE_REQUESTS/NEXT_PUBLIC_SITE_URL set.
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS dependencies
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV BACKEND_INTERNAL_URL=http://backend:8080
+COPY --chown=node:node .next ./.next
+COPY --chown=node:node public ./public
+COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node next.config.ts ./next.config.ts
+COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1
+CMD ["npm", "run", "start"]

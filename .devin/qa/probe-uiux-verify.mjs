@@ -182,7 +182,9 @@ for (const [name, path] of [
 }
 
 await browser.close();
-import("node:fs").then((fs) => fs.writeFileSync("reports/local-audit-uiux-verify.json", JSON.stringify(results, null, 2)));
+const { writeFileSync, mkdirSync } = await import("node:fs");
+mkdirSync("reports", { recursive: true });
+writeFileSync("reports/local-audit-uiux-verify.json", JSON.stringify(results, null, 2));
 const fails = results.checks.filter((c) => c.status === "FAIL");
 console.log(`\n== SUMMARY: ${results.checks.length - fails.length}/${results.checks.length} PASS ==`);
 process.exit(fails.length ? 1 : 0);

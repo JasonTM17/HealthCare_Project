@@ -260,54 +260,54 @@ public abstract class AbstractIntegrationTest {
             """);
 
         // CMS public change rows reference CMS content and must be cleared first.
-        cmsContentChangeRepository.deleteAll();
-        cmsContentRepository.deleteAll();
+        cmsContentChangeRepository.deleteAllInBatch();
+        cmsContentRepository.deleteAllInBatch();
 
         // Clinical domain (children before patient/doctor/appointment parents)
-        prescriptionRepository.deleteAll();
-        medicalRecordRepository.deleteAll();
-        diagnosticResultRepository.deleteAll();
+        prescriptionRepository.deleteAllInBatch();
+        medicalRecordRepository.deleteAllInBatch();
+        diagnosticResultRepository.deleteAllInBatch();
         // V86/V87 seed diagnostic orders that reference appointments; they are
         // a later addition to the schema, so the original cleanup order never
         // removed them and every appointment delete failed on the FK once the
         // fresh-database migration chain started passing.
-        diagnosticOrderRepository.deleteAll();
+        diagnosticOrderRepository.deleteAllInBatch();
         // Patient documents (and their stored files) reference patient
         // profiles, which the appointment-domain block deletes below.
-        patientDocumentRepository.deleteAll();
-        storedFileRepository.deleteAll();
+        patientDocumentRepository.deleteAllInBatch();
+        storedFileRepository.deleteAllInBatch();
 
         // Recruitment applications contain candidate data and reference openings.
-        jobApplicationRepository.deleteAll();
-        jobPositionRepository.deleteAll();
+        jobApplicationRepository.deleteAllInBatch();
+        jobPositionRepository.deleteAllInBatch();
 
         // Appointment domain (FK dependencies on hospital & patient)
-        appointmentAccountClaimRepository.deleteAll();
-        paymentInvoiceRepository.deleteAll();
-        bankTransferPaymentRepository.deleteAll();
-        appointmentRepository.deleteAll();
-        doctorScheduleExceptionRepository.deleteAll();
-        doctorScheduleRepository.deleteAll();
-        patientProfileRepository.deleteAll();
+        appointmentAccountClaimRepository.deleteAllInBatch();
+        paymentInvoiceRepository.deleteAllInBatch();
+        bankTransferPaymentRepository.deleteAllInBatch();
+        appointmentRepository.deleteAllInBatch();
+        doctorScheduleExceptionRepository.deleteAllInBatch();
+        doctorScheduleRepository.deleteAllInBatch();
+        patientProfileRepository.deleteAllInBatch();
 
         // Hospital domain
-        articleRepository.deleteAll();
-        faqRepository.deleteAll();
-        packageRepository.deleteAll();
-        serviceRepository.deleteAll();
-        doctorBranchRepository.deleteAll();
-        doctorSpecialtyRepository.deleteAll();
-        doctorRepository.deleteAll();
-        branchRepository.deleteAll();
-        specialtyRepository.deleteAll();
+        articleRepository.deleteAllInBatch();
+        faqRepository.deleteAllInBatch();
+        packageRepository.deleteAllInBatch();
+        serviceRepository.deleteAllInBatch();
+        doctorBranchRepository.deleteAllInBatch();
+        doctorSpecialtyRepository.deleteAllInBatch();
+        doctorRepository.deleteAllInBatch();
+        branchRepository.deleteAllInBatch();
+        specialtyRepository.deleteAllInBatch();
 
         // Auth domain (refresh_tokens FK on users)
         // Bulk delete avoids Hibernate nulling the self-referencing assistant
         // request link before removal, which would violate the message-shape constraint.
         aiMessageRepository.deleteAllInBatch();
-        aiConversationRepository.deleteAll();
-        userPreferencesRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        aiConversationRepository.deleteAllInBatch();
+        userPreferencesRepository.deleteAllInBatch();
+        refreshTokenRepository.deleteAllInBatch();
+        userRepository.deleteAllInBatch();
     }
 }

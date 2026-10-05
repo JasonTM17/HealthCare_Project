@@ -383,6 +383,7 @@ the BFF:
 | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | the public HTTPS origin, e.g. `https://www.healthcare.id.vn` (no path/trailing slash) | `metadataBase`, canonical/`og:url`, JSON-LD, the sitemap base, `robots.txt` sitemap line |
 | `NEXT_PUBLIC_ALLOW_INDEXING` | leave unset, or `true`, for production. `false` de-indexes on purpose | `lib/site-url.ts:indexingAllowed()` → `robots.txt`, `sitemap.xml`, the root `robots` metadata |
+| `CSP_UPGRADE_INSECURE_REQUESTS` | leave unset/`1` for production HTTPS builds; set `0` only for plain-HTTP images (local Compose, LAN preview). It is a Docker **build ARG**, not runtime env — Next.js bakes `headers()` into `routes-manifest.json` at build time | `next.config.ts` → Content-Security-Policy `upgrade-insecure-requests` |
 
 With both set as above, production serves `robots.txt` with
 `Allow: /` (private prefixes `/api/`, `/patient/`, `/doctor/`, `/admin/` stay

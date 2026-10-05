@@ -1,0 +1,24 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+secrets/
+credentials/
+**/secrets/
+**/credentials/
+*.log
+.idea/
+.next/
+.next-*/
+.tmp/
+.vercel/
+# Keep target/ in the context — Dockerfile.prebuilt packages the host-built jar.

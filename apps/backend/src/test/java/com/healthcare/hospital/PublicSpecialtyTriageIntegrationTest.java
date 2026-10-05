@@ -2,7 +2,7 @@ package com.healthcare.hospital;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.healthcare.AbstractIntegrationTest;
+import com.healthcare.AbstractRedisIntegrationTest;
 import com.healthcare.hospital.entity.Specialty;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Transactional
-class PublicSpecialtyTriageIntegrationTest extends AbstractIntegrationTest {
+class PublicSpecialtyTriageIntegrationTest extends AbstractRedisIntegrationTest {
 
     @Autowired private ObjectMapper objectMapper;
 

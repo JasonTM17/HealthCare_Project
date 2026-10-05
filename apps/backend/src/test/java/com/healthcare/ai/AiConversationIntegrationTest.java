@@ -137,7 +137,14 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.policyVersion").value("patient-chat-v1"))
             .andExpect(jsonPath("$.retentionDays").value(90))
-            .andExpect(jsonPath("$.remoteProviderEnabled").value(false));
+            .andExpect(jsonPath("$.remoteProviderEnabled").value(false))
+            // enabledModes is the fail-closed contract the frontend gates
+            // pickers/locks on: always present, always listing the one mode
+            // that cannot be disabled server-side, and omitting clinical modes
+            // whose feature flags default off.
+            .andExpect(jsonPath("$.enabledModes").isArray())
+            .andExpect(jsonPath("$.enabledModes.length()").value(1))
+            .andExpect(jsonPath("$.enabledModes[0]").value("HOSPITAL_SUPPORT"));
     }
 
     @Test

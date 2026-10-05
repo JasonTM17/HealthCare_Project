@@ -67,9 +67,6 @@ public class PublicSpecialtyTriageService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> triage(String rawSymptoms) {
-        if (!enabled) {
-            throw new BusinessException(503, ErrorCodes.AI_UNAVAILABLE, "Public specialty triage is disabled");
-        }
         String symptoms = rawSymptoms == null ? "" : rawSymptoms.trim();
         if (symptoms.length() < 2 || symptoms.length() > 500) {
             throw new BusinessException(400, ErrorCodes.VALIDATION_ERROR,
@@ -77,13 +74,18 @@ public class PublicSpecialtyTriageService {
         }
         // Emergency check runs FIRST, before every rejection path (audit A4):
         // a crisis message that also carries PII or a diagnose-shaped phrase
-        // must still receive the 115 guidance, never a 422 with none.
+        // must still receive the 115 guidance, never a 422 with none — and
+        // never a 503 from the feature flag, which an operator flipping the
+        // switch must not be able to turn into a lost crisis response.
         // Detection is delegated to the shared ChatMedicalSafety lexicon —
         // normalized and diacritic-folded, so an accent-free "dau nguc du
         // doi" matches — instead of this class keeping its own diacritic-
         // anchored list that could drift from the AI safety boundary.
         if (isEmergency(symptoms)) {
             return emergencyPayload();
+        }
+        if (!enabled) {
+            throw new BusinessException(503, ErrorCodes.AI_UNAVAILABLE, "Public specialty triage is disabled");
         }
         if (PII.matcher(symptoms).find()) {
             throw new BusinessException(422, ErrorCodes.CHAT_CONTENT_BLOCKED,
