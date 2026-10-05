@@ -23,7 +23,7 @@ const NEW_IMAGE_URL = "/media/about-care-poster.jpg";
 const OUT = join(dirname(fileURLToPath(import.meta.url)), "local-audit-cms-live-persistence.json");
 
 const BFF_TOKEN = execSync(
-  'docker exec healthcare-devin-local-audit-backend-1 printenv BACKEND_BFF_SERVICE_TOKEN',
+  'docker exec healthcare-local-audit-backend-1 printenv BACKEND_BFF_SERVICE_TOKEN',
   { encoding: "utf8" },
 ).trim();
 

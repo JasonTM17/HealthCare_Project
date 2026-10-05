@@ -4,7 +4,7 @@
 # containers. Nothing secret is printed or persisted.
 set -euo pipefail
 cd /d/HealthCare_Project
-p=healthcare-devin-local-audit
+p=healthcare-local-audit
 be=$p-backend-1; ai=$p-ai-service-1; fe=$p-frontend-1
 
 for c in "$be" "$ai" "$fe" "$p-postgres-1" "$p-minio-1"; do
