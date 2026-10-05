@@ -327,8 +327,16 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         "chán sống quá",
         "bệnh nhân đang co giật",
         "trẻ đang co giật liên tục",
-        # "do" = because-of, not laundry "đồ" — a reason word keeps the alert.
+        # "do" = because-of, not laundry "đồ" — any causal continuation keeps
+        # the alert, not just an enumerated medical word list.
         "bé co giật do sốt cao",
+        "bé co giật do bị ngã",
+        "co giat do di ung thuoc",
+        "co giat do uong nham thuoc",
+        "co giat do can benh",
+        "co giat do anh huong",
+        # joined squash forms read the same way.
+        "cogiatdobinga",
         "tututroi buon qua",
     ],
 )
@@ -351,6 +359,12 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         "phòng khám có giặt ủi không",
         "cho hỏi có giặt đồ không nhỉ",
         "khu vực có giặt là không",
+        # "giặt đồ" clause-final, with laundry particles, or punctuated —
+        # all benign; suppression only needs those shapes.
+        "phòng khám có giặt đồ",
+        "phòng khám có giặt đồ cho khách không",
+        "phòng khám có giặt đồ ở đâu",
+        "phòng khám có giặt đồ!",
         # "nghỉ ngơi từ từ" (rest slowly) is not "nghĩ ... tự tử".
         "toi can nghi ngoi tu tu",
         # joined "từ từ thôi" at message start — a benign continuation.

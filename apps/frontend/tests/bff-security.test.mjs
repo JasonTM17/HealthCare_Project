@@ -643,9 +643,13 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "cannot breathe",
     "yeu nua nguoi",
     // Joined-syllable crisis at token start ("tự tử trôi") and the
-    // "do = because of" form ("co giật do sốt cao") must still fire.
+    // "do = because of" forms must still fire — not just listed reason
+    // words; any causal continuation keeps the alert.
     "tututroi buon qua",
     "bé co giật do sốt cao",
+    "bé co giật do bị ngã",
+    "co giat do di ung thuoc",
+    "co giat do can benh",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -674,6 +678,10 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "tôi sẽ đi từ từ đến bệnh viện",
     "phòng khám có giặt ủi không",
     "cho hỏi có giặt đồ không nhỉ",
+    // Clause-final / laundry-closing "đồ" shapes stay benign.
+    "phòng khám có giặt đồ",
+    "phòng khám có giặt đồ cho khách không",
+    "phòng khám có giặt đồ!",
     // "nghỉ ngơi từ từ" is benign, and joined "từ từ thôi" is not "tự tử".
     "tôi cần nghỉ ngơi từ từ",
     "tututhoi nhe bac si",
@@ -1695,6 +1703,41 @@ test("guest chat opens a private lease before provider dispatch without exposing
   assert.equal(providerCall.init.headers.get("X-Request-ID"), openRequestId);
   assert.equal(JSON.parse(Buffer.from(providerCall.init.body).toString()).message, "synthetic guest question");
   assert.equal(publicBody.includes("guest-initial-permit"), false);
+});
+
+test("a rejected public lease-open degrades to the safe fallback and never reaches the provider", async () => {
+  const bff = await loadBff();
+  const calls = [];
+  // A 4xx lease-open rejection (bad lease state, origin config) must not
+  // surface a bare 502 in front of a possibly-crisis message.
+  for (const rejectStatus of [403, 400]) {
+    calls.length = 0;
+    const response = await bff.proxyHealthcareRequest(
+      browserRequest("/api/v1/public/ai/chat", {
+        method: "POST",
+        headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "tôi muốn tự tử" }),
+      }),
+      ["public", "ai", "chat"],
+      {
+        runtimeConfig,
+        useRealChatLeaseControl: true,
+        fetchImpl: async (target, init = {}) => {
+          const path = new URL(target).pathname;
+          calls.push(path);
+          if (path.endsWith("/open")) return Response.json({ error: "rejected" }, { status: rejectStatus });
+          throw new Error(`provider must not be reached on lease-open rejection: ${path}`);
+        },
+      },
+    );
+    const body = await response.json();
+    assert.equal(response.status, 200, `lease-open ${rejectStatus} must degrade, not surface ${rejectStatus}/502`);
+    assert.equal(body.provenance, "local_fallback");
+    assert.equal(body.safety_action, "EMERGENCY", `crisis must keep emergency guidance on lease-open ${rejectStatus}`);
+    assert.deepEqual(body.suggested_actions, [{ kind: "CALL_EMERGENCY", label: "Gọi 115", href: "tel:115" }]);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /\/api\/v1\/internal\/ai\/chat-leases\/[0-9a-f-]{36}\/open$/iu);
+  }
 });
 
 test("patient chat opens its bound lease before prepare and never returns the renewal permit", async () => {

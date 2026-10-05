@@ -603,11 +603,14 @@ def _compile_squash_matcher(terms: tuple[str, ...]) -> tuple[str, ...]:
 # "co giat" (convulsion) folds identically to "có giặt" (laundry service — a
 # real amenity question this endpoint answers). It escalates only when the
 # word after it is not a laundry noun ("giặt ủi/là/giũ/đồ/quần áo/khăn").
-# "do" stays excluded only when it reads as "đồ" (laundry) — when it reads as
-# "do" (because of) a medical reason follows, so that case keeps firing.
+# "do" is doubly ambiguous ("giặt đồ" laundry vs "do" because-of), and a
+# closed-world medical-reason allowlist cannot enumerate every cause —
+# "co giật do bị ngã" must still fire. It suppresses only at clause end or
+# before laundry-closing particles; every other continuation keeps the
+# fail-safe default of escalating.
 _CO_GIAT_CRISIS: Final[re.Pattern[str]] = re.compile(
-    r"\bco\W+giat\b(?!\W+(?:ui|la|giu?|quan|ao|khan)\b)"
-    r"(?!\W+do\b(?!\W+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))"
+    r"\bco\W+giat\b(?!\W*(?:ui|la|giu?|quan|ao|khan)\b)"
+    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\W+dau|o\W+day)\b))"
 )
 
 # Spaced "tu tu" is both "tự tử" (self-harm) and the everyday adverb
@@ -733,11 +736,20 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
     return False
 
 
-_CO_GIAT_SQUASHED_LAUNDRY: Final[tuple[str, ...]] = ("ui", "la", "gi", "do", "quan", "ao", "khan")
-# After squashed "do", a medical-reason prefix means "do" = "because of",
-# not "đồ" — "cogiatdosot" is a crisis, not laundry.
-_CO_GIAT_SQUASHED_MEDICAL: Final[tuple[str, ...]] = (
-    "sot", "viem", "dau", "soc", "ngat", "benh", "nguy", "chan", "roi", "thuoc", "nhiem", "tuc",
+# Squashed laundry continuations for "cogiat" — joined nouns only. "do" is
+# handled separately below because it is doubly ambiguous ("đồ" laundry vs
+# "do" because-of).
+_CO_GIAT_SQUASHED_LAUNDRY: Final[tuple[str, ...]] = ("ui", "la", "gi", "quan", "ao", "khan")
+# After squashed "do", suppression is allowed only when the stream ends or a
+# laundry-closing particle follows — "cogiatdokhong" (có giặt đồ không) stays
+# quiet, but "cogiatdobinga" (co giật do bị ngã) keeps firing. A closed-world
+# medical allowlist cannot enumerate every cause, so the default flips to
+# fire. One-letter particles are excluded: in a squash stream "a" would
+# wrongly swallow real words like "anhhuong".
+_CO_GIAT_SQUASHED_DO_TAILS: Final[tuple[str, ...]] = (
+    "khong", "ko", "ha", "nhe", "nhi", "nho", "vay", "ta", "dc", "duoc",
+    "chu", "gi", "giu", "thue", "cho", "tre", "em", "be", "con", "nguoi",
+    "odau", "oday",
 )
 
 
@@ -750,7 +762,10 @@ def _squashed_tier1_hit(squashed: str) -> bool:
         start = squashed.find(term)
         while start != -1:
             rest = squashed[start + len(term) :]
-            if rest.startswith("do") and rest[2:].startswith(_CO_GIAT_SQUASHED_MEDICAL):
+            if rest.startswith("do"):
+                if rest == "do" or rest[2:].startswith(_CO_GIAT_SQUASHED_DO_TAILS):
+                    start = squashed.find(term, start + 1)
+                    continue
                 return True
             if not rest.startswith(_CO_GIAT_SQUASHED_LAUNDRY):
                 return True

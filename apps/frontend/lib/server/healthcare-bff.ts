@@ -57,7 +57,6 @@ const CHAT_CANCEL_NOTIFY_TIMEOUT_MS = 750;
 const CHAT_LEASE_OPEN_TIMEOUT_MS = 3_000;
 const CHAT_LEASE_RENEW_INTERVAL_MS = 2_000;
 const CHAT_LEASE_RENEW_TIMEOUT_MS = 5_000;
-const PUBLIC_AI_FALLBACK_STATUSES = new Set([502, 503, 504]);
 // The fallback answer must still work when every upstream is down, so the
 // hotline cannot be resolved from branch data here — it is env-overridable
 // instead (PUBLIC_HOTLINE_DISPLAY / PUBLIC_HOTLINE_TEL on the BFF host).
@@ -71,13 +70,16 @@ const PUBLIC_HOTLINE_TEL = process.env.PUBLIC_HOTLINE_TEL?.trim() || "tel:028180
 // covers elsewhere, but it must never carry fewer than the backend.
 // Precision parity matters as much as recall: bare "tu tu"/"co giat" fold to
 // the benign "từ từ" (slowly) / "có giặt" (laundry), so they keep the same
-// volition-marker / laundry-exclusion guards as the backend.
+// volition-marker / laundry-exclusion guards as the backend. Joined "tutu"
+// fires at any token start (with benign-continuation guards) — broader than
+// the ai-service squash rule, which only trusts bare "tutu" at stream start;
+// the direction is over-fire (safe side).
 const EMERGENCY_FALLBACK_PATTERN = new RegExp(
   "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|cap\\s+cuu|"
     + "dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|kho\\s+tho(?:\\s+du\\s+doi)?|"
     + "meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
-    + "co\\s+giat(?!\\s*(?:ui|la|giu?|quan|ao|khan)(?:\\s|$))"
-    + "(?!\\s*do\\b(?!\\s+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))|"
+    + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
+    + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\\W+dau|o\\W+day)\\b))|"
     + "heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|shortness\\s+of\\s+breath|"
     + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
     + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
@@ -1459,7 +1461,7 @@ export async function proxyHealthcareRequest(
       await cancelUpstreamBody(upstream, "BFF_UPSTREAM_REDIRECT_REJECTED");
       return tracedResponse(jsonError(502, "BFF_UPSTREAM_REDIRECT_REJECTED"), "failed");
     }
-    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && (PUBLIC_AI_FALLBACK_STATUSES.has(upstream.status) || upstream.status >= 500)) {
+    if (method === "POST" && apiPath === PUBLIC_AI_CHAT_PATH && upstream.status >= 500) {
       await cancelUpstreamBody(upstream, "BFF_PUBLIC_AI_FALLBACK");
       return tracedResponse(publicAiChatFallbackResponse(publicChatMessage), "fallback");
     }
