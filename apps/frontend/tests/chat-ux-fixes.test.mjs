@@ -245,7 +245,7 @@ test("a pre-seeded session flag skips the stream probe on a fresh module", async
 
 test("downloadPatientDocument prefers Content-Disposition and drops the demo name", async () => {
   const { api, anchor } = await loadApiClient({
-    fetch: async () => new Response(new Uint8Array([1, 2, 3]), {
+    fetch: async () => new Response(new TextEncoder().encode("%PDF-1.7 fake"), {
       status: 200,
       headers: { "Content-Disposition": 'attachment; filename="ho-so-tong-hop.pdf"' },
     }),
@@ -256,7 +256,7 @@ test("downloadPatientDocument prefers Content-Disposition and drops the demo nam
 
 test("downloadPatientDocument falls back to a clean default when no header is sent", async () => {
   const { api, anchor } = await loadApiClient({
-    fetch: async () => new Response(new Uint8Array([1, 2, 3]), { status: 200 }),
+    fetch: async () => new Response(new TextEncoder().encode("%PDF-1.7 fake"), { status: 200 }),
   });
   await api.downloadPatientDocument("patient-1", "doc-2");
   assert.equal(anchor.download, "tai-lieu-tong-hop.pdf");
