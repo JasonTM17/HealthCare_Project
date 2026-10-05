@@ -4,7 +4,7 @@
   "frozen": true,
   "frozenDate": "2026-10-04",
   "controller": "Team Lead",
-  "targetHead": "5d44a1db8a4048cb2484890b50bbd0b9dcb0cae9",
+  "targetHead": "97908ad5971595a8741fdeaf73ccd8ee4a940e52",
   "targetIdentity": "Frozen committed HEAD 20cfdbbebae23cc1e2bed5f87b89b7d1a9f2a3c9",
   "manifestAlgorithm": "Git blob SHA-1 from controller-executed git hash-object in listed path order",
   "reviewerHashVerificationLimit": "Native read-only reviewers cannot execute hashing. Inspect exact scoped sources and report this limit. The controller will recheck all blob identities after reviews; any changed member invalidates that member's review.",
@@ -215,7 +215,7 @@
     },
     {
       "path": "apps/frontend/tests/e2e/live-compose-clinical-payment.spec.ts",
-      "gitBlob": "536b42e0c4fa7e2f05aa1470ce6750b8f043c746"
+      "gitBlob": "fc095d268e2b54c46f9e53cf200a880543c086ce"
     }
   ],
   "authority": "R0: source and captured evidence only; no writes, commands, peers, service calls, DB queries, secrets, production, commits, push, deployment, or release sign-off",

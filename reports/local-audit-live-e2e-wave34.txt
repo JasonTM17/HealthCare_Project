@@ -1,0 +1,25 @@
+HealthCare local audit — live E2E evidence on final stack (backend wave-4 image + frontend wave-3 image)
+Date: 2026-10-05 (local). Stack: healthcare-local-audit Compose, FE :3330 -> BFF -> backend :8180.
+
+live-compose-demo.spec.ts (chromium):
+1. "books through the public UI and appears in patient, doctor, and admin portals" — PASS 40.1s
+   (booking journey + consultation attachment PUT to presigned MinIO URL + complete + AV scan CLEAN)
+2. "issues all three PDF classes through real clinical APIs and enforces document scope" — PASS 14.6s
+   (on wave-4 backend image; verifies persisted byteSize/SHA-256 + %PDF- magic + scope deny)
+3. "live CMS homepage hero publish and rollback update the public shell" — PASS 2.1m
+   (on wave-3 frontend image; TinyMCE publish -> public render -> rollback -> public render)
+
+live-compose-lifecycle.spec.ts (chromium):
+4. "hold->OTP(Mailpit)->confirm->reschedule->double-book 409 deny->cancel->doctor sees it" — PASS 2.6s
+
+Rate-limit live probes (in-container, deterministic window):
+- GET /appointments/doctors/{id}/slots (encoded %73 path): 200 x60 -> 429 at request 61 — PASS
+- HEAD same path: 401 unauthenticated then 429 at request 61 — bucket parity closed
+- Plain GET slots: 429 at request 61; unrelated public GET stays 200
+
+Environment notes (fixed during this run):
+- backend env re-aligned to live siblings: POSTGRES_PASSWORD, MINIO_ROOT_USER/PASSWORD,
+  STORAGE_AV_SERVICE_TOKEN (scanner), STORAGE_PUBLIC_ENDPOINT -> 127.0.0.1:9010 (local-audit minio),
+  BFF_ALLOWED_ORIGINS + http://localhost:3330; frontend BFF_PUBLIC_ORIGIN + :3330.
+- Earlier failures in this window were env-alignment artifacts (429 auth bucket exhaustion,
+  wrong-minio presign, scanner token mismatch), not product defects; all resolved and re-verified green.
