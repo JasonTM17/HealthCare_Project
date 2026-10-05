@@ -318,6 +318,8 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
     [
         "tôi muốn tự tử",
         "em định tự sát",
+        "tôi sẽ tự tử",
+        "em sắp tự tử rồi",
         "tôi đang nghĩ đến việc tự tử",
         "tôi nghĩ về tự tử nhiều",
         "tôi có ý tự tử",
@@ -325,6 +327,9 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         "chán sống quá",
         "bệnh nhân đang co giật",
         "trẻ đang co giật liên tục",
+        # "do" = because-of, not laundry "đồ" — a reason word keeps the alert.
+        "bé co giật do sốt cao",
+        "tututroi buon qua",
     ],
 )
 def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
@@ -346,6 +351,10 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         "phòng khám có giặt ủi không",
         "cho hỏi có giặt đồ không nhỉ",
         "khu vực có giặt là không",
+        # "nghỉ ngơi từ từ" (rest slowly) is not "nghĩ ... tự tử".
+        "toi can nghi ngoi tu tu",
+        # joined "từ từ thôi" at message start — a benign continuation.
+        "tututhoi nhe bac si",
     ],
 )
 def test_benign_folded_lookalikes_stay_silent(paraphrase: str) -> None:

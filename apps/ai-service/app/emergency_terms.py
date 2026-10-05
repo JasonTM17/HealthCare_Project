@@ -603,16 +603,21 @@ def _compile_squash_matcher(terms: tuple[str, ...]) -> tuple[str, ...]:
 # "co giat" (convulsion) folds identically to "có giặt" (laundry service — a
 # real amenity question this endpoint answers). It escalates only when the
 # word after it is not a laundry noun ("giặt ủi/là/giũ/đồ/quần áo/khăn").
+# "do" stays excluded only when it reads as "đồ" (laundry) — when it reads as
+# "do" (because of) a medical reason follows, so that case keeps firing.
 _CO_GIAT_CRISIS: Final[re.Pattern[str]] = re.compile(
-    r"\bco\W+giat\b(?!\W+(?:ui|la|giu?|do|quan|ao|khan)\b)"
+    r"\bco\W+giat\b(?!\W+(?:ui|la|giu?|quan|ao|khan)\b)"
+    r"(?!\W+do\b(?!\W+(?:sot|viem|dau|soc|ngat|benh|nguy|chan|roi|thuoc|nhiem|tuc)))"
 )
 
 # Spaced "tu tu" is both "tự tử" (self-harm) and the everyday adverb
 # "từ từ" (slowly). It escalates only behind a volition or thinking idiom;
 # the concatenated "tutu" keeps its own benign-continuation disambiguation.
+# The nghi idiom skips "nghỉ ngơi" (rest slowly) — "nghi ngoi tu tu" is
+# benign; "nghi (đến việc|về|tới) tu tu" is not.
 _TUTU_CRISIS: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:(?:muon|dinh|tinh|quyet)\W+tu\W+tu"
-    r"|nghi\W+(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
+    r"\b(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+tu\W+tu"
+    r"|nghi\W+(?!ngoi\b)(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
     r"|co\W+y\W+(?:dinh\W+)?tu\W+tu)\b"
 )
 
@@ -640,6 +645,9 @@ _SELF_HARM_SQUASHED = (
     "dinhtutu",
     "tinhtutu",
     "quyettutu",
+    "setutu",
+    "saptutu",
+    "dangtutu",
     "nghitutu",
     "nghidentutu",
     "nghidenviectutu",
@@ -686,7 +694,12 @@ def _squashed_self_harm_hit(squashed: str) -> bool:
     # Bare "tutu" is only trusted at the very start of the message stream:
     # mid-stream it cannot be told apart from benign "từ từ" ("ditutu" =
     # "đi từ từ"), and intent compounds already cover the marked cases.
-    return squashed.startswith("tutu") and squashed[4:5] not in _TUTU_BENIGN_CONTINUATIONS
+    # A "th" continuation ("tututhoi" = "từ từ thôi") is also benign.
+    return (
+        squashed.startswith("tutu")
+        and squashed[4:5] not in _TUTU_BENIGN_CONTINUATIONS
+        and squashed[4:6] != "th"
+    )
 
 
 def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
@@ -721,6 +734,11 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
 
 
 _CO_GIAT_SQUASHED_LAUNDRY: Final[tuple[str, ...]] = ("ui", "la", "gi", "do", "quan", "ao", "khan")
+# After squashed "do", a medical-reason prefix means "do" = "because of",
+# not "đồ" — "cogiatdosot" is a crisis, not laundry.
+_CO_GIAT_SQUASHED_MEDICAL: Final[tuple[str, ...]] = (
+    "sot", "viem", "dau", "soc", "ngat", "benh", "nguy", "chan", "roi", "thuoc", "nhiem", "tuc",
+)
 
 
 def _squashed_tier1_hit(squashed: str) -> bool:
@@ -731,7 +749,10 @@ def _squashed_tier1_hit(squashed: str) -> bool:
             continue
         start = squashed.find(term)
         while start != -1:
-            if not squashed[start + len(term) :].startswith(_CO_GIAT_SQUASHED_LAUNDRY):
+            rest = squashed[start + len(term) :]
+            if rest.startswith("do") and rest[2:].startswith(_CO_GIAT_SQUASHED_MEDICAL):
+                return True
+            if not rest.startswith(_CO_GIAT_SQUASHED_LAUNDRY):
                 return True
             start = squashed.find(term, start + 1)
     return False

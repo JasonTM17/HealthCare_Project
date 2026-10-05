@@ -87,7 +87,10 @@ public class AiConversationService {
     private static final String POLICY_VERSION = "patient-chat-v1";
     private static final String CONSENT_TEXT =
         "Chat được lưu tối đa 90 ngày; AI chỉ cung cấp thông tin tham khảo, "
-        + "không chẩn đoán/kê đơn và có thể chuyển bạn tới nhân viên y tế.";
+        + "không chẩn đoán/kê đơn và có thể chuyển bạn tới nhân viên y tế. "
+        + "Nội dung báo hiệu nguy cơ khẩn cấp (tự tử, cấp cứu) vẫn được lưu và "
+        + "trả lời hướng dẫn gọi 115 theo nghĩa vụ an toàn, kể cả khi chưa đồng ý "
+        + "hoặc đồng ý đã hết hạn.";
     private static final String PATIENT_CHAT_CREDIT_DESCRIPTION = "Lượt sử dụng Trợ lý AI Y khoa";
     private static final String PATIENT_CHAT_REFUND_DESCRIPTION =
         "Hoàn credit cho lượt hỏi AI không thành công";
