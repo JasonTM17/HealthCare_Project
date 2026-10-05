@@ -430,22 +430,36 @@ public class DocumentService {
         }
         try {
             InputStream stream = objectStore.get(document.getObjectKey());
-            // Re-validate once more after the fetch: a revoke that committed
-            // during objectStore.get must not hand out a live stream.
+            boolean handedOff = false;
             try {
-                entityManager.refresh(document);
-            } catch (jakarta.persistence.EntityNotFoundException exception) {
-                document.setStatus(DocumentStatus.REVOKED);
-            }
-            if (document.getStatus() != DocumentStatus.AVAILABLE) {
-                stream.close();
+                // Re-validate once more after the fetch: a revoke that
+                // committed during objectStore.get must not hand out a live
+                // stream.
+                try {
+                    entityManager.refresh(document);
+                } catch (jakarta.persistence.EntityNotFoundException exception) {
+                    document.setStatus(DocumentStatus.REVOKED);
+                }
+                if (document.getStatus() != DocumentStatus.AVAILABLE) {
+                    auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
+                        ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+                    throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
+                }
                 auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
-                throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
+                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW);
+                handedOff = true;
+                return new DocumentDownload(document, stream);
+            } finally {
+                // Any exit that did not hand the stream to the caller —
+                // deny, refresh failure, audit failure — must close it or
+                // the object-store connection leaks.
+                if (!handedOff) {
+                    try {
+                        stream.close();
+                    } catch (java.io.IOException ignored) {
+                    }
+                }
             }
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW);
-            return new DocumentDownload(document, stream);
         } catch (AccessDeniedException | BusinessException exception) {
             throw exception;
         } catch (Exception exception) {

@@ -726,6 +726,54 @@ class DocumentServiceTest {
     }
 
     @Test
+    void downloadDeniesAndClosesStreamWhenRevokedAfterObjectFetch() throws Exception {
+        PatientDocument document = availableDocument();
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        java.io.InputStream spyStream = org.mockito.Mockito.spy(
+                new ByteArrayInputStream(new byte[] {1, 2, 3}));
+        when(objectStore.get(document.getObjectKey())).thenReturn(spyStream);
+        // First revalidation passes; the revoke commits during the object
+        // fetch, so the second refresh flips the row and the live stream
+        // must be closed before the deny.
+        org.mockito.Mockito.doNothing().doAnswer(invocation -> {
+            document.setStatus(DocumentStatus.REVOKED);
+            return null;
+        }).when(entityManager).refresh(document);
+
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("thu hồi");
+
+        verify(spyStream).close();
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(document.getId().toString()), eq(ClinicalAccessAuditService.ACTION_DOWNLOAD),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
+    }
+
+    @Test
+    void downloadClosesStreamWhenPostFetchRevalidationFailsTransiently() throws Exception {
+        PatientDocument document = availableDocument();
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        java.io.InputStream spyStream = org.mockito.Mockito.spy(
+                new ByteArrayInputStream(new byte[] {1, 2, 3}));
+        when(objectStore.get(document.getObjectKey())).thenReturn(spyStream);
+        // A transient persistence fault on the second refresh must not leak
+        // the fetched object stream while the request fails closed.
+        org.mockito.Mockito.doNothing().doThrow(
+                new jakarta.persistence.PersistenceException("transient"))
+                .when(entityManager).refresh(document);
+
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(BusinessException.class);
+
+        verify(spyStream).close();
+    }
+
+    @Test
     void generationLockTimeoutFailsClosedWithRetryableConflict() throws Exception {
         stubPatientExists(PATIENT_ID);
         doThrow(new CannotAcquireLockException("lock_timeout exceeded"))

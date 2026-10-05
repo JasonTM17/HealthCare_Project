@@ -1,0 +1,19 @@
+HealthCare local audit — final-review gate suites (frozen tree, wave-4 pending commit)
+Date: 2026-10-05 (local)
+Command: ./mvnw test -Dtest='RequestRateLimitFilterTest,MediaAssetServiceTest,BankStatementParserTest,DocumentServiceTest,DocumentGenerationIntegrationTest,ChatSuggestedActionResolverTest'
+
+Results (all PASS, 108/108):
+- ChatSuggestedActionResolverTest: 8/8 (service-hours hold contract — final-review Q4 settled)
+- DocumentGenerationIntegrationTest: 10/10
+- DocumentServiceTest: 33/33 (31 prior + 2 new: revoked-after-object-fetch deny w/ stream close,
+  transient post-fetch refresh failure closes stream — final-review F2/F3 closed)
+- MediaAssetServiceTest: 19/19 (delete-boundary incl. owner/non-owner/admin/anonymous,
+  multi-role resolution; test ids assigned explicitly for @UuidGenerator)
+- BankStatementParserTest: 8/8 (NBSP/dialect/header/bounds regressions)
+- RequestRateLimitFilterTest: 30/30 (encoded-URI + HEAD bucket regressions, fail-closed Redis)
+
+Total: Tests run: 108, Failures: 0, Errors: 0, Skipped: 0 — BUILD SUCCESS
+
+Scope note: wave-4 source change (DocumentService post-fetch try/finally) is included in
+this run; commit follows separately. Frontend side of wave-3 was verified by 48/48 node
+editor suites + tsc + production build + live E2E (see local-audit-live-e2e-wave3.txt).
