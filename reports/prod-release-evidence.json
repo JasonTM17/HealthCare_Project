@@ -91,5 +91,57 @@
         "public_med_safety": "200 REFUSE 0.42s"
       }
     }
-  ]
+  ],
+  "perf-wave-2026-10-05": {
+    "commits": [
+      "b096208",
+      "5060b9e",
+      "8156724"
+    ],
+    "ci": {
+      "b096208": "5/5 code jobs pass; infrastructure pending digest",
+      "5060b9e": "6/6 pass",
+      "8156724": "6/6 pass"
+    },
+    "images": {
+      "backend": "ghcr.io/jasontm17/healthcare-project-backend@sha256:2ff25fd2a1afc5f7a05c910da3c0209038b761be95bf4490e0f0ea8d255fc0e7"
+    },
+    "deploys": {
+      "backend": "dep-db1gms5g1s2s73a3kru0 (live)",
+      "ai": "dep-db1gpjhsrm7s73bk9er0 (live)",
+      "vercel": "dpl_3GHqWuZ2tveWdTksyzP1FUkpMSbL (READY, b096208)"
+    },
+    "envChanges": {
+      "backend": [
+        "JAVA_TOOL_OPTIONS += -XX:+ExitOnOutOfMemoryError",
+        "SPRING_TASK_SCHEDULING_POOL_SIZE=4",
+        "AI_CHAT_CANCELLATION_OWNER_POLL_INTERVAL_MS=250",
+        "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=8",
+        "SPRINGDOC_API_DOCS_ENABLED=false",
+        "SPRINGDOC_SWAGGER_UI_ENABLED=false",
+        "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,metrics",
+        "AI_RAG_INGEST_WARM_CHECK_DELAY_MS=300000"
+      ],
+      "ai": [
+        "AI_PUBLIC_CHAT_CACHE_ENABLED=true"
+      ]
+    },
+    "prodVerification": {
+      "public_greeting": "ANSWER local_fallback 0.4-2.8s",
+      "public_branch": "grounded ANSWER ~0.4s steady (repeat-hit consistent)",
+      "public_symptom": "HUMAN_HANDOFF 3.8s warm (was 7-13s cold)",
+      "patient_greeting": "ANSWER 3.3s (was ~6s via upstream retrieve)",
+      "patient_branch": "grounded ANSWER 3.7s",
+      "fonts": "next/font self-hosted woff2 on /_next/static/media/, no external font CSS",
+      "cms_cdn": "GET /api/v1/cms/content/* -> Cache-Control public,max-age=60",
+      "widgets": "FloatingHealthAssistant + CmsEditModeToolbar deferred via client island"
+    },
+    "localVerification": {
+      "ai-tests": "928/928",
+      "backend-ai-tests": "126/126",
+      "fe-tests": "680/680",
+      "fe-build": "next build pass",
+      "localStack": "BFF chain verified on :3330"
+    }
+  }
 }
