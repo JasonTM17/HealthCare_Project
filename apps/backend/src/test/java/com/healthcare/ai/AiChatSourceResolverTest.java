@@ -535,4 +535,275 @@ class AiChatSourceResolverTest {
 
         assertThat(resolver.activeDoctorOverview(4, "da liễu")).isEmpty();
     }
+
+    @Test
+    void amenityResolutionMatchesOnlyBranchesAdvertisingTheFacility() {
+        BranchRepository branches = mock(BranchRepository.class);
+        Branch withParking = new Branch();
+        withParking.setId(UUID.randomUUID());
+        withParking.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 3");
+        withParking.setSlug("co-so-2-quan-3");
+        withParking.setAddress("2 Đường số 3, Quận 3");
+        withParking.setActive(true);
+        withParking.setAmenities(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance
+            .arrayNode().add("Bãi đỗ xe").add("Nhà thuốc"));
+        Branch withoutParking = new Branch();
+        withoutParking.setId(UUID.randomUUID());
+        withoutParking.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 4, Quận 5");
+        withoutParking.setSlug("co-so-4-quan-5");
+        withoutParking.setAddress("4 Đường số 5, Quận 5");
+        withoutParking.setActive(true);
+        withoutParking.setAmenities(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance
+            .arrayNode().add("Khám theo hẹn").add("Wi-Fi miễn phí"));
+        when(branches.findByActiveTrue(any(Pageable.class))).thenReturn(
+            new PageImpl<>(List.of(withParking, withoutParking),
+                org.springframework.data.domain.PageRequest.of(0, 100), 2));
+
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            branches,
+            mock(SpecialtyRepository.class),
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+
+        // "đậu" and "đỗ" are different spellings of the same facility —
+        // both must match the catalog's "Bãi đỗ xe" label.
+        AiChatSourceResolver.AmenityResolution parking =
+            resolver.resolveAmenity("Bãi đậu xe ở đâu?");
+        assertThat(parking).isNotNull();
+        assertThat(parking.amenityType()).isEqualTo("parking");
+        assertThat(parking.specific()).isFalse();
+        assertThat(parking.matches())
+            .extracting(value -> value.source().title())
+            .containsExactly("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 3");
+        assertThat(resolver.matchedAmenityLabels(parking.matches().get(0), "parking"))
+            .containsExactly("Bãi đỗ xe");
+
+        // Pharmacy wording matches the "Nhà thuốc" label on the same branch.
+        AiChatSourceResolver.AmenityResolution pharmacy =
+            resolver.resolveAmenity("Cơ sở có nhà thuốc không?");
+        assertThat(pharmacy).isNotNull();
+        assertThat(pharmacy.amenityType()).isEqualTo("pharmacy");
+        assertThat(pharmacy.matches())
+            .extracting(value -> value.source().title())
+            .containsExactly("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 3");
+
+        // Wi-Fi is only advertised by the second branch.
+        AiChatSourceResolver.AmenityResolution wifi =
+            resolver.resolveAmenity("Có wifi miễn phí không?");
+        assertThat(wifi).isNotNull();
+        assertThat(wifi.matches())
+            .extracting(value -> value.source().title())
+            .containsExactly("Bệnh viện Đa khoa HealthCare — Cơ sở 4, Quận 5");
+
+        // An amenity no branch advertises resolves empty — the caller must
+        // answer "not published" honestly instead of implying a facility.
+        AiChatSourceResolver.AmenityResolution canteen =
+            resolver.resolveAmenity("Bệnh viện có căn tin không?");
+        assertThat(canteen).isNotNull();
+        assertThat(canteen.matches()).isEmpty();
+
+        // A question with no amenity wording never enters this lane.
+        assertThat(resolver.resolveAmenity("địa chỉ cơ sở 2 là gì")).isNull();
+    }
+
+    @Test
+    void amenityResolutionReturnsNullOnCatalogOutage() {
+        // A repository failure must not masquerade as an empty catalog —
+        // callers degrade honestly instead of asserting "no branch
+        // advertises X" on no evidence at all.
+        BranchRepository branches = mock(BranchRepository.class);
+        when(branches.findByActiveTrue(any(Pageable.class)))
+            .thenThrow(new RuntimeException("catalog down"));
+
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            branches,
+            mock(SpecialtyRepository.class),
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+
+        assertThat(resolver.resolveAmenity("Bãi đậu xe ở đâu?")).isNull();
+    }
+
+    @Test
+    void amenityResolutionScopesAllBranchQuantifiersToGenericScan() {
+        // "các/tất cả/mọi cơ sở" carries no concrete identity — an empty
+        // named resolution must not fail closed but scan the catalog.
+        BranchRepository branches = mock(BranchRepository.class);
+        Branch withParking = new Branch();
+        withParking.setId(UUID.randomUUID());
+        withParking.setName("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 3");
+        withParking.setSlug("co-so-2-quan-3");
+        withParking.setAddress("2 Đường số 3, Quận 3");
+        withParking.setActive(true);
+        withParking.setAmenities(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance
+            .arrayNode().add("Bãi đỗ xe"));
+        when(branches.findByActiveTrue(any(Pageable.class))).thenReturn(
+            new PageImpl<>(List.of(withParking),
+                org.springframework.data.domain.PageRequest.of(0, 100), 1));
+
+        AiChatSourceResolver resolver = new AiChatSourceResolver(
+            branches,
+            mock(SpecialtyRepository.class),
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+
+        for (String question : List.of(
+            "Các cơ sở có bãi đậu xe không?",
+            "Tất cả cơ sở có bãi đậu xe không?",
+            "Mọi chi nhánh có bãi đậu xe không?")) {
+            AiChatSourceResolver.AmenityResolution resolution =
+                resolver.resolveAmenity(question);
+            assertThat(resolution).as(question).isNotNull();
+            assertThat(resolution.specific()).as(question).isFalse();
+            assertThat(resolution.matches()).as(question).hasSize(1);
+        }
+
+        // A concrete-but-missing identity still fails closed — the scope
+        // escape must never rescue a named-but-unresolvable branch.
+        AiChatSourceResolver.AmenityResolution named =
+            resolver.resolveAmenity("Cơ sở 99 có bãi đậu xe không?");
+        assertThat(named).isNotNull();
+        assertThat(named.specific()).isTrue();
+        assertThat(named.matches()).isEmpty();
+        assertThat(named.resolved()).isEmpty();
+    }
+
+    private AiChatSourceResolver resolverWith(Branch... rows) {
+        BranchRepository branches = mock(BranchRepository.class);
+        when(branches.findByActiveTrue(any(Pageable.class))).thenReturn(
+            new PageImpl<>(List.of(rows),
+                org.springframework.data.domain.PageRequest.of(0, 100), rows.length));
+        return new AiChatSourceResolver(
+            branches,
+            mock(SpecialtyRepository.class),
+            mock(DoctorRepository.class),
+            mock(ServiceRepository.class),
+            mock(PackageRepository.class),
+            mock(ArticleRepository.class),
+            mock(FaqRepository.class),
+            mock(JdbcTemplate.class));
+    }
+
+    private Branch branch(String name, String slug, String... amenities) {
+        Branch branch = new Branch();
+        branch.setId(UUID.randomUUID());
+        branch.setName(name);
+        branch.setSlug(slug);
+        branch.setAddress(name);
+        branch.setActive(true);
+        var array = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
+        for (String amenity : amenities) array.add(amenity);
+        branch.setAmenities(array);
+        return branch;
+    }
+
+    @Test
+    void amenityResolutionKeepsToponymIdentityThroughAttributeTokens() {
+        // "cơ sở Sân Bay có bãi đậu xe" — amenity vocabulary ("bãi", "sân")
+        // must not be required inside the branch name, and must not leave
+        // residual tokens that make a real branch unresolvable.
+        Branch sanBay = branch(
+            "Phòng khám HealthCare Sân Bay", "san-bay", "Bãi đỗ xe", "Wi-Fi");
+        AiChatSourceResolver resolver = resolverWith(sanBay);
+
+        AiChatSourceResolver.AmenityResolution resolution =
+            resolver.resolveAmenity("Cơ sở Sân Bay có bãi đậu xe không?");
+        assertThat(resolution).isNotNull();
+        assertThat(resolution.specific()).isTrue();
+        assertThat(resolution.resolved()).hasSize(1);
+        assertThat(resolution.matches()).hasSize(1);
+    }
+
+    @Test
+    void amenityResolutionTreatsFacilitiesOverviewAsGenericScan() {
+        // "có tiện ích gì" names no amenity type and no branch identity —
+        // the generic marker must not poison the residual identity into a
+        // fail-closed named lookup.
+        Branch withAmenities = branch(
+            "Bệnh viện HealthCare Quận 1", "quan-1", "Bãi đỗ xe", "Wi-Fi");
+        Branch bare = branch("Phòng khám HealthCare Quận 7", "quan-7");
+        AiChatSourceResolver resolver = resolverWith(withAmenities, bare);
+
+        AiChatSourceResolver.AmenityResolution resolution =
+            resolver.resolveAmenity("Cơ sở có tiện ích gì?");
+        assertThat(resolution).isNotNull();
+        assertThat(resolution.amenityType()).isEqualTo("generic");
+        assertThat(resolution.specific()).isFalse();
+        assertThat(resolution.matches()).hasSize(1);
+    }
+
+    @Test
+    void amenityTypeDoesNotConfuseDeicticChoDoWithParking() {
+        // "chỗ đó" (that place) is not a parking phrase — an explicit
+        // amenity word later in the question must win, not the first
+        // group hit on a deictic "chỗ đó".
+        assertThat(resolverWith().amenityType("Cơ sở 2 chỗ đó có wifi không?"))
+            .isEqualTo("wifi");
+        assertThat(resolverWith().amenityType("chỗ đậu xe ở đâu"))
+            .isEqualTo("parking");
+    }
+
+    @Test
+    void amenityResolutionSubtractsMatchedPhraseFromIdentity() {
+        // The matched amenity phrase's tokens never count as a branch
+        // name: a singular "cơ sở có bãi đỗ xe" must scan generically
+        // (the "đỗ" spelling used to fail closed as a residual name term).
+        AiChatSourceResolver resolver = resolverWith(
+            branch("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 3",
+                "co-so-2-quan-3", "Bãi đỗ xe"));
+        AiChatSourceResolver.AmenityResolution resolution =
+            resolver.resolveAmenity("Cơ sở có bãi đỗ xe không?");
+        assertThat(resolution).isNotNull();
+        assertThat(resolution.specific()).isFalse();
+        assertThat(resolution.matches()).hasSize(1);
+    }
+
+    @Test
+    void amenityResolutionKeepsToponymBranchIdentity() {
+        // A branch whose name is built only from facility-like tokens
+        // ("Sân Bay") still counts as a specific identity: generic-scan
+        // answers would otherwise silently answer about OTHER branches.
+        AiChatSourceResolver resolver = resolverWith(
+            branch("Phòng khám Sân Bay", "phong-kham-san-bay", "Wi-Fi"),
+            branch("Bệnh viện Đa khoa HealthCare — Cơ sở 2, Quận 3",
+                "co-so-2-quan-3", "Bãi đỗ xe"));
+        AiChatSourceResolver.AmenityResolution resolution =
+            resolver.resolveAmenity("Cơ sở Sân Bay có wifi không?");
+        assertThat(resolution).isNotNull();
+        assertThat(resolution.specific()).isTrue();
+        assertThat(resolution.resolved())
+            .extracting(value -> value.source().title())
+            .containsExactly("Phòng khám Sân Bay");
+        assertThat(resolution.matches())
+            .extracting(value -> value.source().title())
+            .containsExactly("Phòng khám Sân Bay");
+    }
+
+    @Test
+    void amenityResolutionFlagsTruncatedMatchLists() {
+        // The answer text quotes an enumeration — callers must know when
+        // the list was capped so wording cannot claim completeness.
+        AiChatSourceResolver resolver = resolverWith(
+            branch("Cơ sở A", "co-so-a", "Bãi đỗ xe"),
+            branch("Cơ sở B", "co-so-b", "Bãi đỗ xe"),
+            branch("Cơ sở C", "co-so-c", "Bãi đỗ xe"),
+            branch("Cơ sở D", "co-so-d", "Bãi đỗ xe"));
+        AiChatSourceResolver.AmenityResolution resolution =
+            resolver.resolveAmenity("Các cơ sở có bãi đậu xe không?");
+        assertThat(resolution).isNotNull();
+        assertThat(resolution.matches()).hasSize(3);
+        assertThat(resolution.truncated()).isTrue();
+    }
 }

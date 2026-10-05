@@ -430,6 +430,9 @@ r"\byou\s+should\s+(?:take|use)\b|"
     # verb precedes it ("paracetamol 500mg là lựa chọn").
     r"\b(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin)\s*"
     r"\d+(?:[.,]\d+)?\s*(?:mg|ml|viên|vien)\b|"
+    # A bare dose directive ("Liều 500mg mỗi ngày") is a prescription even
+    # when it appears in its own sentence after a refusal.
+    r"\blieu\s+\d+(?:[.,]\d+)?\s*(?:mg|ml|vien)?\b|"
     r"\b(?:uong|take|dung)\s+(?:[a-z][a-z0-9-]*\s+){0,4}"
     r"\d+(?:[.,]\d+)?\s*(?:mg|ml|vien)\b)",
     re.IGNORECASE,
@@ -1345,6 +1348,39 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
         return frozenset({"service"})
     if any(term in normalized for term in ("goi kham", "goi suc khoe", "kham tong quat")):
         return frozenset({"package"})
+    # Facility/amenity wording is a branch fact: the amenities JSON lives on
+    # branch rows, so an upstream call that does reach retrieval must not
+    # scan unrelated operational types.
+    if any(
+        term in normalized
+        for term in (
+            "dau xe",
+            "do xe",
+            "bai xe",
+            "gui xe",
+            "giu xe",
+            "nha xe",
+            "san xe",
+            "cho dau",
+            "cho do",
+            "dau oto",
+            "do oto",
+            "nha thuoc",
+            "quay thuoc",
+            "cua hang thuoc",
+            "wifi",
+            "wi fi",
+            "atm",
+            "rut tien",
+            "can tin",
+            "nha an",
+            "quay tu phuc vu",
+            "phong cho",
+            "khu vuc cho",
+            "tien ich",
+        )
+    ):
+        return frozenset({"branch"})
     return None
 
 
@@ -1790,6 +1826,15 @@ _REFUSABLE_CLINICAL_ACTIONS = frozenset({
     "ke don", "ke toa", "boc thuoc", "prescribe", "ngung thuoc",
     "stop medication", "change your medication",
 })
+# A refusable action excused by a refusal frame must not be followed by a
+# medication object or dose before the next clause boundary — otherwise a
+# comma-chained reuse ("không thể kê đơn, kê đơn aspirin") would ride the
+# same refusal scope as the legitimate refusal list it claims to be.
+_MEDICATION_OR_DOSE_AFTER_ACTION_PATTERN = re.compile(
+    r"\b(?:aspirin|paracetamol|acetaminophen|ibuprofen|amoxicillin|"
+    r"antibiotic|khang\s+sinh|\d+(?:[.,]\d+)?\s*(?:mg|ml|vien))\b",
+    re.IGNORECASE,
+)
 _DIAGNOSIS_LABEL_PATTERN = re.compile(
     r"\b(?:chan\s+doan|diagnosis)(?:\s+(?:nghi\s+ngo|xac\s+dinh|suspected|confirmed))?\s*:",
     re.IGNORECASE,
@@ -1811,11 +1856,22 @@ def _has_unnegated_forbidden_match(normalized: str) -> bool:
         if _DIAGNOSIS_LABEL_PATTERN.search(variant) or _DIRECT_MEDICATION_ACTION_PATTERN.search(variant):
             return True
         for sentence in _SENTENCE_BOUNDARY_PATTERN.split(variant):
-            for match in _REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence):
+            matches = list(_REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence))
+            for index, match in enumerate(matches):
                 phrase = " ".join(match.group(0).split())
                 if phrase not in _REFUSABLE_CLINICAL_ACTIONS:
                     return True
-                if not _CLINICAL_REFUSAL_PREFIX_PATTERN.search(sentence[:match.start()]):
+                prefix = sentence[: match.start()]
+                if _CONTRASTIVE_WORD_PATTERN.search(prefix):
+                    return True
+                if not _CLINICAL_REFUSAL_PREFIX_PATTERN.search(prefix):
+                    return True
+                tail_end = (
+                    matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
+                )
+                if _MEDICATION_OR_DOSE_AFTER_ACTION_PATTERN.search(
+                    sentence[match.end() : tail_end]
+                ):
                     return True
     return False
 

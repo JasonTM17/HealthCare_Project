@@ -443,7 +443,8 @@ public class AiChatSourceResolver {
                     source,
                     cleanBranchField(branch.getAddress(), 500),
                     cleanBranchField(branch.getWorkingHours(), 255),
-                    cleanBranchField(branch.getPhone(), 100)));
+                    cleanBranchField(branch.getPhone(), 100),
+                    branchAmenities(branch)));
                 if (result.size() >= boundedLimit) break;
             }
             return List.copyOf(result);
@@ -525,7 +526,21 @@ public class AiChatSourceResolver {
             // substring-match an unrelated branch on "Đầu Mối".
             return List.of();
         }
+        return branchDetailsByIdentity(requestedNumbers, locationAnchors, identityTerms);
+    }
 
+    /**
+     * Scan the live catalog for the already-extracted identity.  Split
+     * from {@link #branchDetails} so the amenity lane can subtract its own
+     * vocabulary ("wifi", "bãi xe") from the residual terms — otherwise a
+     * branch whose name is all attribute-words ("Cơ sở Sân Bay") could
+     * never resolve, and the amenity phrase itself would wrongly become a
+     * required name token.
+     */
+    private List<BranchDetails> branchDetailsByIdentity(
+            Set<Integer> requestedNumbers,
+            Set<String> locationAnchors,
+            Set<String> identityTerms) {
         try {
             Page<Branch> branches = branchRepository.findByActiveTrue(PageRequest.of(
                 0, MAX_BRANCH_LOOKUP_ROWS, Sort.by(Sort.Direction.ASC, "name")));
@@ -544,7 +559,8 @@ public class AiChatSourceResolver {
                     source,
                     cleanBranchField(branch.getAddress(), 500),
                     cleanBranchField(branch.getWorkingHours(), 255),
-                    cleanBranchField(branch.getPhone(), 100)));
+                    cleanBranchField(branch.getPhone(), 100),
+                    branchAmenities(branch)));
                 if (matches.size() >= MAX_BRANCH_LOOKUP_ROWS) break;
             }
             return List.copyOf(matches);
@@ -596,6 +612,12 @@ public class AiChatSourceResolver {
         "dien thoai", "so dt", "sdt", "hotline", "lien lac", "lien he",
         "dia chi", "o dau", "gio lam", "gio kham", "gio hoat dong",
         "lam viec", "mo cua", "may gio",
+        // Facility/amenity attributes — a follow-up like "Còn chỗ đậu xe
+        // thì sao?" asks for a branch fact, not a clinical input.
+        "dau xe", "do xe", "bai xe", "gui xe", "giu xe", "nha xe", "san xe",
+        "cho dau", "cho do", "dau oto", "do oto", "nha thuoc", "quay thuoc",
+        "wifi", "atm", "rut tien", "can tin", "nha an", "phong cho",
+        "khu vuc cho", "tien ich",
     };
 
     /**
@@ -608,6 +630,273 @@ public class AiChatSourceResolver {
             if (normalized.contains(cue)) return true;
         }
         return false;
+    }
+
+    /**
+     * Amenity groups keyed by the facility a visitor asks about.  Each
+     * inner array lists the normalized label keywords accepted as that
+     * amenity inside a branch's {@code amenities} JSON — "đậu xe" and
+     * "đỗ xe" are different spellings of the same facility.
+     */
+    private static final String[][] AMENITY_LABEL_KEYWORDS = {
+        {"bai dau xe", "bai do xe", "bai xe", "dau xe", "do xe", "gui xe",
+            "giu xe", "nha xe", "san xe", "cho dau xe", "cho do xe",
+            "khu dau xe", "khu do xe", "dau oto", "do oto", "dau o to",
+            "do o to", "parking"},
+        {"nha thuoc", "quay thuoc", "thuoc tay", "cua hang thuoc", "pharmacy"},
+        {"wifi", "wi fi", "internet", "mang wifi", "mang internet"},
+        {"atm", "cay atm", "may rut tien", "rut tien"},
+        {"can tin", "canteen", "nha an", "quay an", "quay tu phuc vu",
+            "bua an", "do an"},
+        {"phong cho", "khu vuc cho", "ghe cho", "sanh cho", "noi cho", "khu cho"},
+    };
+    private static final String[] AMENITY_TYPES = {
+        "parking", "pharmacy", "wifi", "atm", "canteen", "waiting"
+    };
+    /**
+     * Explicit "every branch" scope phrases — "các cơ sở", "tất cả chi
+     * nhánh", "mọi phòng khám".  These questions name no identity, so an
+     * amenity lookup that resolves nothing must scan the catalog rather
+     * than fail closed as a named-but-missing branch.  Deliberately
+     * multi-word: single tokens like "mới" or "tùng" can be real branch
+     * names and never trigger this.
+     */
+    private static final Pattern GENERIC_BRANCH_SCOPE = Pattern.compile(
+        "\\b(?:cac|moi|tung|toan bo|het|tat ca)\\s+"
+            + "(?:co so|chi nhanh|phong kham|benh vien|tru so)\\b"
+            + "|\\btat ca\\s+(?:cac\\s+)?(?:co so|chi nhanh|phong kham|benh vien)\\b");
+    /** Normalized query phrases mapped to the same amenity type ordering. */
+    private static final String[][] AMENITY_QUERY_PHRASES = {
+        {"dau xe", "do xe", "bai xe", "gui xe", "giu xe", "nha xe", "san xe",
+            "xe dau", "xe do", "xe gui", "xe giu",
+            "xe may dau", "xe may do", "xe dap dau", "xe dap do",
+            "xe tay ga dau", "xe tay ga do", "xe tai dau", "xe tai do",
+            "xe buyt dau", "xe buyt do", "xe bus dau", "xe bus do",
+            "xe hoi dau", "xe hoi do", "xe om dau", "xe om do",
+            "xe dien dau", "xe dien do", "xe khach dau", "xe khach do",
+            "xe ba gac dau", "xe ba gac do",
+            "oto dau", "oto do", "o to dau", "o to do",
+            "moto dau", "moto do", "mo to dau", "mo to do",
+            "de xe o", "xe de o",
+            "xe may de o", "xe dap de o", "xe tay ga de o", "xe tai de o",
+            "xe buyt de o", "xe bus de o", "xe hoi de o", "xe om de o",
+            "xe dien de o", "xe khach de o", "xe ba gac de o",
+            "oto de o", "o to de o", "moto de o", "mo to de o",
+            "cho de xe", "noi de xe", "khu de xe",
+            "cho de oto", "cho de o to", "noi de oto",
+            "cho dau xe", "cho do xe", "khu dau xe", "khu do xe",
+            "cho dau oto", "cho do oto", "cho dau o to", "cho do o to",
+            "dau oto", "do oto", "dau o to", "do o to", "parking"},
+        {"nha thuoc", "quay thuoc", "cua hang thuoc"},
+        {"wifi", "wi fi", "internet"},
+        {"atm", "cay atm", "may rut tien", "rut tien"},
+        {"can tin", "canteen", "nha an", "quay an", "quay tu phuc vu"},
+        {"phong cho", "khu vuc cho", "ghe cho", "noi cho", "cho ngoi"},
+    };
+
+    /**
+     * Classify the amenity a normalized question asks about, or
+     * {@code "generic"} for a facilities overview ("có tiện ích gì"),
+     * or {@code null} when the question mentions no amenity at all.
+     */
+    public String amenityType(String query) {
+        String normalized = normalizeLookupText(query);
+        if (normalized.isBlank()) return null;
+        for (int i = 0; i < AMENITY_TYPES.length; i++) {
+            for (String phrase : AMENITY_QUERY_PHRASES[i]) {
+                if (normalized.contains(phrase)) return AMENITY_TYPES[i];
+            }
+        }
+        if (normalized.contains("tien ich") || normalized.contains("tien nghi")) {
+            return "generic";
+        }
+        return null;
+    }
+
+    /** Markers that classify the generic facilities-overview question. */
+    private static final String[] GENERIC_AMENITY_MARKERS = {"tien ich", "tien nghi"};
+
+    /**
+     * Every amenity-vocabulary token present in the question for the
+     * classified type.  ResolveAmenity subtracts ALL of them — not just the
+     * first matching phrase — so a leading token like {@code bai} in "cơ sở
+     * Sân Bay có bãi đậu xe không" or the {@code tien ich} marker in a
+     * facilities overview cannot poison the residual branch identity.
+     */
+    private java.util.Set<String> matchedAmenityTokens(
+            String normalizedQuery, String amenityType) {
+        java.util.Set<String> tokens = new java.util.HashSet<>();
+        if (normalizedQuery == null || amenityType == null) return tokens;
+        if ("generic".equals(amenityType)) {
+            for (String marker : GENERIC_AMENITY_MARKERS) {
+                if (normalizedQuery.contains(marker)) {
+                    for (String token : marker.split(" ")) tokens.add(token);
+                }
+            }
+            return tokens;
+        }
+        for (int i = 0; i < AMENITY_TYPES.length; i++) {
+            if (!AMENITY_TYPES[i].equals(amenityType)) continue;
+            for (String phrase : AMENITY_QUERY_PHRASES[i]) {
+                if (normalizedQuery.contains(phrase)) {
+                    for (String token : phrase.split(" ")) tokens.add(token);
+                }
+            }
+        }
+        return tokens;
+    }
+
+    /** Vietnamese display name used inside deterministic amenity answers. */
+    public String amenityDisplayName(String amenityType) {
+        if (amenityType == null) return "tiện ích";
+        return switch (amenityType) {
+            case "parking" -> "bãi đậu xe/chỗ đỗ xe";
+            case "pharmacy" -> "nhà thuốc";
+            case "wifi" -> "Wi-Fi";
+            case "atm" -> "ATM/máy rút tiền";
+            case "canteen" -> "căn tin/quầy ăn uống";
+            case "waiting" -> "khu vực chờ";
+            default -> "tiện ích";
+        };
+    }
+
+    /**
+     * Original amenity labels on a branch matching the requested type.
+     * Returned verbatim ("Bãi đỗ xe") so answers quote catalog facts
+     * instead of a model's paraphrase; {@code generic} returns all labels.
+     */
+    public List<String> matchedAmenityLabels(BranchDetails branch, String amenityType) {
+        if (branch == null || branch.amenities() == null) return List.of();
+        if ("generic".equals(amenityType)) return branch.amenities();
+        int index = -1;
+        for (int i = 0; i < AMENITY_TYPES.length; i++) {
+            if (AMENITY_TYPES[i].equals(amenityType)) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return List.of();
+        List<String> labels = new ArrayList<>();
+        for (String label : branch.amenities()) {
+            if (label == null) continue;
+            String normalizedLabel = normalizeLookupText(label);
+            for (String keyword : AMENITY_LABEL_KEYWORDS[index]) {
+                if (normalizedLabel.contains(keyword)) {
+                    labels.add(label);
+                    break;
+                }
+            }
+        }
+        return List.copyOf(labels);
+    }
+
+    /** Whether the normalized query scopes to every branch explicitly. */
+    private boolean hasGenericBranchScope(String normalizedQuery) {
+        return GENERIC_BRANCH_SCOPE.matcher(normalizedQuery).find();
+    }
+
+    /**
+     * Resolve an amenity question against the live catalog.  A question
+     * naming a branch resolves that branch's own amenities; a generic
+     * question scans every active branch.  Only rows that actually carry
+     * the requested facility land in {@code matches} — an amenity the
+     * catalog does not advertise must fail honestly, not be implied.
+     */
+    public AmenityResolution resolveAmenity(String query) {
+        String type = amenityType(query);
+        if (type == null) return null;
+        boolean specific;
+        List<BranchDetails> resolved;
+        List<BranchDetails> candidates;
+        try {
+            String normalized = normalizeLookupText(query);
+            // Amenity-aware specificity: strip the matched amenity phrase's
+            // tokens before judging the residual identity, so "cơ sở có bãi
+            // đỗ xe" scans generically while "cơ sở Sân Bay có wifi" keeps
+            // its (all-toponym) name for the specific branch lookup.
+            Set<Integer> requestedNumbers = branchNumbers(normalized);
+            Set<String> locationAnchors = branchLocationAnchors(normalized);
+            Set<String> identity = new java.util.HashSet<>(
+                branchIdentityTerms(normalized, locationAnchors, requestedNumbers));
+            identity.removeAll(matchedAmenityTokens(normalized, type));
+            if (!requestedNumbers.isEmpty() || !locationAnchors.isEmpty()) {
+                specific = true;
+            } else {
+                specific = containsBranchNoun(normalized)
+                    && identity.size() >= 2
+                    && !GENERIC_BRANCH_ATTRIBUTE_TERMS.containsAll(identity);
+            }
+            if (specific) {
+                resolved = branchDetailsByIdentity(requestedNumbers, locationAnchors, identity);
+                if ((resolved == null || resolved.isEmpty())
+                        && hasGenericBranchScope(normalized)) {
+                    // "các cơ sở", "tất cả chi nhánh" scope to EVERY branch —
+                    // no concrete identity exists to fail closed on, so scan
+                    // the whole active catalog instead.
+                    specific = false;
+                    resolved = List.of();
+                    candidates = activeBranchOverview(MAX_BRANCH_LOOKUP_ROWS);
+                } else {
+                    candidates = resolved;
+                }
+            } else {
+                resolved = List.of();
+                candidates = activeBranchOverview(MAX_BRANCH_LOOKUP_ROWS);
+            }
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (specific && (resolved == null || resolved.isEmpty())) {
+            return new AmenityResolution(type, List.of(), List.of(), true, false);
+        }
+        if (candidates == null) candidates = List.of();
+        List<BranchDetails> matches = new ArrayList<>();
+        int totalMatched = 0;
+        for (BranchDetails branch : candidates) {
+            if (branch == null || branch.source() == null) continue;
+            if (matchedAmenityLabels(branch, type).isEmpty()) continue;
+            totalMatched++;
+            if (matches.size() < 3) matches.add(branch);
+        }
+        if (matches.isEmpty() && !catalogReachable()) {
+            // An outage must not masquerade as an empty catalog: asserting
+            // "no branch advertises X" requires the catalog to have
+            // actually answered the scan, not failed underneath it.
+            return null;
+        }
+        return new AmenityResolution(
+            type, List.copyOf(matches), resolved == null ? List.of() : resolved,
+            specific, totalMatched > matches.size());
+    }
+
+    /**
+     * Cheap liveness probe for the branch catalog.  {@link #branchDetails}
+     * and {@link #activeBranchOverview} swallow repository failures into
+     * empty lists, so a caller about to assert an absence uses this to
+     * distinguish "the catalog answered and nothing matched" from "the
+     * catalog could not answer at all".
+     */
+    private boolean catalogReachable() {
+        try {
+            return branchRepository.findByActiveTrue(
+                PageRequest.of(0, 1)) != null;
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    /** Read the branch's amenities JSON into bounded display labels. */
+    private List<String> branchAmenities(Branch branch) {
+        com.fasterxml.jackson.databind.JsonNode amenities =
+            branch == null ? null : branch.getAmenities();
+        if (amenities == null || !amenities.isArray()) return List.of();
+        List<String> labels = new ArrayList<>();
+        for (com.fasterxml.jackson.databind.JsonNode node : amenities) {
+            if (node == null || !node.isTextual()) continue;
+            String label = cleanBranchField(node.asText(), 120);
+            if (label != null && !label.isBlank()) labels.add(label);
+        }
+        return List.copyOf(labels);
     }
 
     /**
@@ -658,7 +947,9 @@ public class AiChatSourceResolver {
         "cuoi", "dau", "phong", "may", "thu", "hen", "truc",
         // Amenity/service nouns — "cơ sở có bãi xe/nhà thuốc không" is a
         // generic facilities question, not a specific branch lookup.
-        "bai", "xe", "nha", "thuoc", "wifi", "san", "bay", "gan",
+        // "bay" is excluded: it only ever appears inside the toponym
+        // "sân bay", which is a legitimate branch-name component.
+        "bai", "xe", "nha", "thuoc", "wifi", "san", "gan",
         // Connectives and schedule nouns that never name a branch.
         "hay", "phai", "ma", "va", "hoac", "dong", "hoat");
 
@@ -695,7 +986,13 @@ public class AiChatSourceResolver {
                 .filter(term -> !GENERIC_BRANCH_ATTRIBUTE_TERMS.contains(term))
                 .allMatch(identity::contains);
         }
-        return identityTerms.stream().allMatch(identity::contains);
+        // Attribute/amenity vocabulary ("bãi", "xe", "sân") can linger in
+        // the residual identity after phrase subtraction ("cơ sở Sân Bay có
+        // bãi đậu xe") — those tokens describe the asked facility, never the
+        // branch name, so they must not be required inside it.
+        return identityTerms.stream()
+            .filter(term -> !GENERIC_BRANCH_ATTRIBUTE_TERMS.contains(term))
+            .allMatch(identity::contains);
     }
 
     private boolean branchHasAnyNumber(String normalizedIdentity, Set<Integer> requestedNumbers) {
@@ -1187,7 +1484,22 @@ public class AiChatSourceResolver {
         ResolvedSource source,
         String address,
         String workingHours,
-        String phone
+        String phone,
+        List<String> amenities
+    ) { }
+
+    /**
+     * Result of resolving an amenity question against the live branch
+     * catalog: the requested facility type, the branches that actually
+     * advertise it, and — for a question that named a branch — the
+     * identity-resolved rows regardless of whether they carry the amenity.
+     */
+    public record AmenityResolution(
+        String amenityType,
+        List<BranchDetails> matches,
+        List<BranchDetails> resolved,
+        boolean specific,
+        boolean truncated
     ) { }
 
     private record ReviewHead(

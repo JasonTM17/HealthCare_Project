@@ -141,6 +141,158 @@ class ChatSafetyAndChunkerTest {
             .as("medication mentions stay protected")
             .isTrue();
         assertThat(ChatMedicalSafety.containsProtectedInputCue("nhà thuốc gần đây"))
+            .as("a pharmacy storefront is a facility, not a medication mention")
+            .isFalse();
+        // Real medication phrasing must stay protected — the belong-to
+        // exclusion may only cover facility readings of "thuộc".
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("uống thuốc hệ thống"))
+            .as("systemic therapy is a medication statement")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("thuốc nhóm kháng sinh"))
+            .as("a drug class is a medication statement")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("thuốc bôi bộ phận"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("mua thuốc bệnh viện kê"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("gian hàng thuốc"))
+            .as("a drug stall is still a facility")
+            .isFalse();
+    }
+
+    @Test
+    void protectedInputCueDoesNotConfuseParkingWithPain() {
+        // "đậu" (to park) normalizes to the same token as "đau" (pain);
+        // only the pain reading may trip the clinical handoff.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Bãi đậu xe ở đâu?"))
+            .as("parking questions are not clinical concerns")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Các cơ sở có bãi đậu xe không?"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Bãi đỗ xe ở đâu?"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Bệnh viện có chỗ đậu xe không?"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Nhà đậu xe nằm ở đâu?"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu ô tô ở đâu"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Tôi đau đầu kéo dài 3 ngày"))
+            .as("pain phrasing stays protected")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau bụng"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xương khớp"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe đau đầu"))
+            .as("a message mixing parking and pain keeps the clinical lane")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau do ngã"))
+            .as("pain phrasing that mentions a cause stays protected")
+            .isTrue();
+        // Anchored lookbehind: the exclusion may only fire on standalone
+        // facility words — any word merely ENDING in the same letters must
+        // never smuggle a pain statement past the clinical gate.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Tôi có đau chân"))
+            .as("'có đau' is the most idiomatic way to report pain")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("chỗ đau ở đâu"))
+            .as("'chỗ đau' is a pain location, not a parking spot")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("nó đau quá"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("sao đau thế này"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("báo đau cho bác sĩ"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("thường đau đầu"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("vào đâu"))
+            .as("location wording still reads as a place question")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("xe đậu ở đâu"))
+            .as("word order does not matter for a parking question")
+            .isFalse();
+        // Duration wording: "mấy" is not a vehicle — the lookahead must not
+        // exempt "đau mấy ngày" as if it were "đậu xe máy".
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau mấy ngày rồi"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau mấy hôm nay"))
+            .isTrue();
+        // Vehicle compounds: parking vocabulary stays unprotected even when
+        // the qualifier collides with a body-part token ("tay"/"tai").
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe tay ga ở đâu"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe tải chỗ nào"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe đạp ở đâu"))
+            .isFalse();
+        // Tearing pain over compound body parts stays clinical.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xé bàn chân"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xé thắt lưng"))
+            .isTrue();
+        // "đau xé" (tearing pain) normalizes to "dau xe" — the vehicle
+        // exemption must yield when a body part follows.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xé ngực"))
+            .as("tearing chest pain is an emergency-adjacent symptom")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xé bụng"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xé lưng"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xé ngực dữ dội"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe dưới hầm ở đâu"))
+            .as("basement parking is still a facility question")
+            .isFalse();
+        // Reversed-order parking ("xe đậu", "ô tô đỗ") reads as facility too,
+        // but a vehicle prefix must never smuggle "đau <bộ phận>" through.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("ô tô đậu ở đâu"))
+            .as("ô tô đậu is a parking question, not a pain cue")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("xe máy đậu ở đâu"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đi xe đau mông"))
+            .as("'đau mông' after 'xe' is a pain report, not a parking spot")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đi xe đau lưng"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đi xe đau tim"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("xe đau nhức quá"))
+            .isTrue();
+        // Backtracking must not excuse "đau xe máy chân": once the compound
+        // ends adjacent to a body part the pain reading wins.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đau xe máy chân"))
+            .isTrue();
+        // Particle homographs stay out of the body list — "đậu xe có/tại/đã"
+        // are ordinary parking sentences, not neck/ear pain.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe có mất phí không"))
+            .as("'có' is the verb have, not the body part cổ")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe tại đâu"))
+            .as("'tại' is the preposition at, not the body part tai")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("đậu xe đã xong"))
+            .isFalse();
+    }
+
+    @Test
+    void protectedInputCueDoesNotConfuseFacilityWithMedicine() {
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Cơ sở có nhà thuốc không?"))
+            .as("a pharmacy storefront is a facility, not a medication mention")
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("quầy thuốc ở đâu"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("cửa hàng thuốc gần đây"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("Tôi đang uống thuốc"))
+            .as("medication mentions stay protected")
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("thuốc giảm đau"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("liều thuốc bao nhiêu"))
             .isTrue();
     }
 }

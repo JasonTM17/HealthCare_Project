@@ -86,6 +86,53 @@ class ChatSuggestedActionResolverTest {
     }
 
     @Test
+    void routesFacilityQuestionsToAmenityIntent() {
+        // "đậu" (to park) and "nhà thuốc" (pharmacy storefront) normalize
+        // onto clinical tokens; the facility reading must classify first.
+        assertThat(ChatSuggestedActionResolver.classify("Bãi đậu xe ở đâu?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("Các cơ sở có bãi đỗ xe không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("Bệnh viện có chỗ đậu xe không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("Cơ sở 4 có nhà thuốc không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("Bệnh viện có ATM không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("Có wifi miễn phí không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        // Reversed word order and vehicle compounds classify the same way.
+        assertThat(ChatSuggestedActionResolver.classify("Xe đậu ở đâu?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("chỗ đậu xe tay ga"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("xe máy đậu ở đâu"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("ô tô đậu ở đâu"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("xe tay ga đậu chỗ nào"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        // "để" phrasing (xe để ở đâu) classifies too; the " o" guard keeps
+        // "đề xét nghiệm" / "xe máy đến" out of the amenity lane.
+        assertThat(ChatSuggestedActionResolver.classify("Xe máy để ở đâu?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("Có chỗ để xe không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("ô tô để ở đâu"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("đề xét nghiệm máu"))
+            .isNotEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(
+                ChatSuggestedActionResolver.hospitalSupportFallback("Bãi đậu xe ở đâu?"))
+            .extracting(action -> action.get("href"))
+            .contains("/branches");
+        // A pure branch question is still BRANCH — amenity wording does not
+        // steal plain address/hours lookups.
+        assertThat(ChatSuggestedActionResolver.classify("Địa chỉ cơ sở 4 là gì?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH);
+    }
+
+    @Test
     void routesIdentityAndHelpQuestionsToGreetingShortcut() {
         assertThat(ChatSuggestedActionResolver.classify("Bạn là ai á"))
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GREETING);

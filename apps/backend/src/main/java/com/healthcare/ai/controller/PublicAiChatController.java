@@ -156,6 +156,27 @@ public class PublicAiChatController {
         payload.put("mode", publicMode.name());
         boolean protectedInput = ChatMedicalSafety.containsProtectedInputCue(userMessage);
         if (!protectedInput) {
+            ChatSuggestedActionResolver.HospitalSupportIntent earlyIntent =
+                ChatSuggestedActionResolver.classify(userMessage);
+            // Facility questions ("bãi đậu xe", "nhà thuốc") resolve against
+            // the live amenities JSON — the semantic index strips serialized
+            // JSON from excerpts, so retrieval cannot answer them faithfully.
+            // This must run before the specific-branch path: an amenity
+            // question that merely mentions "cơ sở" would otherwise be
+            // claimed by branch resolution and fail closed.
+            if (earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY) {
+                Map<String, Object> amenity = publicAmenityResponse(userMessage);
+                if (amenity != null) return ResponseEntity.ok(amenity);
+            }
+            // A generic pre-visit checklist is a complete deterministic
+            // answer — nothing a provider round-trip could improve.  Runs
+            // before the specific-branch path for parity with the
+            // authenticated lane: a PREPARATION-classified message must
+            // never be claimed by branch resolution and fail closed.
+            if (earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION) {
+                Map<String, Object> preparation = publicPreparationResponse(userMessage);
+                if (preparation != null) return ResponseEntity.ok(preparation);
+            }
             Map<String, Object> deterministicBranch = publicSpecificBranchResponse(userMessage, recentTurns);
             if (deterministicBranch != null) return ResponseEntity.ok(deterministicBranch);
         }
@@ -629,6 +650,13 @@ public class PublicAiChatController {
             case BRANCH ->
                 "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
                     + "để xem thông tin hiện tại trước khi đến khám.";
+            case AMENITY ->
+                "Tiện ích có thể khác theo từng cơ sở (bãi đậu xe, nhà thuốc, Wi-Fi). "
+                    + "Hãy mở mục Cơ sở & giờ làm việc để xem tiện ích của từng nơi trước khi đến.";
+            case PREPARATION ->
+                "Trước khi đi khám, bạn nên kiểm tra hướng dẫn của cơ sở, mang giấy tờ cần thiết "
+                    + "và các kết quả hoặc đơn thuốc liên quan nếu có. Yêu cầu chuẩn bị có thể khác "
+                    + "theo dịch vụ; hãy xác nhận lại khi đặt lịch hoặc với cơ sở.";
             case GENERAL ->
                 "Mình có thể hỗ trợ tra cứu Chuyên khoa, Bác sĩ, Gói khám, Dịch vụ, "
                     + "Cơ sở & giờ làm việc và hướng dẫn Đặt lịch. Bạn đang muốn tìm mục nào?";
@@ -972,6 +1000,150 @@ public class PublicAiChatController {
             if (normalized.contains(term)) return true;
         }
         return false;
+    }
+
+    /**
+     * Answer a facility question ("bãi đậu xe ở đâu?", "có nhà thuốc
+     * không?") from the live {@code branches.amenities} JSON.  The semantic
+     * index only carries amenities as stripped raw JSON, so retrieval
+     * cannot compose this faithfully — the deterministic catalog answer
+     * names only labels the branch row actually advertises.
+     */
+    private Map<String, Object> publicAmenityResponse(String userMessage) {
+        AiChatSourceResolver.AmenityResolution resolution;
+        try {
+            resolution = sourceResolver.resolveAmenity(userMessage);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (resolution == null) return null;
+        String amenityName = sourceResolver.amenityDisplayName(resolution.amenityType());
+        if (resolution.specific() && resolution.resolved().isEmpty()) {
+            return publicBranchUnavailable(userMessage);
+        }
+
+        List<AiChatSourceResolver.BranchDetails> matches = resolution.matches();
+        String answer;
+        List<AiChatSourceResolver.ResolvedSource> sources;
+        if (matches.isEmpty()) {
+            if (resolution.specific() && resolution.resolved().size() == 1) {
+                AiChatSourceResolver.BranchDetails branch = resolution.resolved().get(0);
+                String phone = branch.phone() == null ? "bộ phận tiếp đón" : branch.phone();
+                if (!validPublicText(phone, 100)) return null;
+                answer = "Theo dữ liệu cơ sở đang hoạt động, " + branch.source().title()
+                    + " hiện chưa công bố " + amenityName
+                    + ". Bạn có thể gọi " + phone + " để xác nhận trước khi đến.";
+                sources = List.of(branch.source());
+            } else if (resolution.specific() && resolution.resolved().size() > 1) {
+                // Several named branches resolved — the denial is scoped
+                // to those rows only, never a system-wide claim.
+                String titles = resolution.resolved().stream()
+                    .map(AiChatSourceResolver.BranchDetails::source)
+                    .filter(java.util.Objects::nonNull)
+                    .map(AiChatSourceResolver.ResolvedSource::title)
+                    .filter(title -> validPublicText(title, MAX_CITATION_TITLE_LENGTH))
+                    .collect(java.util.stream.Collectors.joining("; "));
+                if (titles.isBlank()) return null;
+                answer = "Theo dữ liệu cơ sở đang hoạt động, các cơ sở bạn hỏi ("
+                    + titles + ") hiện chưa công bố " + amenityName
+                    + ". Bạn có thể gọi cơ sở để xác nhận trước khi đến.";
+                sources = resolution.resolved().stream()
+                    .map(AiChatSourceResolver.BranchDetails::source)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            } else {
+                answer = "Hiện chưa có cơ sở nào công bố " + amenityName
+                    + ". Bạn có thể mở mục Cơ sở để xem tiện ích từng nơi hoặc gọi cơ sở để xác nhận trước khi đến.";
+                sources = List.of();
+            }
+        } else if (matches.size() == 1) {
+            AiChatSourceResolver.BranchDetails branch = matches.get(0);
+            List<String> labels = sourceResolver.matchedAmenityLabels(
+                branch, resolution.amenityType());
+            String labelText = labels.stream()
+                .filter(label -> validPublicText(label, 120))
+                .collect(java.util.stream.Collectors.joining(", "));
+            if (labelText.isBlank()) return null;
+            answer = "Theo dữ liệu cơ sở đang hoạt động, " + branch.source().title()
+                + " có " + amenityName + " (" + labelText + ")."
+                + " Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.";
+            sources = List.of(branch.source());
+        } else {
+            String titles = matches.stream()
+                .map(match -> match.source().title())
+                .filter(title -> validPublicText(title, MAX_CITATION_TITLE_LENGTH))
+                .collect(java.util.stream.Collectors.joining("; "));
+            if (titles.isBlank()) return null;
+            // The scan caps the named rows; wording must not claim an
+            // exhaustive enumeration when the list was truncated.
+            answer = "Theo dữ liệu cơ sở đang hoạt động, "
+                + (resolution.truncated() ? "một số cơ sở có " : "các cơ sở có ")
+                + amenityName + " gồm: " + titles
+                + ". Bạn có thể mở nguồn bên dưới để xem chi tiết và đặt lịch.";
+            sources = matches.stream()
+                .map(AiChatSourceResolver.BranchDetails::source)
+                .toList();
+        }
+
+        List<Map<String, String>> citations = sources.isEmpty()
+            ? List.of()
+            : verifiedOperationalCitations(sources);
+        if (!sources.isEmpty() && citations.size() != sources.size()) return null;
+        List<Map<String, String>> actions;
+        try {
+            actions = sources.isEmpty()
+                ? List.of()
+                : sourceResolver.actions(sources);
+        } catch (RuntimeException ignored) {
+            actions = List.of();
+        }
+        if (actions == null || actions.isEmpty()) {
+            actions = ChatSuggestedActionResolver.hospitalSupportFallback(userMessage);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("answer", answer);
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", citations);
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions", actions);
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_amenity_fallback");
+        return result;
+    }
+
+    /**
+     * Server-owned pre-visit checklist for generic preparation questions —
+     * a complete deterministic answer, so it reports ANSWER on the free
+     * local tier instead of paying a provider round-trip.
+     */
+    private Map<String, Object> publicPreparationResponse(String userMessage) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put(
+            "answer",
+            "Trước khi đi khám, bạn nên mang theo giấy tờ tùy thân (CCCD/CMND), "
+                + "thẻ BHYT nếu có, các kết quả xét nghiệm hoặc chẩn đoán hình ảnh gần nhất "
+                + "và danh sách thuốc đang sử dụng. Nên đến sớm khoảng 15–30 phút để làm thủ tục. "
+                + "Một số xét nghiệm hoặc dịch vụ có yêu cầu riêng (ví dụ nhịn ăn) — "
+                + "bạn nên xác nhận trước khi đặt lịch hoặc gọi cho cơ sở.");
+        result.put(
+            "disclaimer",
+            "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, "
+                + "chẩn đoán hoặc điều trị của bác sĩ.");
+        result.put("citations", List.of());
+        result.put("provenance", "local_fallback");
+        result.put("mode", ChatMode.HOSPITAL_SUPPORT.name());
+        result.put("safety_action", "ANSWER");
+        result.put("suggested_actions",
+            ChatSuggestedActionResolver.hospitalSupportFallback(userMessage));
+        result.put("costTier", "local_free");
+        result.put("routingReason", "public_preparation_guidance");
+        return result;
     }
 
     private Map<String, Object> publicBranchResponse(

@@ -52,10 +52,30 @@ public final class ChatMedicalSafety {
         "^(?:chan\\s*doan\\s*(?:la|toi)|diagnosed as|i diagnose|uong|take|use|you\\s+should)",
         Pattern.CASE_INSENSITIVE
     );
+    /** Vehicle compounds that excuse {@code dau} as "đậu/đỗ" (to park). */
+    private static final String VEHICLE_CUE =
+        "xe\\s+(?:may|dap|tay\\s+ga|tai|buyt|bus|khach|hoi|om|dien|ba\\s+gac)"
+            + "|xe|oto|o\\s*to|moto|mo\\s*to";
+    /**
+     * Body-part words.  Deliberately excludes {@code co}/{@code tai}/{@code da}
+     * — those collide with common particles ("đậu xe có mất phí", "đậu xe tại
+     * đâu", "đậu xe đã xong") and would re-protect real parking questions.
+     */
+    private static final String BODY_PART_CUE =
+        "nguc|bung|lung|hong|mat|tay|chan|tim|than|xuong|khop|nao"
+            + "|ban\\s+(?:chan|tay)|that\\s+lung|vai|goi|mong|nguoi|minh"
+            + "|rang|mui|mieng|mom|hach|khoeo|ngon|nhuc";
     private static final Pattern PROTECTED_INPUT_CUE = Pattern.compile(
-        "(?<![a-z0-9])(?:(?<!o )(?:dau)|dau\\s+(?:nguc|bung)|kho\\s+tho|"
+        "(?<![a-z0-9])(?:(?<!(?<![a-z0-9])(?:o|vao|bai|nha|san|khu"
+            + "|xe|oto|o to|moto|mo to|xe may|xe dap|xe tay ga"
+            + "|xe tai|xe buyt|xe bus|xe hoi|xe om|xe dien"
+            + "|xe ba gac|xe khach) )(?:dau)"
+            + "(?!\\s+(?>(?:" + VEHICLE_CUE + "))\\b"
+            + "(?!\\s+(?:" + BODY_PART_CUE + ")\\b))|dau\\s+(?:(?>"
+            + VEHICLE_CUE + ")\\s+)?(?:" + BODY_PART_CUE + ")|kho\\s+tho|"
             + "sot|ngat|co\\s+giat|chay\\s+mau|tu\\s+tu|chan\\s+doan|ke\\s+don|"
-            + "thuoc(?!\\s+(?:khoa|co\\s+so|benh\\s+vien|thanh\\s+pho|he\\s+thong|bo\\s+phan|nhom))|"
+            + "(?:uong|dung|mua|ke|don|tiem|boi|chich|xit|giam|tang|ngung|cat|pha)\\s+thuoc|"
+            + "(?<!(?<![a-z0-9])(?:nha|quay|hang) )thuoc(?!\\s+(?:khoa|co\\s+so|benh\\s+vien|thanh\\s+pho)\\b)|"
             + "lieu\\s+thuoc|trieu\\s+chung|non|tieu\\s+chay|chong\\s+mat|"
             + "mat\\s+ngu|bi\\s+ho|ho\\s+keo\\s+dai|cap\\s+cuu|"
             + "dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|"
