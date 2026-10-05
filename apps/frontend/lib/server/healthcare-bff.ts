@@ -76,7 +76,7 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
   "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|cap\\s+cuu|"
     + "dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|kho\\s+tho(?:\\s+du\\s+doi)?|"
     + "meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
-    + "co\\s+giat(?!\\s*(?:ui|la|gi|do|quan|ao|khan)(?:\\s|$))|"
+    + "co\\s+giat(?!\\s*(?:ui|la|giu?|do|quan|ao|khan)(?:\\s|$))|"
     + "heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|shortness\\s+of\\s+breath|"
     + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
     + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"

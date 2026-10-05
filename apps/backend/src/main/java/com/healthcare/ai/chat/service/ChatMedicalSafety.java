@@ -101,7 +101,7 @@ public final class ChatMedicalSafety {
             // "co giat" (convulsion) must not fire on the amenity question
             // "co giat ui/la/..." (laundry service) — same spelling after
             // diacritic folding, so the exclusion list follows the word.
-            + "co\\s+giat(?!\\s*(?:ui|la|gi|do|quan|ao|khan)(?:\\s|$))|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
+            + "co\\s+giat(?!\\s*(?:ui|la|giu?|do|quan|ao|khan)(?:\\s|$))|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
             + "shortness\\s+of\\s+breath|difficulty\\s+breathing|cant\\s+breathe|"
             + "cannot\\s+breathe|not\\s+breathing|severe\\s+bleeding|unresponsive|"
             + "collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
