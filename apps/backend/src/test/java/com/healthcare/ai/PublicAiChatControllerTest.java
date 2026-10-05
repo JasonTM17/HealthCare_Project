@@ -788,7 +788,6 @@ class PublicAiChatControllerTest {
             "có giặt đồ không nhỉ",
             // Clause-final and laundry-closing "đồ" shapes stay benign.
             "phòng khám có giặt đồ",
-            "phòng khám có giặt đồ cho khách không",
             "phòng khám có giặt đồ ở đâu",
             "phòng khám có giặt đồ!",
             // "nghỉ ngơi từ từ" (rest slowly) must not read as "nghĩ ... tự tử".
@@ -829,7 +828,13 @@ class PublicAiChatControllerTest {
             "bé co giật do bị ngã",
             "co giat do di ung thuoc",
             "co giat do uong nham thuoc",
-            "co giat do can benh")) {
+            "co giat do can benh",
+            // Reason-capable words are not laundry tails (Wukong R1):
+            // "do gì"/"do cho nó sốt" are because-of clauses.
+            "con co giat do gi",
+            "be co giat do cho no sot",
+            // Joined squash crisis at the Java layer too (Wukong R2).
+            "cogiatdobinga")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))

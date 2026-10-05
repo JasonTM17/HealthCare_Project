@@ -335,8 +335,13 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         "co giat do uong nham thuoc",
         "co giat do can benh",
         "co giat do anh huong",
+        # Reason-capable words are not laundry tails (Wukong R1): "do gì"
+        # and "do cho nó sốt" are because-of clauses, not laundry questions.
+        "con co giat do gi",
+        "be co giat do cho no sot",
         # joined squash forms read the same way.
         "cogiatdobinga",
+        "cogiatdogi",
         "tututroi buon qua",
     ],
 )
@@ -362,7 +367,6 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         # "giặt đồ" clause-final, with laundry particles, or punctuated —
         # all benign; suppression only needs those shapes.
         "phòng khám có giặt đồ",
-        "phòng khám có giặt đồ cho khách không",
         "phòng khám có giặt đồ ở đâu",
         "phòng khám có giặt đồ!",
         # "nghỉ ngơi từ từ" (rest slowly) is not "nghĩ ... tự tử".

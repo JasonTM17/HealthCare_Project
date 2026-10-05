@@ -610,7 +610,7 @@ def _compile_squash_matcher(terms: tuple[str, ...]) -> tuple[str, ...]:
 # fail-safe default of escalating.
 _CO_GIAT_CRISIS: Final[re.Pattern[str]] = re.compile(
     r"\bco\W+giat\b(?!\W*(?:ui|la|giu?|quan|ao|khan)\b)"
-    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|gi|giu|thue|cho|tre|em|be|con|nguoi|o\W+dau|o\W+day)\b))"
+    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day)\b))"
 )
 
 # Spaced "tu tu" is both "tự tử" (self-harm) and the everyday adverb
@@ -745,11 +745,12 @@ _CO_GIAT_SQUASHED_LAUNDRY: Final[tuple[str, ...]] = ("ui", "la", "gi", "quan", "
 # quiet, but "cogiatdobinga" (co giật do bị ngã) keeps firing. A closed-world
 # medical allowlist cannot enumerate every cause, so the default flips to
 # fire. One-letter particles are excluded: in a squash stream "a" would
-# wrongly swallow real words like "anhhuong".
+# wrongly swallow real words like "anhhuong". Reason-capable words (gi/cho/
+# tre/em/be/con/nguoi) are also excluded — "do gì"/"do cho nó sốt" are
+# because-of clauses, not laundry continuations (Wukong R1).
 _CO_GIAT_SQUASHED_DO_TAILS: Final[tuple[str, ...]] = (
     "khong", "ko", "ha", "nhe", "nhi", "nho", "vay", "ta", "dc", "duoc",
-    "chu", "gi", "giu", "thue", "cho", "tre", "em", "be", "con", "nguoi",
-    "odau", "oday",
+    "chu", "giu", "thue", "odau", "oday",
 )
 
 

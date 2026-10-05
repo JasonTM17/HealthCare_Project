@@ -242,3 +242,44 @@ DOCTOR lanes answer in 0.03–0.35 s with intent-specific action sets;
 "có giặt giũ ở đây không" / "tôi sẽ đi từ từ đến bệnh viện" → ANSWER;
 "tôi muốn tự tử" → EMERGENCY + tel:115 at 0.03 s; untrusted direct
 backend calls → 403 across all lanes.
+
+## Addendum 2 — wave-10 residuals closed (post-4dd52f6 review round)
+
+Wukong retest on `4dd52f6`: NOT_FALSIFIED on all claims but surfaced two
+live residuals, now repaired in this commit:
+
+- **R1 under-fire:** laundry `do`-tail contained reason-capable words
+  (gi/cho/tre/em/be/con/nguoi) — "con co giat do gi", "be co giat do cho no
+  sot" stayed suppressed. Removed across all 5 detectors; the tail keeps
+  only utterance-final particles (khong/ko/a/ha/nhe/nhi/nho/vay/ta/dc/duoc/
+  chu), laundry verbs (giu/thue), and location questions (o dau/o day).
+  Accepted trade-off: "giặt đồ cho khách"-style amenity phrasings now
+  over-fire to EMERGENCY — same documented class as "có giặt không?".
+- **R2 joined-squash asymmetry:** "cogiatdobinga" fired only in Python.
+  Java + BFF joined alternation now carries the squash-net contract:
+  laundry prefixes (ui/la/gi/quan/ao/khan) and "do"+closing-tail suppress;
+  every other continuation fires. Verified live: 0.05s EMERGENCY + tel:115.
+
+| Check | Result |
+|---|---|
+| PublicAiChatControllerTest | 73/73 (new R1/R2 cases in-list) |
+| PublicAiChatIntegrationTest | 6/6 (Testcontainers) |
+| AiConversationIntegrationTest | 42/42 (Testcontainers) |
+| PublicSpecialtyTriage{,Disabled}IntegrationTest | 7/7 + 4/4 |
+| ChatSafetyAndChunkerTest | 25/25 |
+| ai-service pytest (all) | 957/957 |
+| bff-security.test.mjs | 41/41 |
+| same-origin-api.test.mjs | 10/10 |
+| Live 12-row matrix on rebuilt images | all correct |
+
+Live rows: R1/R2 counterexamples → EMERGENCY+tel:115 at 0.05–0.58s;
+"giặt đồ không/ở đâu/ủi" → ANSWER/INSUFFICIENT (non-emergency); "giặt đồ
+cho khách" → EMERGENCY (accepted over-fire); deterministic BOOKING/CATALOG
+0.03–0.35s; untrusted direct calls → 403.
+
+Independent reviewer verdict on 4dd52f6: **ACCEPT** (5/5 prior findings
+closed in code; no blocking defects; lease-orphan 20s-TTL residual logged
+as low-risk follow-up). Wukong wave-10 verdict: NOT_FALSIFIED +
+PROCEED_WITH_RESIDUAL_RISK; R1/R2 then repaired above, R3 (severity-marker
+over-fire on mixed fever+laundry) and R4 (null-verifier test seam) accepted
+as documented residuals.

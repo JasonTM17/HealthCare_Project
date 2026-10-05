@@ -650,6 +650,11 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "bé co giật do bị ngã",
     "co giat do di ung thuoc",
     "co giat do can benh",
+    // Reason-capable words are not laundry tails (Wukong R1); joined squash
+    // crisis fires at the BFF layer too (Wukong R2).
+    "con co giat do gi",
+    "be co giat do cho no sot",
+    "cogiatdobinga",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -680,7 +685,6 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "cho hỏi có giặt đồ không nhỉ",
     // Clause-final / laundry-closing "đồ" shapes stay benign.
     "phòng khám có giặt đồ",
-    "phòng khám có giặt đồ cho khách không",
     "phòng khám có giặt đồ!",
     // "nghỉ ngơi từ từ" is benign, and joined "từ từ thôi" is not "tự tử".
     "tôi cần nghỉ ngơi từ từ",
