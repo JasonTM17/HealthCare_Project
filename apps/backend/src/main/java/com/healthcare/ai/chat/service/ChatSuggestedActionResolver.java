@@ -51,7 +51,43 @@ public final class ChatSuggestedActionResolver {
     };
     private static final String[] PREPARATION_TERMS = {
         "chuan bi", "truoc khi di kham", "truoc khi kham", "mang theo gi", "giay to",
-        "bhyt", "ho so kham", "huong dan kham"
+        "bhyt", "ho so kham", "huong dan kham",
+        // "nhịn ăn" fasting prep — parity with the AI service's public
+        // preparation terms so both layers classify identically.
+        "nhin an"
+    };
+    /**
+     * Facility/amenity vocabulary ("bãi đậu xe", "nhà thuốc", "Wi-Fi").
+     * These nouns describe branch amenities, not clinical input — "đậu"
+     * normalizes to the same token as "đau" (pain), so this intent is also
+     * what keeps parking questions out of the clinical handoff path.
+     */
+    private static final String[] AMENITY_TERMS = {
+        "dau xe", "do xe", "dau oto", "do oto", "dau o to", "do o to",
+        "bai xe", "gui xe", "giu xe", "nha xe", "san xe", "parking",
+        "xe dau", "xe do", "xe gui", "xe giu",
+        "xe may dau", "xe may do", "xe dap dau", "xe dap do",
+        "xe tay ga dau", "xe tay ga do", "xe tai dau", "xe tai do",
+        "xe buyt dau", "xe buyt do", "xe bus dau", "xe bus do",
+        "xe hoi dau", "xe hoi do", "xe om dau", "xe om do",
+        "xe dien dau", "xe dien do", "xe khach dau", "xe khach do",
+        "xe ba gac dau", "xe ba gac do",
+        "oto dau", "oto do", "o to dau", "o to do",
+        "moto dau", "moto do", "mo to dau", "mo to do",
+        "de xe o", "xe de o",
+        "xe may de o", "xe dap de o", "xe tay ga de o", "xe tai de o",
+        "xe buyt de o", "xe bus de o", "xe hoi de o", "xe om de o",
+        "xe dien de o", "xe khach de o", "xe ba gac de o",
+        "oto de o", "o to de o", "moto de o", "mo to de o",
+        "cho de xe", "noi de xe", "khu de xe",
+        "cho de oto", "cho de o to", "noi de oto",
+        "cho dau xe", "cho do xe", "khu dau xe", "khu do xe",
+        "cho dau oto", "cho do oto", "cho dau o to", "cho do o to",
+        "nha thuoc", "quay thuoc", "cua hang thuoc",
+        "wifi", "wi fi", "internet mien phi",
+        "atm", "cay atm", "may rut tien", "rut tien",
+        "can tin", "canteen", "nha an", "quay an", "quay tu phuc vu",
+        "phong cho", "khu vuc cho", "ghe cho", "noi cho", "cho ngoi", "tien ich"
     };
     private static final String[] EDUCATION_TERMS = {
         "bai viet", "bai nao", "cam nang", "faq", "cau hoi thuong gap",
@@ -76,6 +112,7 @@ public final class ChatSuggestedActionResolver {
         BRANCH,
         PREPARATION,
         EDUCATION,
+        AMENITY,
         GENERAL
     }
 
@@ -87,6 +124,9 @@ public final class ChatSuggestedActionResolver {
         // "FAQ về đặt lịch" cannot enter the clinical article/FAQ lane.
         if (containsAny(normalized, BOOKING_TERMS)) return HospitalSupportIntent.BOOKING;
         if (containsAny(normalized, EDUCATION_TERMS)) return HospitalSupportIntent.EDUCATION;
+        // Facility questions ("bãi đậu xe", "nhà thuốc") must classify before
+        // any clinical-looking token is weighed — "đậu" normalizes to "dau".
+        if (containsAny(normalized, AMENITY_TERMS)) return HospitalSupportIntent.AMENITY;
         if (isSpecialtyGuidance(normalized)) return HospitalSupportIntent.SPECIALTY_GUIDANCE;
         if (containsAny(normalized, CATALOG_TERMS)) return HospitalSupportIntent.CATALOG;
         if (containsAny(normalized, DOCTOR_TERMS)) return HospitalSupportIntent.DOCTOR;
@@ -145,6 +185,10 @@ public final class ChatSuggestedActionResolver {
                 source("Xem Câu hỏi thường gặp", "/faq"),
                 source("Xem Cơ sở", "/branches"),
                 booking("Đặt lịch khám", "/dat-lich"));
+            case AMENITY -> actions(
+                source("Xem Cơ sở", "/branches"),
+                booking("Đặt lịch khám", "/dat-lich"),
+                source("Xem Chuyên khoa", "/specialties"));
             case GENERAL -> actions(
                 booking("Đặt lịch khám", "/dat-lich"),
                 source("Xem Cơ sở", "/branches"),

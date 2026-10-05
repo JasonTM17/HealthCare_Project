@@ -547,7 +547,7 @@ class AiChatContractsTest {
         when(resolver.branchDetails(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of(
             new AiChatSourceResolver.BranchDetails(
                 branch, "2 Đường số 3, Quận 3, TP. Hồ Chí Minh", "06:30–20:00, tất cả các ngày",
-                "028 38000002")));
+                "028 38000002", List.of())));
         when(resolver.citations(List.of(branch))).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", branch.id(), "title", branch.title())));
         when(resolver.actions(List.of(branch))).thenReturn(List.of(
@@ -597,8 +597,10 @@ class AiChatContractsTest {
             "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
         when(resolver.isSpecificBranchQuery(org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
         when(resolver.branchDetails(org.mockito.ArgumentMatchers.anyString())).thenReturn(List.of(
-            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00", null),
-            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null, null)));
+            new AiChatSourceResolver.BranchDetails(
+                district3, "2 Đường số 3, Quận 3", "06:30–20:00", null, List.of()),
+            new AiChatSourceResolver.BranchDetails(
+                district7, "105 Nguyễn Văn Linh, Quận 7", null, null, List.of())));
         when(resolver.citations(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", district3.id(), "title", district3.title()),
             Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())));
@@ -646,7 +648,8 @@ class AiChatContractsTest {
             .thenReturn("Cơ sở 17 ở đâu?");
         when(resolver.branchDetails("Cơ sở 17 ở đâu?")).thenReturn(List.of(
             new AiChatSourceResolver.BranchDetails(
-                branch17, "17 Đường Số 17, Quận Bình Tân", "06:30–20:00", "028 38000017")));
+                branch17, "17 Đường Số 17, Quận Bình Tân", "06:30–20:00", "028 38000017",
+                List.of())));
         when(resolver.citations(List.of(branch17))).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", branch17.id(), "title", branch17.title())));
         when(resolver.actions(List.of(branch17))).thenReturn(List.of(
@@ -696,7 +699,7 @@ class AiChatContractsTest {
         when(resolver.isSpecificBranchQuery("Số điện thoại chi nhánh 5?")).thenReturn(true);
         when(resolver.branchDetails("Số điện thoại chi nhánh 5?")).thenReturn(List.of(
             new AiChatSourceResolver.BranchDetails(
-                branch5, "5 Đường Số 5, Quận 5", "06:30–20:00", "028 38000005")));
+                branch5, "5 Đường Số 5, Quận 5", "06:30–20:00", "028 38000005", List.of())));
         when(resolver.citations(List.of(branch5))).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", branch5.id(), "title", branch5.title())));
         when(resolver.actions(List.of(branch5))).thenReturn(List.of(
@@ -1018,6 +1021,80 @@ class AiChatContractsTest {
     }
 
     @Test
+    void amenityQuestionResolvesFromLiveCatalogBeforeUpstream() {
+        // "bãi đậu xe" carries no clinical cue after normalization — the
+        // deterministic amenity lane answers from the live amenities JSON
+        // and never lets a provider round-trip happen for a parking lookup.
+        AiChatSourceResolver resolver = mock(com.healthcare.ai.chat.service.AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource branch = new AiChatSourceResolver.ResolvedSource(
+            "branch", "00000000-0000-0000-0000-000000000003", "Cơ sở 1 — Quận 1", "co-so-1",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/branches/co-so-1", "/dat-lich?branchId=00000000-0000-0000-0000-000000000003");
+        AiChatSourceResolver.BranchDetails details = new AiChatSourceResolver.BranchDetails(
+            branch, "12 Nguyễn Huệ, Quận 1", "07:00–19:00", "028 38000001",
+            List.of("Bãi đỗ xe"));
+        when(resolver.resolveAmenity(org.mockito.ArgumentMatchers.anyString())).thenReturn(
+            new AiChatSourceResolver.AmenityResolution(
+                "parking", List.of(details), List.of(), false, false));
+        when(resolver.amenityDisplayName("parking")).thenReturn("bãi đậu xe/chỗ đỗ xe");
+        when(resolver.matchedAmenityLabels(details, "parking")).thenReturn(List.of("Bãi đỗ xe"));
+        when(resolver.citations(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", branch.id(), "title", branch.title())));
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            aiService,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "deterministicBranchResponse",
+            com.healthcare.ai.chat.entity.ChatMode.HOSPITAL_SUPPORT,
+            "Bãi đậu xe ở đâu?", List.of());
+
+        assertThat(response).isNotNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
+            .contains("Cơ sở 1")
+            .contains("Bãi đỗ xe");
+        assertThat((ChatSafetyAction) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.ANSWER);
+    }
+
+    @Test
+    void preparationQuestionGetsDeterministicChecklistBeforeUpstream() {
+        AiConversationService service = localFallbackService();
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "deterministicBranchResponse",
+            com.healthcare.ai.chat.entity.ChatMode.HOSPITAL_SUPPORT,
+            "Cần chuẩn bị gì trước khi đi khám?", List.of());
+
+        assertThat(response).isNotNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
+            .contains("BHYT")
+            .contains("15–30 phút");
+        assertThat((ChatSafetyAction) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.ANSWER);
+    }
+
+    @Test
+    void mixedPainAndParkingStaysOutOfTheAmenityLane() {
+        // "đậu xe đau đầu" still carries a real symptom — the deterministic
+        // lane must defer so the clinical path decides the outcome.
+        AiConversationService service = localFallbackService();
+
+        Object response = ReflectionTestUtils.invokeMethod(
+            service, "deterministicBranchResponse",
+            com.healthcare.ai.chat.entity.ChatMode.HOSPITAL_SUPPORT,
+            "đậu xe đau đầu kéo dài", List.of());
+
+        assertThat(response).isNull();
+    }
+
+    @Test
     void refusalNamesIdentityRequestsInsteadOfDiagnosisWording() {
         AiConversationService service = localFallbackService();
 
@@ -1030,5 +1107,44 @@ class AiChatContractsTest {
             ChatMode.HOSPITAL_SUPPORT, "REFUSE", "Tôi đau đầu uống thuốc gì thì khỏi");
         assertThat((String) ReflectionTestUtils.invokeMethod(medical, "answer"))
             .contains("chẩn đoán");
+    }
+
+    @Test
+    void hospitalSupportFallbackKeepsCatalogGatedForProtectedInput() {
+        // A mixed "đau bụng, danh sách chuyên khoa?" carries a clinical cue —
+        // the deterministic catalog shortcut must stay gated just like the
+        // amenity/branch/prep lanes so the provider decides the outcome.
+        AiChatSourceResolver resolver = mock(com.healthcare.ai.chat.service.AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource specialty = new AiChatSourceResolver.ResolvedSource(
+            "specialty", "00000000-0000-0000-0000-000000000001", "Tim mạch", "tim-mach",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/specialties/tim-mach", "/dat-lich?specialtyId=00000000-0000-0000-0000-000000000001");
+        when(resolver.catalogOverview()).thenReturn(new AiChatSourceResolver.CatalogOverview(
+            1, 0, List.of(specialty), List.of()));
+        when(resolver.citations(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+            Map.of("source_type", "specialty", "source_id", specialty.id(), "title", specialty.title())));
+        AiConversationService service = new AiConversationService(
+            mock(AiConversationRepository.class),
+            mock(AiMessageRepository.class),
+            mock(AiMessageFeedbackRepository.class),
+            mock(UserRepository.class),
+            aiService,
+            resolver,
+            mock(PlatformTransactionManager.class),
+            90, true, 200, 20, 120);
+
+        Object protectedResponse = ReflectionTestUtils.invokeMethod(
+            service, "hospitalSupportResponse", "đau bụng, danh sách chuyên khoa?");
+        assertThat(protectedResponse).isNotNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(protectedResponse, "answer"))
+            .doesNotContain("Tim mạch")
+            .contains("tra cứu mục nào");
+
+        // The same catalog question without a clinical cue still resolves.
+        Object cleanResponse = ReflectionTestUtils.invokeMethod(
+            service, "hospitalSupportResponse", "danh sách chuyên khoa của bệnh viện?");
+        assertThat(cleanResponse).isNotNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(cleanResponse, "answer"))
+            .contains("Tim mạch");
     }
 }

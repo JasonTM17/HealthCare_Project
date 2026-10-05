@@ -74,8 +74,10 @@ class PublicAiChatControllerTest {
         when(resolver.branchDetails(any())).thenReturn(List.of());
         when(resolver.catalogOverview()).thenReturn(AiChatSourceResolver.CatalogOverview.empty());
         when(resolver.activeBranchOverview(anyInt())).thenReturn(List.of(
-            new AiChatSourceResolver.BranchDetails(branchOne, "12 Nguyễn Huệ, Quận 1", "07:00–19:00", null),
-            new AiChatSourceResolver.BranchDetails(branchTwo, "2 Đường số 3, Quận 3", "06:30–20:00", null)));
+            new AiChatSourceResolver.BranchDetails(
+                branchOne, "12 Nguyễn Huệ, Quận 1", "07:00–19:00", null, List.of()),
+            new AiChatSourceResolver.BranchDetails(
+                branchTwo, "2 Đường số 3, Quận 3", "06:30–20:00", null, List.of())));
         when(resolver.citations(any())).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", branchOne.title()),
             Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", branchTwo.title())));
@@ -111,7 +113,8 @@ class PublicAiChatControllerTest {
                 branch,
                 "2 Đường số 3, Quận 3, TP. Hồ Chí Minh",
                 "06:30–20:00, tất cả các ngày",
-                "028 38000002")));
+                "028 38000002",
+                List.of())));
         when(resolver.revalidate(ChatMode.HOSPITAL_SUPPORT, "branch", BRANCH_ID))
             .thenReturn(branch);
         when(resolver.citations(List.of(branch))).thenReturn(List.of(
@@ -231,10 +234,13 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void degradesUngroundedPreparationAnswerToHonestGuidance() {
+    void degradesUngroundedPackageAnswerToHonestGuidance() {
+        // A generic preparation question is answered deterministically, so a
+        // source-dependent PACKAGE question exercises the same ungrounded-
+        // remote-answer suppression the preparation variant once covered.
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Bạn phải nhịn ăn 12 giờ trước buổi khám tổng quát.",
+            "answer", "Gói tổng quát bắt buộc nhịn ăn 12 giờ trước buổi khám.",
             "disclaimer", "Chỉ mang tính tham khảo.",
             "provenance", "remote_provider",
             "safety_action", "ANSWER",
@@ -244,7 +250,7 @@ class PublicAiChatControllerTest {
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
-                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
+                "Gói khám tổng quát gồm những gì?", null))
             .getBody();
 
         assertThat(body)
@@ -253,19 +259,19 @@ class PublicAiChatControllerTest {
             .containsEntry("citations", List.of())
             .containsEntry("routingReason", "public_missing_verified_source")
             .containsEntry("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(
-                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?"));
+                "Gói khám tổng quát gồm những gì?"));
         assertThat((String) body.get("answer")).doesNotContain("12 giờ");
     }
 
     @Test
-    void degradesUnavailableAiForPreparationQuestionToHonestGuidance() {
+    void degradesUnavailableAiForPackageQuestionToHonestGuidance() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
             org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "AI service has no verified context"));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
-                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
+                "Gói khám tổng quát gồm những gì?", null))
             .getBody();
 
         assertThat(body)
@@ -274,13 +280,13 @@ class PublicAiChatControllerTest {
             .containsEntry("citations", List.of())
             .containsEntry("routingReason", "public_ai_unavailable")
             .containsEntry("suggested_actions", ChatSuggestedActionResolver.hospitalSupportFallback(
-                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?"));
+                "Gói khám tổng quát gồm những gì?"));
         assertThat((String) body.get("answer")).contains("tạm thời gián đoạn")
             .doesNotContain("chưa có nguồn đã xác thực");
     }
 
     @Test
-    void rejectsMalformedPreparationPayloadInsteadOfClaimingAiUnavailable() {
+    void rejectsMalformedPackagePayloadInsteadOfClaimingAiUnavailable() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
             "answer", "Hãy nhịn ăn 12 giờ trước buổi khám.",
@@ -292,7 +298,7 @@ class PublicAiChatControllerTest {
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
-                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null)))
+                "Gói khám tổng quát gồm những gì?", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -362,7 +368,7 @@ class PublicAiChatControllerTest {
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
-                "Tôi cần nhịn ăn trước xét nghiệm máu không?", null))
+                "Gói khám tổng quát có bao gồm xét nghiệm máu không?", null))
             .getBody();
 
         assertThat(body)
@@ -374,10 +380,10 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void doesNotClaimMissingSourceWhenInsufficientPreparationHasVerifiedCitation() {
+    void doesNotClaimMissingSourceWhenInsufficientPackageHasVerifiedCitation() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
-            "answer", "Bạn phải nhịn ăn 12 giờ trước buổi khám.",
+            "answer", "Gói này bắt buộc nhịn ăn 12 giờ trước buổi khám.",
             "disclaimer", "Chỉ mang tính tham khảo.",
             "provenance", "remote_provider",
             "safety_action", "INSUFFICIENT_EVIDENCE",
@@ -388,7 +394,7 @@ class PublicAiChatControllerTest {
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
             .chat(new PublicAiChatController.PublicChatRequest(
-                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
+                "Gói khám tổng quát gồm những gì?", null))
             .getBody();
 
         assertThat(body)
@@ -491,8 +497,10 @@ class PublicAiChatControllerTest {
             "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
         when(resolver.isSpecificBranchQuery(any())).thenReturn(true);
         when(resolver.branchDetails(any())).thenReturn(List.of(
-            new AiChatSourceResolver.BranchDetails(district3, "2 Đường số 3, Quận 3", "06:30–20:00", null),
-            new AiChatSourceResolver.BranchDetails(district7, "105 Nguyễn Văn Linh, Quận 7", null, null)));
+            new AiChatSourceResolver.BranchDetails(
+                district3, "2 Đường số 3, Quận 3", "06:30–20:00", null, List.of()),
+            new AiChatSourceResolver.BranchDetails(
+                district7, "105 Nguyễn Văn Linh, Quận 7", null, null, List.of())));
         when(resolver.citations(any())).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", district3.title()),
             Map.of("source_type", "branch", "source_id", district7.id(), "title", district7.title())));
@@ -563,7 +571,8 @@ class PublicAiChatControllerTest {
         when(resolver.latestSpecificBranchUserTurn(any())).thenReturn("Cơ sở 17 ở đâu?");
         when(resolver.branchDetails("Cơ sở 17 ở đâu?")).thenReturn(List.of(
             new AiChatSourceResolver.BranchDetails(
-                branch17, "17 Đường Số 17, Quận Bình Tân", "06:30–20:00", "028 38000017")));
+                branch17, "17 Đường Số 17, Quận Bình Tân", "06:30–20:00", "028 38000017",
+                List.of())));
         when(resolver.citations(List.of(branch17))).thenReturn(List.of(
             Map.of("source_type", "branch", "source_id", branch17.id(), "title", branch17.title())));
         when(resolver.actions(List.of(branch17))).thenReturn(List.of(
@@ -1519,5 +1528,219 @@ class PublicAiChatControllerTest {
             .containsEntry("answer",
                 "Để tìm bác sĩ phù hợp, bạn có thể mở danh sách Bác sĩ để xem thông tin hiện có; "
                     + "sau đó chọn Đặt lịch khám nếu muốn tiếp tục.");
+    }
+
+    @Test
+    void answersParkingQuestionFromLiveAmenitiesWithoutProviderCall() {
+        // "bãi đậu xe" must not hit the clinical handoff ("đậu" normalizes
+        // to "dau"); the deterministic amenity lane answers from the live
+        // amenities JSON without ever calling the provider.
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = resolverForAmenity();
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Bãi đậu xe ở đâu?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_amenity_fallback")
+            .containsEntry("costTier", "local_free");
+        assertThat((String) body.get("answer"))
+            .contains("Cơ sở 1")
+            .contains("Bãi đỗ xe");
+        assertThat(body.get("citations"))
+            .isEqualTo(List.of(Map.of(
+                "source_type", "branch", "source_id", BRANCH_ID,
+                "title", "Cơ sở 1 — Quận 1")));
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void answersParkingVariantAndPharmacyQuestionsFromAmenities() {
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = resolverForAmenity();
+
+        Map<String, Object> parking = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Các cơ sở có bãi đỗ xe không?", null))
+            .getBody();
+        assertThat(parking)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_amenity_fallback");
+
+        Map<String, Object> pharmacy = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Cơ sở có nhà thuốc không?", null))
+            .getBody();
+        assertThat(pharmacy)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_amenity_fallback");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void answersHonestlyWhenNoBranchAdvertisesTheAmenity() {
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.resolveAmenity(any())).thenReturn(
+            new AiChatSourceResolver.AmenityResolution(
+                "canteen", List.of(), List.of(), false, false));
+        when(resolver.amenityDisplayName("canteen")).thenReturn("căn tin/quầy ăn uống");
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có căn tin không?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_amenity_fallback")
+            .containsEntry("citations", List.of());
+        assertThat((String) body.get("answer")).contains("chưa có cơ sở nào");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void failsClosedWhenNamedBranchCannotResolveForAmenity() {
+        // "Cơ sở 99 có bãi xe không" names an identity that does not
+        // resolve — the answer must fail closed instead of silently
+        // listing other branches' amenities.
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.resolveAmenity(any())).thenReturn(
+            new AiChatSourceResolver.AmenityResolution(
+                "parking", List.of(), List.of(), true, false));
+        when(resolver.amenityDisplayName("parking")).thenReturn("bãi đậu xe/chỗ đỗ xe");
+        when(resolver.hasBranchAttributeCue(any())).thenReturn(true);
+        when(resolver.isSpecificBranchQuery(any())).thenReturn(true);
+        when(resolver.branchDetails(any())).thenReturn(List.of());
+        when(resolver.actions(any())).thenReturn(List.of());
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cơ sở 99 có bãi đậu xe không?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("routingReason", "public_branch_unavailable");
+        assertThat((String) body.get("answer")).doesNotContain("có bãi đậu xe");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void degradesHonestlyWhenAmenityCatalogIsUnreachable() {
+        // A catalog outage (resolution null) must not produce an
+        // authoritative "no branch advertises X" — the request falls
+        // through to the honest degrade path instead.
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(resolver.resolveAmenity(any())).thenReturn(null);
+        when(resolver.hasBranchAttributeCue(any())).thenReturn(true);
+        when(resolver.isSpecificBranchQuery(any())).thenReturn(false);
+        when(resolver.branchDetails(any())).thenReturn(List.of());
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "Hiện mình chưa tra cứu được tiện ích cơ sở.",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_fallback",
+            "safety_action", "INSUFFICIENT_EVIDENCE",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()));
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Bệnh viện có căn tin không?", null))
+            .getBody();
+
+        assertThat(body).isNotNull();
+        assertThat((String) body.get("answer"))
+            .doesNotContain("chưa có cơ sở nào công bố");
+    }
+
+    @Test
+    void preparationInterceptsBeforeBranchResolutionLikeThePatientLane() {
+        // Lane parity: a PREPARATION-classified message carrying branch
+        // wording gets the checklist, not the branch fail-closed path.
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cơ sở ở đâu cần chuẩn bị gì trước khi khám?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_preparation_guidance");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void answersGenericPreparationQuestionWithoutProviderCall() {
+        // The pre-visit checklist is a complete deterministic answer —
+        // the provider must not be called and the response is an ANSWER,
+        // not the degraded retry banner.
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Cần chuẩn bị gì trước khi đi khám?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_preparation_guidance")
+            .containsEntry("costTier", "local_free");
+        assertThat((String) body.get("answer"))
+            .contains("BHYT")
+            .contains("15–30 phút");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void keepsClinicalLaneWhenPainAndParkingAreMixed() {
+        // "đậu xe đau đầu" still carries a real symptom — the safety gate
+        // must win over the amenity lane.
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer", "safe",
+            "disclaimer", "Chỉ mang tính tham khảo.",
+            "provenance", "local_fallback",
+            "safety_action", "INSUFFICIENT_EVIDENCE",
+            "mode", "HOSPITAL_SUPPORT",
+            "citations", List.of()
+        ));
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "đậu xe đau đầu kéo dài", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "HUMAN_HANDOFF");
+        verify(resolver, never()).resolveAmenity(any());
+    }
+
+    private AiChatSourceResolver resolverForAmenity() {
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        AiChatSourceResolver.ResolvedSource branch = new AiChatSourceResolver.ResolvedSource(
+            "branch", BRANCH_ID, "Cơ sở 1 — Quận 1", "co-so-1", true, true,
+            "OPERATIONAL", null, null, null, null, "/branches/co-so-1",
+            "/dat-lich?branchId=" + BRANCH_ID);
+        AiChatSourceResolver.BranchDetails details = new AiChatSourceResolver.BranchDetails(
+            branch, "12 Nguyễn Huệ, Quận 1", "07:00–19:00", "028 38000001",
+            List.of("Bãi đỗ xe", "Nhà thuốc"));
+        when(resolver.resolveAmenity(any())).thenReturn(
+            new AiChatSourceResolver.AmenityResolution(
+                "parking", List.of(details), List.of(), false, false));
+        when(resolver.amenityDisplayName(any())).thenReturn("bãi đậu xe/chỗ đỗ xe");
+        when(resolver.matchedAmenityLabels(details, "parking")).thenReturn(List.of("Bãi đỗ xe"));
+        when(resolver.citations(any())).thenReturn(List.of(
+            Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", branch.title())));
+        when(resolver.actions(any())).thenReturn(List.of(
+            Map.of("kind", "VIEW_SOURCE", "label", branch.title(), "href", branch.viewHref())));
+        return resolver;
     }
 }
