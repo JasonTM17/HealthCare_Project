@@ -131,3 +131,64 @@ Residual decisions carried: media-orphan reaper design proposal pending;
 doctor photoUrl clear semantics; non-loopback HTTP remains unsupported for
 authenticated features (`Secure`/`__Host-` cookies need HTTPS or loopback —
 documented limitation, not a defect).
+
+## Wave-7 addendum — emergency-first ordering + Vietnamese lexicon precision (HEAD e631fb5)
+
+Three-commit safety wave driven by reviewer findings (reviewer CHANGES_REQUESTED,
+Wukong FALSIFIED INV-004, Kongming CONDITIONAL). The emergency invariant now
+holds on every entry lane: crisis detection precedes length/control-char
+validation, the education kill-switch, deterministic shortcuts, consent/mode/
+credit gates (authenticated lane keeps ownership + idempotency), and the
+provider is never invoked for crisis input.
+
+Commit `44666c6` — create-path + kill-switch residuals:
+- guest education lane honors AI_CHAT_HEALTH_EDUCATION_ENABLED (was bypassed)
+- "Tạo mới"/"Lưu mặc định"/floating open-event all gate on effective mode
+- public lexicon gained tự tử/muốn chết/tự sát phrase forms
+
+Commit `d60cca3` — emergency-first ordering + bounded scanning:
+- crisis check moved before length validation (public) and mode/consent/credit
+  (authenticated); overlong crisis → EMERGENCY not 400
+- EMERGENCY_SCAN_LIMIT=4096 bounds normalization; BFF mirrors it
+- lexicon precision round 1: idiom-bound "tu tu", laundry-excluded "co giat"
+
+Commit `5243427` — folded-Vietnamese false-positive removal (all 3 lexicons):
+- benign "từ từ"/"có giặt (ủi/là/giũ/gì/đồ)" no longer raise the 115 banner;
+  squashed nets re-apply the same exclusions (cogiat laundry prefix,
+  tutu intent compounds)
+
+Commit `e631fb5` — adversarial-review counterexamples closed:
+- "co giat do sot cao" fires again ("do"=because-of kept via medical
+  lookahead); joined "tututroi" fires via word-initial prefix rule;
+  "nghỉ ngơi từ từ" and joined "tututhoi" stay benign; volition markers
+  gained se|sap|dang; PROTECTED_INPUT_CUE precision mirrors the emergency
+  cue; BFF fallback now fires on any lease-open non-2xx and scans 4096;
+  mode classification bounded; CONSENT_TEXT discloses duty-of-care
+  crisis persistence.
+
+| Check | Result | Artifact |
+|---|---|---|
+| PublicAiChatControllerTest | 71/71 | surefire (incl. window-boundary tests) |
+| AiConversationIntegrationTest | 42/42 | surefire (Testcontainers) |
+| PublicSpecialtyTriage{,Disabled}IntegrationTest | 6/6 + 2/2 | surefire |
+| ai-service pytest (all) | 945/945 | pytest |
+| bff-security.test.mjs | 40/40 | node --test |
+| Live matrix on rebuilt images (18 rows) | all correct | BFF :3330 → backend :8180 → ai-service |
+
+Live matrix highlights (all on e631fb5 images): overlong-crisis→EMERGENCY,
+overlong-normal→400, "từ từ"/"giặt ủi/giũ/đồ"/"nghỉ ngơi từ từ"/joined
+"tututhoi"→ANSWER (provider-free), "muốn/sẽ/nghĩ đến việc tự tử"+"tututroi"+
+"co giật do sốt cao"→EMERGENCY, education kill-switch→safe ANSWER degrade.
+
+Documented residuals (accepted, not silently dropped):
+- `AI_EMERGENCY_KEYWORD_RECALL=baseline` intentionally restores pre-precision
+  legacy vocabulary (kill switch = restore old behavior, warts included).
+- Java/BFF lexicons are a precision subset of Python's tiered engine —
+  provider-up path masks narrower gate recall; outage fallback carries the
+  hotline CTA regardless.
+- Bare third-person/informational self-harm mentions ("anh ấy tự tử")
+  intentionally silent — stated-intent contract.
+- "có giặt không?" (no noun) still over-fires — ambiguous = safe-side.
+- SSE lane EMERGENCY arrives inside the `done` event (HTTP 200) — wire
+  shape shares the same gated path; browser banner render unverified by
+  automated browser test (contract-covered at API level).
