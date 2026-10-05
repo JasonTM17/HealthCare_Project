@@ -208,9 +208,17 @@ test("floating assistant fails closed on absent enabledModes and locks every sen
   assert.match(component, /mode === "HOSPITAL_SUPPORT" \? true : Boolean\(mode && policy\?\.enabledModes\?\.includes\(mode\)\)/);
   assert.match(component, /conversationModeUnavailable = Boolean\(\s*conversation\?\.mode && !modeAvailable\(conversation\.mode\)/s);
   assert.match(component, /const modeUnavailable = !modeAvailable\(option\.value\)/);
-  assert.match(component, /if \(conversationModeUnavailable\) return;/);
-  assert.match(component, /disabled=\{conversationModeUnavailable\} onClick=\{\(\) => void handleSend\(previous\.content\)\}/);
-  assert.match(component, /disabled=\{conversationModeUnavailable\} onClick=\{\(\) => void handleSend\(lastFailedContent\)\}/);
-  assert.match(component, /disabled=\{sending \|\| conversationModeUnavailable\}[\s\S]*?handleSend\(question\)/);
-  assert.match(component, /!sending && !consentBlocked && !conversationModeUnavailable/);
+  // Wukong CE-1b regression: with no persisted conversation the provider's
+  // pending `mode` can still carry a clinical value, so every send affordance
+  // must gate on the mode a create request would actually issue.
+  assert.match(component, /sendModeUnavailable = conversationModeUnavailable \|\| \(!conversation && !modeAvailable\(mode\)\)/);
+  assert.match(component, /if \(sendModeUnavailable\) return;/);
+  assert.match(component, /if \(!modeAvailable\(mode\)\) throw Object\.assign\(new Error\("mode unavailable"\)/);
+  assert.match(component, /disabled=\{sendModeUnavailable\} onClick=\{\(\) => void handleSend\(previous\.content\)\}/);
+  assert.match(component, /disabled=\{sendModeUnavailable\} onClick=\{\(\) => void handleSend\(lastFailedContent\)\}/);
+  assert.match(component, /disabled=\{sending \|\| sendModeUnavailable\}[\s\S]*?handleSend\(question\)/);
+  assert.match(component, /!sending && !consentBlocked && !sendModeUnavailable/);
+  // A programmatic mode change (open-event, stale provider mode) is a create
+  // path too — it must refuse modes the policy does not list.
+  assert.match(component, /if \(!isPatient && nextMode !== "HOSPITAL_SUPPORT"\) return;\s*\/\/[\s\S]*?if \(!modeAvailable\(nextMode\)\) return;/);
 });

@@ -560,6 +560,16 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
     return () => controller.abort();
   }, [refreshPolicy, session, setAssistantPolicy]);
 
+  // A persisted `chatDefaultMode` can name a mode the policy has since
+  // disabled — degrade the pending selection to the always-available support
+  // mode once the real policy arrives, unless the user already picked a mode
+  // or is viewing a persisted conversation (whose own mode stays displayed).
+  useEffect(() => {
+    if (!chatPolicy || modeTouchedRef.current || activeConversation || selectedConversationId) return;
+    if (selectedMode === "HOSPITAL_SUPPORT") return;
+    if (!chatPolicy.enabledModes?.includes(selectedMode)) setSelectedMode("HOSPITAL_SUPPORT");
+  }, [activeConversation, chatPolicy, selectedConversationId, selectedMode]);
+
   useEffect(() => {
     if (!messageViewportRef.current) return;
     if (shouldScrollToLatestRef.current) {
@@ -660,6 +670,19 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   const draftIsValid = normalizedDraft.length >= 2 && normalizedDraft.length <= MAX_MESSAGE_LENGTH;
 
   const handleCreateConversation = async (): Promise<void> => {
+    // `selectedMode` can hold a policy-unlisted mode without any picker
+    // interaction — a persisted `chatDefaultMode` from the account settings
+    // seed, or `loadThread` syncing a conversation whose mode has since been
+    // disabled. Gate create the same way the pickers are gated; the backend
+    // would 503 the request anyway, so fail honestly before issuing it.
+    if (!modeAvailable(selectedMode)) {
+      setConversationFailure({
+        code: "AI_UNAVAILABLE",
+        message: assistantErrorMessage("AI_UNAVAILABLE"),
+        status: 503,
+      });
+      return;
+    }
     setCreating(true);
     setConversationFailure(null);
     setNotice(null);
@@ -682,6 +705,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
   const handleModeSelect = async (nextMode: ChatMode): Promise<void> => {
     modeTouchedRef.current = true;
     if (modeCreateInFlightRef.current || nextMode === selectedMode) return;
+    if (!modeAvailable(nextMode)) return;
     if (activeConversation || selectedConversationId) {
       modeCreateInFlightRef.current = true;
       setModeCreating(true);
@@ -1215,7 +1239,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
             </label>
             <button
               className={styles.assistantSettingSave}
-              disabled={settingsBusy || !accountSettings}
+              disabled={settingsBusy || !accountSettings || !modeAvailable(selectedMode)}
               onClick={() => accountSettings
                 ? void handleSaveAssistantSettings({
                   chatDefaultMode: selectedMode,
@@ -1223,6 +1247,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                   chatPersonalized: accountSettings.chatPersonalized,
                 })
                 : undefined}
+              title={!modeAvailable(selectedMode) ? "Chế độ này tạm chưa khả dụng." : undefined}
               type="button"
             >
               Lưu mục đích làm mặc định
@@ -1254,8 +1279,9 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                 </div>
                 <button
                   className={styles.newConversationButton}
-                  disabled={interactionLocked}
+                  disabled={interactionLocked || !modeAvailable(selectedMode)}
                   onClick={() => void handleCreateConversation()}
+                  title={!modeAvailable(selectedMode) ? "Chế độ này tạm chưa khả dụng." : undefined}
                   type="button"
                 >
                   <UiIcon name="plus" size={18} />

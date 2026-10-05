@@ -96,7 +96,7 @@ contract, so record it in the dated snapshot section afterwards.
 | --- | --- | --- | --- | --- |
 | `APP_PUBLIC_SPECIALTY_TRIAGE_ENABLED` | application.yml:183 | **true** | public AI triage modal answers | already enabled on Render |
 | `AI_CHAT_SYMPTOM_TRIAGE_ENABLED` | application.yml:201 | false | SYMPTOM_TRIAGE chat mode | clinical approval of the mode |
-| `AI_CHAT_HEALTH_EDUCATION_ENABLED` | application.yml:202 | false | HEALTH_EDUCATION chat mode | clinical approval of the mode |
+| `AI_CHAT_HEALTH_EDUCATION_ENABLED` | application.yml:202 | false | HEALTH_EDUCATION chat mode — authenticated lane **and** the guest `/public/ai/chat` education branch | clinical approval of the mode |
 | `AI_CHAT_CHUNKED_ENABLED` | application.yml:203 | false | SSE `/messages/stream` answers (cosmetic chunking) | none; rollback switch |
 | `AI_CHAT_REMOTE_PROVIDER_ENABLED` | application.yml:196 | false | remote LLM for patient chat | provider review + rollback plan |
 | `AI_CHAT_SYNTHETIC_BETA_ASSERTED` | application.yml:200 | false | synthetic fixture graph eligible | DB guard rows + flag conjunction |
@@ -567,6 +567,13 @@ frontend commands. Do not start Compose, pull Docker images, or delete
 Docker/IDE/Codex data as part of this release gate. Hibernate must remain
 enabled. Local gates prove source integrity only; they do not prove provider
 backup/restore, clinical compliance, or production cutover.
+
+`apps/*/Dockerfile.prebuilt` exists only so the local audit stack can package
+host-built artifacts without asking the Docker engine to run the heavy
+in-image builds. Those images carry no provenance guarantees — **never push
+or promote a prebuilt image to Render or any registry**. Production builds
+must come from the canonical `Dockerfile` on the platform (Render build,
+Vercel build), so the recorded digest maps to a reproducible source build.
 
 ### Windows Docker recovery note
 

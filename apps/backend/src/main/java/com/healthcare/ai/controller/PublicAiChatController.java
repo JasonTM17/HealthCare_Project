@@ -10,6 +10,8 @@ import com.healthcare.ai.chat.service.ChatRequestCancellationRegistry;
 import com.healthcare.ai.chat.service.ChatSuggestedActionResolver;
 import com.healthcare.auth.security.BffRequestVerifier;
 import com.healthcare.ai.service.AiService;
+import com.healthcare.exception.BusinessException;
+import com.healthcare.exception.ErrorCodes;
 import com.healthcare.observability.RequestTrace;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -113,25 +116,29 @@ public class PublicAiChatController {
     private final AiChatSourceResolver sourceResolver;
     private final ChatRequestCancellationRegistry cancellations;
     private final BffRequestVerifier bffVerifier;
+    private final boolean healthEducationEnabled;
 
     @Autowired
     public PublicAiChatController(
             AiService aiService,
             AiChatSourceResolver sourceResolver,
             ChatRequestCancellationRegistry cancellations,
-            BffRequestVerifier bffVerifier) {
+            BffRequestVerifier bffVerifier,
+            @Value("${ai.chat.health-education-enabled:false}") boolean healthEducationEnabled) {
         this.aiService = aiService;
         this.sourceResolver = sourceResolver;
         this.cancellations = cancellations;
         this.bffVerifier = bffVerifier;
+        this.healthEducationEnabled = healthEducationEnabled;
     }
 
-    /** Compatibility constructor for direct controller tests without a request lifecycle. */
+    /**
+     * Compatibility constructor for direct controller tests without a request
+     * lifecycle. Enables the education lane so lane mechanics stay covered;
+     * the kill-switch itself is exercised through the explicit constructor.
+     */
     public PublicAiChatController(AiService aiService, AiChatSourceResolver sourceResolver) {
-        this.aiService = aiService;
-        this.sourceResolver = sourceResolver;
-        this.cancellations = null;
-        this.bffVerifier = null;
+        this(aiService, sourceResolver, null, null, true);
     }
 
     @Operation(summary = "Tư vấn sức khỏe AI thông minh", description = "Hỏi đáp triệu chứng, phân luồng chuyên khoa y tế và hướng dẫn cấp cứu/đặt khám")
@@ -190,9 +197,20 @@ public class PublicAiChatController {
             if (greeting != null) return ResponseEntity.ok(greeting);
         }
         if (publicMode == ChatMode.HEALTH_EDUCATION) {
+            // A crisis cue keeps its 115 guidance even when the education
+            // lane is switched off — the same emergency-before-flag ordering
+            // the public specialty-triage service enforces.
             if (ChatMedicalSafety.containsEmergencyInputCue(userMessage)) {
                 return ResponseEntity.ok(publicSafetyFallback(
                     userMessage, "EMERGENCY", ChatMode.HEALTH_EDUCATION));
+            }
+            // AI_CHAT_HEALTH_EDUCATION_ENABLED is the operator kill switch
+            // for every education path, authenticated or guest — falling
+            // through to the upstream lane would let the flag be bypassed.
+            if (!healthEducationEnabled) {
+                throw new BusinessException(
+                    503, ErrorCodes.AI_UNAVAILABLE,
+                    "This clinical chat mode is temporarily unavailable");
             }
             try {
                 return ResponseEntity.ok(runCancellableChat(servletRequest, cancellation ->

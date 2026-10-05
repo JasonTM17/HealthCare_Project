@@ -102,4 +102,18 @@ class PublicSpecialtyTriageIntegrationTest extends AbstractRedisIntegrationTest 
             .andExpect(jsonPath("$.clinical_advice").value(
                 org.hamcrest.Matchers.containsString("115")));
     }
+
+    @Test
+    void overlongNonCrisisInputStillFailsLengthValidation() throws Exception {
+        // The DTO no longer enforces @Size so the service can check emergency
+        // first — this proves the length contract still closes on the input
+        // that carries no crisis cue.
+        String padding = "đau đầu nhẹ ".repeat(60);
+        mockMvc.perform(post("/api/v1/public/specialty-recommendation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(java.util.Map.of(
+                    "symptoms", padding))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
 }

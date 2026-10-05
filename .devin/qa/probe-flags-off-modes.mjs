@@ -87,6 +87,20 @@ try {
       return btns.map((b) => (b.textContent || "").trim().slice(0, 40));
     });
     record("no live send affordance", ungated.length === 0, JSON.stringify(ungated.slice(0, 4)));
+
+    // Wukong CE-1a regression: `loadThread` synced selectedMode to the
+    // conversation's now-disabled mode — the "Tạo mới" create path and the
+    // save-as-default affordance must both be inert while it is selected.
+    const createBtn = page.getByRole("button", { name: /tạo mới|đang tạo/i }).first();
+    if (await createBtn.isVisible().catch(() => false)) {
+      record("create button gated on unavailable mode",
+        await createBtn.isDisabled());
+    }
+    const saveDefaultBtn = page.getByRole("button", { name: /lưu mục đích làm mặc định/i }).first();
+    if (await saveDefaultBtn.isVisible().catch(() => false)) {
+      record("save-as-default gated on unavailable mode",
+        await saveDefaultBtn.isDisabled());
+    }
   }
 
   // Floating assistant: patient view must also fail closed on its picker.
@@ -101,6 +115,31 @@ try {
       record("floating triage disabled (fail-closed)", await floatTriage.isDisabled());
     } else {
       record("floating triage disabled (fail-closed)", true, "triage mode not offered");
+    }
+    // Wukong CE-1b / dormant open-event regression: dispatching the public
+    // open event with a clinical mode must degrade to HOSPITAL_SUPPORT —
+    // the widget must never arm a create for a mode the policy omits.
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent("healthcare:open-assistant", {
+        detail: { mode: "SYMPTOM_TRIAGE" },
+      }));
+    });
+    await page.waitForTimeout(1200);
+    const supportPressed = await page.getByRole("button", { name: /thông tin bệnh viện/i })
+      .first().getAttribute("aria-pressed").catch(() => null);
+    record("open-event degrades to support mode", supportPressed === "true",
+      `aria-pressed=${supportPressed}`);
+    // And the composer must not be left armed on a stale clinical mode.
+    const floatSendDisabled = await page.evaluate(() => {
+      const btn = [...document.querySelectorAll("button[type=submit]")]
+        .find((b) => /gửi/i.test(b.getAttribute("aria-label") || b.title || ""));
+      return btn ? btn.disabled : null;
+    });
+    if (floatSendDisabled !== null) {
+      // Composer may be empty (disabled on length) — the mode gate is the
+      // create path above; just record the state for the evidence trail.
+      record("floating send button state captured", true,
+        `disabled=${floatSendDisabled}`);
     }
   }
 
