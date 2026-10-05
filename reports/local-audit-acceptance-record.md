@@ -91,3 +91,43 @@ batching — environment constraint, not a product defect).
 | live-compose-demo (booking+attachment+AV, PDF 3-class+scope, CMS hero publish/rollback) | PASS 3/3 |
 | live-compose-clinical-payment (doctor journey, reject, refund, stale-decision) | PASS 4/4 |
 | live-compose-lifecycle (hold→OTP→confirm→reschedule→double-book 409→cancel) | PASS 1/1 |
+
+## Wave-6 addendum — responsive/a11y/chatbot remediation (HEAD f4196f4)
+
+Two-commit remediation of the 10-issue screenshot audit plus the specialist
+findings on top of it. Evidence re-run on freshly rebuilt audit images
+(`Dockerfile.prebuilt` packages host-built artifacts because the in-image
+Turbopack/Maven builds repeatedly crashed the WSL2 Docker engine).
+
+Commit `b482fa1` — UI/a11y/chatbot audit remediation:
+- article reading-toolbar wrap + admin grid `min-width:0` (320px overflow gone)
+- CSP `upgrade-insecure-requests` moved to build ARG (`CSP_UPGRADE_INSECURE_REQUESTS`)
+  — Next.js bakes `headers()` into `routes-manifest.json`; runtime env had no effect
+- `chat-policy` now returns `enabledModes`; pickers disable unlisted clinical modes
+- landmark labels unique; utility-bar is a named region; touch targets ≥44px
+
+Commit `f4196f4` — Wukong/Kongming findings:
+- fail-closed `modeAvailable`: absent `enabledModes` disables clinical modes
+  (picker + existing-conversation composer + retry + suggestion chips +
+  `sendContent`/`handleSend` defense-in-depth + dormant public-assistant open path)
+- `PublicSpecialtyTriageService`: emergency check precedes the enabled-flag
+  rejection (F4 ordering invariant, was: 503 swallowed crisis guidance)
+- test cleanup → `deleteAllInBatch` (JPA remove+insert flush order collided
+  with V86 fixture slugs); triage tests moved onto the Redis-backed base
+- `Dockerfile.prebuilt` pair + doc row for the CSP build arg
+
+| Check | Result | Artifact |
+|---|---|---|
+| UI verify probe (overflow/landmarks/touch/CSP/axe/modes) | 24/24 PASS | `reports/local-audit-uiux-verify.json` |
+| Flags-off mode lockdown (picker, persisted conversation, retry/suggestion, floating) | 13/13 PASS | `reports/local-audit-flags-off-modes.json` |
+| AiConversationIntegrationTest | 40/40 | surefire |
+| PublicSpecialtyTriageIntegrationTest + Disabled | 6/6 + 2/2 | surefire |
+| tsc --noEmit (frontend) | clean | — |
+| flags-on patient triage e2e (earlier image, same code path) | 6/6 | streamed answer rendered |
+| WebKit 26.5 spot (home/articles/search @375) | 4/4 | probe-webkit-spot.mjs output |
+| Public emergency triage via BFF on new image | 200 EMERGENCY + 115 | live curl |
+
+Residual decisions carried: media-orphan reaper design proposal pending;
+doctor photoUrl clear semantics; non-loopback HTTP remains unsupported for
+authenticated features (`Secure`/`__Host-` cookies need HTTPS or loopback —
+documented limitation, not a defect).
