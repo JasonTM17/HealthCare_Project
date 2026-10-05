@@ -643,13 +643,17 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
       ),
   );
   const sendLocked = sending;
+  // Clinical modes are only safe to offer when the policy explicitly lists
+  // them: an absent `enabledModes` field (older server, failed parse) or a
+  // failed policy fetch must fail closed, because the backend 503s on modes
+  // it has not enabled. HOSPITAL_SUPPORT can never be disabled server-side.
+  const modeAvailable = (mode: ChatMode): boolean =>
+    mode === "HOSPITAL_SUPPORT" ? true : Boolean(chatPolicy?.enabledModes?.includes(mode));
   // An existing conversation keeps its creation-time mode. If the runtime has
   // since disabled that mode, the send path would 503 — block it honestly
   // instead of letting the patient hit a silent server error.
   const selectedModeUnavailable = Boolean(
-    selectedSummary?.mode
-      && chatPolicy?.enabledModes
-      && !chatPolicy.enabledModes.includes(selectedSummary.mode),
+    selectedSummary?.mode && !modeAvailable(selectedSummary.mode),
   );
   const interactionLocked = sendLocked || creating || deleting || consentBusy;
   const normalizedDraft = draft.trim();
@@ -838,6 +842,13 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
     }
 
     const selected = activeConversation ?? conversations.find((item) => item.id === conversationId) ?? null;
+    // Defense in depth: the MessageItem retry path re-enters here without the
+    // composer's disabled attribute — refuse sends on a disabled-mode
+    // conversation so they cannot reach the backend's 503.
+    if (selected?.mode && !modeAvailable(selected.mode)) {
+      setSendFailure({ code: "AI_UNAVAILABLE", message: assistantErrorMessage("AI_UNAVAILABLE"), status: 503 });
+      return;
+    }
     if (selected?.consentRequired && (
       !selected.consentedAt
       || !chatPolicy
@@ -1098,7 +1109,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                 clearDraftOnSuccess: false,
                 sourceMessageId: failedMessage.id,
               })}
-              retryDisabled={sendLocked}
+              retryDisabled={sendLocked || selectedModeUnavailable || currentConsentRequired}
             />
           ))}
           {streamingReply ? (
@@ -1156,12 +1167,10 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
           </div>
           <div aria-label="Mục đích cuộc trò chuyện" className={styles.modeOptions} role="group">
             {ASSISTANT_MODE_OPTIONS.map((option) => {
-              // Fail closed: when the policy lists modes, anything absent is a
-              // real 503 on the backend — show that state instead of offering
-              // a button that always fails and then re-creates HOSPITAL_SUPPORT.
-              const modeUnavailable = Boolean(
-                chatPolicy?.enabledModes && !chatPolicy.enabledModes.includes(option.value),
-              );
+              // Fail closed: a clinical mode absent from the policy's
+              // enabledModes is a real 503 on the backend — show that state
+              // instead of offering a button that always fails.
+              const modeUnavailable = !modeAvailable(option.value);
               return (
                 <button
                   aria-pressed={selectedMode === option.value}

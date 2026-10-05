@@ -1,0 +1,70 @@
+{
+  "finishedAt": "2026-10-05T13:34:47.354Z",
+  "checks": [
+    {
+      "id": "nav patient chat",
+      "status": "PASS",
+      "detail": "http://127.0.0.1:3330/patient/chat"
+    },
+    {
+      "id": "policy lists only support mode",
+      "status": "PASS",
+      "detail": "[\"HOSPITAL_SUPPORT\"]"
+    },
+    {
+      "id": "triage button visible",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "education button visible",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "triage disabled (fail-closed)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "education disabled (fail-closed)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "disabled-mode conversation exists",
+      "status": "PASS",
+      "detail": "Triage probe"
+    },
+    {
+      "id": "triage conversation listed",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "disabled-mode composer locked",
+      "status": "PASS",
+      "detail": "disabled=true"
+    },
+    {
+      "id": "disabled-mode notice shown",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "no live send affordance",
+      "status": "PASS",
+      "detail": "[]"
+    },
+    {
+      "id": "floating triage disabled (fail-closed)",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "id": "no page errors",
+      "status": "PASS",
+      "detail": ""
+    }
+  ]
+}

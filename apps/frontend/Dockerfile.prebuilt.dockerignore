@@ -1,0 +1,14 @@
+node_modules
+.next-*
+.tmp
+.tmp-*
+.vercel
+test-results
+playwright-report
+coverage
+.git
+npm-debug.log*
+.env
+.env.*
+secrets/
+credentials/

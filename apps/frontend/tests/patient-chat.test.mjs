@@ -176,7 +176,7 @@ test("patient chat keeps consent fail-closed when policy is missing or changes",
   assert.match(page, /const isCurrentConsentRequest = \(\): boolean/);
   assert.match(page, /if \(!isCurrentConsentRequest\(\)\) return/);
   assert.match(page, /const interactionLocked = sendLocked \|\| creating \|\| deleting \|\| consentBusy/);
-  assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| currentConsentRequired\}/);
+  assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| currentConsentRequired \|\| selectedModeUnavailable\}/);
 });
 
 test("patient chat drops late stream updates after a conversation switch", async () => {
@@ -265,4 +265,28 @@ test("patient chat shows the patient's own message before the exchange settles",
   assert.match(page, /current\.filter\(\(message\) => message\.id !== pendingMessageId\)[\s\S]*exchange\.userMessage/);
   // A rejected attempt restores the composer text instead of losing it.
   assert.match(page, /setMessages\(\(current\) => current\.filter\(\(message\) => message\.id !== pendingMessageId\)\);\s*if \(options\.clearDraftOnSuccess\) setDraft\(normalizedContent\)/);
+});
+
+test("patient chat fails closed when the policy omits or excludes a clinical mode", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  // Wukong INV-002 regression: `policy?.enabledModes && !includes(...)` fails
+  // OPEN when the field is absent (older server / failed fetch). The guard must
+  // keep HOSPITAL_SUPPORT always-available while every other mode requires an
+  // explicit enabledModes entry.
+  assert.match(page, /mode === "HOSPITAL_SUPPORT" \? true : Boolean\(chatPolicy\?\.enabledModes\?\.includes\(mode\)\)/);
+  assert.match(page, /selectedModeUnavailable = Boolean\(\s*selectedSummary\?\.mode && !modeAvailable\(selectedSummary\.mode\)/s);
+  assert.match(page, /const modeUnavailable = !modeAvailable\(option\.value\)/);
+});
+
+test("patient chat locks every send path when the conversation mode is unavailable", async () => {
+  const page = await read("app/patient/chat/page.tsx");
+
+  // Wukong INV-006 regression: composer attributes alone left the MessageItem
+  // retry path live. The send function itself must re-check mode availability
+  // (defense in depth) and the retry button must share the lock.
+  assert.match(page, /if \(selected\?\.mode && !modeAvailable\(selected\.mode\)\) \{\s*setSendFailure\(\{ code: "AI_UNAVAILABLE"/);
+  assert.match(page, /retryDisabled=\{sendLocked \|\| selectedModeUnavailable \|\| currentConsentRequired\}/);
+  assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| currentConsentRequired \|\| selectedModeUnavailable\}/);
+  assert.match(page, /disabled=\{!selectedConversationId \|\| sendLocked \|\| !draftIsValid \|\| currentConsentRequired \|\| selectedModeUnavailable\}/);
 });

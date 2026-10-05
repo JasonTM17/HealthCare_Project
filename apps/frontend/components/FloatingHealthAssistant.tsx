@@ -486,7 +486,11 @@ function FloatingHealthAssistantPanel({
     const handlePublicOpen = (event: Event): void => {
       if (hidden) return;
       const nextMode = (event as CustomEvent<{ mode?: ChatMode }>).detail?.mode;
+      // Same fail-closed rule as the picker: a requested clinical mode only
+      // applies when the policy explicitly lists it — otherwise degrade to the
+      // always-available support mode rather than launching a 503 create.
       const requestedMode: ChatMode = isPatient && nextMode === "SYMPTOM_TRIAGE"
+          && Boolean(policy?.enabledModes?.includes(nextMode))
         ? nextMode
         : "HOSPITAL_SUPPORT";
       setOpen(true);
@@ -500,7 +504,7 @@ function FloatingHealthAssistantPanel({
     };
     window.addEventListener(PUBLIC_ASSISTANT_OPEN_EVENT, handlePublicOpen);
     return () => window.removeEventListener(PUBLIC_ASSISTANT_OPEN_EVENT, handlePublicOpen);
-  }, [conversation, hidden, isPatient, setMode]);
+  }, [conversation, hidden, isPatient, policy, setMode]);
 
   useEffect(() => {
     if (!open || hidden || blockedByModal) return;
@@ -662,12 +666,16 @@ function FloatingHealthAssistantPanel({
   if (hidden || blockedByModal) return null;
 
   const consentBlocked = conversationNeedsCurrentConsent(conversation, policy);
+  // Clinical modes are only safe to offer when the policy explicitly lists
+  // them — an absent `enabledModes` field or a failed policy fetch must fail
+  // closed, since the backend 503s on modes it has not enabled.
+  // HOSPITAL_SUPPORT can never be disabled server-side.
+  const modeAvailable = (mode: ChatMode | undefined): boolean =>
+    mode === "HOSPITAL_SUPPORT" ? true : Boolean(mode && policy?.enabledModes?.includes(mode));
   // A persisted conversation keeps its creation-time mode; if the runtime has
   // since disabled that mode, sending would hit a 503 — block honestly.
   const conversationModeUnavailable = Boolean(
-    conversation?.mode
-      && policy?.enabledModes
-      && !policy.enabledModes.includes(conversation.mode),
+    conversation?.mode && !modeAvailable(conversation.mode),
   );
   const visibleMessages = messages.slice(-THREAD_VISIBLE_LIMIT);
   const threadTruncated = messages.length > visibleMessages.length;
@@ -776,6 +784,10 @@ function FloatingHealthAssistantPanel({
     // Login gate: the assistant only serves signed-in patients. Anonymous
     // visitors see a login CTA instead of a composer and can never send.
     if (!session) return;
+    // Defense in depth: retry/suggestion call sites re-enter here without the
+    // composer's disabled attribute — refuse sends on a disabled-mode
+    // conversation so they cannot reach the backend's 503.
+    if (conversationModeUnavailable) return;
     const normalized = content.trim();
     const inputLimit = MAX_MESSAGE_LENGTH;
     // State updates are batched. Guard synchronously before a second submit can
@@ -901,7 +913,7 @@ function FloatingHealthAssistantPanel({
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (draft.trim().length >= 2 && !sending && !consentBlocked) {
+    if (draft.trim().length >= 2 && !sending && !consentBlocked && !conversationModeUnavailable) {
       event.currentTarget.form?.requestSubmit();
     }
   };
@@ -947,9 +959,7 @@ function FloatingHealthAssistantPanel({
                 {ASSISTANT_MODE_OPTIONS.map((option) => {
                   // Fail closed: a mode absent from the runtime policy would
                   // 503 on create — disable it instead of failing silently.
-                  const modeUnavailable = Boolean(
-                    policy?.enabledModes && !policy.enabledModes.includes(option.value),
-                  );
+                  const modeUnavailable = !modeAvailable(option.value);
                   return (
                     <button
                       aria-pressed={mode === option.value}
@@ -1019,7 +1029,7 @@ function FloatingHealthAssistantPanel({
                           const index = messages.indexOf(message);
                           const previous = index > 0 ? messages[index - 1] : null;
                           if (!previous || previous.role !== "USER" || pendingUserMessage) return null;
-                          return <button onClick={() => void handleSend(previous.content)} type="button">Thử lại</button>;
+                          return <button disabled={conversationModeUnavailable} onClick={() => void handleSend(previous.content)} type="button">Thử lại</button>;
                         })()}
                       </div>
                     ) : null}
@@ -1158,7 +1168,7 @@ function FloatingHealthAssistantPanel({
                     </strong>
                     <span>{failure.message}</span>
                   </div>
-                  {failure.retryable && lastFailedContent ? <button onClick={() => void handleSend(lastFailedContent)} type="button">Thử lại</button> : null}
+                  {failure.retryable && lastFailedContent ? <button disabled={conversationModeUnavailable} onClick={() => void handleSend(lastFailedContent)} type="button">Thử lại</button> : null}
                 </div>
               ) : null}
 
@@ -1171,7 +1181,7 @@ function FloatingHealthAssistantPanel({
               {messages.length === 0 && !loading && !sending && !pendingUserMessage && !consentBlocked && !requiresLogin ? (
                 <div className={styles.suggestions}>
                   {getSuggestedQuestions(pathname, mode).map((question) => (
-                    <button disabled={sending} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
+                    <button disabled={sending || conversationModeUnavailable} key={question} onClick={() => void handleSend(question)} type="button">{question}</button>
                   ))}
                 </div>
               ) : null}

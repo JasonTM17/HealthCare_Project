@@ -144,7 +144,7 @@ test("floating assistant fails closed across mode changes and policy refreshes",
   assert.match(component, /conversationIdRef/);
   assert.match(component, /isCurrentLocalRequest\(epoch, currentConversation\.id\)/);
   assert.match(component, /invalidateLocalRequests\(\)/);
-  assert.match(component, /disabled=\{creatingMode \|\| sending \|\| consentBusy\}/);
+  assert.match(component, /disabled=\{creatingMode \|\| sending \|\| consentBusy \|\| modeUnavailable\}/);
   assert.match(component, /refreshChatPolicy/);
   assert.match(component, /hasCurrentChatConsent\(currentConversation, currentPolicy\)/);
   assert.match(component, /acceptConversationConsent\(conversationId, currentPolicy\.policyVersion, controller\.signal\)/);
@@ -196,4 +196,21 @@ test("floating assistant send machine resets unconditionally and maps stray abor
     component,
     /} finally \{\s*\/\/ Invariant:[\s\S]*?setStreamingReply\(""\);\s*setPendingUserMessage\(null\);\s*setSending\(false\);\s*if \(isCurrentLocalRequest\(epoch, currentConversation\?\.id\)\) \{\s*intentionalCancelRef\.current = false;/,
   );
+});
+
+test("floating assistant fails closed on absent enabledModes and locks every send path", async () => {
+  const component = await read("components/FloatingHealthAssistant.tsx");
+
+  // Wukong INV-002/INV-006 regression for the floating widget: clinical modes
+  // require an explicit enabledModes entry (absent field = unavailable), and
+  // the lock must hold inside handleSend plus the retry/chip call sites that
+  // bypass the composer's disabled attribute.
+  assert.match(component, /mode === "HOSPITAL_SUPPORT" \? true : Boolean\(mode && policy\?\.enabledModes\?\.includes\(mode\)\)/);
+  assert.match(component, /conversationModeUnavailable = Boolean\(\s*conversation\?\.mode && !modeAvailable\(conversation\.mode\)/s);
+  assert.match(component, /const modeUnavailable = !modeAvailable\(option\.value\)/);
+  assert.match(component, /if \(conversationModeUnavailable\) return;/);
+  assert.match(component, /disabled=\{conversationModeUnavailable\} onClick=\{\(\) => void handleSend\(previous\.content\)\}/);
+  assert.match(component, /disabled=\{conversationModeUnavailable\} onClick=\{\(\) => void handleSend\(lastFailedContent\)\}/);
+  assert.match(component, /disabled=\{sending \|\| conversationModeUnavailable\}[\s\S]*?handleSend\(question\)/);
+  assert.match(component, /!sending && !consentBlocked && !conversationModeUnavailable/);
 });

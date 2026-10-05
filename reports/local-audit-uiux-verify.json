@@ -1,0 +1,125 @@
+{
+  "startedAt": "2026-10-05T13:33:42.638Z",
+  "checks": [
+    {
+      "name": "UI-05 CSP upgrade-insecure-requests absent on HTTP",
+      "status": "PASS",
+      "detail": "not emitted"
+    },
+    {
+      "name": "overflow @320 home",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "landmarks unique @320 home",
+      "status": "PASS",
+      "detail": "dupes=[]"
+    },
+    {
+      "name": "overflow @375 home",
+      "status": "PASS",
+      "detail": "bodySW=375 offenders=[]"
+    },
+    {
+      "name": "overflow @320 article",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "landmarks unique @320 article",
+      "status": "PASS",
+      "detail": "dupes=[]"
+    },
+    {
+      "name": "overflow @375 article",
+      "status": "PASS",
+      "detail": "bodySW=375 offenders=[]"
+    },
+    {
+      "name": "overflow @320 search",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "landmarks unique @320 search",
+      "status": "PASS",
+      "detail": "dupes=[]"
+    },
+    {
+      "name": "overflow @375 search",
+      "status": "PASS",
+      "detail": "bodySW=375 offenders=[]"
+    },
+    {
+      "name": "overflow @320 articles-list",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "landmarks unique @320 articles-list",
+      "status": "PASS",
+      "detail": "dupes=[]"
+    },
+    {
+      "name": "overflow @375 articles-list",
+      "status": "PASS",
+      "detail": "bodySW=375 offenders=[]"
+    },
+    {
+      "name": "UX-01 reading-toolbar controls ≥44px",
+      "status": "PASS",
+      "detail": "checked=6 undersized=[]"
+    },
+    {
+      "name": "UX-01 search filter tabs ≥44px",
+      "status": "PASS",
+      "detail": "checked=6 undersized=[]"
+    },
+    {
+      "name": "overflow @320 admin-consultations",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "overflow @320 admin-catalog",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "overflow @320 admin-payments",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "overflow @320 admin-appointments",
+      "status": "PASS",
+      "detail": "bodySW=320 offenders=[]"
+    },
+    {
+      "name": "UI-03 triage mode disabled",
+      "status": "PASS",
+      "detail": "{\"label\":\"Định hướng triệu chứngTạm chưa khả dụng\",\"disabled\":true}"
+    },
+    {
+      "name": "UI-03 education mode disabled",
+      "status": "PASS",
+      "detail": "{\"label\":\"Giải thích sức khỏeTạm chưa khả dụng\",\"disabled\":true}"
+    },
+    {
+      "name": "UI-03 support mode enabled",
+      "status": "PASS",
+      "detail": "{\"label\":\"Thông tin bệnh viện\",\"disabled\":false}"
+    },
+    {
+      "name": "A11Y landmark rules (axe)",
+      "status": "PASS",
+      "detail": "violations=[]"
+    },
+    {
+      "name": "A11Y no serious/critical (axe)",
+      "status": "PASS",
+      "detail": "count=0 ids=[]"
+    }
+  ]
+}

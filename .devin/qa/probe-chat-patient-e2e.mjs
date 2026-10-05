@@ -76,6 +76,39 @@ try {
       }
     }
   }
+  // ── Disabled-mode lock: with the feature flag OFF, an existing
+  // SYMPTOM_TRIAGE conversation must show the honest unavailable state and
+  // lock composer/send/retry rather than issuing a doomed request. ──
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page2 = await ctx2.newPage();
+  await page2.goto(`${BASE}/auth/login?next=/patient/chat`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await page2.getByLabel("Email", { exact: true }).fill("patient@healthcare.local");
+  await page2.getByLabel("Mật khẩu", { exact: true }).fill("LocalDemo!2026");
+  await page2.getByRole("button", { name: /đăng nhập|sign in/i }).click();
+  await page2.waitForURL((u) => !u.pathname.startsWith("/auth/"), { timeout: 30_000 });
+  await page2.goto(`${BASE}/patient/chat`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  await page2.waitForTimeout(2500);
+  // Open the persisted triage conversation (created while the flag was on).
+  const triageConv = page2.locator("button, [role=button], a, li").filter({ hasText: /Triage probe|triệu chứng/i }).first();
+  const convVisible = await triageConv.isVisible().catch(() => false);
+  record("triage conversation listed", convVisible);
+  if (convVisible) {
+    await triageConv.click();
+    await page2.waitForTimeout(1200);
+    const composer = page2.locator("textarea").last();
+    const composerDisabled = await composer.isDisabled().catch(() => false);
+    const noticeVisible = await page2.getByText(/tạm chưa khả dụng/i).first().isVisible().catch(() => false);
+    record("disabled-mode composer locked", composerDisabled, `disabled=${composerDisabled}`);
+    record("disabled-mode notice shown", noticeVisible);
+    // Defense-in-depth: no send path (retry button / suggestion chip) may fire.
+    const ungated = await page2.evaluate(() => {
+      const btns = [...document.querySelectorAll("button")].filter((b) => !b.disabled && /thử|lại|gửi/i.test(b.textContent || ""));
+      return btns.map((b) => (b.textContent || "").trim().slice(0, 40));
+    });
+    record("no live send affordance", ungated.length === 0, JSON.stringify(ungated.slice(0, 4)));
+  }
+  await ctx2.close();
+
   record("no page errors", errors.length === 0, errors.slice(0, 2).join(" | "));
   await ctx.close();
 } finally {
