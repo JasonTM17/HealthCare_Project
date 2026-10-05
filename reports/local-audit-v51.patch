@@ -50,8 +50,8 @@ index 8099426..590521f 100644
 +    ):
 +        return frozenset({"branch"})
      return None
- 
- 
+
+
 @@ -1790,6 +1826,15 @@ _REFUSABLE_CLINICAL_ACTIONS = frozenset({
      "ke don", "ke toa", "boc thuoc", "prescribe", "ngung thuoc",
      "stop medication", "change your medication",
@@ -92,7 +92,7 @@ index 8099426..590521f 100644
 +                ):
                      return True
      return False
- 
+
 diff --git a/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java b/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java
 index 95ab764..1518443 100644
 --- a/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiChatSourceResolver.java
@@ -113,7 +113,7 @@ index 95ab764..1518443 100644
          }
 +        return branchDetailsByIdentity(requestedNumbers, locationAnchors, identityTerms);
 +    }
- 
+
 +    /**
 +     * Scan the live catalog for the already-extracted identity.  Split
 +     * from {@link #branchDetails} so the amenity lane can subtract its own
@@ -150,12 +150,12 @@ index 95ab764..1518443 100644
 +        "wifi", "atm", "rut tien", "can tin", "nha an", "phong cho",
 +        "khu vuc cho", "tien ich",
      };
- 
+
      /**
 @@ -610,6 +632,273 @@ public class AiChatSourceResolver {
          return false;
      }
- 
+
 +    /**
 +     * Amenity groups keyed by the facility a visitor asks about.  Each
 +     * inner array lists the normalized label keywords accepted as that
@@ -436,7 +436,7 @@ index 95ab764..1518443 100644
 +        "bai", "xe", "nha", "thuoc", "wifi", "san", "gan",
          // Connectives and schedule nouns that never name a branch.
          "hay", "phai", "ma", "va", "hoac", "dong", "hoat");
- 
+
 @@ -695,7 +986,13 @@ public class AiChatSourceResolver {
                  .filter(term -> !GENERIC_BRANCH_ATTRIBUTE_TERMS.contains(term))
                  .allMatch(identity::contains);
@@ -450,7 +450,7 @@ index 95ab764..1518443 100644
 +            .filter(term -> !GENERIC_BRANCH_ATTRIBUTE_TERMS.contains(term))
 +            .allMatch(identity::contains);
      }
- 
+
      private boolean branchHasAnyNumber(String normalizedIdentity, Set<Integer> requestedNumbers) {
 @@ -1187,7 +1484,22 @@ public class AiChatSourceResolver {
          ResolvedSource source,
@@ -474,7 +474,7 @@ index 95ab764..1518443 100644
 +        boolean specific,
 +        boolean truncated
      ) { }
- 
+
      private record ReviewHead(
 diff --git a/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiConversationService.java b/apps/backend/src/main/java/com/healthcare/ai/chat/service/AiConversationService.java
 index 0ebec25..b59bd68 100644
@@ -517,7 +517,7 @@ index 0ebec25..b59bd68 100644
 @@ -2059,6 +2065,170 @@ public class AiConversationService {
          return branchDetailsResponse(content, matches);
      }
- 
+
 +    /**
 +     * Answer a facility question ("bãi đậu xe ở đâu?", "có nhà thuốc
 +     * không?") from the live {@code branches.amenities} JSON.  The semantic
@@ -688,7 +688,7 @@ index 0ebec25..b59bd68 100644
 @@ -2069,7 +2239,26 @@ public class AiConversationService {
              ChatMode mode, String content, List<Map<String, String>> turns) {
          if (mode != ChatMode.HOSPITAL_SUPPORT) return null;
- 
+
 -        if (ChatSuggestedActionResolver.classify(content)
 +        ChatSuggestedActionResolver.HospitalSupportIntent supportIntent =
 +            ChatSuggestedActionResolver.classify(content);
@@ -806,7 +806,7 @@ index dc7b583..2d90a92 100644
 +        AMENITY,
          GENERAL
      }
- 
+
 @@ -87,6 +124,9 @@ public final class ChatSuggestedActionResolver {
          // "FAQ về đặt lịch" cannot enter the clinical article/FAQ lane.
          if (containsAny(normalized, BOOKING_TERMS)) return HospitalSupportIntent.BOOKING;
@@ -877,7 +877,7 @@ index 835b574..cc505da 100644
 @@ -974,6 +1002,150 @@ public class PublicAiChatController {
          return false;
      }
- 
+
 +    /**
 +     * Answer a facility question ("bãi đậu xe ở đâu?", "có nhà thuốc
 +     * không?") from the live {@code branches.amenities} JSON.  The semantic
@@ -1073,7 +1073,7 @@ index 6af7940..6f93f4a 100644
 @@ -1017,6 +1020,80 @@ class AiChatContractsTest {
              .doesNotContain("6-8");
      }
- 
+
 +    @Test
 +    void amenityQuestionResolvesFromLiveCatalogBeforeUpstream() {
 +        // "bãi đậu xe" carries no clinical cue after normalization — the
@@ -1200,7 +1200,7 @@ index 22e451a..ab784d9 100644
 --- a/apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java
 +++ b/apps/backend/src/test/java/com/healthcare/ai/AiChatSourceResolverTest.java
 @@ -535,4 +535,275 @@ class AiChatSourceResolverTest {
- 
+
          assertThat(resolver.activeDoctorOverview(4, "da liễu")).isEmpty();
      }
 +
@@ -1504,7 +1504,7 @@ index 3085211..df4f2d4 100644
          when(resolver.citations(List.of(branch))).thenReturn(List.of(
 @@ -231,10 +234,13 @@ class PublicAiChatControllerTest {
      }
- 
+
      @Test
 -    void degradesUngroundedPreparationAnswerToHonestGuidance() {
 +    void degradesUngroundedPackageAnswerToHonestGuidance() {
@@ -1519,13 +1519,13 @@ index 3085211..df4f2d4 100644
              "provenance", "remote_provider",
              "safety_action", "ANSWER",
 @@ -244,7 +250,7 @@ class PublicAiChatControllerTest {
- 
+
          Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
              .chat(new PublicAiChatController.PublicChatRequest(
 -                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
 +                "Gói khám tổng quát gồm những gì?", null))
              .getBody();
- 
+
          assertThat(body)
 @@ -253,19 +259,19 @@ class PublicAiChatControllerTest {
              .containsEntry("citations", List.of())
@@ -1535,20 +1535,20 @@ index 3085211..df4f2d4 100644
 +                "Gói khám tổng quát gồm những gì?"));
          assertThat((String) body.get("answer")).doesNotContain("12 giờ");
      }
- 
+
      @Test
 -    void degradesUnavailableAiForPreparationQuestionToHonestGuidance() {
 +    void degradesUnavailableAiForPackageQuestionToHonestGuidance() {
          AiService aiService = mock(AiService.class);
          when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
              org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "AI service has no verified context"));
- 
+
          Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
              .chat(new PublicAiChatController.PublicChatRequest(
 -                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
 +                "Gói khám tổng quát gồm những gì?", null))
              .getBody();
- 
+
          assertThat(body)
 @@ -274,13 +280,13 @@ class PublicAiChatControllerTest {
              .containsEntry("citations", List.of())
@@ -1559,7 +1559,7 @@ index 3085211..df4f2d4 100644
          assertThat((String) body.get("answer")).contains("tạm thời gián đoạn")
              .doesNotContain("chưa có nguồn đã xác thực");
      }
- 
+
      @Test
 -    void rejectsMalformedPreparationPayloadInsteadOfClaimingAiUnavailable() {
 +    void rejectsMalformedPackagePayloadInsteadOfClaimingAiUnavailable() {
@@ -1567,7 +1567,7 @@ index 3085211..df4f2d4 100644
          when(aiService.chat(any())).thenReturn(Map.of(
              "answer", "Hãy nhịn ăn 12 giờ trước buổi khám.",
 @@ -292,7 +298,7 @@ class PublicAiChatControllerTest {
- 
+
          assertThatThrownBy(() -> new PublicAiChatController(aiService, resolverForSpecialty())
              .chat(new PublicAiChatController.PublicChatRequest(
 -                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null)))
@@ -1576,17 +1576,17 @@ index 3085211..df4f2d4 100644
              .hasMessageContaining("502 BAD_GATEWAY");
      }
 @@ -362,7 +368,7 @@ class PublicAiChatControllerTest {
- 
+
          Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
              .chat(new PublicAiChatController.PublicChatRequest(
 -                "Tôi cần nhịn ăn trước xét nghiệm máu không?", null))
 +                "Gói khám tổng quát có bao gồm xét nghiệm máu không?", null))
              .getBody();
- 
+
          assertThat(body)
 @@ -374,10 +380,10 @@ class PublicAiChatControllerTest {
      }
- 
+
      @Test
 -    void doesNotClaimMissingSourceWhenInsufficientPreparationHasVerifiedCitation() {
 +    void doesNotClaimMissingSourceWhenInsufficientPackageHasVerifiedCitation() {
@@ -1598,13 +1598,13 @@ index 3085211..df4f2d4 100644
              "provenance", "remote_provider",
              "safety_action", "INSUFFICIENT_EVIDENCE",
 @@ -388,7 +394,7 @@ class PublicAiChatControllerTest {
- 
+
          Map<String, Object> body = new PublicAiChatController(aiService, resolverForSpecialty())
              .chat(new PublicAiChatController.PublicChatRequest(
 -                "Cần chuẩn bị gì trước buổi khám tổng quát tại HealthCare?", null))
 +                "Gói khám tổng quát gồm những gì?", null))
              .getBody();
- 
+
          assertThat(body)
 @@ -491,8 +497,10 @@ class PublicAiChatControllerTest {
              "/branches/co-so-2-quan-7", "/dat-lich?branchId=00000000-0000-0000-0000-000000000004");
@@ -2018,7 +2018,7 @@ index ed0d052..bfef327 100644
 @@ -85,6 +85,53 @@ class ChatSuggestedActionResolverTest {
              .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL);
      }
- 
+
 +    @Test
 +    void routesFacilityQuestionsToAmenityIntent() {
 +        // "đậu" (to park) and "nhà thuốc" (pharmacy storefront) normalize
