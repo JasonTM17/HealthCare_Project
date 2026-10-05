@@ -68,7 +68,7 @@ public class AfterCommitEmailSender {
                 sender.sendRich(recipient, rendered.subject(), rendered.htmlBody(), rendered.plainTextBody());
             } catch (RuntimeException exception) {
                 log.warn("Best-effort API email delivery failed (template path, recipient={}) cause={}",
-                    recipient, exception.getClass().getSimpleName());
+                    ApiEmailSender.maskRecipient(recipient), exception.getClass().getSimpleName());
             }
             return;
         }

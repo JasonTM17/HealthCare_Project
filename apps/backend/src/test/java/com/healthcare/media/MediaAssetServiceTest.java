@@ -84,7 +84,7 @@ class MediaAssetServiceTest {
     void uploadImage_successWithValidJpeg() throws Exception {
         byte[] jpegBytes = new byte[] { (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0, 0, 0, 0 };
         MockMultipartFile file = new MockMultipartFile("file", "article_cover.jpg", "image/jpeg", jpegBytes);
-        UserDetails user = new User("patient@healthcare.local", "secret", Collections.singletonList(new SimpleGrantedAuthority("ROLE_PATIENT")));
+        UserDetails user = new User("admin@healthcare.local", "secret", Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN")));
 
         UUID assetId = UUID.randomUUID();
         when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
@@ -266,5 +266,43 @@ class MediaAssetServiceTest {
 
         assertThat(response.id()).isEqualTo(assetId);
         verify(mediaAssetRepository).saveAndFlush(any(MediaAsset.class));
+    }
+
+    @Test
+    void uploadImage_rejectsPatientClaimingCatalogFacingPurposes() {
+        byte[] pngBytes = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile("file", "forged.png", "image/png", pngBytes);
+        UserDetails patient = principal("patient@healthcare.local", "PATIENT");
+
+        for (String purpose : new String[] {"DOCTOR_PORTRAIT", "ARTICLE_COVER", "GENERAL"}) {
+            assertThatThrownBy(() -> mediaAssetService.uploadImage(file, purpose, patient))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                    assertThat(exception.getStatus()).isEqualTo(403))
+                .hasMessageContaining("mục đích");
+        }
+        verify(mediaAssetRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void uploadImage_allowsPatientAvatarPurpose() throws Exception {
+        com.healthcare.user.entity.User entity = entityUser("patient@healthcare.local");
+        when(userRepository.findByEmail("patient@healthcare.local")).thenReturn(Optional.of(entity));
+        when(mediaAssetRepository.countByUploaderIdAndCreatedAtAfter(eq(entity.getId()), any()))
+            .thenReturn(0L);
+        UUID assetId = UUID.randomUUID();
+        when(mediaAssetRepository.saveAndFlush(any(MediaAsset.class))).thenAnswer(invocation -> {
+            MediaAsset asset = invocation.getArgument(0);
+            asset.setId(assetId);
+            return asset;
+        });
+
+        byte[] pngBytes = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0};
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", pngBytes);
+
+        MediaAssetResponse response =
+            mediaAssetService.uploadImage(file, "PATIENT_AVATAR", principal("patient@healthcare.local", "PATIENT"));
+
+        assertThat(response.id()).isEqualTo(assetId);
+        assertThat(response.purpose()).isEqualTo("PATIENT_AVATAR");
     }
 }

@@ -108,7 +108,7 @@ function CmsContentBody({
     case "IMAGE_CARD":
       return (
         <article className="cms-renderer cms-renderer--image-card">
-          <SafeImage alt={content.payload.title} src={content.payload.imageUrl} />
+          {content.payload.imageUrl ? <SafeImage alt={content.payload.title} src={content.payload.imageUrl} /> : null}
           <div className="cms-renderer__content">
             <CmsTitle headingLevel={headingLevel}>{content.payload.title}</CmsTitle>
             {content.payload.body ? <p className="cms-renderer__body">{content.payload.body}</p> : null}

@@ -4,8 +4,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
   changePassword,
+  deleteMediaAsset,
   fetchDoctorProfile,
   hasRole,
+  mediaAssetIdFromUrl,
   updateDoctorProfile,
 } from "../../../lib/api-client";
 import type { Doctor } from "../../../types/hospital";
@@ -104,12 +106,21 @@ export default function DoctorProfilePage() {
     e.preventDefault();
     setSavingProfile(true);
     try {
+      const previousPhotoUrl = profile?.photoUrl ?? "";
       const updated = await updateDoctorProfile({
         bio: bio.trim(),
         achievements: achievements.trim(),
         photoUrl: photoUrl.trim() || undefined,
       });
       setProfile(updated);
+      // Persisted portrait changed → the previous media asset is now
+      // unreferenced. Best-effort cleanup after commit.
+      const orphanedId = previousPhotoUrl !== (updated.photoUrl ?? "")
+        ? mediaAssetIdFromUrl(previousPhotoUrl)
+        : null;
+      if (orphanedId) {
+        deleteMediaAsset(orphanedId).catch(() => undefined);
+      }
       showToast({
         tone: "success",
         title: "Đã lưu hồ sơ thành công",

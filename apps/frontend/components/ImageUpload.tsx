@@ -31,12 +31,17 @@ export default function ImageUpload({
   helperText = `Hỗ trợ định dạng PNG, JPG, WEBP (Tối đa ${MAX_UPLOAD_LABEL})`,
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // In-flight guard: drop/file-input handlers can fire while a previous
+  // upload is still running; without this a double-drop starts two uploads
+  // and the losing asset is orphaned server-side.
+  const inFlightRef = useRef(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [imageError, setImageError] = useState(false);
 
   const handleProcessFile = async (file: File) => {
+    if (inFlightRef.current) return;
     if (!MEDIA_UPLOADS_ENABLED) {
       setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
       return;
@@ -53,6 +58,7 @@ export default function ImageUpload({
 
     setError(null);
     setImageError(false);
+    inFlightRef.current = true;
     setUploading(true);
 
     try {
@@ -67,6 +73,7 @@ export default function ImageUpload({
           : "Tải ảnh lên máy chủ thất bại.",
       );
     } finally {
+      inFlightRef.current = false;
       setUploading(false);
     }
   };

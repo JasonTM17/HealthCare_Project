@@ -1313,7 +1313,19 @@ export function htmlToMarkdown(html: string): string {
   md = md.replace(/<hr[^>]*\/?>/gi, "\n\n---\n\n");
 
   // Underline: preserved as inline HTML behind sentinels, because the toolbar
-  // offers it and markdown has no syntax for it.
+  // offers it and markdown has no syntax for it. Pasted Word content and
+  // style-normalized editor output carry underline as <ins> or an inline
+  // style instead of <u>, so normalize those first or the emphasis silently
+  // drops on save.
+  md = md.replace(/<ins\b[^>]*>([\s\S]*?)<\/ins>/gi, "<u>$1</u>");
+  md = md.replace(
+    /<span\b[^>]*style\s*=\s*"[^"]*text-decoration[^"]*underline[^"]*"[^>]*>([\s\S]*?)<\/span>/gi,
+    "<u>$1</u>"
+  );
+  md = md.replace(
+    /<span\b[^>]*style\s*=\s*'[^']*text-decoration[^']*underline[^']*'[^>]*>([\s\S]*?)<\/span>/gi,
+    "<u>$1</u>"
+  );
   md = md.replace(/<u(?:\s[^>]*)?>([\s\S]*?)<\/u>/gi, `${UNDERLINE_OPEN}$1${UNDERLINE_CLOSE}`);
 
   // Inline formatting

@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -141,6 +142,14 @@ public class MediaAssetService {
                 .orElse("USER");
         }
 
+        // Every stored asset is publicly retrievable by id, so the only
+        // purpose a patient may claim is their own avatar — anything else
+        // would let a patient publish arbitrary images under the clinic
+        // domain labeled as catalog content.
+        if ("PATIENT".equals(uploaderRole) && !"PATIENT_AVATAR".equals(normalizedPurpose)) {
+            throw new BusinessException(403, "Bạn không có quyền tải ảnh cho mục đích này.");
+        }
+
         // Quota runs before the bytes are buffered and before any row is
         // written: with the object store disabled an accepted upload persists
         // the image inline in Postgres, so an unbounded uploader could exhaust
@@ -225,6 +234,39 @@ public class MediaAssetService {
             throw exception;
         } catch (Exception exception) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Kho media chưa sẵn sàng.");
+        }
+    }
+
+    /**
+     * Deletes an owned asset row and its object. Without a lifecycle path,
+     * every "change/remove" in the upload widgets orphans the previous asset
+     * forever. Only the uploader or an administrator may delete; callers are
+     * responsible for not deleting assets still referenced by saved content.
+     */
+    @Transactional
+    public void deleteMedia(UUID id, UserDetails userDetails) {
+        MediaAsset asset = mediaAssetRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Tệp hình ảnh không tồn tại hoặc đã bị xóa khỏi hệ thống."));
+        boolean admin = userDetails != null && userDetails.getAuthorities().stream()
+            .map(GrantedAuthority::getAuthority)
+            .anyMatch("ROLE_ADMIN"::equals);
+        UUID requesterId = userDetails == null ? null
+            : userRepository.findByEmail(userDetails.getUsername()).map(User::getId).orElse(null);
+        if (!admin && (requesterId == null || !requesterId.equals(asset.getUploaderId()))) {
+            throw new AccessDeniedException("Bạn không có quyền xóa tệp hình ảnh này.");
+        }
+        mediaAssetRepository.delete(asset);
+        String objectKey = asset.getObjectKey();
+        if (objectKey != null && !objectKey.isBlank()
+                && fileStorageService != null && fileStorageService.isUploadEnabled()) {
+            try {
+                fileStorageService.deletePublicMedia(objectKey);
+            } catch (Exception cleanupFailure) {
+                // The row is gone; a stranded object is retrievable only by an
+                // operator sweep — log and move on rather than resurrecting the
+                // metadata the caller just deleted.
+                log.warn("Media asset {} deleted but object cleanup failed for key {}", id, objectKey);
+            }
         }
     }
 
