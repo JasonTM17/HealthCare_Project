@@ -67,5 +67,29 @@
       "resolution": "46 env vars restored per-var via PUT /env-vars/{key}; sources: ai-service env (SUPABASE_DB_URL, tokens), redis connection-info, local .env (JWT/BFF/origins), render.yaml literals; redeploy live dep-db1bfhm0tbcc73adl0h0",
       "followup": "Vercel BACKEND_BFF_SERVICE_TOKEN/BACKEND_INTERNAL_URL/BFF_PUBLIC_ORIGIN synced to same values; BFF chain verified end-to-end"
     }
+  ],
+  "post_release_fixes": [
+    {
+      "commit": "de653e8",
+      "digest_commit": "5e6bafb",
+      "backend_image": "ghcr.io/jasontm17/healthcare-project-backend@sha256:09f6e26e936684c7ab2c0fb4ceba54fb6bb985593dfbe6286329d778b2834d51",
+      "render_deploy": "dep-db1fj15g1s2s739v1dd0",
+      "vercel_deploy": "dpl_EtZGP4Tc2ndzQw6dAgdw8nB6fY2a",
+      "ci_run": "37249425301",
+      "publish_run": "37250069656",
+      "fixes": [
+        "sanitize() used_sources exact-echo gated to safety_action=ANSWER — non-ANSWER replies (INSUFFICIENT/REFUSE/HANDOFF) with used_sources=[] no longer 502",
+        "HOSPITAL_SUPPORT greeting safetyAction INSUFFICIENT_EVIDENCE -> ANSWER (stops false 'not an AI answer' retry banner on greetings)",
+        "browser /messages lane timeout 28s -> 33s (matches BFF 30s patient budget pairing)"
+      ],
+      "prod_verify": {
+        "patient_greeting": "200 ANSWER local_fallback (was INSUFFICIENT retry card)",
+        "patient_symptom": "200 ANSWER remote_provider 18.1s (was 502 AI_RESPONSE_INVALID)",
+        "patient_branch": "200 ANSWER local_fallback grounded",
+        "public_greeting": "200 ANSWER 0.65s",
+        "public_branch": "200 ANSWER 0.47s grounded",
+        "public_med_safety": "200 REFUSE 0.42s"
+      }
+    }
   ]
 }
