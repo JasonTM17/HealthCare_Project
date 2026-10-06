@@ -154,6 +154,30 @@ class ArticleBodySanitizerTest {
     }
 
     @Test
+    void keepsEventHandlerLookingTextOutsideTags() {
+        // Regression pin (wave-14 F6): the handler pass used to run on the
+        // whole body, so a stored markdown link or URL path containing
+        // "/onload=x" — or prose "nút onkey = bật" — was silently truncated
+        // as soon as any "<" elsewhere put the string through the scrub.
+        String body = "<p>Lưu ý.</p> [hướng dẫn](https://ex.com/onload=a/y) "
+            + "và nút onkey = bật đều là văn bản thường.";
+
+        assertThat(ArticleBodySanitizer.sanitize(body)).isEqualTo(body);
+        assertThat(ArticleBodySanitizer.containsExecutableContent(body)).isFalse();
+    }
+
+    @Test
+    void stillStripsEventHandlersInsideTags() {
+        String stored = ArticleBodySanitizer.sanitize(
+            "<figure><img src=\"/media/x.png\" onerror=\"alert(1)\" onload=go()></figure>");
+
+        assertThat(stored).doesNotContain("onerror");
+        assertThat(stored).doesNotContain("onload");
+        assertThat(stored).contains("<img src=\"/media/x.png\"");
+        assertThat(ArticleBodySanitizer.containsExecutableContent(stored)).isFalse();
+    }
+
+    @Test
     void stillRemovesTheOriginalCarriers() {
         // The denylist grew; nothing that was already on it may have moved.
         String stored = ArticleBodySanitizer.sanitize(

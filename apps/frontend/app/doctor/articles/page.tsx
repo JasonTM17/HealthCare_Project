@@ -35,6 +35,7 @@ import { RichContentRenderer, RichTextEditor, toStoredArticleBody } from "../../
 import { hasUnresolvedInlineUpload } from "../../../components/editor/RichContentRenderer";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../../lib/article-visuals";
+import { normalizedPublicImageUrl, PUBLIC_IMAGE_URL_MESSAGE } from "../../../lib/media-uploads";
 
 // Mirrors the backend ArticleRequest cap. The editor emits HTML, which is far
 // larger than the markdown that gets stored, so the guard runs against the
@@ -337,6 +338,16 @@ export default function DoctorArticlesPage() {
       return;
     }
 
+    // The cover renders on the public site under the page CSP, so an
+    // arbitrary https URL would save successfully and then display as a
+    // permanently broken image. Gate it on the same allowlist the inline
+    // image dialog uses; "" clears the stored cover (editor review F9).
+    const normalizedCover = normalizedPublicImageUrl(coverImageUrl);
+    if (normalizedCover === null) {
+      setError(`Ảnh bìa không hợp lệ. ${PUBLIC_IMAGE_URL_MESSAGE}`);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -352,7 +363,7 @@ export default function DoctorArticlesPage() {
       body: storedBody,
       // An empty string clears the stored cover server-side (trimToNull);
       // omitting the key would silently keep the old asset referenced.
-      coverImageUrl: coverImageUrl.trim(),
+      coverImageUrl: normalizedCover,
       active,
     };
 

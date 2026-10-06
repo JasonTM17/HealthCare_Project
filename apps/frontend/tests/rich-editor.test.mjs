@@ -242,11 +242,21 @@ test("parseMarkdownBlocks supports multi-line indented continuation list items a
 test("RichTextEditor insert dialogs validate URLs, escape HTML, and restore the TinyMCE selection", async () => {
   const editor = await read("components/editor/RichTextEditor.tsx");
 
-  // The link/image dialogs share one scheme allowlist (http(s) or
-  // root-relative) instead of interpolating whatever was typed.
+  // The link dialog keeps the scheme allowlist (http(s) or root-relative);
+  // the image dialog layers a CSP `img-src` host allowlist on top so a URL
+  // cannot be inserted that the public page would refuse to load
+  // (editor deep-review wave-14 F3).
   assert.match(editor, /function normalizedInsertUrl\(/);
+  assert.match(editor, /function normalizedInsertImageUrl\(/);
   assert.match(editor, /normalizedInsertUrl\(linkUrl\)/);
-  assert.match(editor, /normalizedInsertUrl\(imageUrl\)/);
+  assert.match(editor, /normalizedInsertImageUrl\(imageUrl\)/);
+  assert.match(editor, /normalizedPublicImageUrl/);
+
+  // Opening the dialog over a selected <img>/<figure> replaces that node's
+  // attributes instead of inserting a second image next to it (wave-14 F4).
+  assert.match(editor, /selectedTinyImageRef/);
+  assert.match(editor, /setAttribs\(selectedImage/);
+  assert.match(editor, /selectedImage\.isConnected/);
 
   // href/src/alt/caption are escaped before they reach insertContent, reusing
   // the renderer's helpers rather than a second escaping implementation.
@@ -602,8 +612,14 @@ test("RichTextEditor derives statistics and Markdown source from markup-free con
   assert.match(editor, /const readingMinutes = Math\.max\(1, Math\.ceil\(wordCount \/ 180\)\)/);
 
   // The TinyMCE text-format override that raced with the reading-minutes
-  // effect is gone: one stats pipeline only.
-  assert.doesNotMatch(editor, /getContent\(\{\s*format:\s*"text"\s*\}\)/);
+  // effect is gone: the stats pipeline derives from safeValue only. (The
+  // code-block insert may still read the selection as text — a different,
+  // legitimate use pinned separately.)
+  const statsRegion = editor.slice(
+    editor.indexOf("const plainSource"),
+    editor.indexOf("const charCount"),
+  );
+  assert.doesNotMatch(statsRegion, /getContent/);
 
   // Entering a textarea mode converts an HTML draft to Markdown exactly once,
   // guarded by the previous-viewMode ref and recorded in undo history.

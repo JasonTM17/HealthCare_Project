@@ -1350,7 +1350,12 @@ export function htmlToMarkdown(html: string): string {
   md = md.replace(/<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/gi, "*$1*");
   md = md.replace(/<(?:del|s|strike)[^>]*>([\s\S]*?)<\/(?:del|s|strike)>/gi, "~~$1~~");
   md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, "`$1`");
-  md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
+  // Link destinations run through the same paren escaping as image URLs:
+  // a literal ")" in the href truncated the stored link at the first close
+  // paren on the next parse (editor deep-review wave-14 F5).
+  md = md.replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi,
+    (_m, href: string, text: string) =>
+      `[${toMarkdownLinkText(text)}](${toMarkdownImageUrl(href)})`);
   // Figures: the editor's own image modal emits <figure><img><figcaption>.
   // Without this rule the tags were stripped and the caption survived as loose
   // text glued to the next paragraph. The caption round-trips as an italic line
@@ -1402,12 +1407,27 @@ export function htmlToMarkdown(html: string): string {
  * author can still be told what is happening, and it is safe for input that is
  * already markdown because the HTML test only matches a real block-level tag.
  */
+/**
+ * True when a stored draft is an HTML document rather than markdown.
+ *
+ * Real TinyMCE output always opens on a tag (`<p>` first), so the check is
+ * anchored at the document start: a fenced code sample or prose that merely
+ * *contains* "<div>" mid-document keeps the markdown conversion path, and a
+ * legacy HTML body that opens on any catalogued tag — including the figure,
+ * media and structural tags the older contains-anywhere check missed —
+ * still round-trips (editor deep-review wave-14 F1).
+ */
+const HTML_DOCUMENT_START_PATTERN =
+  /^\s*<(?:p|div|h[1-6]|table|ul|ol|blockquote|figure|figcaption|pre|hr|img|section|article|details|summary|strong|em|a|span|video|audio)\b[^>]*>/i;
+
+export function looksLikeHtmlDocument(content: string): boolean {
+  return HTML_DOCUMENT_START_PATTERN.test(content ?? "");
+}
+
 export function toStoredArticleBody(content: string): string {
   const value = content ?? "";
   if (!value.trim()) return "";
-  return /<(?:p|div|h[1-6]|table|ul|ol|blockquote|figure|span|strong|em|a|img)\b[^>]*>/i.test(value)
-    ? htmlToMarkdown(value)
-    : value.trim();
+  return looksLikeHtmlDocument(value) ? htmlToMarkdown(value) : value.trim();
 }
 
 /**
@@ -1508,7 +1528,11 @@ function markdownListToHtml(
  */
 export function markdownToHtml(md: string): string {
   if (!md || !md.trim()) return "";
-  if (/<(?:p|div|h[1-6]|table|ul|ol|blockquote)[^>]*>/i.test(md)) {
+  // HTML drafts pass through only when the document opens on a tag —
+  // contains-anywhere let a fenced code sample holding "<div>" feed raw
+  // markdown into TinyMCE, and the old list also missed figure/pre/hr/img
+  // documents entirely (editor deep-review wave-14 F1).
+  if (looksLikeHtmlDocument(md)) {
     return md;
   }
 

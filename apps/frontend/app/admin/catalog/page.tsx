@@ -29,6 +29,7 @@ import {
 } from "../../../lib/api-client";
 import { RichTextEditor, toStoredArticleBody } from "../../../components/editor";
 import { hasUnresolvedInlineUpload } from "../../../components/editor/RichContentRenderer";
+import { normalizedPublicImageUrl, PUBLIC_IMAGE_URL_MESSAGE } from "../../../lib/media-uploads";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
 import { useSortableList } from "../../../lib/useSortableList";
 import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
@@ -878,6 +879,16 @@ export default function AdminCatalogPage() {
       return;
     }
 
+    // Same public-CSP gate as the doctor editor: an off-allowlist cover saves
+    // fine and then renders broken forever (editor deep-review wave-14 F9).
+    const normalizedCover = normalizedPublicImageUrl(articleForm.coverImageUrl);
+    if (normalizedCover === null) {
+      const msg = `Ảnh bìa không hợp lệ. ${PUBLIC_IMAGE_URL_MESSAGE}`;
+      setFeedback({ tone: "error", title: "Ảnh bìa không hợp lệ", description: msg });
+      addToast({ tone: "error", title: "Ảnh bìa không hợp lệ", message: msg });
+      return;
+    }
+
     const payload: AdminArticlePayload = {
       title: articleForm.title.trim(),
       slug: finalSlug,
@@ -888,7 +899,7 @@ export default function AdminCatalogPage() {
       readingMinutes,
       relatedSpecialtySlug: articleForm.relatedSpecialtySlug.trim() || null,
       contentKind: articleForm.contentKind,
-      coverImageUrl: articleForm.coverImageUrl.trim() || null,
+      coverImageUrl: normalizedCover || null,
       seoTitle: articleForm.seoTitle.trim() || null,
       seoDescription: articleForm.seoDescription.trim() || null,
       tags: listFieldTo(articleForm.tags),
