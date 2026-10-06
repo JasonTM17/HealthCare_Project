@@ -64,7 +64,7 @@ function extractConverters() {
   const factory = new Function("exports", "module", `${outputText}
     return { htmlToMarkdown, markdownToHtml, toStoredArticleBody,
       toMarkdownImageAlt, toMarkdownImageUrl, toMarkdownLinkText,
-      hasUnresolvedInlineUpload };`);
+      hasUnresolvedInlineUpload, looksLikeHtmlDocument };`);
   const moduleShim = { exports: {} };
   return factory(moduleShim.exports, moduleShim);
 }
@@ -83,7 +83,7 @@ function findFunctionEnd(text, from) {
   return text.length;
 }
 
-const { htmlToMarkdown, markdownToHtml, toStoredArticleBody, toMarkdownImageAlt, toMarkdownImageUrl, toMarkdownLinkText, hasUnresolvedInlineUpload } = extractConverters();
+const { htmlToMarkdown, markdownToHtml, toStoredArticleBody, toMarkdownImageAlt, toMarkdownImageUrl, toMarkdownLinkText, hasUnresolvedInlineUpload, looksLikeHtmlDocument } = extractConverters();
 
 // -- C4: underline ---------------------------------------------------------------
 
@@ -489,4 +489,44 @@ test("R4 a checklist source line degrades to a visible marker, not '[ ]'", () =>
   assert.ok(html.includes("☐ Tái khám sau 2 tuần"), html);
   assert.ok(html.includes("☑ Uống đủ nước"), html);
   assert.ok(!html.includes("[ ]"), html);
+});
+
+// -- wave-14 editor deep-review: F1 HTML-vs-markdown detection --------------------
+
+test("F1 markdown containing <div> inside a fenced code block stays markdown", () => {
+  const md = "Giải thích trước.\n\n```html\n<div class=\"x\">ví dụ</div>\n```\n\nSau code.";
+  // Before the anchored check, the contains-anywhere heuristic treated the
+  // document as HTML and passed the fences through verbatim.
+  assert.equal(toStoredArticleBody(md), md, "markdown with a fenced <div> was rewritten");
+  const html = markdownToHtml(md);
+  assert.ok(html.includes("&lt;div"), `fenced markup not escaped: ${html}`);
+  assert.doesNotMatch(html, /^```/, "fence marker leaked into rendered html");
+});
+
+test("F1 prose that merely contains a tag mid-sentence is not an HTML document", () => {
+  const md = "Ghi nhớ: <div> và <p> đều là thẻ block trong HTML.";
+  assert.equal(toStoredArticleBody(md), md);
+});
+
+test("F1 legacy HTML opening on figure/pre/hr/img still counts as a document", () => {
+  assert.ok(looksLikeHtmlDocument("<figure><img src=\"/m/a.png\"></figure>"));
+  assert.ok(looksLikeHtmlDocument("<pre>x</pre>"));
+  assert.ok(looksLikeHtmlDocument("<hr>"));
+  assert.ok(looksLikeHtmlDocument("<img src=\"/m/a.png\">"));
+  assert.ok(looksLikeHtmlDocument("  <p>indent</p>"));
+});
+
+test("F1 a stored <figure> doc re-opens instead of being markdown-escaped", () => {
+  const html = markdownToHtml("<figure><img src=\"/media/x.png\"></figure>");
+  assert.ok(html.includes("<figure"), `figure escaped as text: ${html}`);
+});
+
+// -- wave-14 editor deep-review: F5 link destinations with ')' ---------------------
+
+test("F5 a link href containing a literal ')' escapes like an image URL", () => {
+  const md = htmlToMarkdown('<p><a href="/media/tailieu(v2).pdf">tài liệu</a></p>');
+  assert.ok(md.includes("(/media/tailieu%28v2%29.pdf)"), `unescaped href: ${md}`);
+  const html = markdownToHtml(md);
+  assert.ok(html.includes("/media/tailieu%28v2%29.pdf")
+    || html.includes("/media/tailieu(v2).pdf"), `truncated href: ${html}`);
 });

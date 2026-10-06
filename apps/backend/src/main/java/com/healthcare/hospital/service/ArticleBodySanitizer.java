@@ -44,9 +44,17 @@ final class ArticleBodySanitizer {
             + "|svg|math|template|noscript|xmp|plaintext|textarea|title)"
             + "\\b[^>]*>");
 
-    /** Inline event handlers. HTML5 accepts "/" as an attribute separator too. */
+    /**
+     * Inline event handlers, scoped to an actual tag span. The previous
+     * whole-body pattern also removed legitimate text — a URL path segment
+     * like "/onload=x" or prose "turns onkey = v" was silently stripped
+     * from stored markdown (editor deep-review wave-14 F6). Requiring an
+     * open tag name before the attribute keeps the scrub inside markup;
+     * the fixed-point loop handles several handlers on one tag. HTML5
+     * accepts "/" as an attribute separator too.
+     */
     private static final Pattern EVENT_HANDLER = Pattern.compile(
-        "(?is)[\\s/]+on[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)");
+        "(?is)(<[a-z][^>]*?)[\\s/]+on[a-z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)");
 
     /**
      * Script-bearing URL schemes in any attribute. Browsers strip tab, newline
@@ -112,7 +120,7 @@ final class ArticleBodySanitizer {
             if (previous.indexOf('<') >= 0) {
                 cleaned = DANGEROUS_BLOCK.matcher(previous).replaceAll("");
                 cleaned = DANGEROUS_VOID.matcher(cleaned).replaceAll("");
-                cleaned = EVENT_HANDLER.matcher(cleaned).replaceAll("");
+                cleaned = EVENT_HANDLER.matcher(cleaned).replaceAll("$1");
                 cleaned = SCRIPT_URL.matcher(cleaned).replaceAll("$1=\"#\"");
                 cleaned = CSS_ESCAPE.matcher(cleaned).replaceAll("");
             }

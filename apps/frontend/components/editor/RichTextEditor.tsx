@@ -25,7 +25,11 @@ import RichContentRenderer, {
   toMarkdownLinkText,
 } from "./RichContentRenderer";
 import { uploadMediaAsset, ApiError } from "../../lib/api-client";
-import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../../lib/media-uploads";
+import {
+  MEDIA_UPLOADS_DISABLED_MESSAGE,
+  MEDIA_UPLOADS_ENABLED,
+  normalizedPublicImageUrl,
+} from "../../lib/media-uploads";
 import { presentApiError } from "../../lib/present-api-error";
 
 const TinyEditor = dynamic<IAllProps>(
@@ -79,6 +83,16 @@ function normalizedInsertUrl(url: string): string | null {
   if (!trimmed || trimmed.startsWith("//") || trimmed.includes("\\")) return null;
   if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("/")) return trimmed;
   return null;
+}
+
+// The CSP `img-src` allowlist and shared gate live in lib/media-uploads.ts
+// so the cover-image fields enforce the same policy (editor deep-review
+// wave-14 F3/F9). An arbitrary https URL inserts fine here and then renders
+// as a permanently dead image on the public page — the dialog must refuse
+// what the CSP will block.
+function normalizedInsertImageUrl(url: string): string | null {
+  const normalized = normalizedPublicImageUrl(url);
+  return normalized === "" ? null : normalized;
 }
 
 /**
@@ -314,6 +328,10 @@ export function RichTextEditor({
   // of landing at a stale caret. The textarea path uses savedSelectionRef and
   // is deliberately untouched.
   const tinyBookmarkRef = useRef<TinyMCEBookmark | null>(null);
+  // When the image dialog opens over a selected <img>/<figure>, the submit
+  // updates that node's src/alt instead of inserting a second figure
+  // (editor deep-review wave-14 F4).
+  const selectedTinyImageRef = useRef<HTMLElement | null>(null);
 
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -1066,13 +1084,33 @@ export function RichTextEditor({
     setShowLinkModal(true);
   }, [disabled, viewMode, safeValue]);
 
-  // Open Image modal preserving current selection range
+  // Open Image modal preserving current selection range. Opening over an
+  // existing <img>/<figure> pre-fills the dialog and turns submit into a
+  // replace; every other open starts blank (previously stale values leaked
+  // between opens).
   const handleOpenImageModal = useCallback(() => {
     if (disabled || viewMode === "preview") return;
     tinyBookmarkRef.current = null;
+    selectedTinyImageRef.current = null;
+    setImageUrl("");
+    setImageAlt("");
+    setImageUploadError(null);
     if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
+      const editor = tinyEditorInstanceRef.current;
       try {
-        tinyBookmarkRef.current = tinyEditorInstanceRef.current.selection.getBookmark();
+        tinyBookmarkRef.current = editor.selection.getBookmark();
+        const node = editor.selection.getNode();
+        const img =
+          node?.nodeName === "IMG"
+            ? (node as HTMLElement)
+            : node?.nodeName === "FIGURE"
+              ? node.querySelector("img")
+              : null;
+        if (img) {
+          selectedTinyImageRef.current = img as HTMLElement;
+          setImageUrl(img.getAttribute("src") ?? "");
+          setImageAlt(img.getAttribute("alt") ?? "");
+        }
       } catch {
         tinyBookmarkRef.current = null;
       }
@@ -1237,26 +1275,39 @@ export function RichTextEditor({
 
   // Image dialog submit (restores exact saved selection range)
   const handleInsertImage = () => {
-    const src = normalizedInsertUrl(imageUrl);
+    const src = normalizedInsertImageUrl(imageUrl);
     if (!src) {
-      setImageUploadError("Đường dẫn ảnh không hợp lệ. Chỉ chấp nhận liên kết http://, https:// hoặc đường dẫn nội bộ bắt đầu bằng \"/\".");
+      setImageUploadError("Đường dẫn ảnh không hợp lệ hoặc không được CSP cho phép. Chỉ chấp nhận đường dẫn nội bộ bắt đầu bằng \"/\", hoặc ảnh https từ images.unsplash.com, images.pexels.com, img.vietqr.io.");
       return;
     }
     if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
       const editor = tinyEditorInstanceRef.current;
       const bookmark = tinyBookmarkRef.current;
       tinyBookmarkRef.current = null;
-      if (bookmark) {
-        try {
-          editor.selection.moveToBookmark(bookmark);
-        } catch {
-          // See handleInsertLink: a stale bookmark falls back to the caret.
-        }
-      }
+      const selectedImage = selectedTinyImageRef.current;
+      selectedTinyImageRef.current = null;
       const alt = imageAlt.trim() || "Hình ảnh y khoa";
-      editor.insertContent(
-        `<figure style="margin: 14px 0; text-align: center;"><img src="${escapeHtmlAttribute(src)}" alt="${escapeHtmlAttribute(alt)}" style="max-width: 100%; border-radius: 4px;" /><figcaption style="font-size: 12px; color: #64748b; font-style: italic; margin-top: 6px;">${escapeHtmlText(alt)}</figcaption></figure><p>&nbsp;</p>`
-      );
+      // Replace path: the dialog opened on an <img> that is still in the
+      // document, so updating src/alt keeps the author's figure (and its
+      // caption) instead of dropping a second image next to it.
+      if (selectedImage && selectedImage.isConnected) {
+        editor.dom.setAttribs(selectedImage, { src, alt });
+        const figure = editor.dom.getParent(selectedImage, "figure");
+        const caption = figure?.querySelector("figcaption");
+        if (caption) caption.textContent = alt;
+        editor.nodeChanged();
+      } else {
+        if (bookmark) {
+          try {
+            editor.selection.moveToBookmark(bookmark);
+          } catch {
+            // See handleInsertLink: a stale bookmark falls back to the caret.
+          }
+        }
+        editor.insertContent(
+          `<figure style="margin: 14px 0; text-align: center;"><img src="${escapeHtmlAttribute(src)}" alt="${escapeHtmlAttribute(alt)}" style="max-width: 100%; border-radius: 4px;" /><figcaption style="font-size: 12px; color: #64748b; font-style: italic; margin-top: 6px;">${escapeHtmlText(alt)}</figcaption></figure><p>&nbsp;</p>`
+        );
+      }
       setShowImageModal(false);
       setImageAlt("");
       setImageUrl("");
@@ -1441,8 +1492,13 @@ export function RichTextEditor({
   const handleInsertCodeBlock = () => {
     if (viewMode === "tinymce" && tinyEditorInstanceRef.current) {
       const editor = tinyEditorInstanceRef.current;
-      const sel = editor.selection.getContent() || "// Nội dung định dạng kỹ thuật hoặc bảng mã y khoa";
-      editor.insertContent(`<pre><code>${sel}</code></pre><p>&nbsp;</p>`);
+      // Text, not HTML: the default getContent() format embeds the selected
+      // markup inside <code> where it renders as live elements instead of
+      // literal source (editor deep-review wave-14 F7).
+      const sel =
+        editor.selection.getContent({ format: "text" }) ||
+        "// Nội dung định dạng kỹ thuật hoặc bảng mã y khoa";
+      editor.insertContent(`<pre><code>${escapeHtmlText(sel)}</code></pre><p>&nbsp;</p>`);
       return;
     }
     const textarea = textareaRef.current;
