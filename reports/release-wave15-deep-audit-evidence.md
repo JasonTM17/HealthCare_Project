@@ -92,3 +92,13 @@ Prior live image: `2bc95c64` (from `6d45082`, Supabase REST document store).
 | Review snapshot drift | — | Reviews were run against older frozen packets; all findings re-verified against current source before fixing |
 
 Tests after fixes: `DocumentServiceTest` 34/34, `DocumentObjectCleanupServiceTest` 4/4 (new TOCTOU regression pin), booking/appointment suite batch 174/174.
+
+## Hardening round-2 deployment — COMPLETED
+
+| Step | Evidence |
+|---|---|
+| CI `4962565` + `42e9a83` | success (`37513668477`, `37513697998`) |
+| Publish | `37516305087` — backend `sha256:33f9956c4b7591d8ab2c616d77b355f090f4533d5c04a199e1373101233c776d` from `42e9a83` |
+| Pin | `9e91f56` — render.yaml + mirror + contract test (8/8) |
+| Deploy | `dep-db2kfch42hec738r8qr0` → **live**, health 200 |
+| Live verify (new image) | login 200 · `generationConfigured:true` · 4/4 AVAILABLE · download sha256 **byte-exact** |
