@@ -24,6 +24,8 @@ import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import jakarta.persistence.EntityManager;
@@ -54,6 +56,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     public static final String TARGET_DOCUMENT = "DOCUMENT";
     public static final String ACTION_GENERATE = "GENERATE";
@@ -152,7 +156,12 @@ public class DocumentService {
 
         String idempotencyKey = buildIdempotencyKey(snapshot);
         PatientDocument existing = documentRepository.findByIdempotencyKey(idempotencyKey).orElse(null);
-        if (existing != null && existing.getStatus() != DocumentStatus.FAILED) {
+        // FAILED rows retry in place below; an orphaned committed PENDING row
+        // (unreachable through the current flush+finalize transaction but
+        // possible via legacy/manual data) takes the same path — treating it
+        // as idempotent would permanently brick this source.
+        if (existing != null && existing.getStatus() != DocumentStatus.FAILED
+                && existing.getStatus() != DocumentStatus.PENDING) {
             // Idempotent regeneration: same key returns the same row and never
             // writes a second object.
             auditService.record(principal, patientId, TARGET_DOCUMENT,
@@ -196,16 +205,13 @@ public class DocumentService {
             try {
                 retry = documentRepository.saveAndFlush(existing);
             } catch (DataIntegrityViolationException exception) {
-                // Same race as the fresh-insert branch below: adopting an orphan
-                // FAILED row writes the current idempotency key (set above), and
-                // a concurrent request may claim that key first. The winner's row
-                // is authoritative for both callers (ADR-005), so return it
-                // idempotently instead of surfacing a 500.
-                PatientDocument concurrent = documentRepository.findByIdempotencyKey(idempotencyKey)
-                        .orElseThrow(() -> exception);
-                auditService.record(principal, patientId, TARGET_DOCUMENT,
-                    concurrent.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
-                return toResponse(concurrent);
+                // The constraint violation already aborted this transaction, so
+                // the winner's row cannot be read back inside it. Propagate to
+                // the global 409 handler; a client retry resolves the winner
+                // idempotently (same shape as the advisory-lock path above).
+                recordAuditSafely(principal, patientId, request.sourceRecordId().toString(),
+                    ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY, exception);
+                throw exception;
             }
             return storeAndFinalize(retry, patientId, principal, pdfBytes);
         }
@@ -223,13 +229,14 @@ public class DocumentService {
         try {
             documentRepository.saveAndFlush(document);
         } catch (DataIntegrityViolationException exception) {
-            // A concurrent request claimed the same idempotency key first; the
-            // winner's row is authoritative for both callers.
-            PatientDocument concurrent = documentRepository.findByIdempotencyKey(idempotencyKey)
-                    .orElseThrow(() -> exception);
-            auditService.record(principal, patientId, TARGET_DOCUMENT,
-                concurrent.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
-            return toResponse(concurrent);
+            // A concurrent request claimed the same idempotency key first, but
+            // the constraint violation already aborted this transaction — the
+            // winner's row cannot be read back inside it. Propagate to the
+            // global 409 handler; a client retry resolves the winner
+            // idempotently.
+            recordAuditSafely(principal, patientId, request.sourceRecordId().toString(),
+                ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY, exception);
+            throw exception;
         }
 
         return storeAndFinalize(document, patientId, principal, pdfBytes);
@@ -253,8 +260,8 @@ public class DocumentService {
             // recoverable instead of disappearing as a rollback-only side effect.
             document.setStatus(DocumentStatus.FAILED);
             documentRepository.saveAndFlush(document);
-            auditService.record(principal, patientId, TARGET_DOCUMENT,
-                document.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, document.getId().toString(),
+                ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY, exception);
             throw new BusinessException(503, "Không thể lưu tài liệu vào kho đối tượng");
         }
 
@@ -270,8 +277,11 @@ public class DocumentService {
             cleanupStoredObject(document.getObjectKey(), exception);
             throw exception;
         }
-        auditService.record(principal, patientId, TARGET_DOCUMENT,
-            saved.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
+        // The ALLOW row is evidence for a committed generation — recording it
+        // inside the transaction would let a failed commit leave an audit row
+        // for a document that does not exist.
+        recordAuditAfterCommit(principal, patientId, saved.getId().toString(),
+            ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
         return toResponse(saved);
     }
 
@@ -296,6 +306,44 @@ public class DocumentService {
                 .toList();
         if (!superseded.isEmpty()) {
             documentRepository.saveAll(superseded);
+        }
+    }
+
+    private void recordAuditAfterCommit(
+            UserDetails principal, UUID patientId, String targetId, String action, String decision) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            recordAuditSafely(principal, patientId, targetId, action, decision, null);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                recordAuditSafely(principal, patientId, targetId, action, decision, null);
+            }
+        });
+    }
+
+    /**
+     * Audit writes run on the independent side pool and must never mask the
+     * primary outcome: a side-pool outage should not turn a mapped 503/409
+     * into an unhandled 500.
+     */
+    private void recordAuditSafely(
+            UserDetails principal,
+            UUID patientId,
+            String targetId,
+            String action,
+            String decision,
+            Throwable carrier) {
+        try {
+            auditService.record(principal, patientId, TARGET_DOCUMENT, targetId, action, decision);
+        } catch (RuntimeException auditFailure) {
+            if (carrier != null) {
+                carrier.addSuppressed(auditFailure);
+            } else {
+                log.warn("Clinical audit record failed for patient {} target {}: {}",
+                        patientId, targetId, auditFailure.getMessage());
+            }
         }
     }
 
@@ -463,8 +511,9 @@ public class DocumentService {
         } catch (AccessDeniedException | BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY,
+                exception);
             throw new BusinessException(503, "Không thể đọc tài liệu từ kho đối tượng");
         }
     }
@@ -487,14 +536,15 @@ public class DocumentService {
             throw new ResourceNotFoundException(
                     "No appointment found for booking code: " + bookingCode);
         }
+        // Prefer the newest AVAILABLE row: duplicate rows should not occur
+        // (supersede retires predecessors) but an unordered pick could select
+        // a stale one and reject a valid download.
         PatientDocument document = documentRepository
-                .findByPatientIdAndSourceTypeAndSourceRecordIdAndStatusIn(
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusInOrderByGeneratedAtDesc(
                         patientId,
                         DocumentSourceType.APPOINTMENT_REMINDER,
                         appointment.getId(),
                         List.of(DocumentStatus.AVAILABLE))
-                .stream()
-                .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Giấy nhắc hẹn chưa được tạo cho lịch hẹn này; hãy xuất tài liệu trước khi tải"));
         return downloadDocument(patientId, document.getId(), principal);

@@ -368,6 +368,45 @@ class DocumentServiceTest {
     }
 
     /**
+     * A committed PENDING row is unreachable through the current flush+finalize
+     * transaction, but legacy/manual data can hold one — treating it as
+     * idempotent would permanently brick this source, so it must retry in
+     * place exactly like a FAILED row.
+     */
+    @Test
+    void orphanedPendingRowRetriesInPlaceInsteadOfReturningItIdempotently() throws Exception {
+        MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        PatientProfile patient = patientMock(PATIENT_ID);
+        User generator = userMock();
+        PatientDocument pending = availableDocument();
+        pending.setStatus(DocumentStatus.PENDING);
+        pending.setSha256(null);
+        pending.setByteSize(null);
+        when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.of(pending));
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(generator));
+        when(patientProfileRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        List<DocumentStatus> savedStatuses = new ArrayList<>();
+        when(documentRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> {
+                    PatientDocument document = assignDocumentId(invocation.getArgument(0));
+                    savedStatuses.add(document.getStatus());
+                    return document;
+                });
+
+        DocumentResponse response = service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
+                patientPrincipal());
+
+        verify(documentRepository, times(2)).saveAndFlush(pending);
+        assertThat(savedStatuses).containsExactly(DocumentStatus.PENDING, DocumentStatus.AVAILABLE);
+        assertThat(response.id()).isEqualTo(pending.getId());
+        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
+        verify(objectStore).put(eq(pending.getObjectKey()), eq(RENDERED_PDF), eq("application/pdf"));
+    }
+
+    /**
      * The reported production defect: a FAILED row created by an older template
      * version ('v1.0') never matches the idempotency key built today ('1.0'), so a
      * retry from the patient panel must adopt that orphan row in place instead of
@@ -462,23 +501,26 @@ class DocumentServiceTest {
         when(documentRepository.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("uq_patient_documents_idempotency_key"));
 
-        DocumentResponse response = service.generateDocument(PATIENT_ID,
+        // The constraint violation aborts the real transaction: the winner's
+        // row cannot be read back inside it, so the exception propagates to
+        // the global 409 handler. No object is written and the denial is
+        // audited through the safe recorder.
+        assertThatThrownBy(() -> service.generateDocument(PATIENT_ID,
                 new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
-                patientPrincipal());
+                patientPrincipal()))
+                .isInstanceOf(DataIntegrityViolationException.class);
 
-        assertThat(response.id()).isEqualTo(FOREIGN_DOCUMENT_ID);
-        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
-        // Idempotent handoff: no object is written and the winner is audited.
         verify(objectStore, never()).put(anyString(), any(), anyString());
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
-                eq(FOREIGN_DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
-                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+                eq(RECORD_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
     }
 
     /**
      * Same contract, INSERT branch: losing the race on the unique idempotency
-     * key during the fresh-row flush returns the winner's row without a second
-     * object write.
+     * key during the fresh-row flush propagates the constraint violation to
+     * the global 409 handler (the aborted transaction cannot read the
+     * winner's row back); no second object write occurs.
      */
     @Test
     void insertRaceOnIdempotencyKeyReturnsWinnerRowInsteadOfFailing() throws Exception {
@@ -499,16 +541,15 @@ class DocumentServiceTest {
         when(documentRepository.saveAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException("uq_patient_documents_idempotency_key"));
 
-        DocumentResponse response = service.generateDocument(PATIENT_ID,
+        assertThatThrownBy(() -> service.generateDocument(PATIENT_ID,
                 new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
-                patientPrincipal());
+                patientPrincipal()))
+                .isInstanceOf(DataIntegrityViolationException.class);
 
-        assertThat(response.id()).isEqualTo(FOREIGN_DOCUMENT_ID);
-        assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
         verify(objectStore, never()).put(anyString(), any(), anyString());
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
-                eq(FOREIGN_DOCUMENT_ID.toString()), eq(DocumentService.ACTION_GENERATE),
-                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+                eq(RECORD_ID.toString()), eq(DocumentService.ACTION_GENERATE),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
     }
 
     /**

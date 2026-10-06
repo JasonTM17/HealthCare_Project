@@ -90,10 +90,17 @@ public class MinioDocumentObjectStore implements DocumentObjectStore {
         if (bucketReady.get()) {
             return;
         }
-        boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
-        if (!exists) {
-            minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+        // Two concurrent first-use callers must not both race makeBucket; the
+        // loser would see a transient BucketAlreadyOwnedByYou failure.
+        synchronized (bucketReady) {
+            if (bucketReady.get()) {
+                return;
+            }
+            boolean exists = minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build());
+            if (!exists) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+            }
+            bucketReady.set(true);
         }
-        bucketReady.set(true);
     }
 }

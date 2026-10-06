@@ -22,6 +22,10 @@ public interface PatientDocumentRepository extends JpaRepository<PatientDocument
 
     Optional<PatientDocument> findByIdAndPatientId(UUID id, UUID patientId);
 
+    Optional<PatientDocument> findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusInOrderByGeneratedAtDesc(
+            UUID patientId, DocumentSourceType sourceType, UUID sourceRecordId,
+            Collection<DocumentStatus> statuses);
+
     List<PatientDocument> findByPatientIdAndSourceTypeAndSourceRecordIdAndStatusIn(
             UUID patientId,
             DocumentSourceType sourceType,

@@ -91,19 +91,24 @@ public class SupabaseRestDocumentObjectStore implements DocumentObjectStore {
         if (bucketReady.get()) {
             return;
         }
-        HttpRequest probe = authed(apiBase + "/bucket/" + encodeSegment(bucket)).GET().build();
-        HttpResponse<Void> response = httpClient.send(probe, HttpResponse.BodyHandlers.discarding());
-        if (response.statusCode() == 404) {
-            HttpRequest create = authed(apiBase + "/bucket")
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(
-                    "{\"id\":\"" + bucket + "\",\"name\":\"" + bucket + "\",\"public\":false}"))
-                .build();
-            require2xx(httpClient.send(create, HttpResponse.BodyHandlers.discarding()), "create-bucket");
-        } else {
-            require2xx(response, "probe-bucket");
+        synchronized (bucketReady) {
+            if (bucketReady.get()) {
+                return;
+            }
+            HttpRequest probe = authed(apiBase + "/bucket/" + encodeSegment(bucket)).GET().build();
+            HttpResponse<Void> response = httpClient.send(probe, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() == 404) {
+                HttpRequest create = authed(apiBase + "/bucket")
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"id\":\"" + bucket + "\",\"name\":\"" + bucket + "\",\"public\":false}"))
+                    .build();
+                require2xx(httpClient.send(create, HttpResponse.BodyHandlers.discarding()), "create-bucket");
+            } else {
+                require2xx(response, "probe-bucket");
+            }
+            bucketReady.set(true);
         }
-        bucketReady.set(true);
     }
 
     private HttpRequest.Builder authed(String uri) {
