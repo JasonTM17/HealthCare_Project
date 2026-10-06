@@ -389,14 +389,14 @@ cd apps/ai-service && python -m pytest && ruff check . && mypy
 - **Domain phục vụ**: `https://www.healthcare.id.vn` (và `https://healthcare.id.vn`)
 - **Kiểm thử canary**: `/`, `/specialties`, `/api/v1/health` đều trả về HTTP 200; BFF Origin Guard chặn truy cập không hợp lệ với mã `403 BFF_ORIGIN_INVALID`.
 
-### Trạng thái Render Free Backend & AI (2026-09-02)
-- **Backend Build**: Source `bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc` với xử lý chuẩn `NoResourceFoundException` 404 thay vì lỗi generic 500.
-- **AI Service Deploy**: `dep-dab5l5favr4c73esg3eg` tích hợp bộ lọc an toàn ngôn ngữ kép (Tiếng Việt & Tiếng Anh).
+### Trạng thái Render Free Backend & AI (2026-10-06)
+- **Backend Build**: Source `11afbcf` (wave-13) — deploy `dep-db2dnlmi0phs73eaff7g` live; phân biệt `ngắt`/`ngất`/`co giật`/`giặt` trên 4 surface, laundry amenity lane deterministic, migration V111 seed 8 CMS slot public.
+- **AI Service Deploy**: auto-deploy live trên `1094ff4` — parity emergency/amenity với backend.
 
 ### Gói Container Bất biến (GHCR Packages with SBOM & Provenance)
 | GHCR Package | Digest Bất biến | Trạng thái Thẩm định |
 | :--- | :--- | :--- |
-| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:45b0bb679588ba7a6eb075a4dd867ed4b11c92fc42485ee94759d0f7c4f889d6` | Passed CI & Attestation |
+| [backend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-backend) | `ghcr.io/jasontm17/healthcare-project-backend@sha256:3f52916bd58d54d4de44bc364dd36157fa32379472de81ed5ed01bfb89446adb` | Passed CI & Attestation |
 | [ai-service](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-ai-service) | `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:3b60b36b6ce9773d2d127431bc8ae9de82430bfac955df100c0ea63797f7eaf1` | Passed CI & Attestation |
 | [frontend](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-frontend) | `ghcr.io/jasontm17/healthcare-project-frontend@sha256:adff5f320ebde59653531759489d1e21d1b5f25cbd7799c81ceec4a2ae674826` | Passed CI & Attestation |
 | [attachment-scanner](https://github.com/JasonTM17/HealthCare_Project/pkgs/container/healthcare-project-attachment-scanner) | `ghcr.io/jasontm17/healthcare-project-attachment-scanner@sha256:367a080e61505c8bd98086c6499e56fa7e6bf0e44c92a567016bf32fac6e06f5` | Passed CI & Attestation |
