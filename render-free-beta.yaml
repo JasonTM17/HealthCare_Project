@@ -300,3 +300,19 @@ services:
         value: "false"
       - key: STORAGE_MIME_VALIDATION_REQUIRED
         value: "true"
+      # Server-side clinical document (PDF) storage. The bucket
+      # `healthcare-files` already exists in the Supabase project (private,
+      # public=false); only the S3-compatible endpoint and an access key pair
+      # minted in Supabase Dashboard > Storage > S3 Access Keys are required.
+      # STORAGE_UPLOAD_ENABLED stays false: generation writes via the
+      # server-side client, not user uploads.
+      - key: STORAGE_ENDPOINT
+        sync: false
+      - key: STORAGE_REGION
+        value: "ap-northeast-1"
+      - key: STORAGE_BUCKET
+        value: "healthcare-files"
+      - key: STORAGE_ACCESS_KEY
+        sync: false
+      - key: STORAGE_SECRET_KEY
+        sync: false

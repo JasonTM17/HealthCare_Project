@@ -152,9 +152,14 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     # an ai-service emitting remote_provider against an old backend 502s the
     # turn AFTER the provider call was spent.
     assert backend["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "true"
+    # Clinical PDF storage is server-side only: endpoint/region/bucket are
+    # non-secret posture, the access key pair is a dashboard-managed secret.
+    assert backend["STORAGE_REGION"]["value"] == "ap-northeast-1"
+    assert backend["STORAGE_BUCKET"]["value"] == "healthcare-files"
+    for key in ("STORAGE_ENDPOINT", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY"):
+        assert backend[key]["sync"] is False
     for key in (
         "SUPABASE_DB_URL",
-        "STORAGE_ENDPOINT", "STORAGE_ACCESS_KEY", "STORAGE_SECRET_KEY",
         "STORAGE_AV_SERVICE_URL", "STORAGE_AV_SERVICE_TOKEN",
         "STORAGE_CONSULTATION_KEY_SIGNING_SECRET",
     ):
