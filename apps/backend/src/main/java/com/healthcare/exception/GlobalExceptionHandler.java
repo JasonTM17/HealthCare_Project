@@ -124,6 +124,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(409).body(error);
     }
 
+    /**
+     * Bounded advisory/row-lock waits (PostgresAppointmentSlotLocker,
+     * DocumentService generation locks) throw PessimisticLockingFailureException
+     * — parent of CannotAcquireLockException — when lock_timeout expires.
+     * Contention is retryable, never a 500.
+     */
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handlePessimisticLockingFailure(
+            org.springframework.dao.PessimisticLockingFailureException ex, WebRequest request) {
+        log.warn("Bounded lock wait expired on {}: {}", extractPath(request), ex.getMessage());
+        ApiError error = new ApiError(
+            409,
+            "Conflict",
+            "Hệ thống đang xử lý một thao tác trùng khung/slot khác. Vui lòng thử lại sau giây lát.",
+            extractPath(request)
+        );
+        return ResponseEntity.status(409).body(error);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, WebRequest request) {
         List<ApiError.FieldError> fieldErrors = ex.getBindingResult().getFieldErrors().stream()

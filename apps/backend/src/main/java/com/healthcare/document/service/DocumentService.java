@@ -135,8 +135,8 @@ public class DocumentService {
             // advisory lock — map both to the retryable 409, not a 500.
             return generateDocumentLocked(patientId, request, principal);
         } catch (PessimisticLockingFailureException exception) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT,
-                request.sourceRecordId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId,
+                request.sourceRecordId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new BusinessException(409, "Tài liệu đang được tạo, vui lòng thử lại sau giây lát");
         }
     }
@@ -164,8 +164,8 @@ public class DocumentService {
                 && existing.getStatus() != DocumentStatus.PENDING) {
             // Idempotent regeneration: same key returns the same row and never
             // writes a second object.
-            auditService.record(principal, patientId, TARGET_DOCUMENT,
-                existing.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
+            recordAuditSafely(principal, patientId,
+                existing.getId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW, null);
             return toResponse(existing);
         }
         // Orphaned FAILED rows predate version alignment (ADR-005): a row stored
@@ -326,7 +326,8 @@ public class DocumentService {
     /**
      * Audit writes run on the independent side pool and must never mask the
      * primary outcome: a side-pool outage should not turn a mapped 503/409
-     * into an unhandled 500.
+     * into an unhandled 500. Every primary-path allow/deny site must use this
+     * fail-soft form — an audit outage degrades evidence, never denies service.
      */
     private void recordAuditSafely(
             UserDetails principal,
@@ -348,16 +349,28 @@ public class DocumentService {
     }
 
     private void resolveCleanupAfterCommit(String objectKey) {
+        // The marker resolve must never mask a committed outcome: a side-pool
+        // failure inside afterCommit propagates through commit() and would
+        // surface a successful write as a 500. The worker's reconcile pass
+        // self-heals an unresolved PENDING marker.
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            cleanupService.resolveCandidate(objectKey);
+            resolveCleanupQuietly(objectKey);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                cleanupService.resolveCandidate(objectKey);
+                resolveCleanupQuietly(objectKey);
             }
         });
+    }
+
+    private void resolveCleanupQuietly(String objectKey) {
+        try {
+            cleanupService.resolveCandidate(objectKey);
+        } catch (RuntimeException markerFailure) {
+            log.warn("Cleanup marker resolve failed for object {}: {}", objectKey, markerFailure.getMessage());
+        }
     }
 
     private void cleanupStoredObject(String objectKey, Exception originalFailure) {
@@ -393,8 +406,8 @@ public class DocumentService {
                                 .contains(document.getSourceRecordId()))
                         .toList();
             }
-            auditService.record(principal, patientId, TARGET_DOCUMENT, patientId.toString(),
-                ClinicalAccessAuditService.ACTION_READ, ClinicalAccessAuditService.DECISION_ALLOW);
+            recordAuditSafely(principal, patientId, patientId.toString(),
+                ClinicalAccessAuditService.ACTION_READ, ClinicalAccessAuditService.DECISION_ALLOW, null);
             Set<UUID> reminderSourceIds = documents.stream()
                     .filter(document -> document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER)
                     .map(PatientDocument::getSourceRecordId)
@@ -409,8 +422,8 @@ public class DocumentService {
                             reminderSources.get(document.getSourceRecordId())))
                     .toList();
         } catch (AccessDeniedException exception) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, patientId.toString(),
-                ClinicalAccessAuditService.ACTION_READ, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, patientId.toString(),
+                ClinicalAccessAuditService.ACTION_READ, ClinicalAccessAuditService.DECISION_DENY, null);
             throw exception;
         }
     }
@@ -420,8 +433,8 @@ public class DocumentService {
         try {
             authorizePatientScope(patientId, principal);
         } catch (AccessDeniedException exception) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
             throw exception;
         }
         PatientDocument document = documentRepository.findByIdAndPatientId(documentId, patientId)
@@ -429,19 +442,19 @@ public class DocumentService {
         try {
             authorizeDocumentRead(document, principal);
         } catch (AccessDeniedException exception) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
             throw exception;
         }
         if (document.getStatus() == DocumentStatus.REVOKED
                 || document.getStatus() == DocumentStatus.SUPERSEDED) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
         }
         if (document.getStatus() != DocumentStatus.AVAILABLE) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new BusinessException(409, "Tài liệu chưa sẵn sàng để tải xuống");
         }
         if (document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER) {
@@ -455,8 +468,8 @@ public class DocumentService {
                     && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
                             .equals(document.getIdempotencyKey());
             if (!eligible || !current) {
-                auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+                recordAuditSafely(principal, patientId, documentId.toString(),
+                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
                 throw new BusinessException(409, "Giấy nhắc hẹn đã lỗi thời; hãy tạo lại giấy nhắc mới");
             }
         }
@@ -472,8 +485,8 @@ public class DocumentService {
             document.setStatus(DocumentStatus.REVOKED);
         }
         if (document.getStatus() != DocumentStatus.AVAILABLE) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
         }
         try {
@@ -489,12 +502,12 @@ public class DocumentService {
                     document.setStatus(DocumentStatus.REVOKED);
                 }
                 if (document.getStatus() != DocumentStatus.AVAILABLE) {
-                    auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                        ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY);
+                    recordAuditSafely(principal, patientId, documentId.toString(),
+                        ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
                     throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
                 }
-                auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW);
+                recordAuditSafely(principal, patientId, documentId.toString(),
+                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW, null);
                 handedOff = true;
                 return new DocumentDownload(document, stream);
             } finally {
@@ -560,8 +573,8 @@ public class DocumentService {
             if (document.getStatus() != DocumentStatus.AVAILABLE
                     && document.getStatus() != DocumentStatus.SUPERSEDED
                     && document.getStatus() != DocumentStatus.REVOKED) {
-                auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                    ACTION_REVOKE, ClinicalAccessAuditService.DECISION_DENY);
+                recordAuditSafely(principal, patientId, documentId.toString(),
+                    ACTION_REVOKE, ClinicalAccessAuditService.DECISION_DENY, null);
                 throw new BusinessException(409, "Chỉ tài liệu đã tạo thành công mới có thể thu hồi");
             }
             if (document.getStatus() != DocumentStatus.REVOKED) {
@@ -569,12 +582,12 @@ public class DocumentService {
                 document.setRevokedAt(OffsetDateTime.now());
                 document = documentRepository.saveAndFlush(document);
             }
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ACTION_REVOKE, ClinicalAccessAuditService.DECISION_ALLOW);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ACTION_REVOKE, ClinicalAccessAuditService.DECISION_ALLOW, null);
             return toResponse(document);
         } catch (AccessDeniedException exception) {
-            auditService.record(principal, patientId, TARGET_DOCUMENT, documentId.toString(),
-                ACTION_REVOKE, ClinicalAccessAuditService.DECISION_DENY);
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ACTION_REVOKE, ClinicalAccessAuditService.DECISION_DENY, null);
             throw exception;
         }
     }

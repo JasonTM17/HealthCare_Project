@@ -75,6 +75,37 @@ class DocumentObjectCleanupServiceTest {
     }
 
     @Test
+    void keyReferencedAfterClaimIsNeverDeletedAndResolvesMarker() throws Exception {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        DocumentObjectStore objectStore = mock(DocumentObjectStore.class);
+        PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
+        org.mockito.Mockito.when(transactions.getTransaction(any()))
+                .thenReturn(new SimpleTransactionStatus());
+        // objectStore must be "configured" for the worker to run
+        org.mockito.Mockito.when(objectStore.isConfigured()).thenReturn(true);
+        DocumentObjectCleanupService.CleanupClaim claim = new DocumentObjectCleanupService.CleanupClaim(
+                java.util.UUID.randomUUID(), "documents/patient/x.pdf",
+                java.util.UUID.randomUUID(), java.time.OffsetDateTime.now().plusSeconds(60));
+        org.mockito.Mockito.when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of(claim));
+        // A patient_documents row committed between claim and delete: the
+        // pre-delete re-check must see it and skip the object removal.
+        org.mockito.Mockito.when(jdbc.queryForObject(anyString(),
+                        org.mockito.ArgumentMatchers.eq(Boolean.class), any(Object.class)))
+                .thenReturn(true);
+        DocumentObjectCleanupService cleanup = new DocumentObjectCleanupService(
+                jdbc, objectStore, transactions, true, 120, sideEffectsOn(jdbc));
+
+        cleanup.cleanupOne();
+
+        org.mockito.Mockito.verify(objectStore, org.mockito.Mockito.never()).delete(anyString());
+        org.mockito.Mockito.verify(jdbc).update(
+                org.mockito.ArgumentMatchers.contains("status = 'DONE'"),
+                org.mockito.ArgumentMatchers.eq(claim.id()),
+                org.mockito.ArgumentMatchers.eq(claim.leaseToken()));
+    }
+
+    @Test
     void expiredLeaseAtAttemptCeilingIsTerminalizedBeforeReclaim() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         DocumentObjectStore objectStore = mock(DocumentObjectStore.class);
