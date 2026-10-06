@@ -140,11 +140,18 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     for key in (
         "AI_CHAT_SYMPTOM_TRIAGE_ENABLED",
         "AI_CHAT_HEALTH_EDUCATION_ENABLED", "AI_CHAT_SYNTHETIC_BETA_ASSERTED",
-        "AI_CHAT_CHUNKED_ENABLED", "APP_MAIL_ENABLED",
+        "AI_CHAT_CHUNKED_ENABLED",
         "APP_MAIL_OUTBOX_ENABLED", "APP_PAYMENT_BANK_TRANSFER_ENABLED",
         "STORAGE_UPLOAD_ENABLED", "STORAGE_CONSULTATION_ENABLED",
     ):
         assert backend[key]["value"] == "false"
+    # Transactional mail is live through the Resend HTTPS API (Render Free
+    # cannot reach outbound SMTP). The sender domain is verified in the
+    # Resend account; the API key is a dashboard-managed secret.
+    assert backend["APP_MAIL_ENABLED"]["value"] == "true"
+    assert backend["APP_MAIL_FROM"]["value"] == "no-reply@healthcare.id.vn"
+    assert backend["APP_MAIL_PORTAL_BASE_URL"]["value"] == "https://www.healthcare.id.vn"
+    assert backend["RESEND_API_KEY"]["sync"] is False
     # [L2 2026-09-30] Patient egress flip (commit 7bdbd52): the Spring-side
     # provenance gate now accepts remote_provider on the patient path. Paired
     # atomically with the ai-service keys asserted in the ai test above; the
