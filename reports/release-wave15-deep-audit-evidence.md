@@ -102,3 +102,14 @@ Tests after fixes: `DocumentServiceTest` 34/34, `DocumentObjectCleanupServiceTes
 | Pin | `9e91f56` — render.yaml + mirror + contract test (8/8) |
 | Deploy | `dep-db2kfch42hec738r8qr0` → **live**, health 200 |
 | Live verify (new image) | login 200 · `generationConfigured:true` · 4/4 AVAILABLE · download sha256 **byte-exact** |
+
+## OTP mail delivery — now LIVE (was the last fake-dead path)
+
+Pre-fix state verified: `APP_MAIL_ENABLED=false` → `NoopEmailSender` discarded
+OTP silently; `holdSlot` correctly failed closed with `emailDeliveryUnavailable`.
+Enabled via env-only (no image needed): `APP_MAIL_ENABLED=true`,
+`APP_MAIL_FROM=no-reply@healthcare.id.vn`, `RESEND_API_KEY` (dashboard secret,
+domain already verified in Resend account).
+Deploy `dep-db2oinmi0phs738p99r0` live → real hold `201` → `otpDeliveryStatus:QUEUED`
+→ Resend API record `[HealthCare] Xác nhận đặt lịch` → **delivered**.
+Pins: render.yaml + mirror + contract test (`ee0f705`). Free quota 100/day.
