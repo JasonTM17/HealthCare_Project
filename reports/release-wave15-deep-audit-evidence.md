@@ -78,3 +78,17 @@ Prior live image: `2bc95c64` (from `6d45082`, Supabase REST document store).
 - `patients/…/documents` → **4/4 AVAILABLE** (2 PRESCRIPTION + 2 VISIT_SUMMARY)
 - Download `50c51e2f` → **200, `application/pdf`, `%PDF-1.6`, 660,272B**
 - **sha256 `a90d6c9d…d0d` — byte-exact match** with document metadata
+
+## Specialist review round 2 — adjudication + hardening applied (commit `4962565`)
+
+| Finding | Severity | Disposition |
+|---|---|---|
+| afterCommit `resolveCandidate` unguarded → committed success could surface 500 | Med-Low | **FIXED** — `resolveCleanupQuietly` wraps both paths; worker reconcile self-heals |
+| Direct `auditService.record` on 15 primary allow/deny sites → audit outage masks outcome as 500 | Medium | **FIXED** — all sites now `recordAuditSafely` (fail-soft per documented invariant) |
+| Booking slot advisory lock unbounded wait → same pool-starvation shape as confirmed doc regression | Medium | **FIXED** — `SET LOCAL lock_timeout='5s'` in `PostgresAppointmentSlotLocker`; `PessimisticLockingFailureException` → 409 via GlobalExceptionHandler |
+| Cleanup claim→delete TOCTOU — reference checked only at claim | Low | **FIXED** — re-check `EXISTS patient_documents` immediately before delete; newly-referenced key resolves marker instead |
+| FAILED-row references hide orphan objects from cleaner | Low | Documented accepted-risk — retry overwrites same key; periodic sweep deferred |
+| Env-only MinIO creds → `isConfigured=false` under-report | Info | Fail-closed, ops note only |
+| Review snapshot drift | — | Reviews were run against older frozen packets; all findings re-verified against current source before fixing |
+
+Tests after fixes: `DocumentServiceTest` 34/34, `DocumentObjectCleanupServiceTest` 4/4 (new TOCTOU regression pin), booking/appointment suite batch 174/174.
