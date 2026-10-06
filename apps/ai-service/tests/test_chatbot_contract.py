@@ -728,6 +728,61 @@ def test_grounded_excerpt_leaves_plain_prose_brackets_untouched() -> None:
     assert "[chua ro nguyen nhan]" in answer
 
 
+def test_grounded_excerpt_bulletizes_label_value_group_runs() -> None:
+    """Serialized ``Label: value`` runs with 2+ groups render as bullets."""
+
+    document = RagDocument(
+        id="package:general-check",
+        source_type="package",
+        source_id="general-check",
+        title="Gói khám sức khỏe tổng quát",
+        content=(
+            "Rà soát toàn diện 25 chỉ số sinh hóa; Giá: 1850000 VND; "
+            "Đối tượng: Người trưởng thành; Lộ trình: tiếp nhận và tư vấn."
+        ),
+    )
+
+    answer = grounded_source_excerpt(document)
+
+    assert " • Giá: 1850000 VND" in answer
+    assert " • Đối tượng: Người trưởng thành" in answer
+    assert " • Lộ trình:" in answer
+
+
+def test_grounded_excerpt_keeps_lone_label_boundary_as_prose() -> None:
+    """A single ``; Label:`` tail is punctuation, not a group run."""
+
+    document = RagDocument(
+        id="article:rest-advice",
+        source_type="article",
+        source_id="rest-advice",
+        title="Nghỉ ngơi",
+        content="Hãy nghỉ ngơi sớm và uống đủ nước; Lưu ý: theo dõi thêm.",
+    )
+
+    answer = grounded_source_excerpt(document)
+
+    assert " • " not in answer
+    assert "Lưu ý: theo dõi thêm" in answer
+
+
+def test_grounded_excerpt_keeps_symptom_lists_flat() -> None:
+    """Plain ``;``-separated items without label colons never bulletize."""
+
+    document = RagDocument(
+        id="specialty:noi-tiet",
+        source_type="specialty",
+        source_id="noi-tiet",
+        title="Nội tiết",
+        content="Triệu chứng thường gặp: Mệt mỏi; Khát nước; Sụt cân.",
+    )
+
+    answer = grounded_source_excerpt(document)
+
+    assert " • " not in answer
+    assert "Mệt mỏi; Khát nước; Sụt cân" in answer
+
+
 def test_protected_endpoints_return_mode_filtered_candidates_and_grounded_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

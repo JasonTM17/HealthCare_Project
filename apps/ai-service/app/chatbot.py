@@ -937,6 +937,20 @@ def _clean_patient_source_content(content: str) -> str:
     return normalize_content(_render_inline_jsonb_string_arrays("\n".join(parts)))
 
 
+# Catalog projections serialize structured rows as ``Label: value; Label:
+# value`` runs. With two or more label groups the semicolon run-on reads as
+# one flat sentence, so group boundaries render as the ``•`` bullets used by
+# the rest of the patient-facing copy. A lone ``; Label:`` tail (often just
+# punctuated prose) is left untouched.
+_KB_LABEL_GROUP_BOUNDARY = re.compile(r";\s*(?=[^\W\d_][^:;\n]{0,40}:(?=\s))")
+
+
+def _bulletize_label_groups(content: str) -> str:
+    if len(_KB_LABEL_GROUP_BOUNDARY.findall(content)) < 2:
+        return content
+    return _KB_LABEL_GROUP_BOUNDARY.sub(" • ", content)
+
+
 def _grounded_excerpt(meta: _SourceMetadata) -> str:
     """Render concise, source-owned text for the patient-facing answer."""
 
@@ -956,6 +970,7 @@ def _grounded_excerpt(meta: _SourceMetadata) -> str:
         content = re.sub(r"https?://\S+", "", content, flags=re.IGNORECASE)
         content = re.sub(r"\[[^\]]*\]", "", content)
         content = re.sub(r"\s{2,}", " ", content).strip(" ,;.-")
+    content = _bulletize_label_groups(content)
     if len(content) > MAX_PATIENT_EXCERPT_CHARS:
         content = content[:MAX_PATIENT_EXCERPT_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
     content = content.strip()
