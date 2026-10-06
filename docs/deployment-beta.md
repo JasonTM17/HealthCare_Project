@@ -112,7 +112,7 @@ contract, so record it in the dated snapshot section afterwards.
 | `APP_NOTIFICATION_EMAIL_ENABLED` | application.yml:95 | false | committed in-app notifications are queued as SYSTEM_NOTIFICATION email outbox entries, honoring EMAIL preference + quiet hours | SMTP + outbox encryption secrets configured; preference policy reviewed |
 | `APP_AUTH_ALLOW_TEST_OTP` | application.yml:130 | unset (false) | fixed "123456" auth code | flag AND Spring `test` profile — never combine in any deployed environment |
 
-## Current observed hosted snapshot (2026-09-02)
+## Current observed hosted snapshot (2026-10-06)
 
 Payment webhook recovery retains validated transfer fields from V66 onward. The retry
 worker claims up to 25 due events per poll (default 60 seconds), reserves each attempt
@@ -124,32 +124,35 @@ before PAID. Enable the worker only after recovery and concurrent-delivery check
 Refresh this section after every release push; deployment IDs are evidence, not
 configuration:
 
-### PENDING security re-pin (opened 2026-09-07) — OTP master-code fix not yet deployed
+### RESOLVED security re-pin (opened 2026-09-07, closed 2026-10-06) — OTP master-code fix deployed
 
-The hosted backend still runs the 2026-09-05 pinned image
-`sha256:02719d118783c51fcb46eb097a55e6b9ab60b24bdf150c8144a1a6b445b833d1`, which predates
-commit `695b541` and therefore still contains the auth-OTP master-code fallback: with
-`APP_MAIL_ENABLED=false` (the shipped Render configuration), `"123456"` verifies every
-authentication OTP challenge, including password reset of any account. Re-deploy is the
-operator's immediate action:
+The hosted backend now runs `sha256:3f52916bd58d54d4de44bc364dd36157fa32379472de81ed5ed01bfb89446adb`
+(overlay below), which contains `695b541`/`dca48e3` and all later waves. The OTP
+master-code fallback is therefore no longer live. The original re-pin procedure is kept
+in git history; auth-OTP password reset still stays non-functional until real SMTP is
+configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
 
-1. Push `main` (at least `dca48e3`, the OTP fix) and wait for a green CI run on that SHA.
-2. Dispatch `publish-images.yml` manually with `source_ref` = that SHA (workflow is
-   `workflow_dispatch`-only and rejects re-used `sha-<sha>` tags).
-3. Copy the four `IMAGE_REF@sha256:…` lines from the run summary.
-4. Update the backend digest at `render.yaml` (backend image url) and the identical pin in
-   `render-free-beta.yaml` in one reviewed commit; keep `autoDeployTrigger: "off"`.
-5. Trigger one Render deploy for the backend service; wait for `/livez`,
-   `/actuator/health` and `/actuator/health/*` probes to return HTTP 200.
-6. Refresh the dated overlay below with CI run, publish run, digest, Render deploy id and
-   resolved platform SHA; update the backend row in `README.md` "Hosted beta release
-   record".
+### Current backend overlay (2026-10-06, wave-13)
 
-Until step 5 completes, assume the live beta accepts `"123456"` for email verification and
-password reset. Auth-OTP password reset also stays non-functional after the fix until real
-SMTP is configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
+Source `11afbcf` (wave-13 chain: `1094ff4` ngat/cogiat disambiguation + laundry amenity
+lane, `4ff93a6` image pin, `11afbcf` contract-test digest sync). CI
+[37453600154](https://github.com/JasonTM17/HealthCare_Project/actions/runs/37453600154)
+passed on `1094ff4`; image publication
+[37454651648](https://github.com/JasonTM17/HealthCare_Project/actions/runs/37454651648)
+completed with SBOM/provenance attestation. The backend artifact is:
 
-### Current backend repair overlay (2026-09-02)
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:3f52916bd58d54d4de44bc364dd36157fa32379472de81ed5ed01bfb89446adb
+
+Render deploy `dep-db2dnlmi0phs73eaff7g` is `live` on that digest (image services are
+blueprint-managed but repo-less here, so the pin was applied via the top-level
+`image.imagePath` + `ownerId` PATCH followed by a manual deploy). `/actuator/health`
+returns 200 and the production chat corpus probe passed 27/27, including the laundry
+amenity lane and the ngat/cogiat disambiguation. The same deploy applied migration V111,
+which seeds the eight missing public CMS slots (`huong-dan.{hero,body,sidebar,footer}`,
+`search.{body,sidebar,footer}`, `about.footer`); all eight now return 200 through
+`/api/v1/cms/content/{slotKey}`.
+
+### Historical backend repair overlay (2026-09-02, superseded by the 2026-10-06 overlay)
 
 The sanitized missing-resource fix is source
 `bbecb296dd2dcd8864ab7a37b9f67d36f8b206dc`. CI
