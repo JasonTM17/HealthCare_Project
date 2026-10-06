@@ -417,8 +417,9 @@ class _StubProviderClient:
         system_prompt: str,
         user_prompt: str,
         context: Sequence[str] = (),
+        max_tokens: int | None = None,
     ) -> dict[str, str]:
-        del system_prompt, context
+        del system_prompt, context, max_tokens
         self.calls.append(user_prompt)
         return {"answer": "Mình khuyên bạn nghỉ ngơi và uống đủ nước."}
 
