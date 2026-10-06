@@ -88,7 +88,9 @@ export default function AboutPage() {
         return;
       }
       void video.play()
-        .then(() => setVideoPaused(false))
+        .then(() => {
+          if (!video.paused) setVideoPaused(false);
+        })
         .catch(() => setVideoPaused(true));
     };
 
@@ -107,9 +109,11 @@ export default function AboutPage() {
   const toggleVideo = () => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) {
+    if (videoPaused) {
       void video.play()
-        .then(() => setVideoPaused(false))
+        .then(() => {
+          if (!video.paused) setVideoPaused(false);
+        })
         .catch(() => setVideoPaused(true));
       return;
     }
