@@ -940,15 +940,31 @@ def _clean_patient_source_content(content: str) -> str:
 # Catalog projections serialize structured rows as ``Label: value; Label:
 # value`` runs. With two or more label groups the semicolon run-on reads as
 # one flat sentence, so group boundaries render as the ``•`` bullets used by
-# the rest of the patient-facing copy. A lone ``; Label:`` tail (often just
-# punctuated prose) is left untouched.
-_KB_LABEL_GROUP_BOUNDARY = re.compile(r";\s*(?=[^\W\d_][^:;\n]{0,40}:(?=\s))")
+# the rest of the patient-facing copy. Labels must start uppercase: real
+# field labels are capitalized, which keeps lowercase JSONB-array items like
+# "rét: nặng" and ordinary prose tails from fabricating peer groups
+# (Wukong wave-14 CE2). A lone boundary is left untouched.
+_KB_LABEL_GROUP_CANDIDATE = re.compile(
+    r";\s*(?=(?P<label>[^\W\d_][^:;\n]{0,40}):(?=\s))"
+)
 
 
 def _bulletize_label_groups(content: str) -> str:
-    if len(_KB_LABEL_GROUP_BOUNDARY.findall(content)) < 2:
+    hits = [
+        match
+        for match in _KB_LABEL_GROUP_CANDIDATE.finditer(content)
+        if match.group("label").lstrip()[:1].isupper()
+    ]
+    if len(hits) < 2:
         return content
-    return _KB_LABEL_GROUP_BOUNDARY.sub(" • ", content)
+    out: list[str] = []
+    cursor = 0
+    for match in hits:
+        out.append(content[cursor : match.start()])
+        out.append(" • ")
+        cursor = match.end()
+    out.append(content[cursor:])
+    return "".join(out)
 
 
 def _grounded_excerpt(meta: _SourceMetadata) -> str:
@@ -972,7 +988,9 @@ def _grounded_excerpt(meta: _SourceMetadata) -> str:
         content = re.sub(r"\s{2,}", " ", content).strip(" ,;.-")
     content = _bulletize_label_groups(content)
     if len(content) > MAX_PATIENT_EXCERPT_CHARS:
-        content = content[:MAX_PATIENT_EXCERPT_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+        # "•" is in the strip set: a 720-cut landing inside " • <frag>" must
+        # not leave a dangling bullet glued to the ellipsis (Wukong w14 CE2).
+        content = content[:MAX_PATIENT_EXCERPT_CHARS].rsplit(" ", 1)[0].rstrip(" ,;:-•") + "…"
     content = content.strip()
     excerpt = f"{title}: {content}" if content else title
     return f"{excerpt}." if excerpt and excerpt[-1].isalnum() else excerpt
