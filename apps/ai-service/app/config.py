@@ -55,8 +55,14 @@ class Settings(BaseSettings):
     # but patient-answer egress is HOLD in this build. These fields are kept
     # so an old deployment fails clearly instead of silently changing meaning.
     remote_ai_synthetic_only: bool = True
-    # Remote patient-chat egress is fail-closed until a deployment explicitly
-    # disables this switch as part of an approved synthetic-beta canary.
+    # INERT — no app consumer reads this field. It is kept so an old
+    # deployment exporting REMOTE_AI_KILL_SWITCH still boots instead of
+    # failing on an unknown setting. The real containment levers are
+    # ai_patient_chat_remote_enabled / ai_chat_remote_provider_enabled /
+    # ai_public_hospital_support_remote_enabled and remote_ai_release_hold
+    # below; do not wire this flag without a coordinated flag migration —
+    # Render sets it "true" while live remote egress depends on that being
+    # meaningless (Kongming wave-14 F1).
     remote_ai_kill_switch: bool = True
     remote_ai_release_hold: bool = False
     remote_ai_provider_allowlist: str = "deepseek"
