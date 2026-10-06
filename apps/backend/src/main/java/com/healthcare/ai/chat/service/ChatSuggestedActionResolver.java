@@ -46,8 +46,8 @@ public final class ChatSuggestedActionResolver {
         "dich vu", "bang gia", "gia dich vu", "xet nghiem"
     };
     private static final String[] BRANCH_TERMS = {
-        "co so", "gio lam", "gio kham", "mo cua", "thoi gian lam", "lam viec",
-        "dia chi", "chu nhat", "cuoi tuan"
+        "co so", "chi nhanh", "gio lam", "gio kham", "mo cua", "thoi gian lam",
+        "lam viec", "dia chi", "chu nhat", "cuoi tuan"
     };
     private static final String[] PREPARATION_TERMS = {
         "chuan bi", "truoc khi di kham", "truoc khi kham", "mang theo gi", "giay to",

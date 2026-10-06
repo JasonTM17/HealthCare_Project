@@ -232,7 +232,8 @@ public class PublicAiChatController {
             // to an error.
             if (earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.BOOKING
                     || earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.CATALOG
-                    || earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.DOCTOR) {
+                    || earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.DOCTOR
+                    || earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.BRANCH) {
                 Map<String, Object> catalog = publicCatalogFallback(userMessage);
                 if (catalog != null) return ResponseEntity.ok(catalog);
                 Map<String, Object> support = publicNavigationCopy(
