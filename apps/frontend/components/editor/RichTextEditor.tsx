@@ -461,6 +461,13 @@ export function RichTextEditor({
     () => ({
       base_url: "/tinymce",
       suffix: ".min",
+      // URL policy: the editor must never relativize a root-relative source —
+      // with default relative_urls:true, getContent() rewrote /media/x.jpg to
+      // ../media/x.jpg on /admin/*, and the stored markdown then broke at any
+      // other page depth. remove_script_host still normalizes a same-origin
+      // absolute URL to its root path, matching the media-upload allowlist.
+      relative_urls: false,
+      remove_script_host: true,
       // No menubar. Every label in it — File, Edit, View, Insert, Format, Tools,
       // Table and the whole dropdown beneath each — was English in a Vietnamese
       // product, and TinyMCE ships language packs separately. The choice was a
