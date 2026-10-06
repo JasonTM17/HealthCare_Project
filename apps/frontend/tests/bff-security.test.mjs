@@ -659,6 +659,25 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "cogiatlai",
     "cogiatdotainan",
     "cogiatdonhiemtrung",
+    // Wukong wave-12: mid-token squash + "ngất" + eth homoglyph keep the
+    // outage fallback at parity with backend/ai-service.
+    "dangcogiat",
+    "becogiat",
+    "bé bị ngất",
+    "ðau ngực dữ dội",
+    // Ambiguous unaccented "tu tu" resolves toward crisis (fail-safe).
+    "se tu tu",
+    "dang tu tu",
+    // Wukong wave-12 F1: masked "từ" tokens + connector between the
+    // volition anchor and the crisis phrase must not defeat the guard.
+    "sẽ từ từ tự tử",
+    "sẽ từ từ rồi tự tử",
+    "từ vong",
+    // Wukong wave-12 F2: joined typings covered by the squash pass.
+    "dangtutu",
+    "ngatxiu",
+    "khotho",
+    "tacogiat",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -697,6 +716,15 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     // "nghỉ ngơi từ từ" is benign, and joined "từ từ thôi" is not "tự tử".
     "tôi cần nghỉ ngơi từ từ",
     "tututhoi nhe bac si",
+    // Wukong FP-A: volition marker + accented "từ từ" (slowly) is benign —
+    // the grave accent distinguishes it from "tự tử".
+    "sẽ từ từ đi bộ",
+    "tôi đang từ từ hồi phục",
+    "đang từ từ",
+    // Wukong wave-12 F3: partially-spaced laundry squash still suppresses
+    // — the squash stream consumes the whole chain.
+    "cogiat do khong",
+    "dangcogiat do khong",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {

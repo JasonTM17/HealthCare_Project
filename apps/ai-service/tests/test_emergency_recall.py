@@ -350,6 +350,29 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         "cogiatdonhiemtrung",
         "cogiatdohasot",
         "tututroi buon qua",
+        # Wukong wave-12: prefixed squash "cogiat" mid-token (ai-service
+        # squash net already caught these; kept as regression for parity).
+        "dangcogiat",
+        "becogiat",
+        # "ngất"/"ngắt" ambiguity resolves toward the emergency reading —
+        # fainting reports must always fire.
+        "bé bị ngất",
+        "be bi ngat",
+        # eth homoglyph evasion (ð for đ) — translated, not stripped.
+        "ðau ngực",
+        # Unaccented "tu tu" is ambiguous between "từ từ" and "tự tử";
+        # ambiguity resolves toward the crisis reading (fail-safe).
+        "se tu tu",
+        "dang tu tu",
+        # Wukong wave-12 F1: masked "từ" tokens between the volition anchor
+        # and the crisis phrase must not defeat the guard.
+        "sẽ từ từ tự tử",
+        "tôi định từ từ tự tử",
+        "nghĩ đến việc từ từ tự tử",
+        "sẽ từ từ rồi tự tử",
+        # "từ vong" (grave-typo of "tử vong") keeps recall via the masked
+        # twin term.
+        "từ vong",
     ],
 )
 def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
@@ -385,6 +408,18 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         "toi can nghi ngoi tu tu",
         # joined "từ từ thôi" at message start — a benign continuation.
         "tututhoi nhe bac si",
+        # Wukong FP-A: a volition/thinking marker directly before accented
+        # "từ từ" (slowly) is still benign — the grave accent distinguishes
+        # it from "tự tử". Before the pre-fold mask all of these fired.
+        "sẽ từ từ đi bộ",
+        "tôi đang từ từ hồi phục",
+        "đang từ từ",
+        "sắp từ từ quay lại nhé",
+        "em sẽ từ từ làm quen",
+        # Wukong wave-12 F3: partially-spaced laundry squash still
+        # suppresses — the whole-message squash consumes the chain.
+        "cogiat do khong",
+        "dangcogiat do khong",
     ],
 )
 def test_benign_folded_lookalikes_stay_silent(paraphrase: str) -> None:

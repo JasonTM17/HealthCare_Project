@@ -88,19 +88,19 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     + "difficultybreathing|cantbreathe|cannotbreathe|notbreathing|severebleeding|"
     + "suddencollapse|lossofconsciousness|nhoimaucotim|ngungtim|ngungtho|battinh|matythuc|"
     + "suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|want\\s+to\\s+die|self\\s+harm|"
-    + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
-    + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
-    + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
-    + "khong\\s+muon\\s+song|tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|"
-    // Joined "cogiat" mirrors the ai-service squash net: laundry prefixes and
-    // "do"+closing-particle suppress; other continuations ("cogiatdobinga")
-    // fire — fail-safe.
-    // Squash streams have no \b — the remainder must fully consume as a
-    // laundry/particle chain to suppress ("cogiatdokhong" quiet;
-    // "cogiatlai"/"cogiatdobinga" fire — Wukong wave-11).
-    + "cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do)(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*)(?![a-z0-9]))[a-z0-9]*|"
+    // Masked "từ" (tuu) tokens and the connector "rồi" may sit between
+    // the volition anchor and the crisis phrase — "sẽ từ từ tự tử" and
+    // "sẽ từ từ rồi tự tử" must still escalate even though "sẽ từ từ"
+    // alone must not (Wukong wave-12 F1). The gap stays bounded so a
+    // distant ambiguous "tu tu" cannot reattach to an earlier "sẽ".
+    + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+    + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+    + "|co\\s+y\\s+(?:dinh\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
+    // "tử vong" plus the masked-accent typo twin "từ vong" (tuu vong).
+    + "khong\\s+muon\\s+song|tu\\s+vong|tuu\\s+vong|tutu(?![conjuy]|th)[a-z0-9]*|"
+    + "tusat|muonchet|khongmuonsong|"
     + "that\\s+nguc|dau\\s+nguc\\s+lan|khong\\s+tho\\s+duoc|yeu\\s+liet|liet\\s+nua\\s+nguoi|"
-    + "ngat\\s+xiu|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
+    + "ngat(?:\\s+xiu|\\s+tho)?|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
     + "nhoi\\s+mau\\s+tim|va\\s+mo\\s+hoi\\s+lanh|mo\\s+mat\\s+dot\\s+ngot|soc\\s+phan\\s+ve|"
     + "ngo\\s+doc|unconscious)(?![a-z0-9])",
   "iu"
@@ -202,16 +202,120 @@ function jsonError(status: number, code: string): Response {
   );
 }
 
+// Squashed-stream emergency nets mirroring ai-service
+// emergency_terms._squashed_tier1_hit/_squashed_self_harm_hit: the
+// normalized message is fully squashed (separators removed) and each term
+// matches as a substring anywhere in the stream — the same way the Python
+// engine reads joined typings, so "dangtutu", "tacogiat", "khotho" or
+// "ngatxiu" cannot slip the degraded window (Wukong wave-12 F2). The
+// alternations are generated mirrors of _TIER1_SQUASHED/
+// _SELF_HARM_SQUASHED minus "cogiat" (handled by the remainder rule below)
+// and bare "tutu" (ai-service trusts it only at stream start — mid-stream
+// "ditutu" = "đi từ từ" is benign).
+const EMERGENCY_SQUASHED_TIER1 = new RegExp(
+  "(?:anaphylactic|anaphylaxis|battinh|baubidaubung|bebobu|bleedingheavily|"
+    + "bongdo|bongsau|breathingdifficulty|cannotbreathe|cantbreathe|"
+    + "cardiacarrest|chanthuongdau|chanthuongsonao|chaymauamdao|"
+    + "chaymaukhongcam|chaymaukhongngung|chaymauoat|chestpain|chetduoi|"
+    + "choking|collapsed|convulsion|cothatthanhquan|coughingupblood|"
+    + "criticalcondition|daunguc|daunguclanratay|daunguclantay|"
+    + "dausauxuonguc|dautim|dauxuonguc|diengiat|difficultybreathing|"
+    + "dingoairamau|diungnang|dongkinh|dongkinhlientuc|dotquy|drowned|"
+    + "duoinuoc|facedrooping|fainted|gasping|giamcudongthai|heartattack|"
+    + "heavybleeding|heavybreathing|hoachat|horamau|khongnoiduoc|"
+    + "khongthoduoc|khongthonoi|khotho|khothodudoi|lietchan|lietmotben|"
+    + "lietnuanguoi|liettay|mangthaibiramau|mangthairamau|matthiluc|"
+    + "matythuc|meomieng|miengbimeo|mohoilanh|moimeo|momatdotngot|"
+    + "nangnguc|ngattho|ngatxiu|nghetho|nghettho|ngodoc|ngungtho|"
+    + "ngungtim|nguyhiemtinhmang|nguykich|nhaubongnon|nhoimaucotim|"
+    + "nhoimautim|noikho|noikhongro|noingong|nonramau|"
+    + "numbnessononeside|overdose|overdosed|paraquat|pesticide|phanve|"
+    + "phumoi|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
+    + "sangiat|sapchet|sauxuonguc|saythai|seizure|severebleeding|"
+    + "shortnessofbreath|slurredspeech|socphanve|sotcaokhongha|"
+    + "sotxuathuyet|stroke|suddencollapse|suddenweakness|sungmoi|"
+    + "taibien|taibienmachmaunao|tainangiaothong|temotben|tenuanguoi|"
+    + "thaikhongmay|thailuu|thaingoaitucung|thatnguc|thokhokhan|"
+    + "thoplom|thorit|thorut|thuocdietco|thuoctay|tiensangiat|"
+    + "tieuramau|timtai|trebobu|trekhongchiuan|trekhongphanung|"
+    + "trekhotho|trelibi|tresotcao|tretimtai|troublebreathing|trungdoc|"
+    + "tucnguc|tuvong|tuuvong|unconscious|unresponsive|uongaxit|"
+    + "uonghoachat|uongthuocdoc|uongthuocngu|uongthuoctay|"
+    + "vamohoilanh|vangmohoilanh|vanmohoilanh|vomitingblood|"
+    + "xuathuyet|xuathuyetnao|xuathuyettieuhoa|xuonguc|yeuliet)",
+  "iu"
+);
+const EMERGENCY_SQUASHED_SELF_HARM = new RegExp(
+  "(?:betteroffdead|bienmatkhoithegioi|cantgoon|catcotay|cattay|"
+    + "chancuocsong|chansong|chetdi|coydinhtutu|coytutu|cutmyself|"
+    + "dangtutu|dinhtutu|donotwanttolive|dontwanttolive|enditall|"
+    + "endmylife|hurtmyself|jumpoffabridge|jumpoffabuilding|"
+    + "ketlieucuocdoi|ketlieucuocsong|ketthuccuocdoi|ketthuccuocsong|"
+    + "khongconlydodesong|khongconlydosong|khongconmuonsong|"
+    + "khongmuonodaynua|khongmuonsong|khongmuonsongnua|killme|"
+    + "killmyself|muonchet|muonchetdi|muontutu|nghidentutu|"
+    + "nghidenviectutu|nghingoivinhvien|nghitoitutu|nghitutu|"
+    + "nghivetutu|nhaycau|nhaylau|noreasontolive|notwanttobealive|"
+    + "notworthliving|quyettutu|rachtay|radimaimai|saptutu|selfharm|"
+    + "setutu|sleepforever|suicidal|suicide|takemyownlife|tinhtutu|"
+    + "treoco|tuhuyhoai|tuketlieu|tulamdau|unalive|wannadie|wanttodie|"
+    + "wishiwasdead|wishiweredead)",
+  "iu"
+);
+// Squashed "cogiat" suppression — fullmatch mirror of ai-service
+// _CO_GIAT_SQUASHED_SUPPRESS: the remainder must consume entirely as
+// laundry units / closing particles ("cogiatdokhong" quiet;
+// "cogiatlai"/"cogiatdobinga" fire).
+const CO_GIAT_SQUASHED_SUPPRESS =
+  /^(?:ui|la|giu?|quan|ao|khan|do)(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*$/iu;
+// Mirror of ai-service _TUTU_BENIGN_CONTINUATIONS (frozenset chars).
+const TUTU_BENIGN_CONTINUATIONS = "conjuy";
+
+function squashedTier1Hit(squashed: string): boolean {
+  if (EMERGENCY_SQUASHED_TIER1.test(squashed)) return true;
+  // "cogiat" suppresses only when the remainder is a full laundry/particle
+  // chain; an empty or non-chain rest fires (fail-safe).
+  const cogiat = /cogiat/gu;
+  let match: RegExpExecArray | null;
+  while ((match = cogiat.exec(squashed)) !== null) {
+    const rest = squashed.slice(match.index + match[0].length);
+    if (rest.length > 0 && CO_GIAT_SQUASHED_SUPPRESS.test(rest)) continue;
+    return true;
+  }
+  return false;
+}
+
+function squashedSelfHarmHit(squashed: string): boolean {
+  if (EMERGENCY_SQUASHED_SELF_HARM.test(squashed)) return true;
+  // Bare "tutu" is only trusted at stream start — mid-stream it is
+  // ambiguous with benign "từ từ" ("ditutu" = "đi từ từ"); volition
+  // compounds in EMERGENCY_SQUASHED_SELF_HARM cover the marked cases
+  // (mirrors ai-service _squashed_self_harm_hit).
+  return squashed.startsWith("tutu")
+    && (squashed.length < 5 || !TUTU_BENIGN_CONTINUATIONS.includes(squashed[4]))
+    && !squashed.startsWith("th", 4);
+}
+
 function likelyEmergencyFallback(message: string): boolean {
   // Mirrors ChatMedicalSafety.normalizeInput + the bounded scan: NFD-fold,
   // strip combining marks, đ→d, lowercase, punctuation→space — and only the
   // first window is scanned, matching the backend's EMERGENCY_SCAN_LIMIT.
-  const normalized = message.slice(0, 4096).normalize("NFD").replace(/\p{M}+/gu, "")
-    .replace(/[đĐ]/gu, "d")
+  // The "từ"→"tuu" mask mirrors the backend: the grave-accent adverb "từ từ"
+  // must not fold onto the self-harm "tự tử" token (Wukong FP-A). ð is the
+  // eth homoglyph the ai-service already translates (Wukong FN-2 bonus).
+  const normalized = message.slice(0, 4096).normalize("NFD")
     .toLowerCase()
+    .replace(/tu\u031B\u0300/gu, "tuu")
+    .replace(/\p{M}+/gu, "")
+    .replace(/[đĐðÐ]/gu, "d")
     .replace(/[^a-z0-9]+/gu, " ")
     .trim();
-  return EMERGENCY_FALLBACK_PATTERN.test(normalized);
+  if (EMERGENCY_FALLBACK_PATTERN.test(normalized)) return true;
+  // Squashed-stream pass: same substring semantics the ai-service applies
+  // to the whole message — catches joined/prefixed typings the token-start
+  // lookbehind cannot see (Wukong wave-12 F2/F3).
+  const squashed = normalized.replace(/[^a-z0-9]+/gu, "");
+  return squashedTier1Hit(squashed) || squashedSelfHarmHit(squashed);
 }
 
 function publicAiChatFallbackResponse(message = ""): Response {

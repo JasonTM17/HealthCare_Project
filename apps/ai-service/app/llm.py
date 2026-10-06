@@ -21,6 +21,7 @@ from app.providers import (
     DEFAULT_DEEPSEEK_CHAT_MODEL,
     ProviderUnavailable,
     REMOTE_CHAT_PROVIDERS,
+    bounded_int_setting,
     bounded_timeout_setting,
     provider_secret,
     remote_base_url_permitted,
@@ -767,10 +768,12 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|co\W+giat\b(?!\W*(?:ui|la|giu?|quan|ao|khan)\b)"
     r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day)\b))"
     # "tu tu" is both "tự tử" and benign "từ từ" (slowly); require a volition
-    # or thinking idiom in front, as in app.emergency_terms._TUTU_CRISIS.
-    r"|(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+tu\W+tu"
-    r"|nghi\W+(?!ngoi\b)(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
-    r"|co\W+y\W+(?:dinh\W+)?tu\W+tu)\b"
+    # or thinking idiom in front, as in app.emergency_terms._TUTU_CRISIS —
+    # including its bounded masked-"từ"/"rồi" gap so masked tokens between
+    # the anchor and the crisis phrase do not defeat the guard here either.
+    r"|(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+(?:(?:tuu|roi)\W+)*tu\W+tu"
+    r"|nghi\W+(?!ngoi\b)(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?(?:(?:tuu|roi)\W+)*tu\W+tu"
+    r"|co\W+y\W+(?:dinh\W+)?(?:(?:tuu|roi)\W+)*tu\W+tu)\b"
     r"|dot\W+quy\b|tai\W+bien(?:\W+mach\W+mau\W+nao)?\b|dau\W+tim\b|nhoi\W+mau\W+co\W+tim\b|ngung\W+tho\b|ngung\W+tim\b|bat\W+tinh\b|mat\W+y\W+thuc\b"
     r"|dau\W+(?:sau\W+)?xuong\W+uc\b|sau\W+xuong\W+uc\b|xuong\W+uc\b"
     r"|(?:khong\W+(?:con\W+)?|het\W+)muon\W+song\b|muon\W+chet\b|chet\W+di\b|ket\W+thuc\W+cuoc\W+(?:doi|song)\b"
@@ -1517,12 +1520,16 @@ def _normalize_sensitive_text(value: str) -> str:
     # while avoiding a length-based bypass with a deliberately long attribute.
     markup_free = re.sub(r"<[^>]*>", " ", html.unescape(value))
     compatibility = unicodedata.normalize("NFKC", markup_free).translate(_VIETNAMESE_D_TRANSLATION)
+    decomposed = unicodedata.normalize("NFKD", compatibility).casefold()
+    # Same "từ"→"tuu" mask as app.emergency_terms._fold: the grave-accent
+    # adverb must never fold onto the self-harm "tự tử" token (Wukong FP-A).
+    decomposed = decomposed.replace("tu\u031B\u0300", "tuu")
     without_diacritics = "".join(
         character
-        for character in unicodedata.normalize("NFKD", compatibility)
+        for character in decomposed
         if not unicodedata.combining(character) and unicodedata.category(character) != "Cf"
     )
-    return " ".join(without_diacritics.casefold().split())
+    return " ".join(without_diacritics.split())
 
 
 # Public read-only alias for policy/lexical scoring in sibling modules.
@@ -2198,6 +2205,7 @@ class LLMClient(Protocol):
         system_prompt: str,
         user_prompt: str,
         context: Sequence[str] = (),
+        max_tokens: int | None = None,
     ) -> Any:
         """Return decoded JSON or raise a provider error."""
 
@@ -2210,6 +2218,10 @@ class OpenAIChatClient:
     base_url: str
     model: str
     timeout_seconds: float
+    # Bounded completion budget: uncapped JSON-mode generations can run long
+    # tails that are then discarded by the answer-length gate. A truncation
+    # surfaces as a JSON parse failure and rides the existing fail-closed path.
+    max_tokens: int = 2_048
     cancellation: ChatCancellation | None = None
 
     def complete_json(
@@ -2218,8 +2230,11 @@ class OpenAIChatClient:
         system_prompt: str,
         user_prompt: str,
         context: Sequence[str] = (),
+        max_tokens: int | None = None,
     ) -> Any:
         from openai import OpenAI
+
+        token_budget = max_tokens if max_tokens is not None else self.max_tokens
 
         if self.cancellation is not None:
             self.cancellation.raise_if_cancelled()
@@ -2253,14 +2268,20 @@ class OpenAIChatClient:
                 model=self.model,
                 response_format={"type": "json_object"},
                 temperature=0,
+                max_tokens=token_budget,
                 messages=messages,
             )
         else:
-            completion = asyncio.run(self._complete_cancellable(messages))
+            completion = asyncio.run(self._complete_cancellable(messages, token_budget))
             self.cancellation.raise_if_cancelled()
         choices = getattr(completion, "choices", None)
         if not choices:
             raise ValueError("provider returned no choices")
+        finish_reason = getattr(choices[0], "finish_reason", None)
+        if finish_reason == "length":
+            # Content-free truncation signal: the payload below will fail JSON
+            # parsing and degrade through the honest fallback path.
+            logger.warning("provider completion truncated at max_tokens=%d", token_budget)
         content = getattr(getattr(choices[0], "message", None), "content", None)
         if not isinstance(content, str):
             raise ValueError("provider returned non-text content")
@@ -2275,7 +2296,7 @@ class OpenAIChatClient:
             raise ValueError("provider returned a non-object JSON payload")
         return payload
 
-    async def _complete_cancellable(self, messages: list[Any]) -> Any:
+    async def _complete_cancellable(self, messages: list[Any], max_tokens: int) -> Any:
         from openai import AsyncOpenAI
 
         cancellation = self.cancellation
@@ -2305,6 +2326,7 @@ class OpenAIChatClient:
                     model=self.model,
                     response_format={"type": "json_object"},
                     temperature=0,
+                    max_tokens=max_tokens,
                     messages=messages,
                 )
         finally:
@@ -2354,6 +2376,9 @@ def build_llm_client(
         base_url=base_url,
         model=model,
         timeout_seconds=bounded_timeout_setting(settings),
+        max_tokens=bounded_int_setting(
+            settings, "ai_chat_max_tokens", default=2_048, floor=256, ceiling=8_192
+        ),
         cancellation=cancellation,
     )
 
@@ -2598,6 +2623,9 @@ def deepseek_triage(
             ),
             user_prompt=symptoms,
             context=context,
+            # Triage payloads are compact (specialty + short advice + ≤3
+            # questions); a tighter budget trims generation tail latency.
+            max_tokens=1_024,
         )
         response = _validated_llm_response(
             data,

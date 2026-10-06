@@ -819,7 +819,21 @@ class PublicAiChatControllerTest {
             // Fully-laundry squash chains stay quiet (wave-11 full-match).
             "cogiatdokhong",
             "cogiatuikhong",
-            "cogiatdo")) {
+            "cogiatdo",
+            // Wukong FP-A: a volition marker directly before accented
+            // "từ từ" (slowly) is benign — the grave accent distinguishes
+            // it from "tự tử". Before the pre-fold mask these all fired.
+            "sẽ từ từ đi bộ",
+            "tôi đang từ từ hồi phục",
+            "đang từ từ",
+            "sắp từ từ quay lại nhé",
+            "em sẽ từ từ làm quen",
+            // Wukong wave-12 F3: partially-spaced laundry squash — the
+            // squash stream still consumes the particle chain, matching
+            // the ai-service verdict (was over-firing on the per-token
+            // lookahead before the squash pass owned "cogiat").
+            "cogiat do khong",
+            "dangcogiat do khong")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))
@@ -865,7 +879,41 @@ class PublicAiChatControllerTest {
             // "lai" (lại), "tainan" (tai nạn), "nhiem trung" (nhiễm trùng).
             "cogiatlai",
             "cogiatdotainan",
-            "cogiatdonhiemtrung")) {
+            "cogiatdonhiemtrung",
+            // Wukong wave-12: mid-token "cogiat" (prefixed squash) — the
+            // token-start lookbehind could not see "dangcogiat"; the
+            // mid-token net keeps degraded-window parity with ai-service.
+            "dangcogiat",
+            "becogiat",
+            // "ngất" (fainting) joined the emergency cue for degraded-window
+            // parity with the BFF/ai-service lexicons (Wukong FN-2).
+            "bé bị ngất",
+            "be bi ngat",
+            // ð (eth homoglyph) folds to d — "ðau ngực dữ dội" must not
+            // evade the qualified chest-pain cue (Wukong FN-2 bonus).
+            "ðau ngực dữ dội",
+            // Unaccented "tu tu" is ambiguous between "từ từ"/"tự tử" —
+            // ambiguity resolves toward crisis (fail-safe).
+            "se tu tu",
+            "dang tu tu",
+            // Wukong wave-12 F1: masked "từ" tokens between the volition
+            // anchor and the crisis phrase must not defeat the guard.
+            "sẽ từ từ tự tử",
+            "tôi định từ từ tự tử",
+            "nghĩ đến việc từ từ tự tử",
+            "sẽ từ từ rồi tự tử",
+            // "từ vong" (grave-typo of "tử vong") keeps recall via the
+            // masked-twin term.
+            "từ vong",
+            // Wukong wave-12 F2: joined typings the token-start net could
+            // not see — the squash stream covers them like ai-service does.
+            "dangtutu",
+            "toimuontutu",
+            "ngatxiu",
+            "khotho",
+            // Cross-token squash: "ta co giat" is invisible to a per-token
+            // net but Python fires it; the squash pass keeps parity.
+            "tacogiat")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))

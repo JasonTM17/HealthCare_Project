@@ -133,6 +133,91 @@ def test_remote_provider_uses_configured_timeout() -> None:
     )
 
 
+def test_remote_provider_sends_bounded_max_tokens() -> None:
+    """The completion budget is sent on every remote call so uncapped
+    JSON-mode generations cannot run long tails the 4,000-char gate would
+    discard anyway."""
+
+    settings = SimpleNamespace(
+        ai_provider="deepseek",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="deepseek-flash",
+        ai_base_url="https://api.deepseek.com",
+        ai_timeout_seconds=10,
+        ai_chat_max_tokens=1_500,
+        remote_ai_provider_allowlist="deepseek",
+        remote_ai_https_host_allowlist="api.deepseek.com",
+    )
+
+    mock_message = MagicMock()
+    mock_message.content = '{"answer":"ok"}'
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock(message=mock_message, finish_reason="stop")]
+
+    client = build_llm_client(settings)
+    assert isinstance(client, OpenAIChatClient)
+    assert client.max_tokens == 1_500
+    with patch("openai.OpenAI") as mock_openai:
+        create = mock_openai.return_value.chat.completions.create
+        create.return_value = mock_completion
+        client.complete_json(system_prompt="Return JSON", user_prompt="probe")
+
+    assert create.call_args.kwargs["max_tokens"] == 1_500
+
+
+def test_remote_provider_max_tokens_defaults_and_bounds() -> None:
+    """Missing/invalid env values fall back to the bounded default; oversized
+    values clamp to the ceiling instead of disabling the budget."""
+
+    base = dict(
+        ai_provider="deepseek",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="deepseek-flash",
+        ai_base_url="https://api.deepseek.com",
+        remote_ai_provider_allowlist="deepseek",
+        remote_ai_https_host_allowlist="api.deepseek.com",
+    )
+    assert build_llm_client(SimpleNamespace(**base)).max_tokens == 2_048  # type: ignore[union-attr]
+    assert build_llm_client(
+        SimpleNamespace(**{**base, "ai_chat_max_tokens": "bogus"})
+    ).max_tokens == 2_048  # type: ignore[union-attr]
+    assert build_llm_client(
+        SimpleNamespace(**{**base, "ai_chat_max_tokens": 999_999})
+    ).max_tokens == 8_192  # type: ignore[union-attr]
+
+
+def test_truncated_completion_surfaces_as_provider_error() -> None:
+    """finish_reason="length" returns a partial JSON body that fails parsing
+    and must ride the existing provider-failure path, not a raw crash."""
+
+    settings = SimpleNamespace(
+        ai_provider="deepseek",
+        ai_api_key=_TEST_PROVIDER_KEY,
+        ai_chat_model="deepseek-flash",
+        ai_base_url="https://api.deepseek.com",
+        ai_timeout_seconds=10,
+        remote_ai_provider_allowlist="deepseek",
+        remote_ai_https_host_allowlist="api.deepseek.com",
+    )
+    client = build_llm_client(settings)
+    assert client is not None
+
+    mock_message = MagicMock()
+    mock_message.content = '{"answer":"dài quá nên bị cắt'  # truncated JSON
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock(message=mock_message, finish_reason="length")]
+
+    with patch("openai.OpenAI") as mock_openai:
+        mock_openai.return_value.chat.completions.create.return_value = mock_completion
+        try:
+            client.complete_json(system_prompt="Return JSON", user_prompt="probe")
+            raised = None
+        except Exception as exc:  # noqa: BLE001 - asserting the failure path
+            raised = exc
+
+    assert raised is not None
+
+
 def test_deepseek_client_uses_v4_flash_default_and_clamps_timeout() -> None:
     settings = SimpleNamespace(
         ai_provider="deepseek",

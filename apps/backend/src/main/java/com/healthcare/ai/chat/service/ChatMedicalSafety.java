@@ -76,11 +76,16 @@ public final class ChatMedicalSafety {
             + "sot|ngat|co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
             + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))"
             + "|chay\\s+mau|"
-            // Same volition/thinking-idiom guard as EMERGENCY_INPUT_CUE:
-            // folded "từ từ" (slowly) must not mark input clinically-protected.
-            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
-            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
-            + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|chan\\s+doan|ke\\s+don|"
+            // Same volition/thinking-idiom guard shape as EMERGENCY_INPUT_CUE,
+            // including its bounded masked-"từ"/"rồi" gap — folded "từ từ"
+            // (slowly) must not mark input clinically-protected, but masked
+            // tokens between the anchor and a real "tu tu" must not hide the
+            // protection either. The joined/squashed coverage below stays a
+            // curated subset here: the PROTECTED cue is a routing hint, while
+            // the full squash-stream parity lives on the EMERGENCY boundary.
+            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+            + "|co\\s+y\\s+(?:dinh\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu)|chan\\s+doan|ke\\s+don|"
             + "(?:uong|dung|mua|ke|don|tiem|boi|chich|xit|giam|tang|ngung|cat|pha)\\s+thuoc|"
             + "(?<!(?<![a-z0-9])(?:nha|quay|hang) )thuoc(?!\\s+(?:khoa|co\\s+so|benh\\s+vien|thanh\\s+pho)\\b)|"
             + "lieu\\s+thuoc|trieu\\s+chung|non|tieu\\s+chay|chong\\s+mat|"
@@ -128,31 +133,110 @@ public final class ChatMedicalSafety {
             + "shortnessofbreath|difficultybreathing|cantbreathe|cannotbreathe|notbreathing|"
             + "severebleeding|suddencollapse|lossofconsciousness|nhoimauco\\s+tim|ngungtim|"
             + "ngungtho|battinh|matythuc|suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
-            + "want\\s+to\\s+die|self\\s+harm|"
+            // "ngất"/"ngất xỉu" (fainting) — the BFF fallback carries
+            // "ngat xiu|bi ngat|sap ngat" and the ai-service tier-1 list
+            // carries bare "ngat"; without it the ai-service-down degraded
+            // window would answer a collapse report with navigation links
+            // instead of the 115 banner (Wukong FN-2).
+            + "want\\s+to\\s+die|self\\s+harm|ngat(?:\\s+xiu|\\s+tho)?|"
             // "tu tu" folds identically to the benign adverb "từ từ"
             // (slowly), so the spaced form only counts as self-harm when a
             // volition/thinking idiom precedes it ("muốn/định/tính/quyết tự
             // tử", "nghĩ (đến việc|về|tới) tự tử", "có ý (định) tự tử"); the
             // concatenated "tutu" and unambiguous phrases keep full recall.
-            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+tu\\s+tu"
-            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?tu\\s+tu"
-            + "|co\\s+y\\s+(?:dinh\\s+)?tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
-            + "khong\\s+muon\\s+song|"
+            // Masked "từ" (tuu) tokens and the connector "rồi" may sit
+            // between the anchor and the final "tu tu": "sẽ từ từ tự tử"
+            // and "sẽ từ từ rồi tự tử" must still escalate even though
+            // "sẽ từ từ" alone must not (Wukong wave-12 F1). The gap stays
+            // bounded so a distant ambiguous "tu tu" cannot reattach.
+            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+            + "|co\\s+y\\s+(?:dinh\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
+            // "tử vong" (death) plus the masked-accent typo twin "từ vong"
+            // (tuu vong) — parity with the ai-service tier-1 terms.
+            + "khong\\s+muon\\s+song|tu\\s+vong|tuu\\s+vong|"
             // Joined "tutu" counts when it opens a token and does not continue
             // into a benign word ("tutuc", "tutuong"). This fires at any token
             // start mid-message — broader than the ai-service squash rule,
             // which only trusts bare "tutu" at stream start; the direction is
             // over-fire (safe side).
-            + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong|"
-            // Joined "cogiat" carries the squash-net contract: the remainder
-            // must fully consume as a laundry/particle chain to suppress —
-            // "cogiatdokhong" stays quiet but "cogiatlai" and
-            // "cogiatdobinga" fire (Wukong wave-11).
-            + "cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do)"
-            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*)(?![a-z0-9]))[a-z0-9]*)"
+            + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong)"
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
+    /**
+     * Squashed-stream emergency nets mirroring ai-service
+     * emergency_terms._squashed_tier1_hit/_squashed_self_harm_hit: the
+     * normalized message is fully squashed (separators removed) and each
+     * term matches as a substring anywhere in the stream — the same way
+     * the Python engine reads joined typings, so "dangtutu", "tacogiat",
+     * "khotho" or "ngatxiu" cannot slip the degraded window (Wukong
+     * wave-12 F2). These alternations are generated mirrors of
+     * _TIER1_SQUASHED/_SELF_HARM_SQUASHED minus "cogiat" (handled by the
+     * remainder rule below) and bare "tutu" (ai-service trusts it only at
+     * stream start — mid-stream "ditutu" = "đi từ từ" is benign).
+     */
+    private static final Pattern EMERGENCY_SQUASHED_TIER1 = Pattern.compile(
+        "(?:anaphylactic|anaphylaxis|battinh|baubidaubung|bebobu|bleedingheavily|"
+            + "bongdo|bongsau|breathingdifficulty|cannotbreathe|cantbreathe|"
+            + "cardiacarrest|chanthuongdau|chanthuongsonao|chaymauamdao|"
+            + "chaymaukhongcam|chaymaukhongngung|chaymauoat|chestpain|chetduoi|"
+            + "choking|collapsed|convulsion|cothatthanhquan|coughingupblood|"
+            + "criticalcondition|daunguc|daunguclanratay|daunguclantay|"
+            + "dausauxuonguc|dautim|dauxuonguc|diengiat|difficultybreathing|"
+            + "dingoairamau|diungnang|dongkinh|dongkinhlientuc|dotquy|drowned|"
+            + "duoinuoc|facedrooping|fainted|gasping|giamcudongthai|heartattack|"
+            + "heavybleeding|heavybreathing|hoachat|horamau|khongnoiduoc|"
+            + "khongthoduoc|khongthonoi|khotho|khothodudoi|lietchan|lietmotben|"
+            + "lietnuanguoi|liettay|mangthaibiramau|mangthairamau|matthiluc|"
+            + "matythuc|meomieng|miengbimeo|mohoilanh|moimeo|momatdotngot|"
+            + "nangnguc|ngattho|ngatxiu|nghetho|nghettho|ngodoc|ngungtho|"
+            + "ngungtim|nguyhiemtinhmang|nguykich|nhaubongnon|nhoimaucotim|"
+            + "nhoimautim|noikho|noikhongro|noingong|nonramau|"
+            + "numbnessononeside|overdose|overdosed|paraquat|pesticide|phanve|"
+            + "phumoi|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
+            + "sangiat|sapchet|sauxuonguc|saythai|seizure|severebleeding|"
+            + "shortnessofbreath|slurredspeech|socphanve|sotcaokhongha|"
+            + "sotxuathuyet|stroke|suddencollapse|suddenweakness|sungmoi|"
+            + "taibien|taibienmachmaunao|tainangiaothong|temotben|tenuanguoi|"
+            + "thaikhongmay|thailuu|thaingoaitucung|thatnguc|thokhokhan|"
+            + "thoplom|thorit|thorut|thuocdietco|thuoctay|tiensangiat|"
+            + "tieuramau|timtai|trebobu|trekhongchiuan|trekhongphanung|"
+            + "trekhotho|trelibi|tresotcao|tretimtai|troublebreathing|trungdoc|"
+            + "tucnguc|tuvong|tuuvong|unconscious|unresponsive|uongaxit|"
+            + "uonghoachat|uongthuocdoc|uongthuocngu|uongthuoctay|"
+            + "vamohoilanh|vangmohoilanh|vanmohoilanh|vomitingblood|"
+            + "xuathuyet|xuathuyetnao|xuathuyettieuhoa|xuonguc|yeuliet)"
+    );
+    private static final Pattern EMERGENCY_SQUASHED_SELF_HARM = Pattern.compile(
+        "(?:betteroffdead|bienmatkhoithegioi|cantgoon|catcotay|cattay|"
+            + "chancuocsong|chansong|chetdi|coydinhtutu|coytutu|cutmyself|"
+            + "dangtutu|dinhtutu|donotwanttolive|dontwanttolive|enditall|"
+            + "endmylife|hurtmyself|jumpoffabridge|jumpoffabuilding|"
+            + "ketlieucuocdoi|ketlieucuocsong|ketthuccuocdoi|ketthuccuocsong|"
+            + "khongconlydodesong|khongconlydosong|khongconmuonsong|"
+            + "khongmuonodaynua|khongmuonsong|khongmuonsongnua|killme|"
+            + "killmyself|muonchet|muonchetdi|muontutu|nghidentutu|"
+            + "nghidenviectutu|nghingoivinhvien|nghitoitutu|nghitutu|"
+            + "nghivetutu|nhaycau|nhaylau|noreasontolive|notwanttobealive|"
+            + "notworthliving|quyettutu|rachtay|radimaimai|saptutu|selfharm|"
+            + "setutu|sleepforever|suicidal|suicide|takemyownlife|tinhtutu|"
+            + "treoco|tuhuyhoai|tuketlieu|tulamdau|unalive|wannadie|wanttodie|"
+            + "wishiwasdead|wishiweredead)"
+    );
+    /**
+     * Squashed "cogiat" suppression — fullmatch mirror of ai-service
+     * _CO_GIAT_SQUASHED_SUPPRESS: the remainder after "cogiat" must consume
+     * entirely as laundry units / closing particles, else it fires
+     * ("cogiatdokhong" quiet; "cogiatlai"/"cogiatdobinga" fire).
+     */
+    private static final Pattern CO_GIAT_SQUASHED_SUPPRESS = Pattern.compile(
+        "(?:ui|la|giu?|quan|ao|khan|do)"
+            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*\\z"
+    );
+    private static final Pattern SQUASHED_COGIAT = Pattern.compile("cogiat");
+    /** Mirror of ai-service _TUTU_BENIGN_CONTINUATIONS (frozenset chars). */
+    private static final String TUTU_BENIGN_CONTINUATIONS = "conjuy";
 
     private ChatMedicalSafety() {
     }
@@ -219,16 +303,58 @@ public final class ChatMedicalSafety {
             ? input.substring(0, EMERGENCY_SCAN_LIMIT)
             : input;
         String normalized = normalizeInput(window);
-        return normalized != null && EMERGENCY_INPUT_CUE.matcher(normalized).find();
+        if (normalized == null) return false;
+        if (EMERGENCY_INPUT_CUE.matcher(normalized).find()) return true;
+        // Squashed-stream pass: the same substring semantics the ai-service
+        // applies to the whole message — catches joined/prefixed typings the
+        // token-start lookbehind cannot see (Wukong wave-12 F2/F3).
+        String squashed = normalized.replace(" ", "");
+        return squashedTier1Hit(squashed) || squashedSelfHarmHit(squashed);
+    }
+
+    private static boolean squashedTier1Hit(String squashed) {
+        if (EMERGENCY_SQUASHED_TIER1.matcher(squashed).find()) return true;
+        // "cogiat" suppresses only when the remainder is a full laundry/
+        // particle chain; an empty or non-chain rest fires (fail-safe).
+        java.util.regex.Matcher cogiat = SQUASHED_COGIAT.matcher(squashed);
+        while (cogiat.find()) {
+            String rest = squashed.substring(cogiat.end());
+            if (!rest.isEmpty()
+                    && CO_GIAT_SQUASHED_SUPPRESS.matcher(rest).matches()) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean squashedSelfHarmHit(String squashed) {
+        if (EMERGENCY_SQUASHED_SELF_HARM.matcher(squashed).find()) return true;
+        // Bare "tutu" is only trusted at stream start — mid-stream it is
+        // ambiguous with benign "từ từ" ("ditutu" = "đi từ từ"); volition
+        // compounds in EMERGENCY_SQUASHED_SELF_HARM cover the marked cases
+        // (mirrors ai-service _squashed_self_harm_hit).
+        return squashed.startsWith("tutu")
+            && (squashed.length() < 5
+                || TUTU_BENIGN_CONTINUATIONS.indexOf(squashed.charAt(4)) < 0)
+            && !squashed.startsWith("th", 4);
     }
 
     private static String normalizeInput(String input) {
         if (input == null || input.isBlank()) return null;
-        return Normalizer.normalize(input, Normalizer.Form.NFD)
+        String decomposed = Normalizer.normalize(input, Normalizer.Form.NFD)
+            .toLowerCase(Locale.ROOT);
+        // "từ" (grave accent — the benign adverb "từ từ"/preposition) and
+        // "tự" (nặng accent — self-harm "tự tử") fold to the same "tu".
+        // Mask the grave form before marks are stripped so the volition-guard
+        // suicide cue cannot fire on "sẽ từ từ" while "sẽ tự tử" still does
+        // (Wukong FP-A). Unaccented "tu tu" stays ambiguous → keeps firing.
+        decomposed = decomposed.replace("tu\u031B\u0300", "tuu");
+        return decomposed
             .replaceAll("\\p{M}+", "")
             .replace('đ', 'd')
             .replace('Đ', 'D')
-            .toLowerCase(Locale.ROOT)
+            .replace('ð', 'd')
             .replaceAll("[^a-z0-9]+", " ")
             .trim()
             .replaceAll("\\s+", " ");
