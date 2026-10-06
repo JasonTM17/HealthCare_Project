@@ -81,6 +81,25 @@ def bounded_timeout_setting(
     return min(timeout, MAX_PROVIDER_TIMEOUT_SECONDS)
 
 
+def bounded_int_setting(
+    settings: Any,
+    name: str,
+    default: int,
+    floor: int,
+    ceiling: int,
+) -> int:
+    """Read an integer provider setting while enforcing a hard bound."""
+
+    value = getattr(settings, name, default)
+    if isinstance(value, bool):
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(floor, min(parsed, ceiling))
+
+
 def secret_setting(settings: Any, *names: str) -> str:
     for name in names:
         value = string_setting(settings, name)

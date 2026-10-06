@@ -41,12 +41,18 @@ def _fold(value: str) -> str:
 
     markup_free = re.sub(r"<[^>]*>", " ", html.unescape(value))
     compatibility = unicodedata.normalize("NFKC", markup_free).translate(_ETH_TRANSLATION)
+    decomposed = unicodedata.normalize("NFKD", compatibility).casefold()
+    # "từ" (grave — benign "từ từ" / "from") and "tự" (nặng — self-harm
+    # "tự tử") collapse to the same folded "tu". Mask the grave form while
+    # accents still exist so "sẽ từ từ" cannot trip the volition-guarded
+    # suicide cue but "sẽ tự tử" still escalates (Wukong FP-A).
+    decomposed = decomposed.replace("tu\u031B\u0300", "tuu")
     without_diacritics = "".join(
         character
-        for character in unicodedata.normalize("NFKD", compatibility)
+        for character in decomposed
         if not unicodedata.combining(character) and unicodedata.category(character) != "Cf"
     )
-    return " ".join(without_diacritics.casefold().split())
+    return " ".join(without_diacritics.split())
 
 # -- Terms that escalate on their own, with no severity qualifier ---------------
 #
@@ -231,6 +237,10 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "tre khong phan ung",
     # End-of-life and imminent-death phrasing.
     "tu vong",
+    # "từ vong" (grave-accent typo of "tử vong") folds to "tuu vong" under
+    # the benign-adverb mask — the masked twin keeps the recall (Wukong
+    # wave-12 F1 bonus).
+    "tuu vong",
     "nguy kich",
     "nguy hiem tinh mang",
     "sap chet",
@@ -618,10 +628,16 @@ _CO_GIAT_CRISIS: Final[re.Pattern[str]] = re.compile(
 # the concatenated "tutu" keeps its own benign-continuation disambiguation.
 # The nghi idiom skips "nghỉ ngơi" (rest slowly) — "nghi ngoi tu tu" is
 # benign; "nghi (đến việc|về|tới) tu tu" is not.
+# Masked "từ" (tuu) tokens and the connector "rồi" may legitimately sit
+# between the volition anchor and the crisis phrase: "sẽ từ từ tự tử" and
+# "sẽ từ từ rồi tự tử" must still escalate even though "sẽ từ từ" alone
+# must not (Wukong wave-12 F1).  The gap is deliberately bounded — only
+# masked-adverb tokens and "roi" — so a distant ambiguous "tu tu" in an
+# unrelated clause does not reattach to an earlier "sẽ".
 _TUTU_CRISIS: Final[re.Pattern[str]] = re.compile(
-    r"\b(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+tu\W+tu"
-    r"|nghi\W+(?!ngoi\b)(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?tu\W+tu"
-    r"|co\W+y\W+(?:dinh\W+)?tu\W+tu)\b"
+    r"\b(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\W+(?:(?:tuu|roi)\W+)*tu\W+tu"
+    r"|nghi\W+(?!ngoi\b)(?:den\W+(?:viec\W+)?|ve\W+|toi\W+)?(?:(?:tuu|roi)\W+)*tu\W+tu"
+    r"|co\W+y\W+(?:dinh\W+)?(?:(?:tuu|roi)\W+)*tu\W+tu)\b"
 )
 
 _TIER1_BOUNDARY = _compile_boundary_matcher(TIER1_TERMS)

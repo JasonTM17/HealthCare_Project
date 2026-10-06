@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     remote_ai_https_host_allowlist: str = "api.deepseek.com"
     ai_chat_circuit_failure_threshold: int = Field(default=3, ge=1, le=10)
     ai_chat_circuit_reset_seconds: float = Field(default=30.0, gt=0, le=300)
+    # Bounded completion budget for remote chat calls: uncapped JSON-mode
+    # generations can run long tails, so a generous-but-finite cap keeps the
+    # public lane inside its latency budget. Truncated payloads fail parsing
+    # and degrade through the existing honest-fallback path.
+    ai_chat_max_tokens: int = Field(default=2_048, ge=256, le=8_192)
     ai_max_input_chars: int = Field(default=10_000, ge=2, le=10_000)
     ai_max_retrieved_chunks: int = Field(default=5, ge=1, le=20)
     # Public catalog questions may need to over-fetch before identity and
