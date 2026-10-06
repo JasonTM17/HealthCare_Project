@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # scheduler pool, reconcile interval, Hikari 8, metrics/swagger, warm-check).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:95a36dc0cbb4d8971be743587bdc59b314d2c68e44c9143bf15429643ba5a85e"
+    "sha256:bb6e7f72cd3a17e6265d822ba08c47f29de58afda0d204190757913c712242c1"
 )
 
 
