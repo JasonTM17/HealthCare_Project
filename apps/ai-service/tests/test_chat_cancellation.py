@@ -142,11 +142,19 @@ def test_real_client_disconnect_closes_fastapi_provider_socket(
 
     class TrackedClient(OpenAIChatClient):
         def complete_json(
-            self, *, system_prompt: str, user_prompt: str, context: Sequence[str] = ()
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            context: Sequence[str] = (),
+            max_tokens: int | None = None,
         ) -> object:
             try:
                 return super().complete_json(
-                    system_prompt=system_prompt, user_prompt=user_prompt, context=context
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    context=context,
+                    max_tokens=max_tokens,
                 )
             finally:
                 provider_call_finished.set()
