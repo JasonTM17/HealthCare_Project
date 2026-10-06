@@ -218,6 +218,10 @@ patient:
 # sets storage.require-private-endpoint=true and therefore cannot fall back to
 # localhost or placeholder credentials.
 storage:
+  # minio (default) = S3-compatible MinIO client; supabase = Supabase Storage
+  # REST adapter (the Supabase S3 endpoint requires a /storage/v1/s3 path that
+  # the MinIO client cannot address).
+  backend: ${STORAGE_BACKEND:minio}
   endpoint: ${STORAGE_ENDPOINT:${minio.endpoint:${MINIO_ENDPOINT:http://localhost:9000}}}
   # Optional browser-reachable origin for signed URLs. Never rewrite a signed
   # URL afterward; S3 signatures include Host. Requires an explicit region.

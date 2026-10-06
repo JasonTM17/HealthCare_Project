@@ -306,7 +306,13 @@ services:
       # session-token form (access_key_id = project ref, secret = anon JWT,
       # session_token = service_role JWT); this deployment uses the latter.
       # STORAGE_UPLOAD_ENABLED stays false: generation writes via the
-      # server-side client, not user uploads.
+      # server-side client, not user uploads. storage.backend=supabase selects
+      # the REST adapter (Supabase's S3 endpoint carries a mandatory
+      # /storage/v1/s3 path that the MinIO client cannot address); for that
+      # backend STORAGE_ENDPOINT is the project URL https://<ref>.supabase.co
+      # and STORAGE_SECRET_KEY is the service-role JWT.
+      - key: STORAGE_BACKEND
+        value: "supabase"
       - key: STORAGE_ENDPOINT
         sync: false
       - key: STORAGE_REGION

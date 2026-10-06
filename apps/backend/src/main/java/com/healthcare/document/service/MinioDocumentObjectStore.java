@@ -8,6 +8,7 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayInputStream;
@@ -20,6 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * through the authorized download endpoint.
  */
 @Component
+@ConditionalOnProperty(name = "storage.backend", havingValue = "minio", matchIfMissing = true)
 public class MinioDocumentObjectStore implements DocumentObjectStore {
 
     static final String OBJECT_PREFIX = "documents/";

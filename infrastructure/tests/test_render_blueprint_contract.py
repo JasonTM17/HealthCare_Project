@@ -154,6 +154,9 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "true"
     # Clinical PDF storage is server-side only: endpoint/region/bucket are
     # non-secret posture, the access key pair is a dashboard-managed secret.
+    # storage.backend=supabase selects the REST adapter because the Supabase
+    # S3 endpoint requires a /storage/v1/s3 path the MinIO client rejects.
+    assert backend["STORAGE_BACKEND"]["value"] == "supabase"
     assert backend["STORAGE_REGION"]["value"] == "ap-northeast-1"
     assert backend["STORAGE_BUCKET"]["value"] == "healthcare-files"
     for key in (
