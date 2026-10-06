@@ -776,6 +776,17 @@ public class AiChatSourceResolver {
                 }
             }
         }
+        // LAUNDRY_QUERY_CUE matches live outside AMENITY_QUERY_PHRASES — its
+        // tokens ("giat do cho khach") must still be subtracted or they
+        // poison the residual branch identity (wave-14 CI regression:
+        // "cơ sở có giặt đồ cho khách không?" resolved a false specific
+        // identity instead of scanning the catalog).
+        if ("laundry".equals(amenityType)) {
+            java.util.regex.Matcher cue = LAUNDRY_QUERY_CUE.matcher(normalizedQuery);
+            while (cue.find()) {
+                for (String token : cue.group().split("\\s+")) tokens.add(token);
+            }
+        }
         return tokens;
     }
 
