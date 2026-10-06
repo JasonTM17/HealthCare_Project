@@ -2,6 +2,7 @@ package com.healthcare.storage.config;
 
 import com.healthcare.storage.FailClosedStoragePolicy;
 import io.minio.MinioClient;
+import io.minio.credentials.StaticProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +25,9 @@ public class MinioConfig {
     @Value("${storage.secret-key:${minio.secret-key:${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}}}")
     private String secretKey;
 
+    @Value("${storage.session-token:}")
+    private String sessionToken;
+
     @Value("${storage.require-private-endpoint:false}")
     private boolean requirePrivateEndpoint;
 
@@ -34,9 +38,7 @@ public class MinioConfig {
     @Primary
     public MinioClient minioClient() {
         StorageEndpointPolicy.validatePrivateEndpoint(requirePrivateEndpoint, endpoint, accessKey, secretKey);
-        MinioClient.Builder builder = MinioClient.builder()
-            .endpoint(endpoint.trim())
-            .credentials(effectiveAccessKey(), effectiveSecretKey());
+        MinioClient.Builder builder = applyCredentials(MinioClient.builder().endpoint(endpoint.trim()));
         if (region != null && !region.isBlank()) {
             builder.region(region.trim());
         }
@@ -64,6 +66,21 @@ public class MinioConfig {
 
     private String effectiveSecretKey() {
         return secretKey == null || secretKey.isBlank() ? UNCONFIGURED : secretKey;
+    }
+
+    /**
+     * Supabase Storage's S3 endpoint accepts either a minted S3 access-key pair
+     * or the session-token form ({@code access_key_id = project ref,
+     * secret_access_key = anon JWT, session_token = service_role JWT}). When a
+     * session token is configured it rides along as {@code x-amz-security-token}
+     * via {@link StaticProvider}; static S3 keypairs keep the plain path.
+     */
+    private MinioClient.Builder applyCredentials(MinioClient.Builder builder) {
+        if (sessionToken != null && !sessionToken.isBlank()) {
+            return builder.credentialsProvider(new StaticProvider(
+                    effectiveAccessKey(), effectiveSecretKey(), sessionToken.trim()));
+        }
+        return builder.credentials(effectiveAccessKey(), effectiveSecretKey());
     }
 
     /** Sign for the browser's endpoint, without rewriting a signed Host. */
@@ -99,7 +116,7 @@ public class MinioConfig {
         if (region == null || region.isBlank()) {
             throw new IllegalStateException("Storage region is required for a public signing endpoint");
         }
-        return MinioClient.builder().endpoint(publicEndpoint.trim())
-            .credentials(effectiveAccessKey(), effectiveSecretKey()).region(region.trim()).build();
+        return applyCredentials(MinioClient.builder().endpoint(publicEndpoint.trim()))
+            .region(region.trim()).build();
     }
 }

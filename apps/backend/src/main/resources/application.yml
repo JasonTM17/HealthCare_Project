@@ -229,6 +229,9 @@ storage:
   # start at all when uploads are enabled without real ones.
   access-key: ${STORAGE_ACCESS_KEY:${minio.access-key:${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:}}}}
   secret-key: ${STORAGE_SECRET_KEY:${minio.secret-key:${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:}}}}
+  # Optional S3 session token (Supabase Storage session-token auth: access_key_id
+  # = project ref, secret = anon JWT, session_token = service_role JWT).
+  session-token: ${STORAGE_SESSION_TOKEN:}
   bucket: ${STORAGE_BUCKET:${minio.bucket:healthcare-files}}
   region: ${STORAGE_REGION:}
   require-private-endpoint: ${STORAGE_REQUIRE_PRIVATE_ENDPOINT:false}
