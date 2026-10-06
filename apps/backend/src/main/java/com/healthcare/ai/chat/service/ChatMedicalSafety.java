@@ -4,7 +4,9 @@ import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 
 import java.text.Normalizer;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /** Spring persist-time diagnose/prescribe reject. FastAPI regex is not sufficient. */
@@ -73,8 +75,16 @@ public final class ChatMedicalSafety {
             + "(?!\\s+(?>(?:" + VEHICLE_CUE + "))\\b"
             + "(?!\\s+(?:" + BODY_PART_CUE + ")\\b))|dau\\s+(?:(?>"
             + VEHICLE_CUE + ")\\s+)?(?:" + BODY_PART_CUE + ")|kho\\s+tho|"
-            + "sot|ngat|co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
-            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))"
+            // "ngat" (ngất/ngắt fold collision) is evaluated outside this
+            // alternation by ngatCrisisHit — the same benign-continuation
+            // and reversed-antecedent suppression the emergency cue uses,
+            // applied to the protected lane so connectivity questions still
+            // reach the amenity/navigator classifiers (Wukong wave-12c CE5).
+            + "sot"
+            + "|co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\\b)"
+            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day"
+            + "|the\\W*nao|nhu\\W*the\\W*nao|mien\\W*phi|phi|dich\\W*vu|gia|bao\\W*nhieu"
+            + "|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\\b))"
             + "|chay\\s+mau|"
             // Same volition/thinking-idiom guard shape as EMERGENCY_INPUT_CUE,
             // including its bounded masked-"từ"/"rồi" gap — folded "từ từ"
@@ -103,9 +113,16 @@ public final class ChatMedicalSafety {
             + "suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|want\\s+to\\s+die|self\\s+harm|"
             // Squash streams have no \b — suppression must consume the whole
             // remainder as a laundry/particle chain, else "cogiatlai" (co
-            // giật lại) would silently suppress (Wukong wave-11).
-            + "tutu|cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do)"
-            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*)(?![a-z0-9]))[a-z0-9]*)"
+            // giật lại) would silently suppress (Wukong wave-11). The unit
+            // lists mirror CO_GIAT_SQUASHED_SUPPRESS exactly — including the
+            // "cho<person>" and amenity-fee continuations — so a joined
+            // laundry-for-person question is not marked protected and can
+            // still reach the amenity lane (Wukong wave-12c CE2).
+            + "tutu|cogiat(?!(?:(?:ui|la|giu?|quan|ao|khan|do"
+            + "|cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong))"
+            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau"
+            + "|cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong)"
+            + "|thenao|nhuthenao|mienphi|phitien|phi|dichvu|giatien|gia|baonhieutien|baonhieu)*)(?![a-z0-9]))[a-z0-9]*)"
             + "(?![a-z0-9])",
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
@@ -122,8 +139,10 @@ public final class ChatMedicalSafety {
             // Wukong falsified — "co giật do bị ngã" stayed suppressed), "do"
             // suppresses only at clause end or before laundry-closing words;
             // every other continuation keeps the fail-safe default of firing.
-            + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
-            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))"
+            + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\\b)"
+            + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day"
+            + "|the\\W*nao|nhu\\W*the\\W*nao|mien\\W*phi|phi|dich\\W*vu|gia|bao\\W*nhieu"
+            + "|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\\b))"
             + "|heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|"
             + "shortness\\s+of\\s+breath|difficulty\\s+breathing|cant\\s+breathe|"
             + "cannot\\s+breathe|not\\s+breathing|severe\\s+bleeding|unresponsive|"
@@ -133,12 +152,12 @@ public final class ChatMedicalSafety {
             + "shortnessofbreath|difficultybreathing|cantbreathe|cannotbreathe|notbreathing|"
             + "severebleeding|suddencollapse|lossofconsciousness|nhoimauco\\s+tim|ngungtim|"
             + "ngungtho|battinh|matythuc|suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
-            // "ngất"/"ngất xỉu" (fainting) — the BFF fallback carries
-            // "ngat xiu|bi ngat|sap ngat" and the ai-service tier-1 list
-            // carries bare "ngat"; without it the ai-service-down degraded
-            // window would answer a collapse report with navigation links
-            // instead of the 115 banner (Wukong FN-2).
-            + "want\\s+to\\s+die|self\\s+harm|ngat(?:\\s+xiu|\\s+tho)?|"
+            // "ngất"/"ngắt" is evaluated outside this alternation by
+            // ngatCrisisHit — the same benign-continuation lookahead plus the
+            // reversed-antecedent suppression ("wifi bị ngắt") it shares with
+            // the protected lane; "ngắt hơi" keeps firing in both
+            // (Wukong wave-12c CE5).
+            + "want\\s+to\\s+die|self\\s+harm|"
             // "tu tu" folds identically to the benign adverb "từ từ"
             // (slowly), so the spaced form only counts as self-harm when a
             // volition/thinking idiom precedes it ("muốn/định/tính/quyết tự
@@ -230,13 +249,67 @@ public final class ChatMedicalSafety {
      * entirely as laundry units / closing particles, else it fires
      * ("cogiatdokhong" quiet; "cogiatlai"/"cogiatdobinga" fire).
      */
+    // Bare "tien" is deliberately not a unit — "cogiatdotien" could be a
+    // convulsion lead-in ("do tiền sử" = because of history) so it stays
+    // fail-safe like spaced "co giat do tien" (Wukong wave-12c CE4); the
+    // price compounds "baonhieutien"/"giatien"/"phitien" carry the benign
+    // readings.
     private static final Pattern CO_GIAT_SQUASHED_SUPPRESS = Pattern.compile(
-        "(?:ui|la|giu?|quan|ao|khan|do)"
-            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*\\z"
+        "(?:ui|la|giu?|quan|ao|khan|do|cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong))"
+            + "(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau"
+            + "|cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong)"
+            + "|thenao|nhuthenao|mienphi|phitien|phi|dichvu|giatien|gia|baonhieutien|baonhieu)*\\z"
     );
     private static final Pattern SQUASHED_COGIAT = Pattern.compile("cogiat");
     /** Mirror of ai-service _TUTU_BENIGN_CONTINUATIONS (frozenset chars). */
     private static final String TUTU_BENIGN_CONTINUATIONS = "conjuy";
+    /**
+     * "ngat" folds "ngất" (faint) and "ngắt" (interrupt/disconnect) together.
+     * Shared by the protected and emergency cues: a benign-continuation
+     * lookahead keeps connectivity/electrical/speech questions out of both
+     * lanes — "ngắt hơi" stays firing because "hoi" is breath.
+     */
+    private static final Pattern NGAT_CRISIS = Pattern.compile(
+        "(?<![a-z0-9])ngat\\b(?!\\s+(?:ket\\s*noi|mach|loi|han|song|quang|dien|nguon|wifi|internet|mang"
+            + "|tin\\s*hieu|cuoc|am\\s*thanh|bluetooth|day|camera|video|live|stream"
+            + "|duong|cap|nuoc|gas|thuoc|giac|doan)\\b)",
+        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
+    /**
+     * Reversed word order — "wifi bị ngắt", "mạng bị ngắt rồi": the benign
+     * antecedent sits BEFORE "ngat", which the forward lookahead cannot
+     * see (Wukong wave-12c CE5). The antecedent list is deliberately
+     * narrow — only unambiguous technical/utility nouns that are never
+     * common names. "mach" (pulse), "thuoc" (medication withdrawal) and
+     * the name-colliding nouns "quang" (Quang), "duong" (Dương), "doan"
+     * (Đoàn), "loi" (Lợi), "giac" (Giác), "cap" (Cáp), "song" (Sóng),
+     * "cuoc", "han" stay OUT so a faint report like "anh Quang bị ngất"
+     * still escalates (Wukong CE7); their forward readings are already
+     * covered by the benign-continuation lookahead. The passive marker
+     * "bị" is REQUIRED between antecedent and "ngat" — "Quang ngất"
+     * keeps firing — and a person marker immediately before the
+     * antecedent ("anh Điện", "bé Diện", "con Điện") blocks suppression.
+     * Family-report terms (con/cụ/cháu/thằng/đứa/nhóc/trai/gái/nội/ngoại/
+     * cha) are markers too — "con Điện bị ngất" is a child faint report,
+     * not a power outage (Wukong CE9); "con" collides mildly with "còn"
+     * and is accepted because a missed child emergency is strictly worse
+     * than a benign facilities escalation. Markers exclude "co"/"chi"/
+     * "di"/"mo"/"gia" — they are also common verbs/classifiers and would
+     * reintroduce the false-positive the rule exists to fix. The
+     * trailing "ngat" must be clause-final so
+     * "wifi bị ngắt hơi" still reads the dyspnea continuation.
+     */
+    private static final Pattern NGAT_BENIGN_REVERSED = Pattern.compile(
+        "(?<![a-z0-9])(?<!(?:anh|em|ong|ba|ban|thay|chu|me|bo|ten|nguoi|nhan|be|cau|bac|si"
+            + "|con|cu|chau|thang|dua|nhoc|trai|gai|noi|ngoai|cha"
+            + "|nho|than|benh|yeu|di|mo|dau|re|xa|vo|chong|chang|nang|nien"
+            + "|co|chi|gia|la|hoc|sinh|vien|ta|su|nu|khach) )"
+            + "(?:wifi|internet|ket\\s*noi|mang|tin\\s*hieu|bluetooth|camera|video|live|stream"
+            + "|nuoc|gas|nguon|day|am\\s*thanh|dien)"
+            + "\\s+(?:(?:vua|dang|hay|cu|lien\\s+tuc|thuong\\s+xuyen|bi)\\s+)*bi\\s+"
+            + "ngat\\b(?=\\s*(?:$|(?:roi|lai|xong|lam|la|vay|thoi|thui|a|ha|nhe|nhi|ma|rui|ua|ho|ko|khong|dc|duoc|nua)\\b))",
+        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
 
     private ChatMedicalSafety() {
     }
@@ -287,7 +360,9 @@ public final class ChatMedicalSafety {
      */
     public static boolean containsProtectedInputCue(String input) {
         String normalized = normalizeInput(input);
-        return normalized != null && PROTECTED_INPUT_CUE.matcher(normalized).find();
+        return normalized != null
+            && (PROTECTED_INPUT_CUE.matcher(normalized).find()
+                || ngatCrisisHit(normalized));
     }
 
     /**
@@ -305,11 +380,32 @@ public final class ChatMedicalSafety {
         String normalized = normalizeInput(window);
         if (normalized == null) return false;
         if (EMERGENCY_INPUT_CUE.matcher(normalized).find()) return true;
+        if (ngatCrisisHit(normalized)) return true;
         // Squashed-stream pass: the same substring semantics the ai-service
         // applies to the whole message — catches joined/prefixed typings the
         // token-start lookbehind cannot see (Wukong wave-12 F2/F3).
         String squashed = normalized.replace(" ", "");
         return squashedTier1Hit(squashed) || squashedSelfHarmHit(squashed);
+    }
+
+    /**
+     * Return whether an unsuppressed "ngat" crisis candidate fires.
+     *
+     * Forward-benign continuations are already excluded inside NGAT_CRISIS;
+     * this layer additionally drops candidates whose interrupt-sense
+     * antecedent precedes them ("wifi bị ngắt"). Suppression stays
+     * occurrence-local so a second, genuine "ngất"/"ngắt hơi" clause in the
+     * same message still fires.
+     */
+    private static boolean ngatCrisisHit(String normalized) {
+        Set<Integer> suppressedEnds = new HashSet<>();
+        java.util.regex.Matcher reversed = NGAT_BENIGN_REVERSED.matcher(normalized);
+        while (reversed.find()) suppressedEnds.add(reversed.end());
+        java.util.regex.Matcher crisis = NGAT_CRISIS.matcher(normalized);
+        while (crisis.find()) {
+            if (!suppressedEnds.contains(crisis.end())) return true;
+        }
+        return false;
     }
 
     private static boolean squashedTier1Hit(String squashed) {

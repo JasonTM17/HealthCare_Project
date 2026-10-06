@@ -87,7 +87,15 @@ public final class ChatSuggestedActionResolver {
         "wifi", "wi fi", "internet mien phi",
         "atm", "cay atm", "may rut tien", "rut tien",
         "can tin", "canteen", "nha an", "quay an", "quay tu phuc vu",
-        "phong cho", "khu vuc cho", "ghe cho", "noi cho", "cho ngoi", "tien ich"
+        "phong cho", "khu vuc cho", "ghe cho", "noi cho", "cho ngoi", "tien ich",
+        // Laundry-service questions are amenity questions. The emergency
+        // gate runs before this classifier, so a folded "co giat" that
+        // reaches here already passed the convulsion disambiguation and is
+        // the laundry reading. Bare "giat" is deliberately absent —
+        // "giật mình" (startle reflex) is a symptom, not an amenity.
+        "giat ui", "giat la", "giat do", "giat quan ao", "giat giu",
+        "giat khan", "giat say", "giat hap", "giat tham", "giat cong nghiep",
+        "co giat", "dich vu giat", "phong giat", "laundry"
     };
     private static final String[] EDUCATION_TERMS = {
         "bai viet", "bai nao", "cam nang", "faq", "cau hoi thuong gap",

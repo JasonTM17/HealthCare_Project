@@ -78,8 +78,10 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
   "(?<![a-z0-9])(?:dot\\s+quy|tai\\s+bien(?:\\s+mach\\s+mau\\s+nao)?|stroke|cap\\s+cuu|"
     + "dau\\s+nguc\\s+du\\s+doi|dau\\s+nguc\\s+lan(?:\\s+ra)?\\s+tay|kho\\s+tho(?:\\s+du\\s+doi)?|"
     + "meo\\s+mieng|yeu\\s+nua\\s+nguoi|ho\\s+ra\\s+mau|"
-    + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan)\\b)"
-    + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day)\\b))|"
+    + "co\\s+giat(?!\\W*(?:ui|la|giu?|quan|ao|khan|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\\b)"
+    + "(?!\\W*do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\\W+dau|o\\W+day"
+    + "|the\\W*nao|nhu\\W*the\\W*nao|mien\\W*phi|phi|dich\\W*vu|gia|bao\\W*nhieu"
+    + "|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\\b))|"
     + "heart\\s+attack|cardiac\\s+arrest|chest\\s+pain|shortness\\s+of\\s+breath|"
     + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
     + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
@@ -100,7 +102,12 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     + "khong\\s+muon\\s+song|tu\\s+vong|tuu\\s+vong|tutu(?![conjuy]|th)[a-z0-9]*|"
     + "tusat|muonchet|khongmuonsong|"
     + "that\\s+nguc|dau\\s+nguc\\s+lan|khong\\s+tho\\s+duoc|yeu\\s+liet|liet\\s+nua\\s+nguoi|"
-    + "ngat(?:\\s+xiu|\\s+tho)?|bi\\s+ngat|sap\\s+ngat|chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
+    // "ngat" (ngất/ngắt fold collision) is evaluated outside this
+    // alternation by ngatCrisisHit — the same benign-continuation and
+    // reversed-antecedent suppression the backend applies, covering the
+    // "bị/sắp ngất" forms through the same bare candidate (Wukong
+    // wave-12c CE5).
+    + "chay\\s+mau\\s+khong\\s+cam|dau\\s+tim|"
     + "nhoi\\s+mau\\s+tim|va\\s+mo\\s+hoi\\s+lanh|mo\\s+mat\\s+dot\\s+ngot|soc\\s+phan\\s+ve|"
     + "ngo\\s+doc|unconscious)(?![a-z0-9])",
   "iu"
@@ -266,10 +273,70 @@ const EMERGENCY_SQUASHED_SELF_HARM = new RegExp(
 // _CO_GIAT_SQUASHED_SUPPRESS: the remainder must consume entirely as
 // laundry units / closing particles ("cogiatdokhong" quiet;
 // "cogiatlai"/"cogiatdobinga" fire).
+// Bare "tien" is deliberately not a unit — "cogiatdotien" could be a
+// convulsion lead-in ("do tiền sử") so it stays fail-safe like spaced
+// "co giat do tien" (Wukong wave-12c CE4); the price compounds carry the
+// benign readings.
 const CO_GIAT_SQUASHED_SUPPRESS =
-  /^(?:ui|la|giu?|quan|ao|khan|do)(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*$/iu;
+  /^(?:ui|la|giu?|quan|ao|khan|do|cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong))(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau|cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong)|thenao|nhuthenao|mienphi|phitien|phi|dichvu|giatien|gia|baonhieutien|baonhieu)*$/iu;
 // Mirror of ai-service _TUTU_BENIGN_CONTINUATIONS (frozenset chars).
 const TUTU_BENIGN_CONTINUATIONS = "conjuy";
+// "ngat" folds "ngất" (faint) and "ngắt" (interrupt/disconnect); mirrors the
+// backend NGAT_CRISIS — a benign-continuation lookahead keeps connectivity,
+// electrical and speech questions out of the degraded emergency lane while
+// "ngắt hơi" (breath) still fires.
+const NGAT_CRISIS = new RegExp(
+  "(?<![a-z0-9])ngat\\b(?!\\s+(?:ket\\s*noi|mach|loi|han|song|quang|dien|nguon|wifi|internet|mang"
+    + "|tin\\s*hieu|cuoc|am\\s*thanh|bluetooth|day|camera|video|live|stream"
+    + "|duong|cap|nuoc|gas|thuoc|giac|doan)\\b)",
+  "iu"
+);
+// Reversed word order — "wifi bị ngắt", "mạng bị ngắt rồi": the benign
+// antecedent sits BEFORE "ngat", which the forward lookahead cannot see
+// (Wukong wave-12c CE5). The antecedent list is deliberately narrow —
+// only unambiguous technical/utility nouns that are never common names.
+// "mach" (pulse), "thuoc" (medication withdrawal) and the name-colliding
+// nouns ("quang" Quang, "duong" Dương, "doan" Đoàn, "loi" Lợi, "giac"
+// Giác, "cap" Cáp, "song" Sóng, "cuoc", "han") stay OUT so "anh Quang
+// bị ngất" still escalates (Wukong CE7). The passive marker "bị" is
+// REQUIRED between antecedent and "ngat" — "Quang ngất" keeps firing —
+// and a person marker immediately before the antecedent ("anh Điện",
+// "bé Diện", "con Điện") blocks suppression. Family-report terms
+// (con/cụ/cháu/thằng/đứa/nhóc/trai/gái/nội/ngoại/cha) are markers too —
+// "con Điện bị ngất" is a child faint report, not a power outage
+// (Wukong CE9); "con" collides mildly with "còn" and is accepted
+// because a missed child emergency is strictly worse than a benign
+// facilities escalation. Markers exclude "co"/"chi"/"di"/"mo"/"gia" —
+// they are also common verbs/classifiers and would reintroduce the
+// false-positive the rule exists to fix. The trailing
+// "ngat" must be clause-final so "wifi bị ngắt hơi" still reads the
+// dyspnea continuation.
+const NGAT_BENIGN_REVERSED = new RegExp(
+  "(?<![a-z0-9])(?<!(?:anh|em|ong|ba|ban|thay|chu|me|bo|ten|nguoi|nhan|be|cau|bac|si"
+    + "|con|cu|chau|thang|dua|nhoc|trai|gai|noi|ngoai|cha"
+    + "|nho|than|benh|yeu|di|mo|dau|re|xa|vo|chong|chang|nang|nien"
+    + "|co|chi|gia|la|hoc|sinh|vien|ta|su|nu|khach) )"
+    + "(?:wifi|internet|ket\\s*noi|mang|tin\\s*hieu|bluetooth|camera|video|live|stream"
+    + "|nuoc|gas|nguon|day|am\\s*thanh|dien)"
+    + "\\s+(?:(?:vua|dang|hay|cu|lien\\s+tuc|thuong\\s+xuyen|bi)\\s+)*bi\\s+"
+    + "ngat\\b(?=\\s*(?:$|(?:roi|lai|xong|lam|la|vay|thoi|thui|a|ha|nhe|nhi|ma|rui|ua|ho|ko|khong|dc|duoc|nua)\\b))",
+  "giu"
+);
+const NGAT_CRISIS_GLOBAL = new RegExp(NGAT_CRISIS.source, "giu");
+
+function ngatCrisisHit(normalized: string): boolean {
+  // Suppression stays occurrence-local so a second, genuine "ngất"/"ngắt
+  // hơi" clause in the same message still fires (mirrors ngatCrisisHit in
+  // ChatMedicalSafety).
+  const suppressedEnds = new Set<number>();
+  for (const match of normalized.matchAll(NGAT_BENIGN_REVERSED)) {
+    suppressedEnds.add(match.index + match[0].length);
+  }
+  for (const match of normalized.matchAll(NGAT_CRISIS_GLOBAL)) {
+    if (!suppressedEnds.has(match.index + match[0].length)) return true;
+  }
+  return false;
+}
 
 function squashedTier1Hit(squashed: string): boolean {
   if (EMERGENCY_SQUASHED_TIER1.test(squashed)) return true;
@@ -311,6 +378,7 @@ function likelyEmergencyFallback(message: string): boolean {
     .replace(/[^a-z0-9]+/gu, " ")
     .trim();
   if (EMERGENCY_FALLBACK_PATTERN.test(normalized)) return true;
+  if (ngatCrisisHit(normalized)) return true;
   // Squashed-stream pass: same substring semantics the ai-service applies
   // to the whole message — catches joined/prefixed typings the token-start
   // lookbehind cannot see (Wukong wave-12 F2/F3).

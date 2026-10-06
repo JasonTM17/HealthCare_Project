@@ -678,6 +678,75 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "ngatxiu",
     "khotho",
     "tacogiat",
+    // W2-E: clause-local suppression — a crisis clause after a benign
+    // "ngắt kết nối" still escalates; dyspnea ("ngắt hơi") keeps firing.
+    "ngắt kết nối rồi muốn tự tử",
+    "bị ngắt hơi",
+    "co giat do tien",
+    // Wukong wave-12c CE4: bare "tien" is not a laundry unit in either
+    // stream — joined and spaced forms stay fail-safe and aligned.
+    "cogiatdotien",
+    "co giat do tien su dong kinh",
+    // Wukong wave-12c CE5: reversed-order suppression is antecedent-local
+    // — clinical antecedents (pulse "mạch", medication "thuốc"), dyspnea
+    // continuations and later crisis clauses still fire.
+    "bệnh nhân bị ngất",
+    "mạch bị ngắt",
+    "thuốc bị ngắt",
+    "wifi bị ngắt hơi",
+    "wifi bị ngắt rồi muốn tự tử",
+    // Wukong wave-12c CE7: name-colliding nouns and person-marked
+    // antecedents can never suppress a faint report.
+    "anh Quang bị ngất",
+    "anh Quang ngất",
+    "em Điện bị ngất",
+    "ông Đoàn vừa bị ngất rồi",
+    "Quang bị ngất",
+    // Wukong wave-12c CE9: family-report terms also block suppression —
+    // "con Điện" is a child faint report, not a power outage.
+    "con Điện bị ngất",
+    "con trai Điện bị ngất",
+    "cụ Mạng bị ngất",
+    "cháu Điện bị ngất",
+    "thằng Mạng bị ngất",
+    "bà nội Mạng bị ngất",
+    "đứa Điện bị ngất",
+    "nhóc Điện bị ngất",
+    // Wukong wave-12c CE10: compound person constructions — the token
+    // directly before the antecedent is the marker.
+    "đứa nhỏ Điện bị ngất",
+    "con nhỏ Điện bị ngất",
+    "người thân Điện bị ngất",
+    "người bệnh Điện bị ngất",
+    "người yêu Điện bị ngất",
+    "dì Điện bị ngất",
+    "mợ Mạng bị ngất",
+    "con dâu Điện bị ngất",
+    "con rể Điện bị ngất",
+    "bà xã Điện bị ngất",
+    "bà vợ Điện bị ngất",
+    "chồng Điện bị ngất",
+    "vợ Điện bị ngất",
+    "anh chàng Điện bị ngất",
+    "thanh niên Điện bị ngất",
+    "trẻ Điện bị ngất",
+    "ngài Điện bị ngất",
+    // Team-Lead adjudication (Wukong round 5): cô/chị/già/là promoted —
+    // top-frequency kinship reports outweigh the loose-typing facilities
+    // phrases they used to protect.
+    "cô Điện bị ngất",
+    "chị Mạng bị ngất",
+    "ông già Điện bị ngất",
+    "bà già Mạng bị ngất",
+    "tên là Điện bị ngất",
+    "học sinh Điện bị ngất",
+    "sinh viên Điện bị ngất",
+    "nữ sinh Điện bị ngất",
+    "y tá Điện bị ngất",
+    "giáo sư Điện bị ngất",
+    "khách Điện bị ngất",
+    // Without passive "bị" the reversed shape is not safe to suppress.
+    "wifi ngắt",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -725,6 +794,37 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     // — the squash stream consumes the whole chain.
     "cogiat do khong",
     "dangcogiat do khong",
+    // W2-E: "ngắt" (interrupt) folds onto "ngất" (faint) — benign
+    // continuations stay out of the emergency lane.
+    "ngắt kết nối wifi",
+    "ngắt mạch điện",
+    "ngắt lời",
+    "ngắt hạn",
+    "ngat ket noi wifi",
+    "bị ngắt wifi",
+    // W2-E: laundry-for-person / amenity-question "có giặt" continuations.
+    "có giặt đồ cho khách",
+    "có giặt cho khách",
+    "có giặt đồ cho bệnh nhân",
+    "có giặt đồ thế nào",
+    "có giặt đồ bao nhiêu tiền",
+    "có giặt đồ miễn phí không",
+    "cogiatdochokhach",
+    "cogiatchokhach",
+    // Wukong wave-12c CE5: reversed order — the interrupt-sense antecedent
+    // precedes "ngắt" and the token is clause-final.
+    "wifi bị ngắt",
+    "mạng bị ngắt rồi",
+    "điện đang bị ngắt",
+    "kết nối hay bị ngắt",
+    "mạng hay bị ngắt lắm",
+    // Squashed amenity price compounds keep suppressing (wave-12c CE4).
+    "cogiatdobaonhieutien",
+    "cogiatuigiatien",
+    // Wukong wave-12c CE8: joined "ngắt <benign>" stays quiet — mid-token
+    // "ngat" has no word boundary on any engine.
+    "ngatketnoi",
+    "ngatmang",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {

@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -294,5 +296,95 @@ class ChatSafetyAndChunkerTest {
             .isTrue();
         assertThat(ChatMedicalSafety.containsProtectedInputCue("liều thuốc bao nhiêu"))
             .isTrue();
+    }
+
+    @Test
+    void protectedCueHonoursJoinedLaundrySuppression() {
+        // Wukong wave-12c CE2: the PROTECTED squash chain mirrors
+        // CO_GIAT_SQUASHED_SUPPRESS — a joined laundry-for-person or
+        // amenity-fee question is routing metadata, not clinical input, so
+        // it must stay unprotected and reach the amenity lane.
+        for (String joined : List.of(
+            "cogiatchokhach",
+            "cogiatdochokhach",
+            "cogiatdothenao",
+            "cogiatdomienphi",
+            "cogiatdobaonhieutien",
+            "cogiatuigiatien")) {
+            assertThat(ChatMedicalSafety.containsProtectedInputCue(joined))
+                .as("joined laundry phrasing stays unprotected: %s", joined)
+                .isFalse();
+        }
+        // Non-laundry residues still read as convulsion and stay protected.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("cogiatlai"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("cogiatdobinga"))
+            .isTrue();
+        // Spaced laundry questions were never protected either.
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("có giặt đồ cho khách"))
+            .isFalse();
+    }
+
+    @Test
+    void ngatReversedAntecedentSuppressesInBothLanes() {
+        // Wukong wave-12c CE5: "wifi bị ngắt" puts the interrupt-sense
+        // antecedent before "ngắt" — both the protected and emergency lanes
+        // suppress it the same way so connectivity questions still reach
+        // amenity/navigation routing.
+        for (String benign : List.of(
+            "wifi bị ngắt",
+            "mạng bị ngắt rồi",
+            "điện đang bị ngắt",
+            "kết nối hay bị ngắt")) {
+            assertThat(ChatMedicalSafety.containsProtectedInputCue(benign))
+                .as("reversed interrupt stays unprotected: %s", benign)
+                .isFalse();
+            assertThat(ChatMedicalSafety.containsEmergencyInputCue(benign))
+                .as("reversed interrupt stays non-emergency: %s", benign)
+                .isFalse();
+        }
+        // Clinical antecedents and dyspnea continuations are never
+        // suppressed — "mạch" (pulse) and "thuốc" (medication) were dropped
+        // from the reversed list on purpose.
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("mạch bị ngắt"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("thuốc bị ngắt"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("wifi bị ngắt hơi"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("bệnh nhân bị ngất"))
+            .isTrue();
+        // A real crisis clause after the suppressed candidate still fires.
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("wifi bị ngắt rồi muốn tự tử"))
+            .isTrue();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("bệnh nhân bị ngất"))
+            .isTrue();
+    }
+
+    @Test
+    void ngatReversedSuppressionNeverHidesAPersonReport() {
+        // Wukong wave-12c CE7: name-colliding nouns ("Quang", "Đoàn",
+        // "Lợi") were dropped from the antecedent list, and a person
+        // marker before a kept antecedent ("anh Điện") still blocks
+        // suppression — faint reports always escalate.
+        for (String report : List.of(
+            "anh Quang bị ngất",
+            "anh Quang ngất",
+            "em Điện bị ngất",
+            "ông Đoàn vừa bị ngất rồi",
+            "Quang bị ngất",
+            "wifi ngắt")) {
+            assertThat(ChatMedicalSafety.containsEmergencyInputCue(report))
+                .as("faint/interrupt ambiguity resolves toward crisis: %s", report)
+                .isTrue();
+        }
+        // Wukong wave-12c CE8: joined "ngắt <benign>" stays quiet — the
+        // extracted NGAT_CRISIS keeps its trailing word boundary.
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("ngatketnoi"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsProtectedInputCue("ngatketnoi"))
+            .isFalse();
+        assertThat(ChatMedicalSafety.containsEmergencyInputCue("ngatmang"))
+            .isFalse();
     }
 }

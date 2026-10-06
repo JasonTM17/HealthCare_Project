@@ -120,6 +120,21 @@ class ChatSuggestedActionResolverTest {
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
         assertThat(ChatSuggestedActionResolver.classify("ô tô để ở đâu"))
             .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        // Laundry phrasings classify as amenity questions — the folded
+        // "co giat" reaching this classifier already passed the emergency
+        // gate's convulsion disambiguation.
+        assertThat(ChatSuggestedActionResolver.classify("Có giặt đồ cho khách không?"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("phòng khám có giặt ủi không"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("giặt ủi ở đâu"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        assertThat(ChatSuggestedActionResolver.classify("dịch vụ giặt là có không"))
+            .isEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
+        // "giật mình" (startle reflex) is a symptom — bare "giat" must not
+        // pull it into the amenity lane.
+        assertThat(ChatSuggestedActionResolver.classify("tôi hay giật mình"))
+            .isNotEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
         assertThat(ChatSuggestedActionResolver.classify("đề xét nghiệm máu"))
             .isNotEqualTo(ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY);
         assertThat(

@@ -169,7 +169,6 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "bat tinh",
     "mat y thuc",
     "ngat xiu",
-    "ngat",
     "seizure",
     "convulsion",
     "unconscious",
@@ -612,16 +611,119 @@ def _compile_squash_matcher(terms: tuple[str, ...]) -> tuple[str, ...]:
 
 # "co giat" (convulsion) folds identically to "có giặt" (laundry service — a
 # real amenity question this endpoint answers). It escalates only when the
-# word after it is not a laundry noun ("giặt ủi/là/giũ/đồ/quần áo/khăn").
-# "do" is doubly ambiguous ("giặt đồ" laundry vs "do" because-of), and a
-# closed-world medical-reason allowlist cannot enumerate every cause —
-# "co giật do bị ngã" must still fire. It suppresses only at clause end or
-# before laundry-closing particles; every other continuation keeps the
-# fail-safe default of escalating.
+# word after it is not a laundry noun ("giặt ủi/là/giũ/đồ/quần áo/khăn") or a
+# "giặt cho <person>" phrase. "do" is doubly ambiguous ("giặt đồ" laundry vs
+# "do" because-of), and a closed-world medical-reason allowlist cannot
+# enumerate every cause — "co giật do bị ngã" must still fire. It suppresses
+# only at clause end or before laundry-closing/amenity-question continuations
+# ("cho khách", "thế nào", "miễn phí", "giá", "bao nhiêu", "dịch vụ", "phí");
+# every other continuation keeps the fail-safe default of escalating.
 _CO_GIAT_CRISIS: Final[re.Pattern[str]] = re.compile(
-    r"\bco\W+giat\b(?!\W*(?:ui|la|giu?|quan|ao|khan)\b)"
-    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day)\b))"
+    r"\bco\W+giat\b"
+    r"(?!\W*(?:ui|la|giu?|quan|ao|khan|cho\W+(?:khach|nguoi|benh\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\b)"
+    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day"
+    r"|the\W*nao|nhu\W*the\W*nao|mien\W*phi|phi|dich\W*vu|gia|bao\W*nhieu"
+    r"|cho\W+(?:khach|nguoi|benh\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\b))"
 )
+
+# "ngat" folds identically for "ngất" (faint — Tier-1) and "ngắt" (cut /
+# interrupt — connectivity, electrical, speech). Bare "ngat" therefore fires
+# only when the next word is not an interrupt-sense continuation; the
+# exclusion is clause-local to this one candidate so a real emergency clause
+# later in the same message ("ngắt kết nối rồi muốn tự tử") still escalates
+# through the other cues. "ngắt hơi" (interrupted breathing) deliberately
+# stays firing — "hoi" is breath, not connectivity.
+_NGAT_BENIGN_CONTINUATION: Final[str] = (
+    r"ket\W*noi|mach|loi|han|song|quang|dien|nguon|wifi|internet|mang"
+    r"|tin\W*hieu|cuoc|am\W*thanh|bluetooth|day|camera|video|live|stream"
+    r"|duong|cap|nuoc|gas|thuoc|giac|doan"
+)
+_NGAT_CRISIS: Final[re.Pattern[str]] = re.compile(
+    r"\bngat\b(?!\W+(?:" + _NGAT_BENIGN_CONTINUATION + r")\b)"
+)
+# Reversed word order — "wifi bị ngắt", "mạng bị ngắt rồi": the benign
+# antecedent sits BEFORE "ngat", which the forward lookahead cannot see
+# (Wukong wave-12c CE5). The antecedent list is deliberately narrow —
+# only unambiguous technical/utility nouns that are never common names.
+# "mach" (pulse), "thuoc" (medication withdrawal) and the name-colliding
+# nouns "quang" (Quang), "duong" (Dương), "doan" (Đoàn), "loi" (Lợi),
+# "giac" (Giác), "cap" (Cáp), "song" (Sóng), "cuoc", "han" stay OUT so a
+# faint report like "anh Quang bị ngất" still escalates (Wukong CE7);
+# their forward readings ("ngắt cáp", "ngắt lời") are already covered by
+# the benign-continuation lookahead. The passive marker "bị" is REQUIRED
+# between antecedent and "ngat" — "Quang ngất" keeps firing — and a
+# person marker immediately before the antecedent ("anh Điện", "bé Diện",
+# "con Điện") blocks suppression. Markers exclude "co"/"chi"/"di"/"mo"/
+# "gia" — they are also common verbs/classifiers and would reintroduce
+# the false-positive the rule exists to fix. The trailing "ngat" must be
+# clause-final so "wifi bị ngắt hơi" still reads the dyspnea
+# continuation and fires.
+# Python's re requires each lookbehind alternative to be fixed-width, so
+# the marker list expands into one lookbehind per marker (identical
+# semantics to the compact alternation used in Java/BFF). Wukong CE9:
+# family-report terms (con/cụ/cháu/thằng/đứa/nhóc/trai/gái/nội/ngoại/cha)
+# are markers too — "con Điện bị ngất" is a child faint report, not a
+# power outage. "con" collides mildly with "còn" ("còn wifi bị ngắt" now
+# over-fires instead of suppressing) — accepted because a missed child
+# emergency is strictly worse than a benign facilities escalation.
+# "ay" is deliberately absent: as a suffix-match it would also fire on
+# "hay" and "dây" — "dây điện bị ngắt" (power cord) must stay suppressed.
+# Team-Lead adjudication (Wukong round 5): "co"/"chi"/"gia"/"la" are
+# promoted to markers despite the verb collisions — "cô <name>" and
+# "chị <name>" are the highest-frequency kinship reports in a hospital,
+# while "có/chỉ wifi bị ngắt" are loose typings whose false-positive
+# price is strictly safer than a missed faint report. Occupational and
+# family descriptors (học/sinh/viên/tá/sư/nữ/khách) close the remaining
+# common shapes; the open tail beyond is enumerable-by-construction.
+_NGAT_PERSON_MARKER_LOOKBEHINDS: Final[str] = (
+    r"(?<!anh )(?<!em )(?<!ong )(?<!ba )(?<!ban )(?<!thay )(?<!chu )"
+    r"(?<!me )(?<!bo )(?<!ten )(?<!nguoi )(?<!nhan )(?<!be )(?<!cau )"
+    r"(?<!bac )(?<!si )(?<!con )(?<!cu )(?<!chau )(?<!thang )(?<!dua )"
+    r"(?<!nhoc )(?<!trai )(?<!gai )(?<!noi )(?<!ngoai )(?<!cha )"
+    r"(?<!nho )(?<!than )(?<!benh )(?<!yeu )(?<!di )(?<!mo )(?<!dau )"
+    r"(?<!re )(?<!xa )(?<!vo )(?<!chong )(?<!chang )(?<!nang )(?<!nien )"
+    r"(?<!co )(?<!chi )(?<!gia )(?<!la )(?<!hoc )(?<!sinh )(?<!vien )"
+    r"(?<!ta )(?<!su )(?<!nu )(?<!khach )"
+)
+_NGAT_BENIGN_ANTECEDENT: Final[str] = (
+    r"wifi|internet|ket\W*noi|mang|tin\W*hieu|bluetooth|camera|video|live"
+    r"|stream|nuoc|gas|nguon|day|am\W*thanh|dien"
+)
+_NGAT_REVERSED_CLOSER: Final[str] = (
+    r"roi|lai|xong|lam|la|vay|thoi|thui|a|ha|nhe|nhi|ma|rui|ua|ho|ko|khong"
+    r"|dc|duoc|nua"
+)
+_NGAT_BENIGN_REVERSED: Final[re.Pattern[str]] = re.compile(
+    r"\b" + _NGAT_PERSON_MARKER_LOOKBEHINDS
+    + r"(?:" + _NGAT_BENIGN_ANTECEDENT + r")"
+    r"\W+(?:(?:vua|dang|hay|cu|lien\W+tuc|thuong\W*xuyen|bi)\W+)*bi\W+"
+    r"ngat\b(?=\W*(?:$|(?:" + _NGAT_REVERSED_CLOSER + r")\b))"
+)
+
+
+def _ngat_crisis_hit(text: str) -> bool:
+    """Return whether an unsuppressed "ngat" crisis candidate fires.
+
+    Forward-benign continuations are already excluded inside ``_NGAT_CRISIS``;
+    this layer additionally drops candidates whose interrupt-sense antecedent
+    precedes them ("wifi bị ngắt"). Suppression stays occurrence-local so a
+    second, genuine "ngất"/"ngắt hơi" clause in the same message still fires.
+    """
+
+    suppressed_ends = ngat_suppressed_ends(text)
+    return any(
+        match.end() not in suppressed_ends for match in _NGAT_CRISIS.finditer(text)
+    )
+
+
+def ngat_suppressed_ends(text: str) -> frozenset[int]:
+    """End offsets of "ngat" occurrences covered by a benign antecedent.
+
+    Shared with ``llm._emergency_phrase_hit`` so the phrase-pattern ngat
+    alternative honours the same reversed-order suppression.
+    """
+
+    return frozenset(match.end() for match in _NGAT_BENIGN_REVERSED.finditer(text))
 
 # Spaced "tu tu" is both "tự tử" (self-harm) and the everyday adverb
 # "từ từ" (slowly). It escalates only behind a volition or thinking idiom;
@@ -734,6 +836,8 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
             return True
         if _CO_GIAT_CRISIS.search(variant):
             return True
+        if _ngat_crisis_hit(variant):
+            return True
         if _TUTU_CRISIS.search(variant):
             return True
         if _boundary_hit(_SELF_HARM_BOUNDARY, variant):
@@ -762,10 +866,23 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
 # "tainan", "binga" — fails the full-match and fires.
 # Bare "gi" is allowed only in FIRST position ("cogiatgi" = giặt gì,
 # benign); in a continuation it is reason-capable ("do gì" = because of
-# what) so the chain requires the full "giu" (giũ) there instead.
+# what) so the chain requires the full "giu" (giũ) there instead. A
+# "cho<person>" unit is allowed in first position too ("cogiatchokhach" =
+# có giặt cho khách); the other amenity-question units ("phi", "gia",
+# "thenao", "baonhieu", "dichvu", "mienphi") only count after a laundry
+# noun so a bare ambiguous continuation cannot silently suppress. Bare
+# "tien" is deliberately NOT a unit — "cogiatdotien" could be a convulsion
+# lead-in ("do tiền sử" = because of history) so it stays fail-safe like
+# the spaced "co giat do tien" (Wukong wave-12c CE4); the price compounds
+# "baonhieutien"/"giatien"/"phitien" carry the benign readings instead.
+_CO_GIAT_PERSON_TAIL: Final[str] = (
+    r"cho(?:khach|nguoi|benhnhan|minh|toi|em|anh|chi|con|me|ba|ong)"
+)
 _CO_GIAT_SQUASHED_SUPPRESS: Final[re.Pattern[str]] = re.compile(
-    r"(?:ui|la|giu?|quan|ao|khan|do)"
-    r"(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau)*\Z"
+    r"(?:ui|la|giu?|quan|ao|khan|do|" + _CO_GIAT_PERSON_TAIL + r")"
+    r"(?:ui|la|giu|quan|ao|khan|do|khong|ko|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|oday|odau"
+    r"|" + _CO_GIAT_PERSON_TAIL + r"|thenao|nhuthenao|mienphi|phitien|phi|dichvu|giatien|gia"
+    r"|baonhieutien|baonhieu)*\Z"
 )
 
 
