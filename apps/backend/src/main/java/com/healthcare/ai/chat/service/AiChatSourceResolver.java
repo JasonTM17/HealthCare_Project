@@ -618,6 +618,7 @@ public class AiChatSourceResolver {
         "cho dau", "cho do", "dau oto", "do oto", "nha thuoc", "quay thuoc",
         "wifi", "atm", "rut tien", "can tin", "nha an", "phong cho",
         "khu vuc cho", "tien ich",
+        "giat ui", "giat la", "giat do", "co giat", "dich vu giat",
     };
 
     /**
@@ -649,9 +650,12 @@ public class AiChatSourceResolver {
         {"can tin", "canteen", "nha an", "quay an", "quay tu phuc vu",
             "bua an", "do an"},
         {"phong cho", "khu vuc cho", "ghe cho", "sanh cho", "noi cho", "khu cho"},
+        {"giat ui", "giat la", "giat do", "giat quan ao", "giat giu",
+            "giat khan", "giat say", "giat hap", "giat tham", "giat cong nghiep",
+            "dich vu giat", "phong giat", "laundry"},
     };
     private static final String[] AMENITY_TYPES = {
-        "parking", "pharmacy", "wifi", "atm", "canteen", "waiting"
+        "parking", "pharmacy", "wifi", "atm", "canteen", "waiting", "laundry"
     };
     /**
      * Explicit "every branch" scope phrases — "các cơ sở", "tất cả chi
@@ -692,6 +696,11 @@ public class AiChatSourceResolver {
         {"atm", "cay atm", "may rut tien", "rut tien"},
         {"can tin", "canteen", "nha an", "quay an", "quay tu phuc vu"},
         {"phong cho", "khu vuc cho", "ghe cho", "noi cho", "cho ngoi"},
+        // Laundry phrasings reach here only after the emergency gate
+        // already passed — "co giat" is the laundry reading in this lane.
+        {"giat ui", "giat la", "giat do", "giat quan ao", "giat giu",
+            "giat khan", "giat say", "giat hap", "giat tham", "giat cong nghiep",
+            "co giat", "dich vu giat", "phong giat", "laundry"},
     };
 
     /**
@@ -756,6 +765,7 @@ public class AiChatSourceResolver {
             case "atm" -> "ATM/máy rút tiền";
             case "canteen" -> "căn tin/quầy ăn uống";
             case "waiting" -> "khu vực chờ";
+            case "laundry" -> "dịch vụ giặt ủi/giặt đồ";
             default -> "tiện ích";
         };
     }

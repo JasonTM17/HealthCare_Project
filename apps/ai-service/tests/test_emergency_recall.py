@@ -286,6 +286,13 @@ def test_baseline_recall_restores_the_legacy_gate(
     assert _crisis_detected(_normalize_sensitive_text("đột quỵ")) is True
     assert _crisis_detected(_normalize_sensitive_text("khó thở")) is True
 
+    # Wukong wave-12c CE3: baseline restores the pre-expansion flat terms, so
+    # joined faint/convulsion typings still fire inside the kill-switch mode
+    # even though the expanded path reads them through exclusion-bearing
+    # patterns instead of a substring list.
+    for joined in ("ngatxiu", "becogiat", "dangcogiat", "cogiatdobinga"):
+        assert _crisis_detected(_normalize_sensitive_text(joined)) is True
+
 
 def test_malformed_recall_value_degrades_to_expanded(
     monkeypatch: pytest.MonkeyPatch,
@@ -373,6 +380,88 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         # "từ vong" (grave-typo of "tử vong") keeps recall via the masked
         # twin term.
         "từ vong",
+        # W2-E: the benign-continuation suppression of "ngắt" (interrupt)
+        # is clause-local — a real crisis clause in the same message still
+        # escalates through the other cues.
+        "ngắt kết nối rồi muốn tự tử",
+        # "ngắt hơi" (interrupted breathing) is dyspnea, not a benign
+        # interrupt — it must keep firing.
+        "bị ngắt hơi",
+        # Bare "ngat" and genuine faint phrasings still escalate.
+        "ngat",
+        "ngat xiu",
+        "sap ngat",
+        # "do tiền" reads as because-of-money — reason-capable continuations
+        # keep the fail-safe default.
+        "co giat do tien",
+        # Wukong wave-12c CE4: joined "cogiatdotien" aligns with the spaced
+        # form — bare "tien" is not a laundry unit, and "do tiền sử"
+        # (because of history) is a genuine convulsion lead-in.
+        "cogiatdotien",
+        "co giat do tien su dong kinh",
+        # Wukong wave-12c CE5: reversed-order suppression is antecedent-
+        # local — clinical antecedents and dyspnea continuations still fire.
+        "bệnh nhân bị ngất",
+        "benh nhan bi ngat",
+        "mạch bị ngắt",
+        "thuốc bị ngắt",
+        "wifi bị ngắt hơi",
+        "wifi bị ngắt rồi muốn tự tử",
+        # Wukong wave-12c CE7: name-colliding nouns and person-marked
+        # antecedents can never suppress a faint report — "Quang", "Dương",
+        # "Đoàn", "Lợi", "Điện" are names as often as nouns.
+        "anh Quang bị ngất",
+        "anh Quang ngất",
+        "em Điện bị ngất",
+        "ông Đoàn vừa bị ngất rồi",
+        "Quang bị ngất",
+        # Wukong wave-12c CE9: family-report terms also block the
+        # suppression — "con Điện" is a child faint report, not a power
+        # outage; "còn wifi" pays a small over-fire price for it.
+        "con Điện bị ngất",
+        "con trai Điện bị ngất",
+        "cụ Mạng bị ngất",
+        "cháu Điện bị ngất",
+        "thằng Mạng bị ngất",
+        "bà nội Mạng bị ngất",
+        "đứa Điện bị ngất",
+        "nhóc Điện bị ngất",
+        # Wukong wave-12c CE10: compound person constructions — the token
+        # directly before the antecedent is the marker.
+        "đứa nhỏ Điện bị ngất",
+        "con nhỏ Điện bị ngất",
+        "người thân Điện bị ngất",
+        "người bệnh Điện bị ngất",
+        "người yêu Điện bị ngất",
+        "dì Điện bị ngất",
+        "mợ Mạng bị ngất",
+        "con dâu Điện bị ngất",
+        "con rể Điện bị ngất",
+        "bà xã Điện bị ngất",
+        "bà vợ Điện bị ngất",
+        "chồng Điện bị ngất",
+        "vợ Điện bị ngất",
+        "anh chàng Điện bị ngất",
+        "thanh niên Điện bị ngất",
+        "trẻ Điện bị ngất",
+        "ngài Điện bị ngất",
+        # Team-Lead adjudication (Wukong round 5): cô/chị/già/là promoted —
+        # top-frequency kinship reports outweigh the loose-typing
+        # facilities phrases they used to protect.
+        "cô Điện bị ngất",
+        "chị Mạng bị ngất",
+        "ông già Điện bị ngất",
+        "bà già Mạng bị ngất",
+        "tên là Điện bị ngất",
+        "học sinh Điện bị ngất",
+        "sinh viên Điện bị ngất",
+        "nữ sinh Điện bị ngất",
+        "y tá Điện bị ngất",
+        "giáo sư Điện bị ngất",
+        "khách Điện bị ngất",
+        # Without the passive "bị" the reversed shape is not safe to
+        # suppress — "wifi ngắt" stays firing (fail-safe direction).
+        "wifi ngắt",
     ],
 )
 def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
@@ -420,6 +509,50 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         # suppresses — the whole-message squash consumes the chain.
         "cogiat do khong",
         "dangcogiat do khong",
+        # W2-E: "ngắt" (interrupt) folds onto "ngất" (faint) — benign
+        # continuations keep connectivity/electrical/speech questions out
+        # of the emergency lane.
+        "ngắt kết nối wifi",
+        "ngắt mạch điện",
+        "ngắt lời",
+        "ngắt hạn",
+        "ngat ket noi wifi",
+        "ngat mang",
+        "bị ngắt wifi",
+        "ngắt nước",
+        "ngắt giấc",
+        # W2-E: laundry-for-person and amenity-question continuations of
+        # "có giặt" stay quiet in spaced and squashed form.
+        "có giặt đồ cho khách",
+        "có giặt cho khách",
+        "có giặt đồ cho bệnh nhân",
+        "có giặt đồ thế nào",
+        "có giặt đồ bao nhiêu tiền",
+        "có giặt đồ miễn phí không",
+        "có giặt đồ phí không",
+        "giặt đồ cho khách",
+        "giặt đồ gì",
+        "cogiatdochokhach",
+        "cogiatchokhach",
+        # Wukong wave-12c CE5: reversed word order — the interrupt-sense
+        # antecedent precedes "ngắt" and the token is clause-final.
+        "wifi bị ngắt",
+        "mạng bị ngắt rồi",
+        "điện đang bị ngắt",
+        "kết nối hay bị ngắt",
+        "internet vừa bị ngắt",
+        "wifi bị ngắt xong",
+        "mạng hay bị ngắt lắm",
+        # Squashed amenity price compounds keep suppressing after the bare
+        # "tien" unit was removed (Wukong wave-12c CE4).
+        "cogiatdobaonhieutien",
+        "cogiatuigiatien",
+        "cogiatuiphitien",
+        # Wukong wave-12c CE8: joined "ngắt <benign>" typings stay quiet —
+        # mid-token "ngat" has no word boundary on any engine.
+        "ngatketnoi",
+        "ngatmang",
+        "ngatwifi",
     ],
 )
 def test_benign_folded_lookalikes_stay_silent(paraphrase: str) -> None:

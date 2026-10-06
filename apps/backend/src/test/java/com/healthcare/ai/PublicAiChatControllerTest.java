@@ -833,7 +833,45 @@ class PublicAiChatControllerTest {
             // the ai-service verdict (was over-firing on the per-token
             // lookahead before the squash pass owned "cogiat").
             "cogiat do khong",
-            "dangcogiat do khong")) {
+            "dangcogiat do khong",
+            // W2-E: "ngắt" (interrupt) folds onto "ngất" (faint) — benign
+            // continuations keep connectivity/electrical/speech questions
+            // out of the emergency lane.
+            "ngắt kết nối wifi",
+            "ngắt mạch điện",
+            "ngắt lời",
+            "ngắt hạn",
+            "ngat ket noi wifi",
+            "ngat mang",
+            "bị ngắt wifi",
+            // W2-E: laundry-for-person / amenity-question continuations of
+            // "có giặt" stay quiet in spaced and squashed form.
+            "có giặt đồ cho khách",
+            "có giặt cho khách",
+            "có giặt đồ cho bệnh nhân",
+            "có giặt đồ thế nào",
+            "có giặt đồ bao nhiêu tiền",
+            "có giặt đồ miễn phí không",
+            "cogiatdochokhach",
+            "cogiatchokhach",
+            // Wukong wave-12c CE5: reversed order — the interrupt-sense
+            // antecedent precedes "ngắt" and the token is clause-final.
+            "wifi bị ngắt",
+            "mạng bị ngắt rồi",
+            "điện đang bị ngắt",
+            "kết nối hay bị ngắt",
+            "wifi bị ngắt xong",
+            "mạng hay bị ngắt lắm",
+            // Squashed amenity price compounds keep suppressing after the
+            // bare "tien" unit was removed (Wukong wave-12c CE4).
+            "cogiatdobaonhieutien",
+            "cogiatuigiatien",
+            "cogiatuiphitien",
+            // Wukong wave-12c CE8: joined "ngắt <benign>" typings stay
+            // quiet — mid-token "ngat" has no word boundary on any engine.
+            "ngatketnoi",
+            "ngatmang",
+            "ngatwifi")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))
@@ -913,7 +951,88 @@ class PublicAiChatControllerTest {
             "khotho",
             // Cross-token squash: "ta co giat" is invisible to a per-token
             // net but Python fires it; the squash pass keeps parity.
-            "tacogiat")) {
+            "tacogiat",
+            // W2-E: the benign-continuation suppression is clause-local —
+            // a real crisis clause in the same message still escalates.
+            "ngắt kết nối rồi muốn tự tử",
+            // "ngắt hơi" (interrupted breathing) is dyspnea, not a benign
+            // interrupt — it must keep firing.
+            "bị ngắt hơi",
+            // Bare "ngat" and genuine faint phrasings still escalate.
+            "tôi bị ngất",
+            "ngat xiu",
+            "sap ngat",
+            // "do tiền" reads as because-of-money, not a price question —
+            // reason-capable continuations keep the fail-safe default.
+            "co giat do tien",
+            "cogiatdotient",
+            // Wukong wave-12c CE4: joined "cogiatdotien" now aligns with
+            // the spaced form — bare "tien" is not a laundry unit, and
+            // "do tiền sử" (history) is a genuine convulsion lead-in.
+            "cogiatdotien",
+            "co giat do tien su dong kinh",
+            // Wukong wave-12c CE5: reversed-order suppression stays
+            // antecedent-local — clinical antecedents, breath
+            // continuations and later crisis clauses still fire.
+            "bệnh nhân bị ngất",
+            "benh nhan bi ngat",
+            "mạch bị ngắt",
+            "thuốc bị ngắt",
+            "wifi bị ngắt hơi",
+            "wifi bị ngắt rồi muốn tự tử",
+            // Wukong wave-12c CE7: name-colliding nouns and person-marked
+            // antecedents can never suppress a faint report.
+            "anh Quang bị ngất",
+            "anh Quang ngất",
+            "em Điện bị ngất",
+            "ông Đoàn vừa bị ngất rồi",
+            "Quang bị ngất",
+            // Wukong wave-12c CE9: family-report terms also block the
+            // suppression — "con Điện" is a child faint report.
+            "con Điện bị ngất",
+            "con trai Điện bị ngất",
+            "cụ Mạng bị ngất",
+            "cháu Điện bị ngất",
+            "thằng Mạng bị ngất",
+            "bà nội Mạng bị ngất",
+            "đứa Điện bị ngất",
+            "nhóc Điện bị ngất",
+            // Wukong wave-12c CE10: compound person constructions — the
+            // token directly before the antecedent is the marker.
+            "đứa nhỏ Điện bị ngất",
+            "con nhỏ Điện bị ngất",
+            "người thân Điện bị ngất",
+            "người bệnh Điện bị ngất",
+            "người yêu Điện bị ngất",
+            "dì Điện bị ngất",
+            "mợ Mạng bị ngất",
+            "con dâu Điện bị ngất",
+            "con rể Điện bị ngất",
+            "bà xã Điện bị ngất",
+            "bà vợ Điện bị ngất",
+            "chồng Điện bị ngất",
+            "vợ Điện bị ngất",
+            "anh chàng Điện bị ngất",
+            "thanh niên Điện bị ngất",
+            "trẻ Điện bị ngất",
+            "ngài Điện bị ngất",
+            // Team-Lead adjudication (Wukong round 5): cô/chị/già/là
+            // promoted — top-frequency kinship reports outweigh the
+            // loose-typing facilities phrases they used to protect.
+            "cô Điện bị ngất",
+            "chị Mạng bị ngất",
+            "ông già Điện bị ngất",
+            "bà già Mạng bị ngất",
+            "tên là Điện bị ngất",
+            "học sinh Điện bị ngất",
+            "sinh viên Điện bị ngất",
+            "nữ sinh Điện bị ngất",
+            "y tá Điện bị ngất",
+            "giáo sư Điện bị ngất",
+            "khách Điện bị ngất",
+            // Without passive "bị" the reversed shape is not safe to
+            // suppress — fail-safe direction.
+            "wifi ngắt")) {
             Map<String, Object> body = new PublicAiChatController(
                 aiService, resolverForSpecialty())
                 .chat(new PublicAiChatController.PublicChatRequest(message, null))

@@ -554,7 +554,8 @@ class AiChatSourceResolverTest {
         withoutParking.setAddress("4 Đường số 5, Quận 5");
         withoutParking.setActive(true);
         withoutParking.setAmenities(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance
-            .arrayNode().add("Khám theo hẹn").add("Wi-Fi miễn phí"));
+            .arrayNode().add("Khám theo hẹn").add("Wi-Fi miễn phí")
+            .add("Dịch vụ giặt ủi"));
         when(branches.findByActiveTrue(any(Pageable.class))).thenReturn(
             new PageImpl<>(List.of(withParking, withoutParking),
                 org.springframework.data.domain.PageRequest.of(0, 100), 2));
@@ -605,6 +606,24 @@ class AiChatSourceResolverTest {
             resolver.resolveAmenity("Bệnh viện có căn tin không?");
         assertThat(canteen).isNotNull();
         assertThat(canteen.matches()).isEmpty();
+
+        // Laundry questions classify as their own amenity type — "có giặt
+        // đồ" is the laundry reading after the emergency gate passed.
+        AiChatSourceResolver.AmenityResolution laundry =
+            resolver.resolveAmenity("Cơ sở có giặt đồ cho khách không?");
+        assertThat(laundry).isNotNull();
+        assertThat(laundry.amenityType()).isEqualTo("laundry");
+        assertThat(laundry.matches())
+            .extracting(value -> value.source().title())
+            .containsExactly("Bệnh viện Đa khoa HealthCare — Cơ sở 4, Quận 5");
+        assertThat(resolver.matchedAmenityLabels(laundry.matches().get(0), "laundry"))
+            .containsExactly("Dịch vụ giặt ủi");
+        assertThat(resolver.amenityType("phòng khám có giặt ủi không"))
+            .isEqualTo("laundry");
+
+        // "giật mình" (startle reflex) is a symptom, not an amenity —
+        // bare "giat" never enters this lane.
+        assertThat(resolver.resolveAmenity("tôi hay giật mình")).isNull();
 
         // A question with no amenity wording never enters this lane.
         assertThat(resolver.resolveAmenity("địa chỉ cơ sở 2 là gì")).isNull();

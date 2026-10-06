@@ -735,9 +735,15 @@ _PUBLIC_LOCATION_INTRO_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _EMERGENCY_TERMS = (
+    # "ngất"/"ngắt" and "co giật"/"có giặt" fold-collide with interrupt and
+    # laundry wording, so they are deliberately absent from this flat list:
+    # _EMERGENCY_PHRASE_PATTERN carries their benign-continuation exclusions,
+    # and app.emergency_terms owns the expanded variants. Keeping them here
+    # would re-introduce substring over-fire in the baseline recall path and
+    # in the protected-input scan.
     "đau ngực dữ dội", "dau nguc du doi", "khó thở", "kho tho", "méo miệng",
-    "meo mieng", "yếu liệt", "yeu liet", "ngất", "ngat", "chảy máu không cầm",
-    "chay mau khong cam", "tự tử", "tu tu", "co giật", "co giat",
+    "meo mieng", "yếu liệt", "yeu liet", "chảy máu không cầm",
+    "chay mau khong cam", "tự tử", "tu tu",
     "chet di", "chết đi", "paraquat", "thuoc diet co", "thuốc diệt cỏ",
     "đột quỵ", "dot quy", "tai biến", "tai bien",
     "tai biến mạch máu não", "tai bien mach mau nao",
@@ -749,6 +755,15 @@ _EMERGENCY_TERMS = (
     "unresponsive", "collapsed", "sudden collapse",
     "hoa chat", "uong hoa chat", "axit", "uong axit", "thuoc tay", "uong thuoc tay",
 )
+# Baseline-only additions: "ngất"/"ngắt" and "co giật"/"có giặt" were removed
+# from _EMERGENCY_TERMS because the flat substring scan cannot apply their
+# benign-continuation exclusions (fold collisions with interrupt/laundry).
+# The baseline recall mode is the operator kill switch that restores the
+# pre-expansion vocabulary exactly — joined typings like "ngatxiu" or
+# "becogiat" must still fire there — so these terms are appended only inside
+# the baseline branch (Wukong wave-12c CE3). They reintroduce the historical
+# substring false positives *by design*; the expanded path never sees them.
+_BASELINE_ONLY_EMERGENCY_TERMS = ("ngất", "ngat", "co giật", "co giat")
 # Crisis phrasings rarely arrive as one exact substring: callers insert filler
 # words ("đau ngực quá dữ dội"), drop diacritics, or paraphrase self-harm
 # ("không muốn sống", "uống cả lọ thuốc"). Match the normalized form with
@@ -764,9 +779,23 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     # about self-catered meals raised the 115 banner.
     r"|kho\W+tho\b|meo\W+mieng\b|yeu\W+liet\b"
     # "co giat" (convulsion) folds identically to "có giặt" (laundry amenity
-    # question); escalate only when the next word is not a laundry noun.
-    r"|co\W+giat\b(?!\W*(?:ui|la|giu?|quan|ao|khan)\b)"
-    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day)\b))"
+    # question); escalate only when the next word is not a laundry noun or a
+    # "giặt cho <person>" phrase, and a "do" clause suppresses only before
+    # amenity-question/laundry-closing continuations — mirror of
+    # app.emergency_terms._CO_GIAT_CRISIS.
+    r"|co\W+giat\b"
+    r"(?!\W*(?:ui|la|giu?|quan|ao|khan|cho\W+(?:khach|nguoi|benh\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\b)"
+    r"(?!\W+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|giu|thue|o\W+dau|o\W+day"
+    r"|the\W*nao|nhu\W*the\W*nao|mien\W*phi|phi|dich\W*vu|gia|bao\W*nhieu"
+    r"|cho\W+(?:khach|nguoi|benh\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong))\b))"
+    # "ngat" folds "ngất" (faint) and "ngắt" (interrupt/disconnect) together;
+    # escalate only when the continuation is not an interrupt-sense noun —
+    # mirror of app.emergency_terms._NGAT_CRISIS. "ngắt hơi" stays firing.
+    # Reversed-order suppression ("wifi bị ngắt") is applied per-match by
+    # _emergency_phrase_hit via emergency_terms.ngat_suppressed_ends.
+    r"|ngat\b(?!\W+(?:ket\W*noi|mach|loi|han|song|quang|dien|nguon|wifi|internet|mang"
+    r"|tin\W*hieu|cuoc|am\W*thanh|bluetooth|day|camera|video|live|stream"
+    r"|duong|cap|nuoc|gas|thuoc|giac|doan)\b)"
     # "tu tu" is both "tự tử" and benign "từ từ" (slowly); require a volition
     # or thinking idiom in front, as in app.emergency_terms._TUTU_CRISIS —
     # including its bounded masked-"từ"/"rồi" gap so masked tokens between
@@ -1390,6 +1419,22 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
             "phong cho",
             "khu vuc cho",
             "tien ich",
+            # Laundry-service questions are amenity questions too: "có giặt
+            # đồ/ủi/là" must reach the branch catalog, which answers honestly
+            # that the service is not publicly documented instead of paying a
+            # provider round-trip. The emergency gate runs earlier, so a real
+            # "co giật" convulsion report never reaches this lane.
+            "giat ui",
+            "giat la",
+            "giat do",
+            "giat quan ao",
+            "giat giu",
+            "giat khan",
+            "giat say",
+            "giat hap",
+            "co giat",
+            "dich vu giat",
+            "phong giat",
         )
     ):
         return frozenset({"branch"})
@@ -1611,6 +1656,24 @@ def _emergency_recall() -> str:
     return "baseline" if value == "baseline" else "expanded"
 
 
+def _emergency_phrase_hit(variant: str) -> bool:
+    """Return whether the phrase pattern fires on one normalized variant.
+
+    ``finditer`` is used (not ``search``) so the inline ``ngat`` alternative
+    can honour the reversed-order suppression: a match whose text is exactly
+    ``ngat`` and whose end offset sits inside a benign-antecedent span
+    ("wifi bị ngắt") is skipped, while every other match — and every other
+    ``ngat`` occurrence — still fires (Wukong wave-12c CE5).
+    """
+
+    suppressed = emergency_terms.ngat_suppressed_ends(variant)
+    for match in _EMERGENCY_PHRASE_PATTERN.finditer(variant):
+        if match.group(0) == "ngat" and match.end() in suppressed:
+            continue
+        return True
+    return False
+
+
 def _crisis_detected(normalized: str, *, recall: str | None = None) -> bool:
     """Return whether a normalized turn states a Tier-1 emergency.
 
@@ -1632,17 +1695,18 @@ def _crisis_detected(normalized: str, *, recall: str | None = None) -> bool:
         # Pre-expansion behaviour, kept reachable so an operator can contain an
         # over-firing release from the environment without a redeploy. It is the
         # squashed term list plus the legacy phrase pattern, exactly as it was.
+        baseline_terms = (*_EMERGENCY_TERMS, *_BASELINE_ONLY_EMERGENCY_TERMS)
         squashed = _squash(normalized)
-        if any(_squash(_normalize_sensitive_text(term)) in squashed for term in _EMERGENCY_TERMS):
+        if any(_squash(_normalize_sensitive_text(term)) in squashed for term in baseline_terms):
             return True
         return any(
-            _EMERGENCY_PHRASE_PATTERN.search(variant)
-            or any(term in variant for term in _EMERGENCY_TERMS)
+            _emergency_phrase_hit(variant)
+            or any(term in variant for term in baseline_terms)
             for variant in variants
         )
     if emergency_terms.emergency_hit(variants):
         return True
-    return any(_EMERGENCY_PHRASE_PATTERN.search(variant) for variant in variants)
+    return any(_emergency_phrase_hit(variant) for variant in variants)
 
 
 def chat_contains_sensitive_data(
