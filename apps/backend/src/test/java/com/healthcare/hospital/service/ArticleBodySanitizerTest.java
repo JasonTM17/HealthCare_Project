@@ -178,6 +178,22 @@ class ArticleBodySanitizerTest {
     }
 
     @Test
+    void authoredSectionsGoThroughTheSameGateAsBody() {
+        // wave-14 N-F2: sections[].heading/body used to bypass the scrub
+        // while the body payload was cleaned or refused.
+        com.fasterxml.jackson.databind.node.ArrayNode stored = HospitalJsonMapper.articleSections(
+            java.util.List.of(
+                new com.healthcare.hospital.dto.ArticleSectionRequest(
+                    "Sốt cao", "Nội dung bình thường"),
+                new com.healthcare.hospital.dto.ArticleSectionRequest(
+                    "<script>alert(1)</script>", "<img src=x onerror=alert(1)>")));
+
+        assertThat(stored.get(0).path("heading").asText()).isEqualTo("Sốt cao");
+        assertThat(stored.get(1).path("heading").asText()).doesNotContain("<script");
+        assertThat(stored.get(1).path("body").asText()).doesNotContain("onerror");
+    }
+
+    @Test
     void stillRemovesTheOriginalCarriers() {
         // The denylist grew; nothing that was already on it may have moved.
         String stored = ArticleBodySanitizer.sanitize(

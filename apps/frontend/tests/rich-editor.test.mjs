@@ -600,8 +600,10 @@ test("RichTextEditor derives statistics and Markdown source from markup-free con
     /import RichContentRenderer,\s*\{[^}]*htmlToMarkdown[^}]*markdownToHtml[^}]*\}\s*from "\.\/RichContentRenderer"/
   );
 
-  // Same HTML detection contract as the renderer's normalization path
-  assert.match(renderer, /\/<\[a-z\]\[\\s\\S\]\*>\/i\.test\(content\)/);
+  // Same start-anchored HTML detection contract as the writer side
+  // (looksLikeHtmlDocument), so markdown bodies containing tags inside
+  // fenced code are not corrupted on the public path (wave-14 N-F4).
+  assert.match(renderer, /looksLikeHtmlDocument\(content\)/);
   assert.match(editor, /function containsHtml/);
   assert.match(editor, /containsHtml\(safeValue\)/);
 

@@ -1227,7 +1227,7 @@ export interface AdminArticlePayload {
   tags?: string[];
   scheduledPublishAt?: string | null;
   version?: number | null;
-  /** Server-derived from body on every write; a client value is ignored. */
+  /** Authored rows win; when absent the server derives sections from the body. */
   sections?: ArticleSection[] | null;
   contentLanguage?: string | null;
   audience?: string | null;

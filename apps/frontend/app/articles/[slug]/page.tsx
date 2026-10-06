@@ -105,6 +105,36 @@ export default function ArticleDetailPage() {
   const structuredSections = article?.sections?.filter((section) => section.heading.trim() || section.body.trim()) ?? [];
   const bodyParagraphs = article?.body?.split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean) ?? [];
 
+  // Backend populates `sections` on every write — authored rows from the
+  // admin section builder, or a byte-chunk derivation of the body itself
+  // (ArticleSectionsDeriver, split on "\n## "). When the array is the
+  // derived copy, rendering it after `article.body` shows every paragraph
+  // twice on the busiest article route (editor deep-review N-F1); only
+  // genuinely authored sections deserve their own block.
+  const sectionsAreDerived = (() => {
+    const body = article?.body;
+    if (!body || !structuredSections.length) return false;
+    const derived = body
+      .trim()
+      .split("\n## ")
+      .map((chunk, index) => {
+        const trimmed = chunk.trim();
+        if (index === 0) return { heading: "Tổng quan", body: trimmed };
+        const newline = trimmed.indexOf("\n");
+        if (newline < 0) return { heading: trimmed, body: "" };
+        return { heading: trimmed.slice(0, newline).trim(), body: trimmed.slice(newline + 1).trim() };
+      })
+      .filter((section) => section.heading.trim() || section.body.trim());
+    return (
+      derived.length === structuredSections.length
+      && derived.every(
+        (section, index) =>
+          section.heading === structuredSections[index].heading
+          && section.body === structuredSections[index].body,
+      )
+    );
+  })();
+
   // Dynamic reading time estimate
   const wordCount = (article?.body?.split(/\s+/).length || 0) + (article?.summary?.split(/\s+/).length || 0);
   const dynamicMinutes = Math.max(1, Math.ceil(wordCount / 180));
@@ -393,8 +423,9 @@ export default function ArticleDetailPage() {
                   </section>
                 ) : null}
 
-                {/* Structured In-Depth Sections */}
-                {structuredSections.length ? (
+                {/* Structured In-Depth Sections (skipped when they are just
+                    the derived copy of the body already rendered above) */}
+                {structuredSections.length && !sectionsAreDerived ? (
                   <div className="article-detail-card__sections">
                     {structuredSections.map((section, index) => (
                       <section id={`section-${index + 1}`} key={`${section.heading}-${index}`} className="article-news-section">
