@@ -42,14 +42,20 @@ requests only. Per ADR-004 (docs/adr/ADR-004-synthetic-ai-egress.md, decision
 D-05), this remote egress is restricted to non-sensitive synthetic/guest
 content: public catalog content, guest hospital-support/triage conversation,
 and synthetic demo-patient content. Authenticated patient clinical data must
-not egress to the cloud provider; patient-chat and patient-LLM egress stay
-disabled (`AI_PATIENT_CHAT_REMOTE_ENABLED=false`,
-`AI_CHAT_REMOTE_PROVIDER_ENABLED=false`, `REMOTE_AI_SYNTHETIC_ONLY=true`,
-`REMOTE_AI_KILL_SWITCH=true`). Remote patient/clinical AI, ClamAV, attachment
+not egress to the cloud provider. The live Render posture (render.yaml) is
+`AI_PATIENT_CHAT_REMOTE_ENABLED=true` and `REMOTE_AI_RELEASE_HOLD=true` — the
+patient remote path is released — while the Spring provider gate stays
+`AI_CHAT_REMOTE_PROVIDER_ENABLED=false`, so patient turns still cannot reach
+the remote provider end-to-end. Public egress runs on
+`AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=true` and
+`REMOTE_AI_SYNTHETIC_ONLY=false` (render-beta is not synthetic-beta).
+`REMOTE_AI_KILL_SWITCH=true` is set but inert — no app consumer reads it
+(declared only at app/config.py); the real emergency levers are the three
+`*_REMOTE_ENABLED` flags plus `REMOTE_AI_RELEASE_HOLD`. ClamAV, attachment
 scanning, object storage, mail, payment and consultation-upload consumers are
-explicitly disabled. The AI service ingests the Spring public operational
-catalog into an in-memory index; Supabase durable-RAG and patient-chat
-consumers remain disabled. Render Free web services use a public HTTPS hop
+explicitly disabled. The AI service reads the durable RAG corpus from
+Supabase (`RAG_STORAGE_BACKEND=supabase` with a pooled DSN); the Spring
+catalog ingest pushes into it. Render Free web services use a public HTTPS hop
 protected by a server-only token: Free web services cannot receive private-
 network traffic. No paid/private Render service is silently substituted, and
 no local Docker image is pulled to support it.
@@ -438,13 +444,29 @@ patient workflow, backup/restore, or real-patient approval.
 ### Render Free cold-start boundary
 
 Render Free web services sleep when idle. The Spring backend cold start observed
-on 2026-09-01 was about 285 seconds, while the public-chat BFF deadline is 55
-seconds and the Vercel API function is capped at 60 seconds. Therefore the
+on 2026-09-01 was about 285 seconds, while the public-chat BFF deadline is 35
+seconds (`DEFAULT_PUBLIC_AI_REQUEST_TIMEOUT_MS` in
+apps/frontend/lib/server/healthcare-bff.ts) and the Vercel API function is
+capped at 60 seconds. Therefore the
 first request after an idle period can return the bounded
 `502 BFF_UPSTREAM_UNAVAILABLE`; wait for the backend to wake and use the
 assistant's `Thử lại` action. This is a documented Free-plan availability
 trade-off, not a Docker or database-corruption signal. No keep-alive cron, paid
 upgrade, or browser/BFF bypass is configured.
+
+The live keep-warm mechanism is the bidirectional L1 self-warm chain in
+render.yaml: the AI service pings the backend `/actuator/health`
+(`BACKEND_WARM_URL`) and the backend SelfWarmer pings the AI `/livez`. The
+GitHub cron workflows (.github/workflows/render-warm.yml and
+render-keep-alive.yml) are deliberately schedule-disabled to avoid runner and
+egress-quota drain; they remain runnable via `workflow_dispatch`. Two residual
+blind spots follow (Kongming wave-14 F3): (1) if Render evicts or cold-
+restarts BOTH services in the same window, neither side can warm the other —
+the next visitor pays the cold start once and the chain self-heals; and (2)
+Supabase Free still pauses after ~7 days of zero activity, after which the AI
+`/livez` stays green while catalog/RAG chat answers fail closed — the
+Supabase keep-alive workflow can be dispatch-run or real traffic reactivates
+the project.
 
 ## Render Free procedure
 
@@ -466,10 +488,11 @@ upgrade, or browser/BFF bypass is configured.
 4. Render managed references provide DATABASE_URL, DATABASE_USERNAME,
    DATABASE_PASSWORD and REDIS_URL. Set
    MANAGEMENT_HEALTH_MAIL_ENABLED=false and all optional feature switches
-   false. The AI service must use local provider/embedding, a generated
-   non-empty service token, memory RAG and `RAG_INGEST_ENABLED=true`; do not
-   enable remote patient/clinical flags or add localhost SMTP, scanner or
-   storage endpoints.
+   false. The AI service uses local embeddings, a generated non-empty service
+   token and `RAG_INGEST_ENABLED=true`; the observed Render posture stores
+   the RAG corpus in Supabase (`RAG_STORAGE_BACKEND=supabase` plus a pooled
+   DSN secret). Do not enable patient remote/clinical flags beyond the
+   render.yaml posture or add localhost SMTP, scanner or storage endpoints.
 5. Apply Flyway V1--V52 through backend startup, then run
    infrastructure/database/seed-hosted-catalog.sql exactly once against the
    confirmed database. It is transactional, advisory-lock protected,
@@ -493,9 +516,11 @@ new target-specific compensating artifact. On Free there is no PITR, scheduled
 backup or development branch, so manual rollback is the accepted residual risk.
 The current writer-locked reconciliation, ACL/RLS/count/fingerprint checks and
 service-role canaries passed once. The Render AI service's `RAG_INGEST_ENABLED`
-is true only for the public operational catalog and only into ephemeral memory;
-keep Supabase durable-RAG (`AI_RAG_INGEST_ENABLED`) and patient-chat consumers
-false until a new coordinated release gate is approved.
+is true only for the public operational catalog, and the observed posture
+persists that corpus in Supabase (`RAG_STORAGE_BACKEND=supabase`); the
+coordinated release gate for durable-RAG already landed, so the remaining hold
+is the patient-chat provider gate (`AI_CHAT_REMOTE_PROVIDER_ENABLED=false` on
+the Spring side).
 
 ## Rollback
 

@@ -24,10 +24,13 @@ provider acceptable for non-sensitive content:
 - `apps/ai-service/app/config.py` — patient egress is double opt-in
   (`ai_patient_chat_remote_enabled` and `ai_chat_remote_provider_enabled`
   default `False`; the Spring provenance gate is the second opt-in),
-  `remote_ai_synthetic_only=True`, `remote_ai_kill_switch=True`, and the
+  `remote_ai_synthetic_only=True`, `remote_ai_release_hold=False`, and the
   remote allowlist is provider- and host-pinned
   (`remote_ai_provider_allowlist="deepseek"`,
-  `remote_ai_https_host_allowlist="api.deepseek.com"`).
+  `remote_ai_https_host_allowlist="api.deepseek.com"`). The declared
+  `remote_ai_kill_switch` field is inert — no consumer reads it; the real
+  containment levers are the `*_remote_enabled` flags and
+  `remote_ai_release_hold`.
 - `apps/ai-service/app/chatbot.py` — requests that do not assert the
   synthetic-beta posture are refused (`CHAT_REMOTE_SYNTHETIC_REQUIRED`, 403)
   and unsafe context returns `INSUFFICIENT_EVIDENCE` instead of egressing.
