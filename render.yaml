@@ -289,8 +289,17 @@ services:
 
       # Disabled subsystems must not make the Render health probe depend on
       # localhost placeholders or unavailable paid/private services.
+      # Mail is live through the Resend HTTPS API (Render Free cannot reach
+      # outbound SMTP). RESEND_API_KEY is a dashboard-managed secret; the
+      # sender domain healthcare.id.vn is verified in the Resend account.
       - key: APP_MAIL_ENABLED
-        value: "false"
+        value: "true"
+      - key: APP_MAIL_FROM
+        value: "no-reply@healthcare.id.vn"
+      - key: APP_MAIL_PORTAL_BASE_URL
+        value: "https://www.healthcare.id.vn"
+      - key: RESEND_API_KEY
+        sync: false
       - key: APP_MAIL_OUTBOX_ENABLED
         value: "false"
       - key: MANAGEMENT_HEALTH_MAIL_ENABLED

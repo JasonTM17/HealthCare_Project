@@ -283,7 +283,13 @@ services:
       # Disabled subsystems must not make the Render health probe depend on
       # localhost placeholders or unavailable paid/private services.
       - key: APP_MAIL_ENABLED
-        value: "false"
+        value: "true"
+      - key: APP_MAIL_FROM
+        value: "no-reply@healthcare.id.vn"
+      - key: APP_MAIL_PORTAL_BASE_URL
+        value: "https://www.healthcare.id.vn"
+      - key: RESEND_API_KEY
+        sync: false
       - key: APP_MAIL_OUTBOX_ENABLED
         value: "false"
       - key: MANAGEMENT_HEALTH_MAIL_ENABLED
