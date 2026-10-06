@@ -93,3 +93,67 @@ documents via `POST /patients/{id}/documents` and re-verify download bytes.
 - No new blocking findings. Documented residuals unchanged: deterministic-lane
   output-scan gap (F-9, monitor), side-effect pool quota review (F-6),
   capability-posture ≠ reachability (F-5).
+
+---
+
+## W7 — Production PDF storage restored (Supabase REST adapter) — LIVE VERIFIED
+
+### Incident chain (for the record)
+
+1. Supabase S3-compatible storage requires session-token auth — added
+   `STORAGE_SESSION_TOKEN` support to `MinioConfig` (`StaticProvider` 3-arg)
+   and deployed digest `6c68b593`.
+2. Deploys then failed: **MinIO `endpoint()` rejects URLs with a path** —
+   `java.lang.IllegalArgumentException: no path allowed in endpoint
+   https://<ref>.storage.supabase.co/storage/v1/s3`. The `/storage/v1/s3`
+   segment is mandatory on Supabase (host-only endpoint returns 404), so the
+   S3-compatible path cannot reach Supabase Storage at all.
+3. Env-var audit during the incident revealed the true crash-loop source:
+   the wiped deploy's stale env snapshot (JWT_SECRET <32 bytes); the restored
+   env list (58 vars, JWT 96 chars) was verified via API before redeploy.
+4. Backend restored to live (`dep-db2ho717lnhs73f0icpg`) with sentinel
+   storage creds (fail-closed, honest `generationConfigured=false`).
+
+### Fix shipped
+
+- `SupabaseRestDocumentObjectStore` — Supabase Storage REST adapter
+  (`service-role` JWT as `apikey` + Bearer, private bucket, no presigns),
+  selected by `storage.backend=supabase`; `minio` stays default for
+  local/self-hosted (commit `6d45082`, image `2bc95c64`).
+- `STORAGE_BACKEND=supabase` declared in `render.yaml` / `render-free-beta.yaml`
+  + contract test pin (8/8 pass) + `deployment-beta.md` env table.
+- Render envs: `STORAGE_BACKEND=supabase`,
+  `STORAGE_ENDPOINT=https://awaknzhadjglbfkhigck.supabase.co`,
+  `STORAGE_ACCESS_KEY`/`STORAGE_SECRET_KEY` = service-role JWT (secret,
+  not committed).
+- Deploy `dep-db2i2qjlthtc73ak4kpg` live on image `2bc95c64`.
+
+### Direct Supabase REST contract proof (pre-deploy)
+
+- `POST /storage/v1/object/healthcare-files/documents/qa-probe.bin` → 200
+- `GET` → 200, exact bytes returned; `DELETE` → 200 (probe object removed).
+
+### Live production evidence (2026-10-06, via BFF browser-session)
+
+| Check | Result |
+|---|---|
+| `GET /patients/{id}/documents/capabilities` | `generationConfigured=true` |
+| Generate `VISIT_SUMMARY` (idempotent retry of FAILED `f0df2c52`) | `AVAILABLE`, sha256 `779edbe3…`, 660,670 B |
+| Generate `PRESCRIPTION` (fresh `50c51e2f`) | `AVAILABLE`, sha256 `a90d6c9d…`, 660,272 B |
+| Download `f0df2c52` | **200**, `%PDF-1.6`, 660,670 B, sha256 matches API metadata exactly |
+| Download `50c51e2f` | **200**, `%PDF-1.6`, 660,272 B, sha256 matches |
+| Anonymous download | **401** |
+| Doctor without clinical relationship | **403** |
+| Treating doctor | **200** (per `ensureDoctorCanAccessPatient`) |
+
+**PDF on production: PASS** — the original user complaint ("PDF tải không
+được") is resolved end-to-end: generation → private Supabase bucket →
+authorized backend download → verified bytes/hash.
+
+### Updated NOT_RUN register
+
+| Item | Status |
+|---|---|
+| PDF generation + byte/hash download on prod | **PASS** (this section) |
+| User upload lane (consultation attachments) | **BLOCKED_CAPABILITY** — unchanged (`STORAGE_UPLOAD_ENABLED=false`) |
+| Remaining pre-incident FAILED documents | retryable via UI/generate API; `f0df2c52` already recovered |
