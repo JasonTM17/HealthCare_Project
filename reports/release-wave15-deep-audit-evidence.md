@@ -61,3 +61,20 @@ Prior live image: `2bc95c64` (from `6d45082`, Supabase REST document store).
 - Bank-transfer payment E2E — BLOCKED_CAPABILITY (beta posture)
 - Email/OTP delivery — BLOCKED_CAPABILITY
 - Provider LLM latency 4–11s under remote escalation — inherent, documented degraded path
+
+## Deployment of wave-15 fixes — COMPLETED
+
+| Step | Evidence |
+|---|---|
+| CI `7425362` | `37501899213` → **success** after rerun (frontend job flake = PowerShell `FileLoadException` runner issue, unrelated to backend doc changes) |
+| Image publish | `37504397147` → backend manifest `sha256:ca701f1afa6844c8bd9246ab8fcb45dea596d4f421beb4faee6b4f07f87032e6` |
+| Pin sync | `render.yaml`, `render-free-beta.yaml`, contract test — `50ad029` pushed |
+| Render image update | API quirk: PATCH body needs top-level `{"image":{ownerId,imagePath}}` — `serviceDetails.image` is silently ignored |
+| Deploy | `dep-db2j80q6f5ic73d1i2s0` → **live**, `/actuator/health` 200 |
+
+## Live verification on deployed image (BFF session, real bytes)
+
+- `capabilities` → `generationConfigured: true`
+- `patients/…/documents` → **4/4 AVAILABLE** (2 PRESCRIPTION + 2 VISIT_SUMMARY)
+- Download `50c51e2f` → **200, `application/pdf`, `%PDF-1.6`, 660,272B**
+- **sha256 `a90d6c9d…d0d` — byte-exact match** with document metadata
