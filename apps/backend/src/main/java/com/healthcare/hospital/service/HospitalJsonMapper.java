@@ -53,7 +53,16 @@ public final class HospitalJsonMapper {
         return object;
     }
 
-    /** Convert article sections without accepting arbitrary executable JSON. */
+    /**
+     * Convert article sections without accepting arbitrary executable JSON.
+     *
+     * <p>Heading and body run through the same {@link ArticleBodySanitizer}
+     * scrub as the article body: authored section text used to be stored
+     * verbatim while an equivalent body payload was cleaned or refused, so
+     * the sanitizer's stored-data contract held for one field and not its
+     * neighbour (editor deep-review N-F2). A payload the scrub cannot vouch
+     * for fails closed with the same 400 the body raises.
+     */
     public static ArrayNode articleSections(List<ArticleSectionRequest> values) {
         ArrayNode array = JsonNodeFactory.instance.arrayNode();
         if (values != null) {
@@ -62,8 +71,8 @@ public final class HospitalJsonMapper {
                     && ((value.heading() != null && !value.heading().isBlank())
                         || (value.body() != null && !value.body().isBlank())))
                 .forEach(value -> array.add(JsonNodeFactory.instance.objectNode()
-                    .put("heading", value.heading() == null ? "" : value.heading().strip())
-                    .put("body", value.body() == null ? "" : value.body().strip())));
+                    .put("heading", value.heading() == null ? "" : ArticleBodySanitizer.sanitize(value.heading().strip()))
+                    .put("body", value.body() == null ? "" : ArticleBodySanitizer.sanitize(value.body().strip()))));
         }
         return array;
     }

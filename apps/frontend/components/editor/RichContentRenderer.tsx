@@ -1627,8 +1627,11 @@ export function markdownToHtml(md: string): string {
             "emergency-box": "🚨 Dấu hiệu khẩn cấp - Cần cấp cứu ngay",
           };
           const displayTitle = title || defaultTitles[kind] || "Lưu ý chuyên môn";
+          // The title is authored markdown text — interpolate escaped in
+          // both contexts so a '"<img …' title cannot open a live
+          // attribute in the editor iframe (editor deep-review N-F3).
           htmlParts.push(
-            `<div class="${kind}" data-callout="${kind}" data-title="${displayTitle}"><p><strong>${displayTitle}</strong></p>${innerHtml}</div>`
+            `<div class="${kind}" data-callout="${kind}" data-title="${escapeHtmlAttribute(displayTitle)}"><p><strong>${escapeHtmlText(displayTitle)}</strong></p>${innerHtml}</div>`
           );
         }
         continue;
@@ -1729,7 +1732,11 @@ export function RichContentRenderer({
 }: RichContentRendererProps): ReactElement {
   const blocks = useMemo(() => {
     if (!content || !content.trim()) return [];
-    const normalized = /<[a-z][\s\S]*>/i.test(content) ? htmlToMarkdown(content) : content;
+    // Same contract as the writer side: only a document that *opens* on a
+    // tag is treated as stored HTML. A markdown body whose fenced code
+    // sample contains "<div>" used to hit the contains-anywhere test and
+    // lose the sample's tags on the public page (editor deep-review N-F4).
+    const normalized = looksLikeHtmlDocument(content) ? htmlToMarkdown(content) : content;
     return parseMarkdownBlocks(normalized);
   }, [content]);
 
