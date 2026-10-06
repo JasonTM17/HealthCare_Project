@@ -81,6 +81,19 @@ public class DocumentObjectCleanupService {
         if (claim == null) {
             return;
         }
+        // Claim→delete TOCTOU guard: the NOT EXISTS reference check inside
+        // claimOne commits before the object delete runs. A patient_documents
+        // row committing in that window would lose its object while staying
+        // AVAILABLE. Re-check immediately before deleting; a newly-referenced
+        // key means the object is legitimately live, so resolve the marker.
+        boolean referenced = Boolean.TRUE.equals(transactions.execute(status ->
+            jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM patient_documents WHERE object_key = ?)",
+                Boolean.class, claim.objectKey())));
+        if (referenced) {
+            transactions.executeWithoutResult(status -> acknowledge(claim, true));
+            return;
+        }
         boolean deleted;
         try {
             objectStore.delete(claim.objectKey());
