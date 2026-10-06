@@ -824,7 +824,12 @@ _EMERGENCY_PHRASE_PATTERN = re.compile(
     r"|uong\W+(?:het\W+(?:ca\W+)?(?:lo\W+)?|ca\W+lo\W+|qua\W+lieu\W+|nhieu\W+)(?:thuoc|paracetamol|thuoc\W+ngu|giam\W+dau)"
     r"|(?:uong|dung|bo)\W+thuoc\W+qua\W+lieu|qua\W+lieu\W+thuoc"
     r"|quet\W+di\W+(?:mot\W+)?dong\W+hong\W+cam|uong\W+(?:het\W+)?thuoc\W+ngu"
-    r"|uong\W+(?:nham\W+)?(?:thuoc\W+diet\W+co|hoa\W+chat|axit|thuoc\W+tay)|paraquat"
+    # "uống axit" only escalates when the next token is not a benign
+    # supplement/lab acid name ("uống axit folic/uric/béo") — same names as
+    # the squash-stream gate in app.emergency_terms._UONG_AXIT_BENIGN_ACID.
+    r"|uong\W+(?:nham\W+)?(?:thuoc\W+diet\W+co|hoa\W+chat|axit(?!\W+(?:"
+    + "|".join(emergency_terms.UONG_AXIT_BENIGN_ACID_NAMES)
+    + r"))|thuoc\W+tay)|paraquat"
     r"|phu\W+moi|tho\W+rit"
     # English self-harm and emergency phrasings: the assistant serves
     # bilingual visitors and none of these existed in the Vietnamese-only
@@ -1334,6 +1339,19 @@ def _public_entity_phrase_in_text(phrase: str, text: str) -> bool:
     return re.search(pattern, normalized_text) is not None
 
 
+# Token-bounded laundry cues mirroring the backend LAUNDRY_QUERY_CUE:
+# "giat la" needs a word boundary so "bé giật lại" stays clinical, and
+# "giat do" needs clause end or a laundry continuation so "giật do chấn
+# thương / bị ngã / tiền sử" never classifies as amenity (Wukong wave-14).
+_LAUNDRY_QUERY_CUE = re.compile(
+    r"\bgiat\s+la\b"
+    r"|\bgiat\s+do\b(?:\W*$|\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|"
+    r"o\W+dau|o\W+day|the\W*nao|nhu\W*the\W*nao|mien\W*phi|phi|dich\W*vu|"
+    r"gia|bao\W*nhieu|cho\W+(?:khach|nguoi|benh\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong)))",
+    re.IGNORECASE,
+)
+
+
 def public_source_types_for_query(query: str) -> frozenset[str] | None:
     """Return a narrow source projection for explicit public intent."""
 
@@ -1392,7 +1410,7 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
     # Facility/amenity wording is a branch fact: the amenities JSON lives on
     # branch rows, so an upstream call that does reach retrieval must not
     # scan unrelated operational types.
-    if any(
+    if _LAUNDRY_QUERY_CUE.search(normalized) or any(
         term in normalized
         for term in (
             "dau xe",
@@ -1425,8 +1443,6 @@ def public_source_types_for_query(query: str) -> frozenset[str] | None:
             # provider round-trip. The emergency gate runs earlier, so a real
             # "co giật" convulsion report never reaches this lane.
             "giat ui",
-            "giat la",
-            "giat do",
             "giat quan ao",
             "giat giu",
             "giat khan",

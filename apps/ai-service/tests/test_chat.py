@@ -294,6 +294,16 @@ def test_public_context_relevance_rejects_catalog_rows_for_broad_questions() -> 
     assert public_chat_mode_for_query("Bài viết nào hướng dẫn đo huyết áp?") is ChatMode.HEALTH_EDUCATION
     assert public_chat_mode_for_query("Tôi cần chuẩn bị gì trước khi đặt lịch?") is ChatMode.HOSPITAL_SUPPORT
     assert public_chat_mode_for_query("FAQ về đặt lịch khám") is ChatMode.HOSPITAL_SUPPORT
+    # Wukong wave-14: clinical "giật" phrasings never classify as laundry
+    # amenity; laundry questions keep the deterministic branch lane.
+    assert public_source_types_for_query("bé giật lại rồi") is None
+    assert public_source_types_for_query("bé giật do chấn thương") is None
+    assert public_source_types_for_query("trẻ giật do sốt cao") is None
+    assert public_source_types_for_query("giặt đồ cho khách") == {"branch"}
+    assert public_source_types_for_query("có giặt đồ cho bệnh nhân") == {"branch"}
+    assert public_source_types_for_query("giặt đồ bao nhiêu tiền") == {"branch"}
+    assert public_source_types_for_query("giặt là ở đâu") == {"branch"}
+    assert public_source_types_for_query("giặt đồ") == {"branch"}
 
 
 def test_public_education_fallback_requires_an_approved_source() -> None:

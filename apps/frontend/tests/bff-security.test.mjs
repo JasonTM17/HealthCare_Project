@@ -747,6 +747,19 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     "khách Điện bị ngất",
     // Without passive "bị" the reversed shape is not safe to suppress.
     "wifi ngắt",
+    // Wukong wave-14: acid ingestion stays in the fire lane — spaced and
+    // joined forms, dangerous acid names, and the mistaken-swallow shape.
+    "uống axit",
+    "uong axit",
+    "uongaxit",
+    "trẻ uống axit",
+    "uong axit sulfuric",
+    "uong axit nitric",
+    "uong axit clohydric",
+    "uong axit acetic",
+    "uong axit boric",
+    "uong nham axit",
+    "uongnhamaxit",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {
@@ -825,6 +838,23 @@ test("BFF emergency fallback keeps parity with the backend self-harm lexicon", a
     // "ngat" has no word boundary on any engine.
     "ngatketnoi",
     "ngatmang",
+    // Wukong wave-14: supplement/lab acid names suppress the "uống axit"
+    // ingestion cue on spaced and joined forms — these are supplement and
+    // lab questions, not ingestions.
+    "uống axit folic",
+    "uống axit folic khi mang thai",
+    "uong axit folic",
+    "uong axit uric",
+    "uong axit beo",
+    "uong axit hyaluronic",
+    "uong axit ascorbic",
+    "uong axit amino",
+    "uong axit citric",
+    "uongaxitfolic",
+    "uongaxitfolickhimangthai",
+    "uong nham axit folic",
+    "axit uric cao phai lam gi",
+    "axit folic can thiet cho ba bau",
   ]) {
     const response = await bff.proxyHealthcareRequest(
       browserRequest("/api/v1/public/ai/chat", {

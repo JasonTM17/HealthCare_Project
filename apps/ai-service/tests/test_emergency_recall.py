@@ -98,6 +98,20 @@ UNDER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     # Joined-syllable self-harm typing, which only squashed matching reaches.
     ("self-harm-joined", "chetdi"),
     ("self-harm-spaced-joined", "c h e t d i"),
+    # Wukong wave-14 parity merge — terms the Java/BFF cues already fired
+    # while this engine stayed quiet (two-way lexicon-membership gap).
+    ("english-not-breathing", "not breathing"),
+    ("english-loc", "loss of consciousness"),
+    ("self-harm-tusat-joined", "tusat"),
+    ("emergency-room", "bà tôi cần cấp cứu"),
+    ("stroke-weakness-half", "ông tôi bị yếu nửa người"),
+    # Acid-attack compounds carry the "axit" recall after bare "axit" was
+    # removed for colliding with uric/folic/hyaluronic queries.
+    ("acid-attack", "hàng xóm bị tạt axit"),
+    ("acid-splash", "tung axit vào mặt người khác"),
+    ("acid-ingest", "trẻ nuốt axit"),
+    ("acid-burn", "bỏng axit trên tay"),
+    ("acid-eye", "axit vào mắt rồi"),
 )
 
 # Presentations that must stay silent. The first block is the audited
@@ -130,6 +144,13 @@ OVER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("sun-shadow", "bóng nắng chiếu vào phòng có hại không"),
     ("consult-with-doctor", "tôi muốn tư vấn với bác sĩ"),
     ("consult-by-phone", "tôi muốn tư vấn qua điện thoại"),
+    # Wukong wave-14: mainstream "axit" phrasings stay quiet now that bare
+    # "axit" was replaced by attack/burn compounds.
+    ("uric-acid", "axit uric cao phải làm gì"),
+    ("folic-acid", "uống axit folic khi mang thai có tốt không"),
+    ("hyaluronic", "axit hyaluronic có tác dụng gì"),
+    ("acid-density", "nồng độ axit uric bao nhiêu là cao"),
+    ("fatty-acid", "axit béo omega 3 nên uống không"),
 )
 
 # Stated self-harm intentions that the ambiguous "tu van" homophone must still
@@ -462,6 +483,22 @@ def test_benign_tu_cluster_paraphrases_stay_silent(paraphrase: str) -> None:
         # Without the passive "bị" the reversed shape is not safe to
         # suppress — "wifi ngắt" stays firing (fail-safe direction).
         "wifi ngắt",
+        # Wukong wave-14: acid ingestion stays in the fire lane — spaced
+        # and joined forms, dangerous acid names, mistaken swallow.
+        "uống axit",
+        "uong axit",
+        "uongaxit",
+        "trẻ uống axit",
+        "uong axit sulfuric",
+        "uong axit nitric",
+        "uong axit clohydric",
+        "uong axit acetic",
+        "uong axit boric",
+        "uong axit fomic",
+        "uong nham axit",
+        "uongnhamaxit",
+        "uong hoa chat",
+        "uong thuoc tay",
     ],
 )
 def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
@@ -553,6 +590,24 @@ def test_self_harm_paraphrases_still_escalate(paraphrase: str) -> None:
         "ngatketnoi",
         "ngatmang",
         "ngatwifi",
+        # Wukong wave-14: supplement/lab acid names suppress the "uống
+        # axit" ingestion cue on spaced and joined forms — these are
+        # supplement, skincare and lab questions, not ingestions.
+        "uống axit folic",
+        "uống axit folic khi mang thai",
+        "uong axit folic",
+        "uong axit uric",
+        "uong axit beo",
+        "uong axit hyaluronic",
+        "uong axit salicylic",
+        "uong axit ascorbic",
+        "uong axit amino",
+        "uong axit citric",
+        "uongaxitfolic",
+        "uongaxitfolickhimangthai",
+        "uong nham axit folic",
+        "axit uric cao phai lam gi",
+        "axit folic can thiet cho ba bau",
     ],
 )
 def test_benign_folded_lookalikes_stay_silent(paraphrase: str) -> None:

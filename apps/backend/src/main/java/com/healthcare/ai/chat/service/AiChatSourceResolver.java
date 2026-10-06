@@ -618,7 +618,12 @@ public class AiChatSourceResolver {
         "cho dau", "cho do", "dau oto", "do oto", "nha thuoc", "quay thuoc",
         "wifi", "atm", "rut tien", "can tin", "nha an", "phong cho",
         "khu vuc cho", "tien ich",
-        "giat ui", "giat la", "giat do", "co giat", "dich vu giat",
+        // "giat la"/"giat do" are absent: as substring they collide with the
+        // clinical "giật lại"/"giật do X" after folding — the dedicated
+        // LAUNDRY_QUERY_CUE pattern below matches them token-bounded and
+        // continuation-gated instead (Wukong wave-14 CE: "be giat lai"
+        // misrouted to the laundry lane).
+        "giat ui", "co giat", "dich vu giat",
     };
 
     /**
@@ -627,6 +632,7 @@ public class AiChatSourceResolver {
      */
     public boolean hasBranchAttributeCue(String query) {
         String normalized = normalizeLookupText(query);
+        if (LAUNDRY_QUERY_CUE.matcher(normalized).find()) return true;
         for (String cue : BRANCH_ATTRIBUTE_CUES) {
             if (normalized.contains(cue)) return true;
         }
@@ -698,10 +704,27 @@ public class AiChatSourceResolver {
         {"phong cho", "khu vuc cho", "ghe cho", "noi cho", "cho ngoi"},
         // Laundry phrasings reach here only after the emergency gate
         // already passed — "co giat" is the laundry reading in this lane.
-        {"giat ui", "giat la", "giat do", "giat quan ao", "giat giu",
-            "giat khan", "giat say", "giat hap", "giat tham", "giat cong nghiep",
-            "co giat", "dich vu giat", "phong giat", "laundry"},
+        // "giat la"/"giat do" are handled by LAUNDRY_QUERY_CUE instead of
+        // substring: "be giat lai" / "giat do chan thuong" are clinical
+        // convulsion reports that must never classify as amenity (Wukong
+        // wave-14 CE).
+        {"giat ui", "giat quan ao", "giat giu", "giat khan", "giat say",
+            "giat hap", "giat tham", "giat cong nghiep", "co giat",
+            "dich vu giat", "phong giat", "laundry"},
     };
+    /**
+     * Token-bounded laundry cues for the two collision-prone phrases.
+     * "giat la" needs a word boundary so "giật lại" stays clinical;
+     * "giat do" additionally requires clause end or a laundry continuation
+     * (the same unit list as the emergency co-giat suppression) so
+     * "giật do chấn thương / bị ngã / tiền sử" stays out of this lane.
+     */
+    private static final Pattern LAUNDRY_QUERY_CUE = Pattern.compile(
+        "\\bgiat\\s+la\\b"
+            + "|\\bgiat\\s+do\\b(?:\\W*$|\\W+(?:khong|ko|a|ha|nhe|nhi|nho|vay|ta|dc|duoc|chu|thue|"
+            + "o\\W+dau|o\\W+day|the\\W*nao|nhu\\W*the\\W*nao|mien\\W*phi|phi|dich\\W*vu|"
+            + "gia|bao\\W*nhieu|cho\\W+(?:khach|nguoi|benh\\W*nhan|minh|toi|em|anh|chi|con|me|ba|ong)))",
+        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
      * Classify the amenity a normalized question asks about, or
@@ -711,6 +734,7 @@ public class AiChatSourceResolver {
     public String amenityType(String query) {
         String normalized = normalizeLookupText(query);
         if (normalized.isBlank()) return null;
+        if (LAUNDRY_QUERY_CUE.matcher(normalized).find()) return "laundry";
         for (int i = 0; i < AMENITY_TYPES.length; i++) {
             for (String phrase : AMENITY_QUERY_PHRASES[i]) {
                 if (normalized.contains(phrase)) return AMENITY_TYPES[i];

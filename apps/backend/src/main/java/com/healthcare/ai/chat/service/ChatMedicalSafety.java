@@ -148,7 +148,15 @@ public final class ChatMedicalSafety {
             + "cannot\\s+breathe|not\\s+breathing|severe\\s+bleeding|unresponsive|"
             + "collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
             + "nhoi\\s+mau\\s+co\\s+tim|ngung\\s+tim|ngung\\s+tho|bat\\s+tinh|"
-            + "mat\\s+y\\s+thuc|dotquy|taibien|capcuu|heartattack|cardiacarrest|chestpain|"
+            // Short terms whose squashed form sits under the 6-char floor
+            // need explicit spaced alternatives — the squashed mirror cannot
+            // see them (Wukong wave-14 two-way parity merge): vỡ ối, hôn mê,
+            // đẻ non, coma, bỏ bú, and the acid-attack compounds that
+            // replaced over-firing bare "axit" ("axit uric/folic" stays
+            // quiet). "do axit" is deliberately absent — it folds "độ axit".
+            + "mat\\s+y\\s+thuc|vo\\s+oi|hon\\s+me|de\\s+non|coma|bo\\s+bu|"
+            + "tat\\s+axit|tung\\s+axit|chem\\s+axit|phun\\s+axit|bong\\s+axit|"
+            + "axit\\s+bong|nuot\\s+axit|axit\\s+vao\\s+mat|dotquy|taibien|capcuu|heartattack|cardiacarrest|chestpain|"
             + "shortnessofbreath|difficultybreathing|cantbreathe|cannotbreathe|notbreathing|"
             + "severebleeding|suddencollapse|lossofconsciousness|nhoimauco\\s+tim|ngungtim|"
             + "ngungtho|battinh|matythuc|suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
@@ -196,9 +204,9 @@ public final class ChatMedicalSafety {
      * stream start — mid-stream "ditutu" = "đi từ từ" is benign).
      */
     private static final Pattern EMERGENCY_SQUASHED_TIER1 = Pattern.compile(
-        "(?:anaphylactic|anaphylaxis|battinh|baubidaubung|bebobu|bleedingheavily|"
-            + "bongdo|bongsau|breathingdifficulty|cannotbreathe|cantbreathe|"
-            + "cardiacarrest|chanthuongdau|chanthuongsonao|chaymauamdao|"
+        "(?:anaphylactic|anaphylaxis|axitbong|axitvaomat|battinh|baubidaubung|bebobu|bleedingheavily|"
+            + "bongaxit|bongdo|bongsau|breathingdifficulty|cannotbreathe|cantbreathe|"
+            + "cardiacarrest|chanthuongdau|chanthuongsonao|chaymauamdao|chemaxit|"
             + "chaymaukhongcam|chaymaukhongngung|chaymauoat|chestpain|chetduoi|"
             + "choking|collapsed|convulsion|cothatthanhquan|coughingupblood|"
             + "criticalcondition|daunguc|daunguclanratay|daunguclantay|"
@@ -212,20 +220,20 @@ public final class ChatMedicalSafety {
             + "nangnguc|ngattho|ngatxiu|nghetho|nghettho|ngodoc|ngungtho|"
             + "ngungtim|nguyhiemtinhmang|nguykich|nhaubongnon|nhoimaucotim|"
             + "nhoimautim|noikho|noikhongro|noingong|nonramau|"
-            + "numbnessononeside|overdose|overdosed|paraquat|pesticide|phanve|"
-            + "phumoi|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
+            + "numbnessononeside|nuotaxit|overdose|overdosed|paraquat|pesticide|phanve|"
+            + "phumoi|phunaxit|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
             + "sangiat|sapchet|sauxuonguc|saythai|seizure|severebleeding|"
             + "shortnessofbreath|slurredspeech|socphanve|sotcaokhongha|"
             + "sotxuathuyet|stroke|suddencollapse|suddenweakness|sungmoi|"
-            + "taibien|taibienmachmaunao|tainangiaothong|temotben|tenuanguoi|"
+            + "taibien|taibienmachmaunao|tainangiaothong|tataxit|temotben|tenuanguoi|"
             + "thaikhongmay|thailuu|thaingoaitucung|thatnguc|thokhokhan|"
             + "thoplom|thorit|thorut|thuocdietco|thuoctay|tiensangiat|"
             + "tieuramau|timtai|trebobu|trekhongchiuan|trekhongphanung|"
             + "trekhotho|trelibi|tresotcao|tretimtai|troublebreathing|trungdoc|"
-            + "tucnguc|tuvong|tuuvong|unconscious|unresponsive|uongaxit|"
+            + "tucnguc|tungaxit|tuvong|tuuvong|unconscious|unresponsive|uongaxit|uongnhamaxit|"
             + "uonghoachat|uongthuocdoc|uongthuocngu|uongthuoctay|"
             + "vamohoilanh|vangmohoilanh|vanmohoilanh|vomitingblood|"
-            + "xuathuyet|xuathuyetnao|xuathuyettieuhoa|xuonguc|yeuliet)"
+            + "xuathuyet|xuathuyetnao|xuathuyettieuhoa|xuonguc|yeuliet|yeunuanguoi)"
     );
     private static final Pattern EMERGENCY_SQUASHED_SELF_HARM = Pattern.compile(
         "(?:betteroffdead|bienmatkhoithegioi|cantgoon|catcotay|cattay|"
@@ -408,8 +416,30 @@ public final class ChatMedicalSafety {
         return false;
     }
 
+    /**
+     * Benign acid names that may follow "uongaxit" in a squash stream:
+     * supplement and lab phrasings ("uống axit folic/uric/béo") are not
+     * ingestions. Dangerous acids (sulfuric, nitric, hydrochloric, formic,
+     * acetic, boric, benzoic) deliberately stay out — those fire. Mirrors
+     * ai-service _UONG_AXIT_BENIGN_ACID (Wukong wave-14).
+     */
+    private static final Pattern UONG_AXIT_BENIGN_ACID = Pattern.compile(
+        "(?:folic|uric|hyaluronic|salicylic|acetylsalicylic|ascorbic|beo|amino"
+            + "|citric|lipoic|linoleic|oleic|retinoic|pantothenic|nicotinic|glutamic"
+            + "|aspartic|nucleic)",
+        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
     private static boolean squashedTier1Hit(String squashed) {
-        if (EMERGENCY_SQUASHED_TIER1.matcher(squashed).find()) return true;
+        java.util.regex.Matcher tier1 = EMERGENCY_SQUASHED_TIER1.matcher(squashed);
+        while (tier1.find()) {
+            String group = tier1.group();
+            if ((!"uongaxit".equals(group) && !"uongnhamaxit".equals(group))
+                    || !UONG_AXIT_BENIGN_ACID
+                        .matcher(squashed.substring(tier1.end()))
+                        .lookingAt()) {
+                return true;
+            }
+        }
         // "cogiat" suppresses only when the remainder is a full laundry/
         // particle chain; an empty or non-chain rest fires (fail-safe).
         java.util.regex.Matcher cogiat = SQUASHED_COGIAT.matcher(squashed);
