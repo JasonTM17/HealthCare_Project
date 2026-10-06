@@ -86,6 +86,12 @@ const EMERGENCY_FALLBACK_PATTERN = new RegExp(
     + "difficulty\\s+breathing|cant\\s+breathe|cannot\\s+breathe|not\\s+breathing|"
     + "severe\\s+bleeding|unresponsive|collapsed|sudden\\s+collapse|loss\\s+of\\s+consciousness|"
     + "nhoi\\s+mau\\s+co\\s+tim|ngung\\s+tim|ngung\\s+tho|bat\\s+tinh|mat\\s+y\\s+thuc|"
+    // Short terms under the squashed 6-char floor need explicit spaced
+    // alternatives (Wukong wave-14 two-way parity merge): vỡ ối, hôn mê,
+    // đẻ non, coma, bỏ bú, acid-attack compounds replacing bare "axit"
+    // ("axit uric/folic" stays quiet; "do axit" absent — folds "độ axit").
+    + "vo\\s+oi|hon\\s+me|de\\s+non|coma|bo\\s+bu|tat\\s+axit|tung\\s+axit|"
+    + "chem\\s+axit|phun\\s+axit|bong\\s+axit|axit\\s+bong|nuot\\s+axit|axit\\s+vao\\s+mat|"
     + "dotquy|taibien|capcuu|heartattack|cardiacarrest|chestpain|shortnessofbreath|"
     + "difficultybreathing|cantbreathe|cannotbreathe|notbreathing|severebleeding|"
     + "suddencollapse|lossofconsciousness|nhoimaucotim|ngungtim|ngungtho|battinh|matythuc|"
@@ -220,9 +226,9 @@ function jsonError(status: number, code: string): Response {
 // and bare "tutu" (ai-service trusts it only at stream start — mid-stream
 // "ditutu" = "đi từ từ" is benign).
 const EMERGENCY_SQUASHED_TIER1 = new RegExp(
-  "(?:anaphylactic|anaphylaxis|battinh|baubidaubung|bebobu|bleedingheavily|"
-    + "bongdo|bongsau|breathingdifficulty|cannotbreathe|cantbreathe|"
-    + "cardiacarrest|chanthuongdau|chanthuongsonao|chaymauamdao|"
+  "(?:anaphylactic|anaphylaxis|axitbong|axitvaomat|battinh|baubidaubung|bebobu|bleedingheavily|"
+    + "bongaxit|bongdo|bongsau|breathingdifficulty|cannotbreathe|cantbreathe|"
+    + "cardiacarrest|chanthuongdau|chanthuongsonao|chaymauamdao|chemaxit|"
     + "chaymaukhongcam|chaymaukhongngung|chaymauoat|chestpain|chetduoi|"
     + "choking|collapsed|convulsion|cothatthanhquan|coughingupblood|"
     + "criticalcondition|daunguc|daunguclanratay|daunguclantay|"
@@ -236,20 +242,20 @@ const EMERGENCY_SQUASHED_TIER1 = new RegExp(
     + "nangnguc|ngattho|ngatxiu|nghetho|nghettho|ngodoc|ngungtho|"
     + "ngungtim|nguyhiemtinhmang|nguykich|nhaubongnon|nhoimaucotim|"
     + "nhoimautim|noikho|noikhongro|noingong|nonramau|"
-    + "numbnessononeside|overdose|overdosed|paraquat|pesticide|phanve|"
-    + "phumoi|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
+    + "numbnessononeside|nuotaxit|overdose|overdosed|paraquat|pesticide|phanve|"
+    + "phumoi|phunaxit|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
     + "sangiat|sapchet|sauxuonguc|saythai|seizure|severebleeding|"
     + "shortnessofbreath|slurredspeech|socphanve|sotcaokhongha|"
     + "sotxuathuyet|stroke|suddencollapse|suddenweakness|sungmoi|"
-    + "taibien|taibienmachmaunao|tainangiaothong|temotben|tenuanguoi|"
+    + "taibien|taibienmachmaunao|tainangiaothong|tataxit|temotben|tenuanguoi|"
     + "thaikhongmay|thailuu|thaingoaitucung|thatnguc|thokhokhan|"
     + "thoplom|thorit|thorut|thuocdietco|thuoctay|tiensangiat|"
     + "tieuramau|timtai|trebobu|trekhongchiuan|trekhongphanung|"
     + "trekhotho|trelibi|tresotcao|tretimtai|troublebreathing|trungdoc|"
-    + "tucnguc|tuvong|tuuvong|unconscious|unresponsive|uongaxit|"
+    + "tucnguc|tungaxit|tuvong|tuuvong|unconscious|unresponsive|uongaxit|uongnhamaxit|"
     + "uonghoachat|uongthuocdoc|uongthuocngu|uongthuoctay|"
     + "vamohoilanh|vangmohoilanh|vanmohoilanh|vomitingblood|"
-    + "xuathuyet|xuathuyetnao|xuathuyettieuhoa|xuonguc|yeuliet)",
+    + "xuathuyet|xuathuyetnao|xuathuyettieuhoa|xuonguc|yeuliet|yeunuanguoi)",
   "iu"
 );
 const EMERGENCY_SQUASHED_SELF_HARM = new RegExp(
@@ -338,8 +344,35 @@ function ngatCrisisHit(normalized: string): boolean {
   return false;
 }
 
+// Benign acid names that may follow "uongaxit" in a squash stream:
+// supplement/lab phrasings ("uống axit folic/uric/béo") are not ingestions.
+// Dangerous acids (sulfuric, nitric, hydrochloric, formic, acetic, boric,
+// benzoic) deliberately stay out — those fire. Mirrors the backend
+// UONG_AXIT_BENIGN_ACID / ai-service _UONG_AXIT_BENIGN_ACID (Wukong wave-14).
+const UONG_AXIT_BENIGN_ACID =
+  /^(?:folic|uric|hyaluronic|salicylic|acetylsalicylic|ascorbic|beo|amino|citric|lipoic|linoleic|oleic|retinoic|pantothenic|nicotinic|glutamic|aspartic|nucleic)/iu;
+const UONG_AXIT_GLOBAL = /uongaxit|uongnhamaxit/gu;
+
 function squashedTier1Hit(squashed: string): boolean {
-  if (EMERGENCY_SQUASHED_TIER1.test(squashed)) return true;
+  if (EMERGENCY_SQUASHED_TIER1.test(squashed)) {
+    // The acid-ingestion prefixes inside the alternation only count when
+    // the occurrence lacks a benign acid tail; each is rechecked before
+    // the fast-path match is accepted.
+    let unsuppressed = false;
+    for (const hit of squashed.matchAll(UONG_AXIT_GLOBAL)) {
+      if (!UONG_AXIT_BENIGN_ACID.test(squashed.slice(hit.index + hit[0].length))) {
+        unsuppressed = true;
+        break;
+      }
+    }
+    if (unsuppressed) return true;
+    // Every acid-ingestion occurrence was benign — neutralize them ("0"
+    // cannot join neighbours into another term) and retest for the rest.
+    const stripped = squashed
+      .replaceAll("uongaxit", "0")
+      .replaceAll("uongnhamaxit", "0");
+    if (EMERGENCY_SQUASHED_TIER1.test(stripped)) return true;
+  }
   // "cogiat" suppresses only when the remainder is a full laundry/particle
   // chain; an empty or non-chain rest fires (fail-safe).
   const cogiat = /cogiat/gu;

@@ -387,4 +387,47 @@ class ChatSafetyAndChunkerTest {
         assertThat(ChatMedicalSafety.containsEmergencyInputCue("ngatmang"))
             .isFalse();
     }
+
+    @Test
+    void uongAxitOnlyFiresOutsideBenignAcidNames() {
+        // Wukong wave-14: "uống axit" is acid-ingestion recall — it must
+        // still fire on spaced, joined, and dangerous-acid forms.
+        for (String fire : List.of(
+            "uống axit",
+            "uong axit",
+            "uongaxit",
+            "trẻ uống axit",
+            "uong axit sulfuric",
+            "uong axit nitric",
+            "uong axit clohydric",
+            "uong axit acetic",
+            "uong axit boric",
+            "uong nham axit",
+            "uongnhamaxit")) {
+            assertThat(ChatMedicalSafety.containsEmergencyInputCue(fire))
+                .as("acid ingestion stays emergency: %s", fire)
+                .isTrue();
+        }
+        // Supplement and lab acid names suppress the cue — "uống axit
+        // folic/uric/béo" is a supplement or lab question, not ingestion.
+        for (String benign : List.of(
+            "uống axit folic",
+            "uống axit folic khi mang thai",
+            "uong axit folic",
+            "uong axit uric",
+            "uong axit beo",
+            "uong axit hyaluronic",
+            "uong axit ascorbic",
+            "uong axit amino",
+            "uong axit citric",
+            "uongaxitfolic",
+            "uongaxitfolickhimangthai",
+            "uong nham axit folic",
+            "axit uric cao phai lam gi",
+            "axit folic can thiet cho ba bau")) {
+            assertThat(ChatMedicalSafety.containsEmergencyInputCue(benign))
+                .as("benign acid phrasing stays non-emergency: %s", benign)
+                .isFalse();
+        }
+    }
 }

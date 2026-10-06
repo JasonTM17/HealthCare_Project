@@ -84,8 +84,13 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "va mo hoi lanh",
     "mo hoi lanh",
     # Dyspnoea family. The diacritic-free typing "khong tho duoc" is the most
-    # common Vietnamese input and previously escaped every rule.
+    # common Vietnamese input and previously escaped every rule. The English
+    # pair and "cap cuu" close the lexicon-membership gap the Java/BFF cues
+    # already carried (Wukong wave-14: two-way parity merge).
     "kho tho",
+    "not breathing",
+    "loss of consciousness",
+    "cap cuu",
     "khong tho duoc",
     "khong tho noi",
     "tho kho khan",
@@ -132,6 +137,7 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "face drooping",
     "numbness on one side",
     "sudden weakness",
+    "yeu nua nguoi",
     # Major haemorrhage.
     "chay mau khong cam",
     "chay mau khong ngung",
@@ -199,8 +205,23 @@ TIER1_TERMS: Final[tuple[str, ...]] = (
     "pesticide",
     "hoa chat",
     "uong hoa chat",
-    "axit",
-    "uong axit",
+    # Bare "axit" stays out: it collides with mainstream queries ("axit uric
+    # cao", "axit folic", "axit hyaluronic"). Acid-attack and burn senses are
+    # carried by the verb/location compounds below — the same set the Java
+    # and BFF mirrors hold (Wukong wave-14: parity merge).
+    "tat axit",
+    "tung axit",
+    "chem axit",
+    "phun axit",
+    # "do axit" stays out: it folds "độ/đồ/đo axit" so "nồng độ axit uric"
+    # would over-fire — the exact mainstream collision bare "axit" carried.
+    # "uong axit" also stays out of the boundary tuple: "uống axit folic/
+    # uric" is a benign supplement query, so ingestion is matched only in
+    # the squashed net with a supplement-name suppression (Wukong wave-14).
+    "bong axit",
+    "axit bong",
+    "nuot axit",
+    "axit vao mat",
     "thuoc tay",
     "uong thuoc tay",
     "overdose",
@@ -256,6 +277,9 @@ SELF_HARM_TERMS: Final[tuple[str, ...]] = (
     # thinking idiom before it ("muốn/định/tính/quyết tự tử",
     # "nghĩ (đến việc|về|tới) tự tử", "có ý (định) tự tử").
     "tu sat",
+    # Joined "tusat" (5 chars, under the squash floor) — boundary-only recall,
+    # identical to the Java/BFF literal alternative (Wukong wave-14).
+    "tusat",
     "tu ket lieu",
     "tu lam dau",
     "tu huy hoai",
@@ -754,7 +778,16 @@ _CONSULT_FRAME_BOUNDARY = _compile_boundary_matcher(CONSULT_FRAME_TERMS)
 # collision. A laundry noun still follows it in the squash stream
 # ("cogiatui..." = "có giặt ủi"), so _squashed_tier1_hit re-applies the
 # same exclusion as _CO_GIAT_CRISIS instead of matching it bare.
-_TIER1_SQUASHED = (*_compile_squash_matcher(TIER1_TERMS), "cogiat")
+# "uongaxit" joins "cogiat" as a hand-added squashed term: the spaced term
+# left the boundary tuple (supplement collision), and
+# _squashed_tier1_hit re-applies a supplement-name suppression per
+# occurrence instead of matching it bare.
+_TIER1_SQUASHED = (
+    *_compile_squash_matcher(TIER1_TERMS),
+    "cogiat",
+    "uongaxit",
+    "uongnhamaxit",
+)
 # Joined "tutu" keeps the same contract as spaced "tu tu": it only counts
 # behind a volition/thinking marker. Bare "tutu" inside a squash stream
 # cannot be told apart from benign "từ từ" mid-sentence ("ditutu" =
@@ -886,8 +919,48 @@ _CO_GIAT_SQUASHED_SUPPRESS: Final[re.Pattern[str]] = re.compile(
 )
 
 
+# Benign acid names that follow "uongaxit"/"uong axit": supplement and lab
+# queries ("uống axit folic/uric/béo") must not read as acid ingestion.
+# Dangerous acids (sulfuric, nitric, hydrochloric, formic, acetic, boric,
+# benzoic) deliberately stay out — those ingestions fire. The tuple is
+# exported so app.llm._EMERGENCY_PHRASE_PATTERN can reuse the same names
+# for its spaced "uong axit" alternative.
+UONG_AXIT_BENIGN_ACID_NAMES: Final[tuple[str, ...]] = (
+    "folic", "uric", "hyaluronic", "salicylic", "acetylsalicylic",
+    "ascorbic", "beo", "amino", "citric", "lipoic", "linoleic",
+    "oleic", "retinoic", "pantothenic", "nicotinic", "glutamic",
+    "aspartic", "nucleic",
+)
+# Prefix match, no trailing boundary: inside a squash stream the benign
+# name continues straight into the next word ("uongaxitfolickhi").
+_UONG_AXIT_BENIGN_ACID: Final[re.Pattern[str]] = re.compile(
+    "(?:" + "|".join(UONG_AXIT_BENIGN_ACID_NAMES) + ")"
+)
+
+
+# "uống axit" ingestion prefixes in the squash stream — the bare and the
+# mistaken-swallow ("uống nhầm axit") shapes share one benign-acid gate.
+_UONG_AXIT_PREFIXES: Final[tuple[str, ...]] = ("uongaxit", "uongnhamaxit")
+
+
+def _uong_axit_unsuppressed(squashed: str, term: str) -> bool:
+    """True when a ``term`` occurrence lacks a benign acid tail."""
+
+    start = squashed.find(term)
+    while start != -1:
+        rest = squashed[start + len(term) :]
+        if not _UONG_AXIT_BENIGN_ACID.match(rest):
+            return True
+        start = squashed.find(term, start + 1)
+    return False
+
+
 def _squashed_tier1_hit(squashed: str) -> bool:
     for term in _TIER1_SQUASHED:
+        if term in _UONG_AXIT_PREFIXES:
+            if term in squashed and _uong_axit_unsuppressed(squashed, term):
+                return True
+            continue
         if term != "cogiat":
             if term in squashed:
                 return True
