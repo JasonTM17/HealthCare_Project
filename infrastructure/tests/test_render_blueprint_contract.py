@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 5060b9e (perf wave: greeting shortcut, OOM-exit,
-# scheduler pool, reconcile interval, Hikari 8, metrics/swagger, warm-check).
+# release line, built from 1094ff4 (wave-13: ngat/cogiat emergency
+# disambiguation parity + laundry amenity lane + V111 CMS slot seeds).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:bb6e7f72cd3a17e6265d822ba08c47f29de58afda0d204190757913c712242c1"
+    "sha256:3f52916bd58d54d4de44bc364dd36157fa32379472de81ed5ed01bfb89446adb"
 )
 
 
