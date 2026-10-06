@@ -22,6 +22,9 @@ const RECORD_ID = "record-documents-e2e";
 const ACTIVE_PRESCRIPTION_ID = "prescription-documents-active";
 const CANCELLED_PRESCRIPTION_ID = "prescription-documents-cancelled";
 const AVAILABLE_DOCUMENT_ID = "document-available-e2e";
+// The download path is fail-closed on declared byteSize — the fixture must
+// agree with the bytes the mocked route actually serves.
+const AVAILABLE_PDF_BYTES = Buffer.from("%PDF-1.7\n% synthetic patient document e2e\n%%EOF", "utf8");
 
 const SESSION = browserSessionFixture("PATIENT", PATIENT_ID, "Bệnh nhân PDF");
 
@@ -118,7 +121,7 @@ function initialDocuments(): PatientDocument[] {
       templateVersion: "synthetic-v1",
       status: "AVAILABLE",
       sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-      byteSize: 2048,
+      byteSize: AVAILABLE_PDF_BYTES.length,
       generatedBy: PATIENT_ID,
       generatedAt: "2026-09-10T02:30:00Z",
       revokedAt: null,
@@ -200,7 +203,7 @@ async function installPatientDocumentMocks(context: BrowserContext): Promise<voi
           "Content-Disposition": `attachment; filename="ho-so-kham-${AVAILABLE_DOCUMENT_ID.slice(0, 8)}.pdf"`,
           "Cache-Control": "no-store",
         },
-        body: Buffer.from("%PDF-1.7\n% synthetic patient document e2e\n%%EOF", "utf8"),
+        body: AVAILABLE_PDF_BYTES,
       });
       return;
     }
