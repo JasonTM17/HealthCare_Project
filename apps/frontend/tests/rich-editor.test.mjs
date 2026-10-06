@@ -447,6 +447,12 @@ test("RichTextEditor integrates TinyMCE with self-hosted assets, menubar, toolba
   assert.match(editor, /base_url:\s*"\/tinymce"/);
   assert.match(editor, /suffix:\s*"\.min"/);
 
+  // Root-relative media sources must survive getContent() verbatim: the
+  // default relative_urls:true rewrote /media/x.jpg to ../media/x.jpg under
+  // /admin/*, and the stored markdown then 404'd at other page depths.
+  assert.match(editor, /relative_urls:\s*false/, "TinyMCE must not relativize root paths");
+  assert.match(editor, /remove_script_host:\s*true/, "same-origin URLs normalize to root-relative");
+
   // No menubar: its labels were English in a Vietnamese product and TinyMCE
   // ships language packs separately, so the commands live on the toolbar and
   // the untranslated chrome is gone. Every menubar-only command is asserted to
