@@ -328,6 +328,28 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void answersBroadBranchQuestionFromLiveCatalogWithoutProvider() {
+        // "chi nhánh ở đâu" is a broad BRANCH question: no specific branch to
+        // resolve, so the deterministic lane must answer from the live
+        // branch overview instead of falling through to the provider.
+        AiService aiService = mock(AiService.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveBranchList())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Bệnh viện có chi nhánh ở đâu?", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("routingReason", "public_support_shortcut");
+        assertThat((String) body.get("answer"))
+            .contains("các cơ sở sau")
+            .contains("Cơ sở 1 — Quận 1");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
     void acceptsInsufficientEvidenceResponseWithNoCitations() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(
@@ -1577,7 +1599,7 @@ class PublicAiChatControllerTest {
         AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolver)
-            .chat(new PublicAiChatController.PublicChatRequest("Giờ làm việc khoa Tim mạch?", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -1599,7 +1621,7 @@ class PublicAiChatControllerTest {
             .thenThrow(new IllegalStateException("catalog unavailable"));
 
         assertThatThrownBy(() -> new PublicAiChatController(aiService, resolver)
-            .chat(new PublicAiChatController.PublicChatRequest("Giờ làm việc khoa Tim mạch?", null)))
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null)))
             .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
             .hasMessageContaining("502 BAD_GATEWAY");
     }
@@ -1644,8 +1666,11 @@ class PublicAiChatControllerTest {
                 "source_type", "specialty", "source_id", SPECIALTY_ID, "title", "Tim mạch"))
         ));
 
+        // A general-information question stays on the provider path so the
+        // forwarded recent_turns payload can be asserted; deterministic-lane
+        // intents are covered by their own provider-free tests.
         PublicAiChatController.PublicChatRequest request = new PublicAiChatController.PublicChatRequest(
-            "Giờ làm việc khoa Tim mạch?",
+            "Cho mình hỏi thông tin bệnh viện",
             List.of(
                 new PublicAiChatController.PublicChatTurn("user", "Xin chào"),
                 new PublicAiChatController.PublicChatTurn("assistant", "Chào bạn, tôi có thể giúp gì?"),
@@ -1659,7 +1684,7 @@ class PublicAiChatControllerTest {
 
         assertThat(response).containsEntry("answer", "Khoa Tim mạch làm việc từ 7h đến 17h.");
         verify(aiService).chat(Map.of(
-            "message", "Giờ làm việc khoa Tim mạch?",
+            "message", "Cho mình hỏi thông tin bệnh viện",
             "public_support_chat", true,
             "mode", "HOSPITAL_SUPPORT",
             "recent_turns", List.of(
@@ -1671,17 +1696,16 @@ class PublicAiChatControllerTest {
     }
 
     @Test
-    void answersBranchCountQuestionWithLiveBranchListWhenAiIsUnavailable() {
+    void answersBranchCountQuestionWithLiveBranchListWithoutProvider() {
+        // The upfront deterministic lane now answers broad branch questions
+        // from the live catalog before any provider call — the same verified
+        // rows the degraded path used to reach only after a provider failure.
         AiService aiService = mock(AiService.class);
-        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
-            SERVICE_UNAVAILABLE, "AI service is unavailable"));
 
         Map<String, Object> body = new PublicAiChatController(aiService, resolverForLiveBranchList())
             .chat(new PublicAiChatController.PublicChatRequest("Bệnh viện có mấy cơ sở?", null))
             .getBody();
 
-        // The live rows answer the question directly instead of deflecting
-        // the visitor to the branch page, and each cited row is a live branch.
         assertThat((String) body.get("answer"))
             .contains("Cơ sở 1 — Quận 1")
             .contains("Cơ sở 2 — Quận 3")
@@ -1690,11 +1714,12 @@ class PublicAiChatControllerTest {
             .containsEntry("provenance", "local_fallback")
             .containsEntry("mode", "HOSPITAL_SUPPORT")
             .containsEntry("safety_action", "ANSWER")
-            .containsEntry("routingReason", "public_ai_degraded_navigation")
+            .containsEntry("routingReason", "public_support_shortcut")
             .containsEntry("citations", List.of(
                 Map.of("source_type", "branch", "source_id", BRANCH_ID, "title", "Cơ sở 1 — Quận 1"),
                 Map.of("source_type", "branch", "source_id", SECOND_SPECIALTY_ID, "title", "Cơ sở 2 — Quận 3")))
             .containsKey("suggested_actions");
+        verify(aiService, never()).chat(any());
     }
 
     @Test
@@ -1724,9 +1749,9 @@ class PublicAiChatControllerTest {
 
     @Test
     void keepsStaticBranchNavigationCopyWhenTheLiveBranchListIsEmpty() {
+        // With an empty catalog the deterministic lane still fails soft to
+        // the same server-owned navigation copy — no provider round-trip.
         AiService aiService = mock(AiService.class);
-        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
-            SERVICE_UNAVAILABLE, "AI service is unavailable"));
         AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
         when(resolver.activeBranchOverview(anyInt())).thenReturn(List.of());
 
@@ -1737,10 +1762,30 @@ class PublicAiChatControllerTest {
         assertThat(body)
             .containsEntry("provenance", "local_fallback")
             .containsEntry("citations", List.of())
-            .containsEntry("routingReason", "public_ai_degraded_navigation")
+            .containsEntry("routingReason", "public_support_shortcut")
             .containsEntry("answer",
                 "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
                     + "để xem thông tin hiện tại trước khi đến khám.");
+        verify(aiService, never()).chat(any());
+    }
+
+    @Test
+    void keepsDegradedNavigationCopyWhenProviderUnavailableForGeneralIntent() {
+        // A GENERAL question has no deterministic lane, so an upstream outage
+        // must still degrade to the server-owned navigation copy.
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            SERVICE_UNAVAILABLE, "AI service is unavailable"));
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest("Cho mình hỏi thông tin bệnh viện", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("provenance", "local_fallback")
+            .containsEntry("safety_action", "ANSWER")
+            .containsEntry("routingReason", "public_ai_degraded_navigation");
     }
 
     @Test
