@@ -174,3 +174,28 @@ Render deploy `dep-db31qqu0tbcc738dv5sg` live 2026-10-07T10:26Z):
 - `GET /api/v1/users/me/preferences` 200 with full preferences payload.
 - Google grant negative canaries: missing credential → 400; invalid token
   against unconfigured backend → 503 `GOOGLE_SIGN_IN_UNAVAILABLE`.
+
+## Post-deploy verification — 2026-10-07 (feedback release, commits c2a286c6 + f0dd4fce)
+
+New feature: authenticated user feedback ("Góp ý") at `/gop-y`.
+
+- Backend: `V113__user_feedback.sql` (user_feedback table, category/status
+  CHECK constraints, owner FK CASCADE); `POST /api/v1/feedback` 201 +
+  `GET /api/v1/feedback/mine` 200; identity from authenticated principal only;
+  server-side cap 10 submissions / 24h / account (429 FEEDBACK_LIMIT_EXCEEDED).
+- Frontend: `/gop-y` page gates the form behind settled session state;
+  anonymous visitors get "Đăng nhập để gửi góp ý" with
+  `/auth/login?next=%2Fgop-y`; authenticated form validates (subject required,
+  message 10–2000 chars), blocks duplicate submits while pending, and lists
+  the caller's last 20 submissions. Entry points: public footer + both portal
+  navs; sitemap + route-matrix inventory updated (77 routes).
+- Deployed identities: backend Render image
+  `ghcr.io/jasontm17/healthcare-project-backend@sha256:631c90298149bbf558e1bf170924d81d155703bd402c087fd0d34583f943d594`
+  (deploy `dep-db35eqrncjis73ehcf2g` live); frontend Vercel auto-deploy.
+- Live evidence: anonymous `POST /feedback` 403 and `GET /feedback/mine` 401;
+  authenticated submit 201 with `createdAt` populated; invalid body (message
+  <10 chars) 400; `/mine` returns the caller's rows newest-first; Vietnamese
+  UTF-8 persists byte-correct; browser E2E PASS — anonymous gate renders, UI
+  submit shows success banner and prepends the new item (no console errors).
+- Note: three patient demo rows ("Góp ý kiểm thử production" et al.) are
+  seeded test submissions under `patient@healthcare.com` — safe to triage/delete.
