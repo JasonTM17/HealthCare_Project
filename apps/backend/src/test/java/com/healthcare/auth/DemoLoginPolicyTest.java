@@ -72,7 +72,8 @@ class DemoLoginPolicyTest {
             Mockito.mock(AppointmentClaimService.class),
             Mockito.mock(BrowserSessionService.class),
             Mockito.mock(NotificationPreferenceService.class),
-            demoBoundaryProperties
+            demoBoundaryProperties,
+            Mockito.mock(com.healthcare.auth.service.GoogleIdTokenVerifier.class)
         );
     }
 

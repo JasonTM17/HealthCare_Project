@@ -197,6 +197,11 @@ cms:
 # must not carry the demo experience sets login-allowed=false; demo personas
 # are then rejected at authentication. UI hiding is never the boundary.
 healthcare:
+  auth:
+    google:
+      # GIS Web client id whose ID tokens are accepted (aud must match).
+      # Empty = Google sign-in disabled; the grant then answers 503.
+      client-id: ${GOOGLE_CLIENT_ID:}
   demo:
     # enforce (default) | off — "off" disables the mutation boundary filter,
     # e.g. for local diagnosis; never enable it on the hosted demo.
