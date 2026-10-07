@@ -24,7 +24,7 @@ test("patient self-registration waits for verification before issuing a browser 
   assert.match(api, /login[\s\S]*grantType: "PASSWORD"/);
   assert.match(api, /verifyEmail[\s\S]*grantType: "EMAIL_VERIFICATION"/);
   assert.match(login, /\/auth\/register/);
-  assert.match(login, /hasRole\(session\.user, "ADMIN"\)/);
+  assert.match(login, /authSessionDestination\(session\.user\.roles/);
   assert.match(registration, /patient\/dashboard/);
   assert.match(registration, /phone/);
 });

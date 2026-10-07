@@ -35,6 +35,20 @@ public class AuthOtpChallenge {
     @Column(name = "purpose", nullable = false, length = 32)
     private AuthOtpPurpose purpose;
 
+    @Column(name = "google_subject", length = 255)
+    private String googleSubject;
+
+    public String getGoogleSubject() { return googleSubject; }
+
+    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject; }
+
+    @Column(name = "discard_untrusted_password", nullable = false)
+    private boolean discardUntrustedPassword;
+
+    public boolean isDiscardUntrustedPassword() { return discardUntrustedPassword; }
+
+    public void setDiscardUntrustedPassword(boolean value) { discardUntrustedPassword = value; }
+
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
 

@@ -10,6 +10,9 @@ FROM dependencies AS build
 # their approved public origin explicitly (see docs/deployment-beta.md).
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
+# Public OAuth client id is baked into the client bundle by Next.js.
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
 # Next.js bakes next.config `headers()` into .next/routes-manifest.json at
 # build time, so CSP_UPGRADE_INSECURE_REQUESTS must be a build arg — the
 # runtime env var has no effect on the emitted header.

@@ -121,6 +121,32 @@ public class AuthOtpService {
     }
 
     private void issue(User user, AuthOtpPurpose purpose) {
+        issue(user, purpose, null);
+    }
+
+    @Transactional
+    public void issueGoogleLink(User user, String subject, HttpServletRequest request) {
+        rateLimiter.check(request, user.getEmail(), "google-link-issue");
+        issue(user, AuthOtpPurpose.GOOGLE_LINK, subject);
+    }
+
+    @Transactional(noRollbackFor = OtpVerificationException.class)
+    public boolean confirmGoogleLink(User user, String subject, String code, HttpServletRequest request) {
+        rateLimiter.check(request, user.getEmail(), "google-link-confirm");
+        return verify(user, AuthOtpPurpose.GOOGLE_LINK, code, subject).isDiscardUntrustedPassword();
+    }
+
+    /** Must be called while the caller holds the stable user security lock. */
+    @Transactional
+    public void invalidateAll(User user) {
+        OffsetDateTime now = OffsetDateTime.now();
+        for (AuthOtpPurpose purpose : AuthOtpPurpose.values()) {
+            challengeRepository.findActiveForUpdate(user.getId(), purpose)
+                .forEach(challenge -> challenge.consume(now));
+        }
+    }
+
+    private void issue(User user, AuthOtpPurpose purpose, String subject) {
         User lockedUser = userSecurityLock.findByIdForUpdate(user.getId())
             .orElseThrow(() -> new IllegalStateException("OTP owner no longer exists"));
         OffsetDateTime now = OffsetDateTime.now();
@@ -128,6 +154,7 @@ public class AuthOtpService {
             .findActiveForUpdate(lockedUser.getId(), purpose);
         boolean withinCooldown = activeChallenges.stream()
             .anyMatch(challenge -> !challenge.isExpired(now)
+                && java.util.Objects.equals(challenge.getGoogleSubject(), subject)
                 && challenge.getCreatedAt().plusSeconds(resendCooldownSeconds).isAfter(now));
         if (withinCooldown) {
             return;
@@ -139,13 +166,18 @@ public class AuthOtpService {
         challenge.setUser(lockedUser);
         challenge.setOtpHash(passwordEncoder.encode(code));
         challenge.setPurpose(purpose);
+        challenge.setGoogleSubject(subject);
+        challenge.setDiscardUntrustedPassword(purpose == AuthOtpPurpose.GOOGLE_LINK && !lockedUser.isEmailVerified());
         challenge.setExpiresAt(now.plusSeconds(ttlSeconds));
         challenge.setAttempts(0);
         challenge.setCreatedAt(now);
         challengeRepository.save(challenge);
 
-        EmailTemplateKey template = purpose == AuthOtpPurpose.EMAIL_VERIFICATION
-            ? EmailTemplateKey.EMAIL_VERIFICATION : EmailTemplateKey.PASSWORD_RESET;
+        EmailTemplateKey template = switch (purpose) {
+            case EMAIL_VERIFICATION -> EmailTemplateKey.EMAIL_VERIFICATION;
+            case PASSWORD_RESET -> EmailTemplateKey.PASSWORD_RESET;
+            case GOOGLE_LINK -> EmailTemplateKey.GOOGLE_LINK;
+        };
         Map<String, String> variables = Map.of("code", code, "minutes", String.valueOf(Math.max(1, ttlSeconds / 60)));
         boolean outboxEnabled = environment.getProperty("app.mail.outbox.enabled", Boolean.class, false);
         if (outboxEnabled) {
@@ -163,11 +195,17 @@ public class AuthOtpService {
     }
 
     private void verify(User user, AuthOtpPurpose purpose, String suppliedCode) {
+        verify(user, purpose, suppliedCode, null);
+    }
+
+    private AuthOtpChallenge verify(User user, AuthOtpPurpose purpose, String suppliedCode, String subject) {
         String code = suppliedCode == null ? "" : suppliedCode.trim();
         AuthOtpChallenge challenge = challengeRepository
             .findActiveLatestForUpdate(user.getId(), purpose)
             .orElseGet(() -> challengeRepository.findLatestRecordForUpdate(user.getId(), purpose)
                 .orElseThrow(this::invalidOtp));
+
+        if (!java.util.Objects.equals(challenge.getGoogleSubject(), subject)) throw invalidOtp();
 
         OffsetDateTime now = OffsetDateTime.now();
         if (challenge.isConsumed()) {
@@ -202,6 +240,7 @@ public class AuthOtpService {
 
         challenge.consume(now);
         challengeRepository.save(challenge);
+        return challenge;
     }
 
     private OtpVerificationException invalidOtp() {

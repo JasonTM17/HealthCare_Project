@@ -187,4 +187,93 @@ class GoogleIdTokenVerifierTest {
             .isEqualTo(503);
         assertThat(unconfigured.isConfigured()).isFalse();
     }
+
+    @Test
+    void missingSubjectAndExpirationFailClosed() {
+        expectJwks();
+        for (String missing : java.util.List.of("sub", "exp")) {
+            Map<String, Object> claims = new java.util.HashMap<>();
+            claims.put("email", "synthetic@gmail.com");
+            claims.put("email_verified", true);
+            claims.put(missing, null);
+            assertThatThrownBy(() -> verifier.verify(sign(claims)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getStatus()).isEqualTo(401);
+        }
+        server.verify();
+    }
+
+    @Test
+    void claimsHaveStrictTypesAndBounds() {
+        expectJwks();
+        for (Map<String, Object> invalid : java.util.List.<Map<String, Object>>of(
+            Map.of("sub", " "), Map.of("email_verified", "true"), Map.of("email", 42),
+            Map.of("email", "invalid-email"), Map.of("name", true), Map.of("hd", true),
+            Map.of("hd", "not a domain"), Map.of("sub", "x".repeat(256)),
+            Map.of("exp", Date.from(Instant.now().minusSeconds(120))), Map.of("iss", "https://untrusted.example"))) {
+            Map<String, Object> claims = new java.util.HashMap<>(Map.of("email", "synthetic@gmail.com", "email_verified", true));
+            claims.putAll(invalid);
+            assertThatThrownBy(() -> verifier.verify(sign(claims)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getStatus()).isEqualTo(401);
+        }
+        server.verify();
+    }
+
+    @Test
+    void mailboxAuthorityDistinguishesGoogleAndThirdParty() {
+        expectJwks();
+        assertThat(verifier.verify(sign(Map.of("email", "synthetic@gmail.com", "email_verified", true)))
+            .authoritativeEmail()).isTrue();
+        assertThat(verifier.verify(sign(Map.of("email", "synthetic@workspace.example", "email_verified", true,
+            "hd", "workspace.example"))).authoritativeEmail()).isTrue();
+        assertThat(verifier.verify(sign(Map.of("email", "synthetic@thirdparty.example", "email_verified", true)))
+            .authoritativeEmail()).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void unsupportedAlgorithmIsRejectedBeforeNetwork() {
+        String token = Jwts.builder().header().keyId(kid).and().issuer("accounts.google.com")
+            .audience().add(CLIENT_ID).and().expiration(Date.from(Instant.now().plusSeconds(300)))
+            .subject("synthetic-subject").claim("email", "synthetic@gmail.com").claim("email_verified", true)
+            .signWith(keyPair.getPrivate(), Jwts.SIG.RS512).compact();
+        assertThatThrownBy(() -> verifier.verify(token)).isInstanceOf(BusinessException.class);
+        server.verify();
+    }
+
+    @Test
+    void warmCacheRefreshesRotatedKidAndBoundsUnknownKidRequests() {
+        String originalJwks = jwksJson();
+        String originalToken = sign(Map.of("email", "synthetic@gmail.com", "email_verified", true));
+        kid = "test-key-rotated";
+        server.expect(requestTo(JWKS_URL)).andRespond(withSuccess(originalJwks, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(JWKS_URL)).andRespond(withSuccess(jwksJson(), MediaType.APPLICATION_JSON));
+        verifier.verify(originalToken);
+        assertThat(verifier.verify(sign(Map.of("email", "synthetic@gmail.com", "email_verified", true))).subject())
+            .isEqualTo("google-subject-1");
+        for (int i = 0; i < 5; i++) {
+            kid = "unknown-" + i;
+            assertThatThrownBy(() -> verifier.verify(sign(Map.of("email", "synthetic@gmail.com", "email_verified", true))))
+                .isInstanceOf(BusinessException.class);
+        }
+        server.verify();
+    }
+
+    @Test
+    void parallelRotationPublishesOneCompleteSnapshot() throws Exception {
+        String originalJwks = jwksJson();
+        String originalToken = sign(Map.of("email", "synthetic@gmail.com", "email_verified", true));
+        kid = "parallel-rotated";
+        String rotatedToken = sign(Map.of("email", "synthetic@gmail.com", "email_verified", true));
+        server.expect(requestTo(JWKS_URL)).andRespond(withSuccess(originalJwks, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(JWKS_URL)).andRespond(withSuccess(jwksJson(), MediaType.APPLICATION_JSON));
+        verifier.verify(originalToken);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(6)) {
+            var tasks = java.util.stream.IntStream.range(0, 12)
+                .<java.util.concurrent.Callable<GoogleIdTokenVerifier.GoogleIdentity>>mapToObj(i -> () -> verifier.verify(rotatedToken)).toList();
+            for (var result : pool.invokeAll(tasks)) assertThat(result.get().subject()).isEqualTo("google-subject-1");
+        }
+        server.verify();
+    }
 }

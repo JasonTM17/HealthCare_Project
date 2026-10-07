@@ -21,11 +21,14 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.security.Key;
+import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Verifies Google Identity Services ID tokens (RS256 JWTs) against Google's
@@ -49,8 +52,12 @@ public class GoogleIdTokenVerifier {
     private final GoogleAuthProperties properties;
     private final RestTemplate restTemplate;
 
-    private final Map<String, Key> keyCache = new ConcurrentHashMap<>();
-    private volatile Instant cacheExpiresAt = Instant.MIN;
+    private record KeySnapshot(Map<String, Key> keys, Instant expiresAt) {}
+    private volatile KeySnapshot cache = new KeySnapshot(Map.of(), Instant.MIN);
+    private Instant lastForcedRefreshAt = Instant.MIN;
+    private static final Duration ROTATION_COOLDOWN = Duration.ofSeconds(30);
+    private static final Pattern EMAIL = Pattern.compile("^[^\\s@\\p{Cntrl}]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\\.[A-Za-z]{2,63}$");
+    private static final Pattern DOMAIN = Pattern.compile("^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\\.[A-Za-z]{2,63}$");
 
     @Autowired
     public GoogleIdTokenVerifier(GoogleAuthProperties properties,
@@ -72,7 +79,11 @@ public class GoogleIdTokenVerifier {
         return properties.isConfigured();
     }
 
-    public record GoogleIdentity(String subject, String email, String displayName) {}
+    public record GoogleIdentity(String subject, String email, String displayName, boolean authoritativeEmail) {
+        public GoogleIdentity(String subject, String email, String displayName) {
+            this(subject, email, displayName, email != null && email.endsWith("@gmail.com"));
+        }
+    }
 
     /**
      * Verifies a GIS credential and returns the identity it attests.
@@ -89,6 +100,7 @@ public class GoogleIdTokenVerifier {
                 "Đăng nhập Google chưa được bật trên hệ thống"
             );
         }
+        if (idToken == null || idToken.isBlank() || idToken.length() > 8192) throw invalidToken();
         final Claims claims;
         try {
             claims = Jwts.parser()
@@ -101,6 +113,7 @@ public class GoogleIdTokenVerifier {
             throw invalidToken();
         }
 
+        try {
         String issuer = claims.getIssuer();
         if (issuer == null || !ALLOWED_ISSUERS.contains(issuer)) {
             throw invalidToken();
@@ -108,16 +121,27 @@ public class GoogleIdTokenVerifier {
         if (claims.getAudience() == null || !claims.getAudience().contains(properties.getClientId())) {
             throw invalidToken();
         }
-        String email = claims.get("email", String.class);
-        Object emailVerified = claims.get("email_verified");
-        boolean verified = emailVerified instanceof Boolean b
-            ? b
-            : "true".equalsIgnoreCase(String.valueOf(emailVerified));
-        if (email == null || email.isBlank() || !verified) {
+        if (claims.getExpiration() == null || !(claims.get("sub") instanceof String subject)
+            || subject.isBlank() || subject.length() > 255 || subject.chars().anyMatch(Character::isISOControl)
+            || !(claims.get("email") instanceof String rawEmail)
+            || !Boolean.TRUE.equals(claims.get("email_verified"))) {
             throw invalidToken();
         }
-        String displayName = claims.get("name", String.class);
-        return new GoogleIdentity(claims.getSubject(), email.trim().toLowerCase(), displayName);
+        String email = rawEmail.toLowerCase(Locale.ROOT);
+        if (email.length() > 320 || !EMAIL.matcher(email).matches()) throw invalidToken();
+        Object name = claims.get("name");
+        if (name != null && !(name instanceof String)) throw invalidToken();
+        String displayName = name == null ? null : ((String) name).trim();
+        if (displayName != null && (displayName.length() > 160
+            || displayName.chars().anyMatch(Character::isISOControl))) throw invalidToken();
+        Object hostedDomain = claims.get("hd");
+        if (hostedDomain != null && (!(hostedDomain instanceof String hd)
+            || hd.length() > 253 || !DOMAIN.matcher(hd).matches())) throw invalidToken();
+        return new GoogleIdentity(subject, email, displayName,
+            email.endsWith("@gmail.com") || hostedDomain != null);
+        } catch (JwtException | IllegalArgumentException e) {
+            throw invalidToken();
+        }
     }
 
     private BusinessException invalidToken() {
@@ -137,16 +161,17 @@ public class GoogleIdTokenVerifier {
         @Override
         public Key locate(Header header) {
             Object kidValue = header == null ? null : header.get("kid");
-            String kid = kidValue == null ? null : String.valueOf(kidValue);
-            if (kid == null || kid.isBlank()) {
+            if (header == null || !"RS256".equals(header.get("alg"))
+                || !(kidValue instanceof String kid) || kid.isBlank() || kid.length() > 255) {
                 throw invalidToken();
             }
-            Key cached = keyCache.get(kid);
-            if (cached != null && Instant.now().isBefore(cacheExpiresAt)) {
-                return cached;
+            KeySnapshot snapshot = cache;
+            Key cachedKey = snapshot.keys().get(kid);
+            if (cachedKey != null && Instant.now().isBefore(snapshot.expiresAt())) {
+                return cachedKey;
             }
-            refreshKeys();
-            Key key = keyCache.get(kid);
+            refreshKeys(kid);
+            Key key = cache.keys().get(kid);
             if (key == null) {
                 throw invalidToken();
             }
@@ -154,15 +179,25 @@ public class GoogleIdTokenVerifier {
         }
     }
 
-    private synchronized void refreshKeys() {
-        if (Instant.now().isBefore(cacheExpiresAt)) {
-            return;
+    private synchronized void refreshKeys(String requestedKid) {
+        Instant now = Instant.now();
+        KeySnapshot snapshot = cache;
+        if (now.isBefore(snapshot.expiresAt())) {
+            if (snapshot.keys().containsKey(requestedKid)) return;
+            if (now.isBefore(lastForcedRefreshAt.plus(ROTATION_COOLDOWN))) throw invalidToken();
+            lastForcedRefreshAt = now;
         }
         final String jwksJson;
+        final long cacheMaxAge;
         try {
             ResponseEntity<String> response =
                 restTemplate.getForEntity(properties.getJwksUrl(), String.class);
             jwksJson = response.getBody();
+            long age = response.getHeaders().getCacheControl() == null ? -1 :
+                java.util.Arrays.stream(response.getHeaders().getCacheControl().split(","))
+                    .map(String::trim).filter(value -> value.matches("max-age=\\d{1,9}"))
+                    .mapToLong(value -> Long.parseLong(value.substring(8))).findFirst().orElse(-1);
+            cacheMaxAge = age < 0 ? JWKS_TTL.getSeconds() : Math.min(age, Duration.ofDays(1).getSeconds());
         } catch (RestClientException e) {
             log.warn("Google JWKS fetch failed: {}", e.getClass().getSimpleName());
             throw new BusinessException(
@@ -173,15 +208,17 @@ public class GoogleIdTokenVerifier {
         }
         try {
             JwkSet jwkSet = Jwks.setParser().build().parse(jwksJson);
-            Map<String, Key> fresh = new ConcurrentHashMap<>();
+            Map<String, Key> fresh = new HashMap<>();
             for (Jwk<?> jwk : jwkSet) {
-                if (jwk.getId() != null && jwk.toKey() instanceof Key key) {
+                if (jwk.getId() != null && jwk.toKey() instanceof RSAPublicKey key
+                    && key.getModulus().bitLength() >= 2048
+                    && (jwk.get("alg") == null || "RS256".equals(jwk.get("alg")))
+                    && (jwk.get("use") == null || "sig".equals(jwk.get("use")))) {
                     fresh.put(jwk.getId(), key);
                 }
             }
-            keyCache.clear();
-            keyCache.putAll(fresh);
-            cacheExpiresAt = Instant.now().plus(JWKS_TTL);
+            if (fresh.isEmpty()) throw new IllegalArgumentException("No signing keys");
+            cache = new KeySnapshot(Map.copyOf(fresh), Instant.now().plusSeconds(cacheMaxAge));
         } catch (JwtException | IllegalArgumentException e) {
             log.warn("Google JWKS parse failed: {}", e.getClass().getSimpleName());
             throw new BusinessException(

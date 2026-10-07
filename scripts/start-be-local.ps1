@@ -52,6 +52,14 @@ if ($aiToken) {
     Write-Output 'AI_SERVICE_TOKEN resolved: no (backend boots, ai_ready stays false)'
 }
 
+$googleClientId = Resolve-LocalSecret 'GOOGLE_CLIENT_ID'
+if ($googleClientId) {
+    $env:GOOGLE_CLIENT_ID = $googleClientId
+    Write-Output 'GOOGLE_CLIENT_ID resolved: yes'
+} else {
+    Write-Output 'GOOGLE_CLIENT_ID resolved: no'
+}
+
 # Without this the backend silently falls back to application.yml's Compose
 # default (localhost:5434), which is a different database with a different seed,
 # and a live-tier failure then looks like an application bug.

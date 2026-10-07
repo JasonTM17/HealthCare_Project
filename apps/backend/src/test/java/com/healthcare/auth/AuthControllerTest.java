@@ -286,7 +286,8 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
                     """.formatted(fixturePassword())))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-            .andExpect(jsonPath("$.message").value("Số điện thoại không hợp lệ"));
+            .andExpect(jsonPath("$.message").value("Số điện thoại không hợp lệ"))
+            .andExpect(jsonPath("$.fieldErrors[0].field").value("phone"));
 
         // Nothing persisted: no user, and least of all a PatientProfile —
         // one without a phone would leave the account in a state the

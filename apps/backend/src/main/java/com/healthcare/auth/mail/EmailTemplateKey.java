@@ -10,6 +10,12 @@ public enum EmailTemplateKey {
         "[HealthCare] Xác minh email",
         "Mã xác minh tài khoản của bạn đã sẵn sàng."
     ),
+    GOOGLE_LINK(
+        EmailCategory.SECURITY_CRITICAL,
+        1,
+        "[HealthCare] Xác nhận đăng nhập Google",
+        "Mã này chỉ dùng để xác nhận email và liên kết tài khoản Google vừa chọn."
+    ),
     PASSWORD_RESET(
         EmailCategory.SECURITY_CRITICAL,
         1,
@@ -113,7 +119,7 @@ public enum EmailTemplateKey {
 
     public NotificationCategory preferenceCategory() {
         return switch (this) {
-            case EMAIL_VERIFICATION, PASSWORD_RESET -> NotificationCategory.SECURITY;
+            case EMAIL_VERIFICATION, GOOGLE_LINK, PASSWORD_RESET -> NotificationCategory.SECURITY;
             case BOOKING_OTP, BOOKING_VERIFICATION_OTP, APPOINTMENT_CONFIRMATION,
                  APPOINTMENT_CHANGE, APPOINTMENT_CANCEL -> NotificationCategory.APPOINTMENT;
             case PAYMENT_STATUS -> NotificationCategory.PAYMENT;

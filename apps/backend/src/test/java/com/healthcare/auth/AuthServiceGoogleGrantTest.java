@@ -52,6 +52,7 @@ class AuthServiceGoogleGrantTest {
     private BrowserSessionService browserSessionService;
     private NotificationPreferenceService notificationPreferenceService;
     private GoogleIdTokenVerifier googleIdTokenVerifier;
+    private AuthOtpService authOtpService;
     private AuthService authService;
     private HttpServletRequest httpRequest;
 
@@ -65,6 +66,7 @@ class AuthServiceGoogleGrantTest {
         browserSessionService = Mockito.mock(BrowserSessionService.class);
         notificationPreferenceService = Mockito.mock(NotificationPreferenceService.class);
         googleIdTokenVerifier = Mockito.mock(GoogleIdTokenVerifier.class);
+        authOtpService = Mockito.mock(AuthOtpService.class);
         httpRequest = Mockito.mock(HttpServletRequest.class);
 
         when(passwordEncoder.encode(anyString())).thenReturn("hash");
@@ -83,7 +85,7 @@ class AuthServiceGoogleGrantTest {
             Mockito.mock(JwtTokenProvider.class),
             new JwtProperties("unit-test-secret-value-with-enough-length", 900, 604800),
             Mockito.mock(PatientProfileRepository.class),
-            Mockito.mock(AuthOtpService.class), authRateLimiter,
+            authOtpService, authRateLimiter,
             Mockito.mock(AppointmentClaimService.class),
             browserSessionService, notificationPreferenceService,
             new DemoBoundaryProperties(), googleIdTokenVerifier);
@@ -98,28 +100,29 @@ class AuthServiceGoogleGrantTest {
     @DisplayName("unknown Google email provisions a verified PATIENT and issues a session")
     void provisionsVerifiedPatient() {
         when(googleIdTokenVerifier.verify("good-token"))
-            .thenReturn(new GoogleIdTokenVerifier.GoogleIdentity("sub-1", "new@patient.dev", "New Patient"));
-        when(userSecurityLock.findByEmailForUpdate("new@patient.dev")).thenReturn(Optional.empty());
+            .thenReturn(new GoogleIdTokenVerifier.GoogleIdentity("sub-1", "new@gmail.com", "New Patient"));
+        when(userSecurityLock.findByEmailForUpdate("new@gmail.com")).thenReturn(Optional.empty());
 
         authService.createBrowserSession(googleGrant("good-token"), httpRequest);
 
         verify(browserSessionService).issueReplacing(any(), any());
-        verify(authRateLimiter).checkEmail("new@patient.dev", "login");
+        verify(authRateLimiter).checkEmail("new@gmail.com", "login");
     }
 
     @Test
     @DisplayName("provisioned account is PATIENT, ACTIVE and email-verified")
     void provisionedAccountShape() {
         when(googleIdTokenVerifier.verify("good-token"))
-            .thenReturn(new GoogleIdTokenVerifier.GoogleIdentity("sub-1", "new@patient.dev", "New Patient"));
-        when(userSecurityLock.findByEmailForUpdate("new@patient.dev")).thenReturn(Optional.empty());
+            .thenReturn(new GoogleIdTokenVerifier.GoogleIdentity("sub-1", "new@gmail.com", "New Patient"));
+        when(userSecurityLock.findByEmailForUpdate("new@gmail.com")).thenReturn(Optional.empty());
 
         authService.createBrowserSession(googleGrant("good-token"), httpRequest);
 
         org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
         verify(userRepository, Mockito.atLeastOnce()).saveAndFlush(captor.capture());
         User saved = captor.getValue();
-        assertThat(saved.getEmail()).isEqualTo("new@patient.dev");
+        assertThat(saved.getEmail()).isEqualTo("new@gmail.com");
+        assertThat(saved.getGoogleSubject()).isEqualTo("sub-1");
         assertThat(saved.isEmailVerified()).isTrue();
         assertThat(saved.getRoles()).extracting(Role::getCode).contains("PATIENT");
         assertThat(saved.getStatus()).isEqualTo("ACTIVE");
@@ -130,17 +133,22 @@ class AuthServiceGoogleGrantTest {
     @DisplayName("existing unverified account becomes verified and is not re-provisioned")
     void linksExistingAccount() {
         User existing = new User();
-        existing.setEmail("existing@patient.dev");
+        existing.setEmail("existing@gmail.com");
+        existing.setPasswordHash("untrusted-reservation-hash");
         existing.setEmailVerified(false);
         existing.setStatus("ACTIVE");
         when(googleIdTokenVerifier.verify("good-token"))
-            .thenReturn(new GoogleIdTokenVerifier.GoogleIdentity("sub-1", "existing@patient.dev", "E P"));
-        when(userSecurityLock.findByEmailForUpdate("existing@patient.dev"))
+            .thenReturn(new GoogleIdTokenVerifier.GoogleIdentity("sub-1", "existing@gmail.com", "E P"));
+        when(userSecurityLock.findByEmailForUpdate("existing@gmail.com"))
             .thenReturn(Optional.of(existing));
 
         authService.createBrowserSession(googleGrant("good-token"), httpRequest);
 
         assertThat(existing.isEmailVerified()).isTrue();
+        assertThat(existing.getPasswordHash()).isNotEqualTo("untrusted-reservation-hash");
+        assertThat(existing.getGoogleSubject()).isEqualTo("sub-1");
+        verify(authOtpService).invalidateAll(existing);
+        verify(browserSessionService).revokeAllForUser(any(), anyString());
         verify(roleRepository, never()).findByCode("PATIENT");
     }
 
@@ -165,7 +173,7 @@ class AuthServiceGoogleGrantTest {
     @DisplayName("GOOGLE grant carrying password or code fields is a 400, never a login")
     void grantCombinationRejected() {
         BrowserSessionCreateRequest mixed = new BrowserSessionCreateRequest(
-            BrowserSessionCreateRequest.GrantType.GOOGLE, null, "hunter2", null, "token");
+            BrowserSessionCreateRequest.GrantType.GOOGLE, null, "synthetic-local-proof", "654321", "token");
 
         assertThatThrownBy(() -> authService.createBrowserSession(mixed, httpRequest))
             .isInstanceOf(BusinessException.class)
@@ -194,5 +202,72 @@ class AuthServiceGoogleGrantTest {
             .isInstanceOf(BusinessException.class)
             .extracting(e -> ((BusinessException) e).getStatus())
             .isEqualTo(400);
+    }
+
+    private User existing(String email, String roleCode, boolean verified) {
+        User user = new User();
+        user.setId(java.util.UUID.randomUUID());
+        user.setEmail(email);
+        user.setPasswordHash("legitimate-local-hash");
+        user.setEmailVerified(verified);
+        user.setStatus("ACTIVE");
+        Role role = new Role(); role.setCode(roleCode); user.addRole(role);
+        return user;
+    }
+
+    @Test
+    void returningSubjectKeepsLocalEmailAndPassword() {
+        User user = existing("original@example.com", "PATIENT", true);
+        user.setGoogleSubject("bound-subject");
+        when(googleIdTokenVerifier.verify("synthetic-token")).thenReturn(
+            new GoogleIdTokenVerifier.GoogleIdentity("bound-subject", "changed@example.com", "Changed", false));
+        when(userSecurityLock.findByGoogleSubjectForUpdate("bound-subject")).thenReturn(Optional.of(user));
+        authService.createBrowserSession(googleGrant("synthetic-token"), httpRequest);
+        assertThat(user.getEmail()).isEqualTo("original@example.com");
+        assertThat(user.getPasswordHash()).isEqualTo("legitimate-local-hash");
+        verify(userSecurityLock, never()).findByEmailForUpdate(anyString());
+    }
+
+    @Test
+    void thirdPartyEmailCannotLogInWithoutCurrentProof() {
+        when(googleIdTokenVerifier.verify("synthetic-token")).thenReturn(
+            new GoogleIdTokenVerifier.GoogleIdentity("stale-subject", "mailbox@example.com", "Mailbox", false));
+        User user = existing("mailbox@example.com", "PATIENT", true);
+        when(userSecurityLock.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
+        assertThatThrownBy(() -> authService.createBrowserSession(googleGrant("synthetic-token"), httpRequest))
+            .isInstanceOf(BusinessException.class)
+            .extracting(error -> ((BusinessException) error).getCode()).isEqualTo("GOOGLE_EMAIL_PROOF_REQUIRED");
+        assertThat(user.getGoogleSubject()).isNull();
+        verify(browserSessionService, never()).issueReplacing(any(), any());
+    }
+
+    @Test
+    void firstStaffLinkRequiresFreshPasswordThenPreservesRoles() {
+        User user = existing("staff@gmail.com", "ADMIN", true);
+        when(googleIdTokenVerifier.verify("synthetic-token")).thenReturn(
+            new GoogleIdTokenVerifier.GoogleIdentity("staff-subject", user.getEmail(), "Staff", true));
+        when(userSecurityLock.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
+        assertThatThrownBy(() -> authService.createBrowserSession(googleGrant("synthetic-token"), httpRequest))
+            .isInstanceOf(BusinessException.class)
+            .extracting(error -> ((BusinessException) error).getCode()).isEqualTo("GOOGLE_REAUTH_REQUIRED");
+        when(passwordEncoder.matches("synthetic-proof", user.getPasswordHash())).thenReturn(true);
+        authService.createBrowserSession(new BrowserSessionCreateRequest(
+            BrowserSessionCreateRequest.GrantType.GOOGLE, null, "synthetic-proof", null, "synthetic-token"), httpRequest);
+        assertThat(user.getRoles()).extracting(Role::getCode).containsExactly("ADMIN");
+        assertThat(user.getPasswordHash()).isEqualTo("legitimate-local-hash");
+        assertThat(user.getGoogleSubject()).isEqualTo("staff-subject");
+    }
+
+    @Test
+    void differentSubjectCannotReplaceExistingBinding() {
+        User user = existing("patient@gmail.com", "PATIENT", true);
+        user.setGoogleSubject("original-subject");
+        when(googleIdTokenVerifier.verify("synthetic-token")).thenReturn(
+            new GoogleIdTokenVerifier.GoogleIdentity("different-subject", user.getEmail(), "Other", true));
+        when(userSecurityLock.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
+        assertThatThrownBy(() -> authService.createBrowserSession(googleGrant("synthetic-token"), httpRequest))
+            .isInstanceOf(BusinessException.class)
+            .extracting(error -> ((BusinessException) error).getStatus()).isEqualTo(409);
+        assertThat(user.getGoogleSubject()).isEqualTo("original-subject");
     }
 }

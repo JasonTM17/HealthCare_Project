@@ -139,6 +139,7 @@ services:
       JWT_SECRET:         ${JWT_SECRET:-local-jwt-secret-not-for-production}
       JWT_ACCESS_TTL:     ${JWT_ACCESS_TTL:-900}
       JWT_REFRESH_TTL:    ${JWT_REFRESH_TTL:-604800}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       # Server-to-server trust only. Compose refuses to start without an
       # operator-provided value shared with the Next.js BFF.
       BACKEND_BFF_SERVICE_TOKEN: ${BACKEND_BFF_SERVICE_TOKEN:?BACKEND_BFF_SERVICE_TOKEN is required}
@@ -315,6 +316,7 @@ services:
         # Local Compose builds the same-origin beta; hosted pipelines override
         # NEXT_PUBLIC_SITE_URL with their approved public origin.
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
         # Build-time (headers are baked into routes-manifest.json): local
         # plain-HTTP stacks must not emit upgrade-insecure-requests; hosted
         # pipelines pass CSP_UPGRADE_INSECURE_REQUESTS=1 explicitly.

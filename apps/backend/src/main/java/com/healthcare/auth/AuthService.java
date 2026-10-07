@@ -1,9 +1,11 @@
 package com.healthcare.auth;
 
 import com.healthcare.exception.DuplicateResourceException;
+import com.healthcare.exception.ApiError;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.exception.ResourceNotFoundException;
+import com.healthcare.exception.ValidationException;
 import com.healthcare.security.DemoBoundaryProperties;
 import com.healthcare.security.JwtProperties;
 import com.healthcare.security.JwtTokenProvider;
@@ -30,6 +32,7 @@ import com.healthcare.appointment.service.AppointmentClaimService;
 import com.healthcare.appointment.service.BookingService;
 import com.healthcare.auth.security.AuthRateLimiter;
 import com.healthcare.auth.dto.BrowserSessionCreateRequest;
+import com.healthcare.auth.dto.GoogleProofResponse;
 import com.healthcare.auth.service.BrowserSessionService;
 import com.healthcare.auth.service.GoogleIdTokenVerifier;
 import com.healthcare.notification.service.NotificationPreferenceService;
@@ -133,10 +136,13 @@ public class AuthService {
         // actually sent must normalize to a plausible canonical number or
         // registration fails with 400 before anything is persisted.
         if (normalizedPhone != null && !BookingService.isValidContactPhone(normalizedPhone)) {
-            throw new BusinessException(
-                400,
-                ErrorCodes.VALIDATION_ERROR,
-                BookingService.INVALID_CONTACT_PHONE_MESSAGE
+            // Field-marked 400 (not the unmarked VALIDATION_ERROR a plain
+            // BusinessException emits): the register form pins the failure on
+            // the phone input instead of the generic banner that read like a
+            // password rejection.
+            throw new ValidationException(
+                BookingService.INVALID_CONTACT_PHONE_MESSAGE,
+                List.of(new ApiError.FieldError("phone", BookingService.INVALID_CONTACT_PHONE_MESSAGE))
             );
         }
         PatientProfile reusableProfile = normalizedPhone == null
@@ -286,14 +292,14 @@ public class AuthService {
             }
             case GOOGLE -> {
                 if (request.googleIdToken() == null || request.googleIdToken().isBlank()
-                    || request.password() != null || request.code() != null) {
+                    || request.email() != null || (request.password() != null && request.code() != null)) {
                     throw new BusinessException(
                         400,
                         ErrorCodes.VALIDATION_ERROR,
                         "Browser session grant is invalid"
                     );
                 }
-                yield authenticateGoogleLocked(request.googleIdToken());
+                yield authenticateGoogleLocked(request, httpRequest);
             }
         };
 
@@ -361,7 +367,7 @@ public class AuthService {
         revokeOtherSessionsLocked(user, currentBrowserSessionId);
     }
 
-    @Transactional(noRollbackFor = BadCredentialsException.class)
+    @Transactional(noRollbackFor = {BadCredentialsException.class, BusinessException.class})
     public AuthResponse refreshToken(RefreshTokenRequest request) {
         String token = request.refreshToken();
 
@@ -517,67 +523,134 @@ public class AuthService {
         return request.email();
     }
 
-    /**
-     * Google Identity Services grant: verifies the ID token against Google's
-     * JWKS, then links an existing account on the verified email or provisions
-     * a patient account. Email verification is satisfied by the provider — a
-     * Google token with {@code email_verified=true} is stronger evidence than
-     * our OTP loop. A pre-existing account that never finished verification
-     * becomes verified here, matching the account-linking convention.
-     */
-    private User authenticateGoogleLocked(String idToken) {
+    /** Pending proof commits a subject-scoped challenge, never a provider binding or session. */
+    @Transactional
+    public GoogleProofResponse requestGoogleProof(String idToken, HttpServletRequest request) {
         GoogleIdTokenVerifier.GoogleIdentity identity = googleIdTokenVerifier.verify(idToken);
-        String normalizedEmail = identity.email();
-        authRateLimiter.checkEmail(normalizedEmail, "login");
+        authRateLimiter.check(request, identity.email(), "google-proof");
+        if (userSecurityLock.findByGoogleSubjectForUpdate(identity.subject()).isPresent()) throw googleConflict();
+        User user = userSecurityLock.findByEmailForUpdate(identity.email()).orElse(null);
+        if (user == null) user = createGooglePatient(identity, false, false);
+        requireGoogleEligible(user);
+        if (user.getGoogleSubject() != null) throw googleConflict();
+        if (isStaff(user)) throw googleProofRequired(true);
+        authOtpService.issueGoogleLink(user, identity.subject(), request);
+        return new GoogleProofResponse(identity.email(), authOtpService.ttlSeconds(),
+            authOtpService.resendCooldownSeconds(), "Mã xác nhận đăng nhập Google đã được gửi đến email của bạn.");
+    }
 
-        User user = userSecurityLock.findByEmailForUpdate(normalizedEmail).orElse(null);
+    private User authenticateGoogleLocked(BrowserSessionCreateRequest grant, HttpServletRequest request) {
+        GoogleIdTokenVerifier.GoogleIdentity identity = googleIdTokenVerifier.verify(grant.googleIdToken());
+        authRateLimiter.checkEmail(identity.email(), "login");
+        User user = userSecurityLock.findByGoogleSubjectForUpdate(identity.subject()).orElse(null);
+        if (user != null) {
+            requireGoogleEligible(user);
+            if (!user.isEmailVerified()) throw new BadCredentialsException("Google account is unavailable");
+            if (grant.password() != null || grant.code() != null) throw invalidGoogleGrant();
+            // The contact email/roles/password remain those of the bound local account.
+            return user;
+        }
+        user = userSecurityLock.findByEmailForUpdate(identity.email()).orElse(null);
         if (user == null) {
-            Role patientRole = roleRepository.findByCode("PATIENT")
-                .orElseThrow(() -> new ResourceNotFoundException("Default PATIENT role not found"));
-            user = new User();
-            user.setEmail(normalizedEmail);
-            // Password login stays impossible for this account: the hash never
-            // matches any input and a real password can be set later through
-            // the reset flow.
-            user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID() + ":" + normalizedEmail));
-            String displayName = identity.displayName() != null && !identity.displayName().isBlank()
-                ? identity.displayName().trim()
-                : normalizedEmail.substring(0, normalizedEmail.indexOf('@'));
-            user.setDisplayName(displayName);
-            user.setStatus("ACTIVE");
-            user.setCreatedAt(OffsetDateTime.now());
-            user.setUpdatedAt(OffsetDateTime.now());
-            user.addRole(patientRole);
-            try {
-                user = userRepository.saveAndFlush(user);
-            } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
-                // Two Google sign-ins for the same new email can both pass
-                // findByEmailForUpdate in their own transactions; Postgres
-                // aborts the loser, so there is no in-transaction rescue —
-                // answer a stable 409 and let the client retry once into a
-                // normal login.
-                throw new BusinessException(
-                    409,
-                    ErrorCodes.CONFLICT,
-                    "Tài khoản vừa được tạo song song — vui lòng đăng nhập lại"
-                );
-            }
-            notificationPreferenceService.ensureDefaultsForUser(user.getId());
+            if (!identity.authoritativeEmail()) throw googleProofRequired(false);
+            if (grant.password() != null || grant.code() != null) throw invalidGoogleGrant();
+            return createGooglePatient(identity, true, true);
         }
-        // Match the password lane's AccountStatusException behavior: a
-        // suspended or disabled account must not get a session just because
-        // Google verified the email.
-        if (user.getStatus() != null && !"ACTIVE".equals(user.getStatus())) {
-            throw new BadCredentialsException("Invalid email or password");
+        requireGoogleEligible(user);
+        if (user.getGoogleSubject() != null) {
+            if (!identity.subject().equals(user.getGoogleSubject())) throw googleConflict();
+            // A concurrent winner may have bound the subject while we waited for this row.
+            if (!user.isEmailVerified()) throw new BadCredentialsException("Google account is unavailable");
+            return user;
         }
-        if (!user.isEmailVerified()) {
-            user.setEmailVerified(true);
-            user.setEmailVerifiedAt(OffsetDateTime.now());
-            user.setUpdatedAt(OffsetDateTime.now());
-            user = userRepository.save(user);
+        boolean discardPassword = !user.isEmailVerified();
+        if (isStaff(user)) {
+            if (grant.password() == null || grant.password().isBlank()) throw googleProofRequired(true);
+            requireGooglePassword(user, grant.password());
+        } else if (grant.code() != null) {
+            if (grant.code().isBlank()) throw invalidGoogleGrant();
+            discardPassword |= authOtpService.confirmGoogleLink(user, identity.subject(), grant.code(), request);
+        } else if (grant.password() != null) {
+            requireGooglePassword(user, grant.password());
+        } else if (!identity.authoritativeEmail()) {
+            throw googleProofRequired(false);
         }
-        rejectDemoPrincipalWhenLoginDisabled(user);
+        if (discardPassword) {
+            user.setPasswordHash(randomGooglePasswordHash());
+            revokeAllUserTokensLocked(user);
+            authOtpService.invalidateAll(user);
+        }
+        user.setGoogleSubject(identity.subject());
+        user.setEmailVerified(true);
+        if (user.getEmailVerifiedAt() == null) user.setEmailVerifiedAt(OffsetDateTime.now());
+        user.setUpdatedAt(OffsetDateTime.now());
+        return saveGoogleUser(user);
+    }
+
+    private User createGooglePatient(GoogleIdTokenVerifier.GoogleIdentity identity, boolean verified, boolean bind) {
+        Role role = roleRepository.findByCode("PATIENT")
+            .orElseThrow(() -> new ResourceNotFoundException("Default PATIENT role not found"));
+        User user = new User();
+        user.setEmail(identity.email());
+        user.setPasswordHash(randomGooglePasswordHash());
+        user.setDisplayName(identity.displayName() != null && !identity.displayName().isBlank()
+            ? identity.displayName() : identity.email().substring(0, identity.email().indexOf('@')));
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(verified);
+        user.setEmailVerifiedAt(verified ? OffsetDateTime.now() : null);
+        user.setGoogleSubject(bind ? identity.subject() : null);
+        user.setCreatedAt(OffsetDateTime.now());
+        user.setUpdatedAt(OffsetDateTime.now());
+        user.addRole(role);
+        user = saveGoogleUser(user);
+        notificationPreferenceService.ensureDefaultsForUser(user.getId());
         return user;
+    }
+
+    private String randomGooglePasswordHash() {
+        // Two dash-free UUIDs: 64 chars of entropy, safely under BCrypt's
+        // 72-byte input limit ("UUID:UUID" was 73 bytes and crashed hashing).
+        return passwordEncoder.encode(
+            UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", ""));
+    }
+
+    private User saveGoogleUser(User user) {
+        try {
+            return userRepository.saveAndFlush(user);
+        } catch (org.springframework.dao.DataIntegrityViolationException conflict) {
+            // PostgreSQL aborts the loser: translate only, never rescue/requery in this transaction.
+            throw googleConflict();
+        }
+    }
+
+    private void requireGoogleEligible(User user) {
+        if (!"ACTIVE".equals(user.getStatus())) throw new BadCredentialsException("Google account is unavailable");
+        rejectDemoPrincipalWhenLoginDisabled(user);
+    }
+
+    private boolean isStaff(User user) {
+        return user.getRoles().stream().anyMatch(role -> !"PATIENT".equals(role.getCode()));
+    }
+
+    private void requireGooglePassword(User user, String password) {
+        if (!user.isEmailVerified() || password.isBlank() || !passwordEncoder.matches(password, user.getPasswordHash())) {
+            throw new BadCredentialsException("Invalid local account proof");
+        }
+    }
+
+    private BusinessException googleProofRequired(boolean staff) {
+        return new BusinessException(403, staff ? ErrorCodes.GOOGLE_REAUTH_REQUIRED : ErrorCodes.GOOGLE_EMAIL_PROOF_REQUIRED,
+            staff ? "Xác nhận mật khẩu tài khoản hiện có để liên kết Google."
+                : "Xác nhận email hiện tại để đăng nhập Google.");
+    }
+
+    private BusinessException googleConflict() {
+        return new BusinessException(409, ErrorCodes.CONFLICT, "Không thể liên kết tài khoản Google. Vui lòng đăng nhập lại.");
+    }
+
+    private BusinessException invalidGoogleGrant() {
+        return new BusinessException(400, ErrorCodes.VALIDATION_ERROR, "Browser session grant is invalid");
     }
 
     private void requireGrantValue(String required, String forbidden) {

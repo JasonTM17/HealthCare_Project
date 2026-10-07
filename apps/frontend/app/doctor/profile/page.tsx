@@ -13,6 +13,7 @@ import {
 import type { Doctor } from "../../../types/hospital";
 import { ForbiddenState, LoadingState, LoginRequiredState } from "../../../components/PortalStates";
 import { useAuthSession, useAuthSessionStatus } from "../../../components/useAuthSession";
+import { registrationPasswordError } from "../../../lib/auth-flow";
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon from "../../../components/UiIcon";
 import styles from "./DoctorProfile.module.css";
@@ -148,11 +149,12 @@ export default function DoctorProfilePage() {
       });
       return;
     }
-    if (passwordForm.newPassword.length < 8) {
+    const passwordError = registrationPasswordError(passwordForm.newPassword);
+    if (passwordError) {
       showToast({
         tone: "error",
         title: "Đổi mật khẩu thất bại",
-        message: "Mật khẩu mới phải có tối thiểu 8 ký tự.",
+        message: passwordError,
       });
       return;
     }
@@ -347,7 +349,7 @@ export default function DoctorProfilePage() {
                     minLength={8}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm((v) => ({ ...v, newPassword: e.target.value }))}
-                    placeholder="Tối thiểu 8 ký tự"
+                    placeholder="Tối thiểu 8 ký tự, gồm hoa, thường, số, ký tự đặc biệt"
                     className={styles.inputField}
                   />
                 </div>

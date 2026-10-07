@@ -1824,7 +1824,26 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
  * server-side against Google's JWKS; the browser never supplies the email —
  * identity comes from the token itself.
  */
-export async function loginWithGoogle(idToken: string): Promise<AuthSession> {
+export interface GoogleSignInProof {
+  code?: string;
+  password?: string;
+}
+
+export interface GoogleProofPending {
+  email: string;
+  expiresInSeconds: number;
+  resendCooldownSeconds: number;
+  message?: string;
+}
+
+export async function requestGoogleEmailProof(idToken: string): Promise<GoogleProofPending> {
+  return getJson<GoogleProofPending>("/auth/google/proof", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  }, 28_000);
+}
+
+export async function loginWithGoogle(idToken: string, proof: GoogleSignInProof = {}): Promise<AuthSession> {
   const path = "/auth/browser-sessions";
   const attempt = beginAuthMutation();
   try {
@@ -1834,6 +1853,7 @@ export async function loginWithGoogle(idToken: string): Promise<AuthSession> {
       body: JSON.stringify({
         grantType: "GOOGLE",
         idToken,
+        ...proof,
       }),
     }, 28_000);
     return commitIssuedAuthSession(response, attempt, path);

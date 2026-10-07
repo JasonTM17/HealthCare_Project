@@ -28,6 +28,8 @@ build/
 *.tsbuildinfo
 apps/frontend/playwright-report/
 apps/frontend/test-results/
+# Browser storage state contains session credentials even when the test expires.
+**/.auth/
 # Playwright also writes here when it runs from the repository root.
 /test-results/
 

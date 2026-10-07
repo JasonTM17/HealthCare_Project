@@ -86,6 +86,7 @@ public class EmailTemplateRenderer {
 
     private boolean isOtp(EmailTemplateKey templateKey) {
         return templateKey == EmailTemplateKey.EMAIL_VERIFICATION
+            || templateKey == EmailTemplateKey.GOOGLE_LINK
             || templateKey == EmailTemplateKey.PASSWORD_RESET
             || templateKey == EmailTemplateKey.BOOKING_OTP
             || templateKey == EmailTemplateKey.BOOKING_VERIFICATION_OTP;
@@ -110,7 +111,7 @@ public class EmailTemplateRenderer {
         }
         lines.add("");
         switch (templateKey) {
-            case EMAIL_VERIFICATION, PASSWORD_RESET, BOOKING_OTP, BOOKING_VERIFICATION_OTP -> {
+            case EMAIL_VERIFICATION, GOOGLE_LINK, PASSWORD_RESET, BOOKING_OTP, BOOKING_VERIFICATION_OTP -> {
                 String code = firstNonBlank(variables.get("code"), "******");
                 String minutes = firstNonBlank(variables.get("minutes"), "10");
                 String greeting = variables.get("patientName");
@@ -322,6 +323,9 @@ public class EmailTemplateRenderer {
             case EMAIL_VERIFICATION -> {
                 bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Xác minh tài khoản";
             }
+            case GOOGLE_LINK -> {
+                bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Xác nhận đăng nhập Google";
+            }
             case PASSWORD_RESET -> {
                 bg = "#f0fdfa"; border = "#99f6e4"; color = "#0f766e"; text = "Đặt lại mật khẩu";
             }
@@ -408,7 +412,7 @@ public class EmailTemplateRenderer {
 
     private String ctaButtonLabel(EmailTemplateKey templateKey) {
         return switch (templateKey) {
-            case EMAIL_VERIFICATION, PASSWORD_RESET -> "Đăng nhập cổng bệnh nhân";
+            case EMAIL_VERIFICATION, GOOGLE_LINK, PASSWORD_RESET -> "Đăng nhập cổng bệnh nhân";
             case BOOKING_OTP, BOOKING_VERIFICATION_OTP -> "Kiểm tra lịch đặt khám";
             case APPOINTMENT_CONFIRMATION, APPOINTMENT_CHANGE -> "Xem chi tiết lịch hẹn";
             case APPOINTMENT_CANCEL -> "Truy cập cổng đặt lịch";

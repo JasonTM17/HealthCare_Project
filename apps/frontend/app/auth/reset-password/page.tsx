@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import { resetPassword } from "../../../lib/api-client";
-import { authErrorMessage, authFieldErrors, type AuthFieldErrors } from "../../../lib/auth-flow";
+import { authErrorMessage, authFieldErrors, registrationPasswordError, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -22,8 +22,12 @@ function ResetPasswordForm() {
     event.preventDefault();
     setErrorMessage(null);
     setFieldErrors({});
-    if (password !== confirmPassword) {
-      setFieldErrors({ confirmPassword: "Mật khẩu xác nhận chưa khớp." });
+    const passwordError = registrationPasswordError(password);
+    if (passwordError || password !== confirmPassword) {
+      setFieldErrors({
+        ...(passwordError ? { password: passwordError } : {}),
+        ...(password !== confirmPassword ? { confirmPassword: "Mật khẩu xác nhận chưa khớp." } : {}),
+      });
       setErrorMessage("Vui lòng kiểm tra lại các trường được đánh dấu.");
       return;
     }

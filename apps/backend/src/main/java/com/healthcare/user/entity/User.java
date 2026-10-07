@@ -30,6 +30,9 @@ public class User {
     @Column(name = "email", nullable = false, unique = true, length = 320)
     private String email;
 
+    @Column(name = "google_subject", unique = true, length = 255)
+    private String googleSubject;
+
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
 
@@ -83,6 +86,10 @@ public class User {
     public void setEmail(String email) {
         this.email = email;
     }
+
+    public String getGoogleSubject() { return googleSubject; }
+
+    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject; }
 
     public String getPasswordHash() {
         return passwordHash;

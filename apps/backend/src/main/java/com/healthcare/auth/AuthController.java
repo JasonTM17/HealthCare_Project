@@ -3,6 +3,8 @@ package com.healthcare.auth;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.auth.dto.BrowserSessionCreateRequest;
 import com.healthcare.auth.dto.BrowserSessionResponse;
+import com.healthcare.auth.dto.GoogleProofRequest;
+import com.healthcare.auth.dto.GoogleProofResponse;
 import com.healthcare.auth.security.BrowserSessionContext;
 import com.healthcare.auth.service.BrowserSessionService;
 import com.healthcare.exception.BusinessException;
@@ -130,6 +132,13 @@ public class AuthController {
             authService.createBrowserSession(request, httpRequest);
         browserSessionService.writeIssuedCookies(httpResponse, issued);
         return ResponseEntity.ok(issued.response());
+    }
+
+    @PostMapping("/google/proof")
+    public ResponseEntity<GoogleProofResponse> requestGoogleProof(
+            @Valid @RequestBody GoogleProofRequest request, HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+            .body(authService.requestGoogleProof(request.googleIdToken(), httpRequest));
     }
 
     @Operation(summary = "Get the current browser session", description = "Returns safe user and expiry metadata without session secrets")

@@ -24,4 +24,8 @@ public class UserSecurityLock {
     public Optional<User> findByEmailForUpdate(String email) {
         return userRepository.findByEmailForUpdate(email);
     }
+
+    public Optional<User> findByGoogleSubjectForUpdate(String subject) {
+        return userRepository.findByGoogleSubjectForUpdate(subject);
+    }
 }
