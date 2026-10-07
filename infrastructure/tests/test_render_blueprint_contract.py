@@ -90,8 +90,10 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     assert ai_env["RAG_STORAGE_BACKEND"]["value"] == "supabase"
     assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
     assert ai_env["AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED"]["value"] == "true"
-    assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
-    assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True
+    # Post-2026-10-07 env-wipe posture: both tokens are API-managed shared
+    # secrets (generateValue output was unrecoverable).
+    assert ai_env["AI_SERVICE_TOKEN"]["sync"] is False
+    assert ai_env["RAG_INGEST_TOKEN"]["sync"] is False
     # [L2 2026-09-30] Patient remote egress ON — one atomic set with the
     # backend AI_CHAT_REMOTE_PROVIDER_ENABLED flip (release commit 7bdbd52):
     # patient flag + release hold + synthetic-only off. The ai-service copy of
@@ -111,15 +113,19 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
 def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -> None:
     services = _services()
     backend = _env(services["healthcare-beta-backend"])
-    assert backend["DATABASE_URL"]["fromDatabase"] == {
-        "name": "healthcare-beta-postgres", "property": "connectionString"
-    }
-    assert backend["DATABASE_USERNAME"]["fromDatabase"]["property"] == "user"
-    assert backend["DATABASE_PASSWORD"]["fromDatabase"]["property"] == "password"
-    assert backend["REDIS_URL"]["fromService"] == {
-        "type": "keyvalue", "name": "healthcare-beta-redis",
-        "property": "connectionString"
-    }
+    # 2026-10-07: healthcare-beta-postgres no longer exists and the stale
+    # fromDatabase materialization kept resolving to the decommissioned
+    # Supabase user; DATABASE_* plus the SPRING_DATASOURCE_* relaxed-binding
+    # override are now dashboard/API-managed secrets (see render.yaml comment).
+    for key in (
+        "DATABASE_URL", "DATABASE_USERNAME", "DATABASE_PASSWORD",
+        "SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME",
+        "SPRING_DATASOURCE_PASSWORD",
+    ):
+        assert backend[key]["sync"] is False
+    # healthcare-beta-redis lives in a different workspace; REDIS_URL is a
+    # dashboard/API-managed internal connection string.
+    assert backend["REDIS_URL"]["sync"] is False
     for key in ("BFF_ALLOWED_ORIGINS", "JWT_SECRET", "BACKEND_BFF_SERVICE_TOKEN"):
         assert backend[key]["sync"] is False
     assert backend["BACKEND_BFF_REQUIRED"]["value"] == "true"
@@ -129,12 +135,10 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert backend["RAG_STORAGE_BACKEND"]["value"] == "memory"
     assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai-9mip.onrender.com"
-    assert backend["AI_SERVICE_TOKEN"]["fromService"] == {
-        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "AI_SERVICE_TOKEN"
-    }
-    assert backend["AI_RAG_INGEST_TOKEN"]["fromService"] == {
-        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "RAG_INGEST_TOKEN"
-    }
+    # Shared-secret pair set verbatim on both services after the env wipe
+    # (generateValue secrets could not be recovered through the API).
+    assert backend["AI_SERVICE_TOKEN"]["sync"] is False
+    assert backend["AI_RAG_INGEST_TOKEN"]["sync"] is False
     assert backend["AI_RAG_INGEST_ENABLED"]["value"] == "true"
     assert backend["CMS_DISTRIBUTED_REALTIME_ENABLED"]["value"] == "true"
     for key in (

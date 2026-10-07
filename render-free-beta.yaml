@@ -117,10 +117,13 @@ services:
         value: "10000"
       - key: AI_MAX_RETRIEVED_CHUNKS
         value: "5"
+      # 2026-10-07: generateValue secrets were lost with the env-layer wipe and
+      # cannot be re-read via API; both tokens are now dashboard/API-managed
+      # secrets shared verbatim with the backend service.
       - key: AI_SERVICE_TOKEN
-        generateValue: true
+        sync: false
       - key: RAG_INGEST_TOKEN
-        generateValue: true
+        sync: false
 
       # L1 cross-instance keep-warm. A GET from this instance to the backend's
       # public health URL is real inbound HTTPS, so it keeps the backend awake
@@ -145,23 +148,31 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: render-beta
+      # 2026-10-07: the Render-managed `healthcare-beta-postgres` resource no
+      # longer exists in this workspace, and the materialized `fromDatabase`
+      # values had gone stale (they still resolved to the decommissioned
+      # Supabase project's `postgres.<old-ref>` user, which the new pooler
+      # rejects). DATABASE_* are therefore dashboard/API-managed secrets
+      # (sync:false) pointing at the current Supabase pooler, and the
+      # SPRING_DATASOURCE_* triplet is set alongside so Spring relaxed binding
+      # wins even if stale materialized values ever reappear in the env layer.
       - key: DATABASE_URL
-        fromDatabase:
-          name: healthcare-beta-postgres
-          property: connectionString
+        sync: false
       - key: DATABASE_USERNAME
-        fromDatabase:
-          name: healthcare-beta-postgres
-          property: user
+        sync: false
       - key: DATABASE_PASSWORD
-        fromDatabase:
-          name: healthcare-beta-postgres
-          property: password
+        sync: false
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      # `healthcare-beta-redis` lives in a different Render workspace than this
+      # service, so the fromService link cannot resolve; the internal
+      # connection string is a dashboard/API-managed secret.
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: healthcare-beta-redis
-          property: connectionString
+        sync: false
       - key: APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED
         value: "true"
       - key: CMS_DISTRIBUTED_REALTIME_ENABLED
@@ -227,16 +238,14 @@ services:
       # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
         value: https://healthcare-beta-ai-9mip.onrender.com
+      # 2026-10-07: the fromService links stopped re-materializing after the
+      # env-layer wipe (generateValue secrets are never readable via API), so
+      # both tokens are dashboard/API-managed secrets kept identical on this
+      # service and healthcare-beta-ai.
       - key: AI_SERVICE_TOKEN
-        fromService:
-          type: web
-          name: healthcare-beta-ai
-          envVarKey: AI_SERVICE_TOKEN
+        sync: false
       - key: AI_RAG_INGEST_TOKEN
-        fromService:
-          type: web
-          name: healthcare-beta-ai
-          envVarKey: RAG_INGEST_TOKEN
+        sync: false
       - key: AI_RAG_INGEST_ENABLED
         value: "true"
       - key: AI_SERVICE_RUNTIME
@@ -252,6 +261,12 @@ services:
       # (retrieve <=6s + generate <=18s = 24s).
       - key: AI_SERVICE_READ_TIMEOUT_MS
         value: "26000"
+      # [L2] Spring-side key of the patient egress set (paired with the
+      # healthcare-beta-ai flips above). application.yml:295 binds this to
+      # AiConversationService, whose sanitize gate (:1559) otherwise rejects
+      # provenance=remote_provider with a 502 AI_RESPONSE_INVALID. Safety
+      # guards are unchanged: sanitize re-validation, rejectDiagnoseOrPrescribe,
+      # unsafe-claim refusal, circuit breaker, EMERGENCY/HANDOFF pre-gate.
       - key: AI_CHAT_REMOTE_PROVIDER_ENABLED
         value: "true"
       - key: AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED
@@ -282,6 +297,9 @@ services:
 
       # Disabled subsystems must not make the Render health probe depend on
       # localhost placeholders or unavailable paid/private services.
+      # Mail is live through the Resend HTTPS API (Render Free cannot reach
+      # outbound SMTP). RESEND_API_KEY is a dashboard-managed secret; the
+      # sender domain healthcare.id.vn is verified in the Resend account.
       - key: APP_MAIL_ENABLED
         value: "true"
       - key: APP_MAIL_FROM
