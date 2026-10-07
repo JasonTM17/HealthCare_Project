@@ -60,32 +60,33 @@ class ArticleLifecycleContractTest {
             });
 
         AdminArticleService service = new AdminArticleService(repository);
+        HealthcareUserPrincipal admin = adminPrincipal();
         String fixtureSlug = "ak-audit-fixture-unit-20260901";
 
         Article draft = service.create(new ArticleRequest(
-            "AK audit fixture", fixtureSlug, "Synthetic summary", "Synthetic body", false));
+            "AK audit fixture", fixtureSlug, "Synthetic summary", "Synthetic body", false), admin);
         assertThat(draft.isActive()).isFalse();
         assertThat(draft.getPublishedAt()).isNull();
         assertThat(records).containsKey(fixtureSlug);
 
         Article published = service.update(fixtureSlug, new ArticleRequest(
-            "AK audit fixture", fixtureSlug, "Synthetic summary", "Synthetic body", true));
+            "AK audit fixture", fixtureSlug, "Synthetic summary", "Synthetic body", true), admin);
         assertThat(published.isActive()).isTrue();
         assertThat(published.getPublishedAt()).isNotNull();
 
         Article edited = service.update(fixtureSlug, new ArticleRequest(
-            "AK audit fixture edited", fixtureSlug, "Edited synthetic summary", "Edited synthetic body", true));
+            "AK audit fixture edited", fixtureSlug, "Edited synthetic summary", "Edited synthetic body", true), admin);
         assertThat(edited.getTitle()).isEqualTo("AK audit fixture edited");
         assertThat(edited.getSummary()).isEqualTo("Edited synthetic summary");
         assertThat(edited.getBody()).isEqualTo("Edited synthetic body");
         assertThat(edited.getPublishedAt()).isNotNull();
 
         Article unpublished = service.update(fixtureSlug, new ArticleRequest(
-            "AK audit fixture edited", fixtureSlug, "Edited synthetic summary", "Edited synthetic body", false));
+            "AK audit fixture edited", fixtureSlug, "Edited synthetic summary", "Edited synthetic body", false), admin);
         assertThat(unpublished.isActive()).isFalse();
         assertThat(unpublished.getPublishedAt()).isNull();
 
-        service.delete(fixtureSlug);
+        service.delete(fixtureSlug, admin);
         verify(repository).delete(unpublished);
     }
 
@@ -98,15 +99,16 @@ class ArticleLifecycleContractTest {
         when(repository.findBySlug("ak-audit-fixture-conflict")).thenReturn(Optional.of(existing));
 
         AdminArticleService service = new AdminArticleService(repository);
+        HealthcareUserPrincipal admin = adminPrincipal();
         assertThatThrownBy(() -> service.create(new ArticleRequest(
-            "Duplicate fixture", "ak-audit-fixture-conflict", "Summary", "Body", false)))
+            "Duplicate fixture", "ak-audit-fixture-conflict", "Summary", "Body", false), admin))
             .isInstanceOf(DuplicateResourceException.class)
             .satisfies(error -> {
                 BusinessException conflict = (BusinessException) error;
                 assertThat(conflict.getStatus()).isEqualTo(409);
             });
 
-        assertThatThrownBy(() -> service.update("ak-audit-fixture-conflict", requestWithVersion(6L)))
+        assertThatThrownBy(() -> service.update("ak-audit-fixture-conflict", requestWithVersion(6L), admin))
             .isInstanceOf(BusinessException.class)
             .satisfies(error -> {
                 BusinessException conflict = (BusinessException) error;
@@ -155,8 +157,9 @@ class ArticleLifecycleContractTest {
             ArticleRequest request = new ArticleRequest(
                 "Concurrent AK fixture", fixtureSlug, "Synthetic summary", "Synthetic body", false
             );
-            Future<Article> first = executor.submit(() -> service.create(request));
-            Future<Article> second = executor.submit(() -> service.create(request));
+            HealthcareUserPrincipal admin = adminPrincipal();
+            Future<Article> first = executor.submit(() -> service.create(request, admin));
+            Future<Article> second = executor.submit(() -> service.create(request, admin));
             start.countDown();
 
             int successes = 0;
@@ -195,7 +198,7 @@ class ArticleLifecycleContractTest {
         AdminArticleService service = new AdminArticleService(repository);
         assertThatThrownBy(() -> service.create(new ArticleRequest(
             "Integrity fixture", "ak-audit-fixture-integrity", "Summary", "Body", false
-        ))).isSameAs(failure);
+        ), adminPrincipal())).isSameAs(failure);
     }
 
     private static void await(CountDownLatch latch) {
@@ -223,16 +226,7 @@ class ArticleLifecycleContractTest {
         when(repository.findBySlug(existing.getSlug())).thenReturn(Optional.of(existing));
         when(repository.saveAndFlush(any(Article.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        User adminUser = new User();
-        adminUser.setId(UUID.randomUUID());
-        adminUser.setEmail("admin@example.test");
-        adminUser.setPasswordHash("synthetic-admin-hash");
-        adminUser.setDisplayName("Synthetic Admin");
-        adminUser.setStatus("ACTIVE");
-        Role adminRole = new Role();
-        adminRole.setCode("ADMIN");
-        adminUser.addRole(adminRole);
-        HealthcareUserPrincipal admin = HealthcareUserPrincipal.from(adminUser);
+        HealthcareUserPrincipal admin = adminPrincipal();
 
         AdminArticleService service = new AdminArticleService(repository);
         Article updated = service.update(existing.getSlug(), new ArticleRequest(
@@ -288,7 +282,8 @@ class ArticleLifecycleContractTest {
             "Synthetic doctor article", "doctor-submission-pending", "Summary", "Body", true),
             doctor, doctorId);
         Article admin = fixture.service().create(new ArticleRequest(
-            "Synthetic admin article", "admin-publication-approved", "Summary", "Body", true));
+            "Synthetic admin article", "admin-publication-approved", "Summary", "Body", true),
+            adminPrincipal());
 
         assertThat(submitted.getAuthorDoctorId()).isEqualTo(doctorId);
         assertThat(submitted.getReviewStatus()).isEqualTo("PENDING");
@@ -310,6 +305,19 @@ class ArticleLifecycleContractTest {
                 return article;
             });
         return new Fixture(new AdminArticleService(repository), records);
+    }
+
+    private static HealthcareUserPrincipal adminPrincipal() {
+        User adminUser = new User();
+        adminUser.setId(UUID.randomUUID());
+        adminUser.setEmail("admin@example.test");
+        adminUser.setPasswordHash("synthetic-admin-hash");
+        adminUser.setDisplayName("Synthetic Admin");
+        adminUser.setStatus("ACTIVE");
+        Role adminRole = new Role();
+        adminRole.setCode("ADMIN");
+        adminUser.addRole(adminRole);
+        return HealthcareUserPrincipal.from(adminUser);
     }
 
     private static HealthcareUserPrincipal doctorPrincipal() {

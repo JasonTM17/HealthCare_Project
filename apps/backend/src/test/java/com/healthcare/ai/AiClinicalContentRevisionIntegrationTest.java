@@ -12,11 +12,17 @@ import com.healthcare.hospital.service.AdminFaqService;
 import com.healthcare.hospital.service.AdminSpecialtyService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,8 +48,12 @@ class AiClinicalContentRevisionIntegrationTest extends AbstractIntegrationTest {
 
         Specialty specialty = specialtyService.create(new SpecialtyRequest(
             "Revision Specialty " + suffix, specialtySlug, "Grounded description", true));
+        UserDetails admin = mock(UserDetails.class);
+        when(admin.getAuthorities())
+            .thenAnswer(invocation -> List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
         Article article = articleService.create(new ArticleRequest(
-            "Revision Article " + suffix, articleSlug, "Approved summary", "Approved body", true));
+            "Revision Article " + suffix, articleSlug, "Approved summary", "Approved body", true),
+            admin);
         Faq faq = faqService.create(new FaqRequest(
             "Revision FAQ " + suffix + "?", "Approved answer", true));
 

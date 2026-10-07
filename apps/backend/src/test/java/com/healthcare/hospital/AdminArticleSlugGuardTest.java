@@ -11,8 +11,11 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -51,6 +54,13 @@ class AdminArticleSlugGuardTest {
                 return article;
             });
         return new Fixture(new AdminArticleService(repository), records);
+    }
+
+    private static UserDetails adminActor() {
+        UserDetails admin = mock(UserDetails.class);
+        when(admin.getAuthorities())
+            .thenAnswer(invocation -> List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        return admin;
     }
 
     // ── T2: canonical slug shape ─────────────────────────────────────────────
@@ -98,7 +108,7 @@ class AdminArticleSlugGuardTest {
 
         AdminArticleService service = new AdminArticleService(repository);
         assertThatThrownBy(() -> service.create(new ArticleRequest(
-            "Tụt huyết áp", "Tang-Huyet", "Tóm tắt", "Nội dung", false)))
+            "Tụt huyết áp", "Tang-Huyet", "Tóm tắt", "Nội dung", false), adminActor()))
             .isInstanceOf(DuplicateResourceException.class)
             .hasMessage("Article slug already exists: Tang-Huyet")
             .satisfies(thrown -> assertThat(((BusinessException) thrown).getStatus()).isEqualTo(409));
@@ -123,7 +133,7 @@ class AdminArticleSlugGuardTest {
 
         AdminArticleService service = new AdminArticleService(repository);
         assertThatThrownBy(() -> service.update("huong-dan-xet-nghiem", new ArticleRequest(
-            "Hướng dẫn", "huong-dan-xet-nghiem-2", "Tóm tắt", "Nội dung", false)))
+            "Hướng dẫn", "huong-dan-xet-nghiem-2", "Tóm tắt", "Nội dung", false), adminActor()))
             .isInstanceOf(DuplicateResourceException.class)
             .satisfies(thrown -> assertThat(((BusinessException) thrown).getStatus()).isEqualTo(409));
 
@@ -150,7 +160,7 @@ class AdminArticleSlugGuardTest {
 
         AdminArticleService service = new AdminArticleService(repository);
         Article edited = service.update("Tang-Huyet", new ArticleRequest(
-            "Tụt huyết áp (sửa)", "Tang-Huyet", "Tóm tắt mới", "Nội dung mới", false));
+            "Tụt huyết áp (sửa)", "Tang-Huyet", "Tóm tắt mới", "Nội dung mới", false), adminActor());
 
         assertThat(edited.getTitle()).isEqualTo("Tụt huyết áp (sửa)");
     }
@@ -163,7 +173,7 @@ class AdminArticleSlugGuardTest {
         String slug = "nested-sanitize-fixture-" + System.nanoTime();
 
         fixture.service().create(new ArticleRequest(
-            "Tiêu đề", slug, "Tóm tắt", "<scr<iframe>ipt>alert(1)</scr<iframe>ipt>", true));
+            "Tiêu đề", slug, "Tóm tắt", "<scr<iframe>ipt>alert(1)</scr<iframe>ipt>", true), adminActor());
 
         String stored = fixture.records().get(slug).getBody();
         assertThat(stored).doesNotContain("<script");

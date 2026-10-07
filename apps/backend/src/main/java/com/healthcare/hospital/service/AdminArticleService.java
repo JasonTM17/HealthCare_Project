@@ -45,11 +45,6 @@ public class AdminArticleService {
     }
 
     @Transactional
-    public Article create(ArticleRequest request) {
-        return create(request, null);
-    }
-
-    @Transactional
     public Article create(ArticleRequest request, UserDetails actor) {
         return create(request, actor, null);
     }
@@ -57,8 +52,8 @@ public class AdminArticleService {
     /**
      * Doctor-portal create.  The doctor id is resolved by the caller (the
      * authenticated doctor principal), never taken from the request payload,
-     * so a client cannot forge authorship.  Passing {@code null} keeps the
-     * plain admin create behaviour unchanged.
+     * so a client cannot forge authorship.  A {@code null} id selects the
+     * admin lane, which demands an ADMIN principal.
      */
     @Transactional
     public Article create(ArticleRequest request, UserDetails actor, UUID authorDoctorId) {
@@ -89,21 +84,17 @@ public class AdminArticleService {
     }
 
     @Transactional
-    public Article update(String slug, ArticleRequest request) {
-        return update(slug, request, null);
-    }
-
-    @Transactional
     public Article update(String slug, ArticleRequest request, UserDetails actor) {
         return update(slug, request, actor, null);
     }
 
     /**
      * Doctor-portal update.  A non-null {@code authorDoctorId} is the verified
-     * caller from the doctor controller: writing it here atomically binds the
-     * article to the doctor and self-heals legacy rows whose
-     * {@code author_doctor_id} was still NULL.  The admin path passes
-     * {@code null} and must never clobber an existing binding.
+     * caller from the doctor controller: the locked-row ownership check below
+     * requires the stored binding to already equal it, so legacy rows whose
+     * {@code author_doctor_id} is NULL stay unclaimable until an admin rebinds
+     * them.  The admin lane passes {@code null} and demands an ADMIN
+     * principal.
      */
     @Transactional
     public Article update(String slug, ArticleRequest request, UserDetails actor, UUID authorDoctorId) {
@@ -148,19 +139,11 @@ public class AdminArticleService {
         article.setBody(ArticleBodySanitizer.sanitize(request.body()));
         applyRichFields(article, request);
         article.setActive(request.active());
-        if (authorDoctorId != null) {
-            article.setAuthorDoctorId(authorDoctorId);
-        }
         applyReviewGate(article, authorDoctorId != null);
         applyPublicationState(article, request, false);
         Article saved = saveArticle(article);
         if (revisionService != null) revisionService.recordArticle(saved, actor);
         return saved;
-    }
-
-    @Transactional
-    public void delete(String slug) {
-        delete(slug, null);
     }
 
     @Transactional
@@ -191,13 +174,14 @@ public class AdminArticleService {
         articleRepository.delete(article);
     }
 
+    /**
+     * Fail-closed admin lane check. A null actor means "no principal was
+     * supplied", which is denied like any other non-admin — the privileged
+     * overloads must never silently succeed for an absent caller.
+     */
     private void requireAdminActor(UserDetails actor) {
-        if (actor == null) {
-            return;
-        }
-        boolean admin = actor.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
-        if (!admin) {
+        if (actor == null || actor.getAuthorities().stream()
+                .noneMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()))) {
             throw new ForbiddenException("Chức năng này chỉ dành cho quản trị viên");
         }
     }
@@ -216,6 +200,7 @@ public class AdminArticleService {
      */
     @Transactional
     public Article review(String slug, String decision, String reason, UserDetails reviewer) {
+        requireAdminActor(reviewer);
         Article article = articleRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Article not found: " + slug));
         String normalized = decision == null ? "" : decision.trim().toUpperCase(java.util.Locale.ROOT);

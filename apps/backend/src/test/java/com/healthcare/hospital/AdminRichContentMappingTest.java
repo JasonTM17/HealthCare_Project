@@ -10,6 +10,8 @@ import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.hospital.service.AdminArticleService;
 import com.healthcare.hospital.service.AdminSpecialtyService;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -22,6 +24,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AdminRichContentMappingTest {
+
+    private static UserDetails adminActor() {
+        UserDetails admin = mock(UserDetails.class);
+        when(admin.getAuthorities())
+            .thenAnswer(invocation -> List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        return admin;
+    }
 
     @Test
     void mapsSpecialtyHealthQuestionFieldsToCanonicalJsonArrays() {
@@ -70,7 +79,7 @@ class AdminRichContentMappingTest {
             null, null, null, null, null, null, null, List.<ArticleSectionRequest>of(),
             "vi", "PATIENT", List.of("tim"), List.of("Uống thuốc"), List.of("Đau ngực"),
             List.of("Tập thể dục"), "Khi khó thở", List.of("WHO"), Map.of("grade", "A"),
-            "Không thay thế tư vấn", true, true));
+            "Không thay thế tư vấn", true, true), adminActor());
         assertThat(article.getTopicTags().get(0).asText()).isEqualTo("tim");
         assertThat(article.getWarningSigns().get(0).asText()).isEqualTo("Đau ngực");
         assertThat(article.getClinicalMetadata().get("grade").asText()).isEqualTo("A");
@@ -95,7 +104,7 @@ class AdminRichContentMappingTest {
             "noi-tong-quat",
             List.of(new ArticleSectionRequest("Khi nào cần khám?", "Nếu triệu chứng kéo dài.")),
             true
-        ));
+        ), adminActor());
 
         assertThat(saved.getCategory()).isEqualTo("Bệnh thường gặp");
         assertThat(saved.getAuthorName()).isEqualTo("Ban biên tập bệnh viện");
@@ -122,7 +131,8 @@ class AdminRichContentMappingTest {
         when(repository.saveAndFlush(any(Article.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Article updated = new AdminArticleService(repository).update(
-            "bai-cu", new ArticleRequest("Bài mới", "bai-moi", "Tóm tắt mới", "Nội dung mới", true));
+            "bai-cu", new ArticleRequest("Bài mới", "bai-moi", "Tóm tắt mới", "Nội dung mới", true),
+            adminActor());
 
         assertThat(updated.getScheduledPublishAt()).isNull();
     }
