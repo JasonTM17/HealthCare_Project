@@ -397,6 +397,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         { href: "/patient/health-questions", label: "Hỏi đáp" },
         { href: "/patient/community", label: "Cộng đồng" },
         { href: "/patient/chat", label: "Trợ lý AI" },
+        { href: "/gop-y", label: "Góp ý" },
         { href: "/patient/preferences", label: "Cài đặt" },
       ]
     : [
@@ -408,6 +409,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
         { href: "/doctor/health-questions", label: "Hỏi đáp" },
         { href: "/doctor/ai-content-reviews", label: "Duyệt AI" },
         { href: "/doctor/articles", label: "Cộng đồng" },
+        { href: "/gop-y", label: "Góp ý" },
       ];
   const [activeHash, setActiveHash] = useState<string>("");
 

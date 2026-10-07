@@ -65,6 +65,7 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
         <Link href="/search">Tìm bác sĩ và dịch vụ</Link>
         <Link href="/branches">Cơ sở và giờ làm việc</Link>
         <Link href="/contact">Liên hệ bệnh viện</Link>
+        <Link href="/gop-y">Góp ý</Link>
         <Link href="/chinh-sach-bao-mat">Chính sách bảo mật</Link>
       </nav>
 

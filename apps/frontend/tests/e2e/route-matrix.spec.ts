@@ -35,6 +35,7 @@ const PUBLIC_ROUTES = [
   "/huong-dan",
   "/search?q=tim-mach",
   "/contact",
+  "/gop-y",
   "/careers",
   "/dat-lich",
   "/tra-cuu",

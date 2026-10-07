@@ -2851,6 +2851,41 @@ export async function deleteAiMessageFeedback(
 
 export const removeAiMessageFeedback = deleteAiMessageFeedback;
 
+export type UserFeedbackCategory =
+  | "GENERAL"
+  | "UI_UX"
+  | "BUG_REPORT"
+  | "FEATURE_REQUEST"
+  | "SERVICE_QUALITY";
+export type UserFeedbackStatus = "NEW" | "TRIAGED" | "RESOLVED";
+
+export interface UserFeedbackItem {
+  id: string;
+  category: UserFeedbackCategory;
+  subject: string;
+  message: string;
+  status: UserFeedbackStatus;
+  createdAt: string;
+}
+
+export interface SubmitFeedbackPayload {
+  category: UserFeedbackCategory;
+  subject: string;
+  message: string;
+}
+
+export async function submitUserFeedback(payload: SubmitFeedbackPayload): Promise<UserFeedbackItem> {
+  return getAuthenticatedJson<UserFeedbackItem>("/feedback", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listMyFeedback(options?: { signal?: AbortSignal }): Promise<UserFeedbackItem[]> {
+  const items = await getAuthenticatedJson<UserFeedbackItem[]>("/feedback/mine", { signal: options?.signal });
+  return Array.isArray(items) ? items : [];
+}
+
 const AI_CONTENT_TYPES = ["SPECIALTY", "ARTICLE", "FAQ"] as const;
 const AI_CONTENT_REVIEW_STATES = ["DRAFT", "SUBMITTED", "APPROVED", "CHANGES_REQUESTED", "REVOKED", "EXPIRED"] as const;
 const AI_CONTENT_DECISIONS = ["APPROVE", "REQUEST_CHANGES", "REVOKE"] as const;

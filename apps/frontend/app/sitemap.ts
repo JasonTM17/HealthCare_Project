@@ -32,6 +32,7 @@ const PUBLIC_PATHS = [
   "/branches",
   "/faq",
   "/contact",
+  "/gop-y",
   "/chinh-sach-bao-mat",
 ];
 
