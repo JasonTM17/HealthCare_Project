@@ -176,12 +176,10 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             }
             return new RateDecision(count, Math.max(1L, ttl), false);
         } catch (RuntimeException exception) {
-            try {
-                redisTemplate.delete("healthcare:rate-limit:request:" + digest(key));
-            } catch (RuntimeException ignoredCleanup) {
-                // The hosted-required path remains fail-closed; development
-                // can still use its bounded local fallback.
-            }
+            // Never delete the shared counter on failure: a transient Redis
+            // error must not silently reset a hot key and hand the client a
+            // fresh window. The surviving count keeps fail-closed semantics,
+            // and a missed expire() is retried on the next request.
             if (redisRequired) return new RateDecision(0L, 5L, true);
             return localDecision(key, now);
         }
@@ -223,6 +221,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
         return decoded.toString();
     }
+
 
     private LimitRule ruleFor(HttpServletRequest request) {
         String method = request.getMethod();
