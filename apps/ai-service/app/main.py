@@ -20,6 +20,7 @@ from app.chatbot import (
     ChatContractError,
     focus_public_retrieval_hits,
     grounded_source_excerpt,
+    grounded_source_is_echo_safe,
     generate_chat_response,
     is_complex_multisymptom_query,
     mode_source_types,
@@ -987,6 +988,9 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
         and not is_complex
         and not request.public_support_chat
         and patient_chat_remote_enabled(settings)
+        # This fast path bypasses retrieve_chat_candidates, so the row must
+        # pass the same expiry/safety/mode gates before it may be echoed.
+        and grounded_source_is_echo_safe(hits[0][0], effective_mode)
     ):
         top_doc, _ = hits[0]
         grounded_excerpt = grounded_source_excerpt(top_doc)

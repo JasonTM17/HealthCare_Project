@@ -57,3 +57,33 @@ test("media upload surfaces mirror the backend upload-enabled posture", async ()
     "dropzone is replaced by an honest notice when uploads are off"
   );
 });
+
+test("editor bespoke upload lanes fail closed under the shared flag", async () => {
+  const editor = await readFile(editorPath, "utf8");
+  // The editor's own upload surfaces used to bypass MEDIA_UPLOADS_ENABLED:
+  // the modal file input/dropzone and the markdown textarea drop/paste lanes
+  // still POSTed to /api/v1/media/upload while the posture claimed uploads
+  // were off. Every lane now fails closed behind the shared flag.
+  const processFile = editor.match(/const processImageFile = async[\s\S]*?\n  \};/);
+  assert.ok(processFile, "processImageFile helper must exist");
+  assert.match(
+    processFile[0],
+    /if \(!MEDIA_UPLOADS_ENABLED\)/,
+    "modal file-input/dropzone lane must fail closed with the disabled copy",
+  );
+  assert.match(
+    editor,
+    /disabled \|\| !MEDIA_UPLOADS_ENABLED\) return;[\s\S]*?dataTransfer\.files/,
+    "textarea drop lane must fail closed before touching dropped files",
+  );
+  assert.match(
+    editor,
+    /handleTextareaPaste[\s\S]*?disabled \|\| !MEDIA_UPLOADS_ENABLED\) return;/,
+    "textarea paste lane must fail closed before reading the clipboard",
+  );
+  assert.match(
+    editor,
+    /MEDIA_UPLOADS_ENABLED \? \([\s\S]*?handleImageModalDrop[\s\S]*?MEDIA_UPLOADS_DISABLED_MESSAGE/,
+    "the modal dropzone is replaced by the honest notice when uploads are off",
+  );
+});
