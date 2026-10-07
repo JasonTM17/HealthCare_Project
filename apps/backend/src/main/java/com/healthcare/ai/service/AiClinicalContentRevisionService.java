@@ -153,7 +153,7 @@ public class AiClinicalContentRevisionService {
             UserDetails actor,
             String operation) {
         UUID actorId = actorId(actor);
-        record(sourceType, sourceId, snapshot, actorId, actorRole(actorId), operation);
+        record(sourceType, sourceId, snapshot, actorId, actorRole(actor, actorId), operation);
     }
 
     private void record(
@@ -479,8 +479,23 @@ public class AiClinicalContentRevisionService {
             .orElse(null);
     }
 
-    private String actorRole(UUID actorId) {
-        return actorId == null ? "SYSTEM" : "ADMIN";
+    private String actorRole(UserDetails actor, UUID actorId) {
+        if (actorId == null) {
+            return "SYSTEM";
+        }
+        // Attribute the actor's real role: the doctor write lane must not
+        // inflate the governance trail with ADMIN.
+        if (actor != null) {
+            for (String role : java.util.List.of(
+                    "ROLE_ADMIN", "ROLE_DOCTOR", "ROLE_ASSISTANT", "ROLE_PATIENT")) {
+                boolean held = actor.getAuthorities().stream()
+                    .anyMatch(authority -> role.equals(authority.getAuthority()));
+                if (held) {
+                    return role.substring("ROLE_".length());
+                }
+            }
+        }
+        return "USER";
     }
 
     private void requireId(UUID id, String type) {

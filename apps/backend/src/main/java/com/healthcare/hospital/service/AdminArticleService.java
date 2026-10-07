@@ -26,17 +26,38 @@ public class AdminArticleService {
 
     private final ArticleRepository articleRepository;
     private final com.healthcare.ai.service.AiClinicalContentRevisionService revisionService;
+    private final jakarta.persistence.EntityManager entityManager;
 
     public AdminArticleService(ArticleRepository articleRepository) {
-        this(articleRepository, null);
+        this(articleRepository, null, null);
+    }
+
+    public AdminArticleService(
+            ArticleRepository articleRepository,
+            com.healthcare.ai.service.AiClinicalContentRevisionService revisionService) {
+        this(articleRepository, revisionService, null);
     }
 
     @Autowired
     public AdminArticleService(
             ArticleRepository articleRepository,
-            com.healthcare.ai.service.AiClinicalContentRevisionService revisionService) {
+            com.healthcare.ai.service.AiClinicalContentRevisionService revisionService,
+            jakarta.persistence.EntityManager entityManager) {
         this.articleRepository = articleRepository;
         this.revisionService = revisionService;
+        this.entityManager = entityManager;
+    }
+
+    /**
+     * Bound the wait on a contended article row: without SET LOCAL the
+     * PostgreSQL default lock_timeout=0 lets a stuck writer hold a doctor
+     * PUT/DELETE (and its pool connection) forever. PessimisticLockingFailureException
+     * is already mapped to 409 by the global handler.
+     */
+    private void armArticleLockTimeout() {
+        if (entityManager != null) {
+            entityManager.createNativeQuery("SET LOCAL lock_timeout = '5s'").executeUpdate();
+        }
     }
 
     @Transactional(readOnly = true)
@@ -104,6 +125,9 @@ public class AdminArticleService {
         // Doctor path: lock the row and re-verify ownership inside this
         // transaction — the controller's earlier read races with concurrent
         // owner changes (TOCTOU).
+        if (authorDoctorId != null) {
+            armArticleLockTimeout();
+        }
         Article article = (authorDoctorId != null
             ? articleRepository.findBySlugForUpdate(slug)
             : articleRepository.findBySlug(slug))
@@ -162,6 +186,9 @@ public class AdminArticleService {
     public void delete(String slug, UserDetails actor, UUID authorDoctorId) {
         if (authorDoctorId == null) {
             requireAdminActor(actor);
+        }
+        if (authorDoctorId != null) {
+            armArticleLockTimeout();
         }
         Article article = (authorDoctorId != null
             ? articleRepository.findBySlugForUpdate(slug)
