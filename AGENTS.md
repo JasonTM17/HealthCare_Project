@@ -233,6 +233,18 @@ runtime family.
   not production verification. State each boundary honestly.
 - Use force-with-lease only when history rewrite was explicitly authorized.
 
+### Commit authorship — mandatory
+
+- Every commit in this repository is authored solely by the repository owner
+  (Nguyen Tien Son). Agents must NEVER add themselves or any tool as
+  `Co-Authored-By`, `Generated with`, `Signed-off-by`, or any other trailer or
+  attribution line — not in commit messages, PR bodies, or file headers.
+- Do not alter `user.name`/`user.email` git config; commits inherit the owner's
+  configured identity. Before every commit, verify the message contains no
+  agent/tool attribution (`git log -1 --format=%B` after commit must show none).
+- `.devin/` is a local-only agent tooling directory: it stays in `.gitignore`
+  and must never be staged or committed.
+
 ## Documentation and handoff
 
 Update documentation when behavior, setup, architecture, commands, contracts,
