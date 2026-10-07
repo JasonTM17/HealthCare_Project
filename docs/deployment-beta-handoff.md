@@ -136,10 +136,41 @@ Live evidence collected:
 
 Known gaps (NOT a full production-ready claim):
 
-- Doctor portal write surfaces 403: demo `doctor@healthcare.local` has no
-  ACTIVE `doctors` row linked in production (seeding gap; code fails closed).
-- `GET /api/v1/me/preferences` 404 in browser (BFF route absent — cosmetic).
+- ~~Doctor portal write surfaces 403~~ — **RESOLVED** by V112
+  (`V112__bind_demo_doctor_login.sql`): `doctor@healthcare.local` now bound to
+  an ACTIVE doctors row; live re-check after image `f495ce35` deploy:
+  login 200 → `GET /doctor/articles` 200.
+- ~~`GET /api/v1/me/preferences` 404~~ — **RESOLVED**: frontend now calls the
+  correct `/api/v1/users/me/preferences`; live re-check 200 with full payload.
+- Google sign-in (new): backend `GOOGLE` grant verifies Google ID tokens
+  server-side (JWKS signature, iss, aud==`GOOGLE_CLIENT_ID`, exp,
+  `email_verified=true`), links existing emails or provisions a verified
+  PATIENT, and reuses secure browser-session cookies. Frontend renders
+  `GoogleSignInButton` on `/auth/login` + `/auth/register` only when
+  `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is set. Live checks: missing credential →
+  400 `VALIDATION_ERROR`; configured-off backend → 503
+  `GOOGLE_SIGN_IN_UNAVAILABLE` (fail-closed). **BLOCKED on operator action**:
+  create a Google OAuth 2.0 Web client in Google Cloud Console (JS origin
+  `https://www.healthcare.id.vn`), set `GOOGLE_CLIENT_ID` on Render and the
+  same value as `NEXT_PUBLIC_GOOGLE_CLIENT_ID` on Vercel; until then the
+  button stays hidden and the grant stays 503.
 - Chunked stream endpoint `messages/stream` 404 → client falls back; works.
-- OTP/email live delivery, payment approval roundtrip, Redis rate-limit, and
-  ClamAV scan not exercised in production.
+- Payment: `patient/appointments/{id}/payment` answers 503
+  `SERVICE_UNAVAILABLE` ("Thanh toán chuyển khoản chưa được cấu hình") —
+  bank-transfer env not configured on Render; approval roundtrip BLOCKED
+  until configured.
+- OTP/email live delivery, Redis rate-limit canary, and ClamAV scan not
+  exercised in production.
 - JDK 24 build with `--release 21`; no cross-platform matrix.
+
+New evidence (release `d56ece95`, backend image
+`sha256:f495ce350cc648f85c682289b2f408df7291db49a428327e73a786957cbb998c`,
+Render deploy `dep-db31qqu0tbcc738dv5sg` live 2026-10-07T10:26Z):
+
+- CI 6/6 green on `d56ece95` (backend 1372 tests incl. FlywayMigrationTest
+  33/33 after seed fix; frontend lint+type+test+build+e2e; ai-service;
+  hygiene; infrastructure; database).
+- `doctor@healthcare.local` login 200 → `/doctor/articles` 200 (V112 live).
+- `GET /api/v1/users/me/preferences` 200 with full preferences payload.
+- Google grant negative canaries: missing credential → 400; invalid token
+  against unconfigured backend → 503 `GOOGLE_SIGN_IN_UNAVAILABLE`.
