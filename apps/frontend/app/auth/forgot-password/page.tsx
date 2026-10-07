@@ -15,11 +15,13 @@ export default function ForgotPasswordPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submittedEmail = String(new FormData(event.currentTarget).get("email") ?? "").trim();
+    setEmail(submittedEmail);
     setSubmitted(false);
     setErrorMessage(null);
     setFieldErrors({});
 
-    if (!email.trim()) {
+    if (!submittedEmail) {
       setFieldErrors({ email: "Vui lòng nhập địa chỉ email đã đăng ký." });
       setErrorMessage("Vui lòng cung cấp email của bạn.");
       return;
@@ -27,7 +29,7 @@ export default function ForgotPasswordPage() {
 
     setSubmitting(true);
     try {
-      await requestPasswordReset({ email: email.trim() });
+      await requestPasswordReset({ email: submittedEmail });
       setSubmitted(true);
     } catch (error) {
       setFieldErrors(authFieldErrors(error));
@@ -59,7 +61,7 @@ export default function ForgotPasswordPage() {
             </div>
           </section>
         ) : (
-          <form className="auth-form" noValidate onSubmit={handleSubmit}>
+          <form autoComplete="on" className="auth-form" noValidate onSubmit={handleSubmit}>
             {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
             <div className="auth-form__field">
               <label htmlFor="forgot-email">Email</label>

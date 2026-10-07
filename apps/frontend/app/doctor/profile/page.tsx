@@ -141,7 +141,12 @@ export default function DoctorProfilePage() {
 
   const handleChangePassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    const submitted = new FormData(e.currentTarget);
+    const submittedCurrentPassword = String(submitted.get("currentPassword") ?? "");
+    const submittedNewPassword = String(submitted.get("newPassword") ?? "");
+    const submittedConfirmPassword = String(submitted.get("confirmPassword") ?? "");
+    setPasswordForm({ currentPassword: submittedCurrentPassword, newPassword: submittedNewPassword, confirmPassword: submittedConfirmPassword });
+    if (submittedNewPassword !== submittedConfirmPassword) {
       showToast({
         tone: "error",
         title: "Đổi mật khẩu thất bại",
@@ -149,7 +154,7 @@ export default function DoctorProfilePage() {
       });
       return;
     }
-    const passwordError = registrationPasswordError(passwordForm.newPassword);
+    const passwordError = registrationPasswordError(submittedNewPassword);
     if (passwordError) {
       showToast({
         tone: "error",
@@ -161,8 +166,8 @@ export default function DoctorProfilePage() {
     setSavingPassword(true);
     try {
       await changePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
+        currentPassword: submittedCurrentPassword,
+        newPassword: submittedNewPassword,
       });
       showToast({
         tone: "success",
@@ -329,6 +334,7 @@ export default function DoctorProfilePage() {
                   </label>
                   <input
                     id="currentPassword"
+                    name="currentPassword"
                     required
                     type="password"
                     value={passwordForm.currentPassword}
@@ -344,6 +350,7 @@ export default function DoctorProfilePage() {
                   </label>
                   <input
                     id="newPassword"
+                    name="newPassword"
                     required
                     type="password"
                     minLength={8}
@@ -360,6 +367,7 @@ export default function DoctorProfilePage() {
                   </label>
                   <input
                     id="confirmPassword"
+                    name="confirmPassword"
                     required
                     type="password"
                     minLength={8}
