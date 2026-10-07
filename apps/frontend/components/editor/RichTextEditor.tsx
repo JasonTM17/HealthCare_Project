@@ -1348,6 +1348,10 @@ export function RichTextEditor({
 
   // Process file upload helper
   const processImageFile = async (file: File): Promise<string | null> => {
+    if (!MEDIA_UPLOADS_ENABLED) {
+      setImageUploadError(MEDIA_UPLOADS_DISABLED_MESSAGE);
+      return null;
+    }
     if (uploadInFlightRef.current) {
       setImageUploadError("Đang có ảnh đang tải lên, vui lòng chờ hoàn tất.");
       return null;
@@ -1402,8 +1406,14 @@ export function RichTextEditor({
 
   // Direct Drag & Drop image file onto the textarea (non-blocking notification, batches multiple files)
   const handleTextareaDrop = async (e: React.DragEvent<HTMLTextAreaElement>) => {
-    if (disabled) return;
+    if (disabled || !MEDIA_UPLOADS_ENABLED) return;
     const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+    if (files.some((f) => f.size > 5 * 1024 * 1024)) {
+      e.preventDefault();
+      setDirectUploadError("Dung lượng ảnh vượt quá giới hạn 5 MB.");
+      setTimeout(() => setDirectUploadError(null), 6000);
+      return;
+    }
     if (files.length > 0) {
       e.preventDefault();
       if (uploadInFlightRef.current) {
@@ -1437,7 +1447,7 @@ export function RichTextEditor({
 
   // Direct Clipboard Image Paste (Ctrl+V) into textarea (non-blocking notification, batches multiple files)
   const handleTextareaPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (disabled) return;
+    if (disabled || !MEDIA_UPLOADS_ENABLED) return;
     const items = e.clipboardData.items;
     const imageFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
@@ -1450,6 +1460,11 @@ export function RichTextEditor({
 
     if (imageFiles.length > 0) {
       e.preventDefault();
+      if (imageFiles.some((f) => f.size > 5 * 1024 * 1024)) {
+        setDirectUploadError("Dung lượng ảnh vượt quá giới hạn 5 MB.");
+        setTimeout(() => setDirectUploadError(null), 6000);
+        return;
+      }
       if (uploadInFlightRef.current) {
         setDirectUploadError("Đang có ảnh đang tải lên, vui lòng chờ hoàn tất.");
         setTimeout(() => setDirectUploadError(null), 6000);
@@ -2284,45 +2299,53 @@ export function RichTextEditor({
             </div>
 
             <div className="mt-4 space-y-4">
-              {/* Option A: Direct file upload & Drag and Drop */}
-              <div
-                className={`rounded-[4px] border-2 border-dashed p-4 text-center transition-colors ${
-                  isDraggingImageModal
-                    ? "border-teal-600 bg-teal-100/70"
-                    : "border-teal-300 bg-teal-50/50"
-                }`}
-                onDragLeave={() => setIsDraggingImageModal(false)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDraggingImageModal(true);
-                }}
-                onDrop={handleImageModalDrop}
-              >
-                <input
-                  aria-label="Chọn ảnh để tải lên"
-                  accept="image/png, image/jpeg, image/webp, image/gif"
-                  className="hidden"
-                  onChange={handleProcessImageUpload}
-                  ref={fileUploadInputRef}
-                  type="file"
-                />
-                <button
-                  className="inline-flex items-center gap-2 rounded-[4px] bg-teal-800 px-4 py-2 text-xs font-bold text-white hover:bg-teal-900 disabled:opacity-50 cursor-pointer"
-                  disabled={isUploadingImage}
-                  onClick={() => fileUploadInputRef.current?.click()}
-                  onMouseDown={(e) => e.preventDefault()}
-                  type="button"
+              {/* Option A: Direct file upload & Drag and Drop — hidden when the
+                  server posture disables media uploads, same contract as the
+                  TinyMCE toolbar lanes and the standalone ImageUpload field. */}
+              {MEDIA_UPLOADS_ENABLED ? (
+                <div
+                  className={`rounded-[4px] border-2 border-dashed p-4 text-center transition-colors ${
+                    isDraggingImageModal
+                      ? "border-teal-600 bg-teal-100/70"
+                      : "border-teal-300 bg-teal-50/50"
+                  }`}
+                  onDragLeave={() => setIsDraggingImageModal(false)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingImageModal(true);
+                  }}
+                  onDrop={handleImageModalDrop}
                 >
-                  <UiIcon name="plus" size={14} />
-                  <span>{isUploadingImage ? "Đang tải ảnh lên..." : "Tải ảnh từ máy tính hoặc Kéo thả vào đây"}</span>
-                </button>
-                <p className="mt-2 text-xs text-slate-500">
-                  Hỗ trợ PNG, JPG, WEBP, GIF (Tối đa 5 MB). Kéo thả ảnh trực tiếp hoặc chọn tệp.
+                  <input
+                    aria-label="Chọn ảnh để tải lên"
+                    accept="image/png, image/jpeg, image/webp, image/gif"
+                    className="hidden"
+                    onChange={handleProcessImageUpload}
+                    ref={fileUploadInputRef}
+                    type="file"
+                  />
+                  <button
+                    className="inline-flex items-center gap-2 rounded-[4px] bg-teal-800 px-4 py-2 text-xs font-bold text-white hover:bg-teal-900 disabled:opacity-50 cursor-pointer"
+                    disabled={isUploadingImage}
+                    onClick={() => fileUploadInputRef.current?.click()}
+                    onMouseDown={(e) => e.preventDefault()}
+                    type="button"
+                  >
+                    <UiIcon name="plus" size={14} />
+                    <span>{isUploadingImage ? "Đang tải ảnh lên..." : "Tải ảnh từ máy tính hoặc Kéo thả vào đây"}</span>
+                  </button>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Hỗ trợ PNG, JPG, WEBP, GIF (Tối đa 5 MB). Kéo thả ảnh trực tiếp hoặc chọn tệp.
+                  </p>
+                  {imageUploadError && (
+                    <p className="mt-2 text-xs text-red-600 font-semibold">{imageUploadError}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="rounded-[4px] border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
+                  {MEDIA_UPLOADS_DISABLED_MESSAGE}
                 </p>
-                {imageUploadError && (
-                  <p className="mt-2 text-xs text-red-600 font-semibold">{imageUploadError}</p>
-                )}
-              </div>
+              )}
 
               <div className="relative flex items-center justify-center">
                 <div className="border-t border-slate-200 w-full" />

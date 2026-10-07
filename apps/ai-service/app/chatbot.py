@@ -1002,6 +1002,24 @@ def grounded_source_excerpt(document: RagDocument) -> str:
     return _grounded_excerpt(_source_metadata(document))
 
 
+def grounded_source_is_echo_safe(document: RagDocument, mode: ChatMode) -> bool:
+    """Gate a retrieved row before the legacy ``/chat`` fast path may echo it.
+
+    The high-similarity branch in ``main.py`` builds an answer directly from
+    ``grounded_source_excerpt`` without the ``retrieve_chat_candidates``
+    pipeline, so it must apply the same source-side fences itself: unexpired,
+    safe context text, and the per-mode projection law (clinical modes require
+    the governed eligible projection, support mode stays operational).
+    """
+
+    meta = _source_metadata(document)
+    if _expired(meta):
+        return False
+    if not _context_is_safe(meta):
+        return False
+    return _mode_allows(meta, mode)
+
+
 def _uncited_general_guidance_response(
     request: ChatGenerateRequest,
     settings: Any,

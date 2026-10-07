@@ -463,6 +463,88 @@ def test_public_legacy_chat_rejects_browser_style_clinical_mode_override() -> No
     assert response.status_code == 400
 
 
+def test_chat_high_similarity_echo_never_surfaces_unsafe_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The non-public /chat fast path must not echo a row that skips the
+    retrieve_chat_candidates fences: an unsafe or ineligible top hit is
+    quarantined even when similarity is high and remote is enabled."""
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "remote_ai_release_hold", True)
+    monkeypatch.setattr(local_settings, "ai_patient_chat_remote_enabled", True)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "article",
+        "article-unsafe-echo",
+        "Hướng dẫn đo huyết áp tại nhà",
+        "Bạn bị viêm phổi và nên dùng 500 mg thuốc.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post("/chat", json={"message": "Hướng dẫn đo huyết áp"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["routing_reason"] != "high_similarity_internal_kb"
+    assert "viêm phổi" not in payload["answer"].casefold()
+
+
+def test_chat_high_similarity_echo_still_serves_safe_eligible_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate must not over-block: an unexpired, safe, mode-allowed row keeps
+    the cheap grounded answer the fast path exists for."""
+    local_settings = settings
+    monkeypatch.setattr(local_settings, "ai_service_runtime", "local")
+    monkeypatch.setattr(local_settings, "ai_service_allow_unauthenticated_local", True)
+    monkeypatch.setattr(local_settings, "ai_service_token", "")
+    monkeypatch.setattr(local_settings, "ai_provider", "local")
+    monkeypatch.setattr(local_settings, "embedding_provider", "local")
+    monkeypatch.setattr(local_settings, "remote_ai_release_hold", True)
+    monkeypatch.setattr(local_settings, "ai_patient_chat_remote_enabled", True)
+
+    vector = [1.0] + [0.0] * 383
+    local_rag = RagService()
+    local_rag.ingest(
+        "branch",
+        "branch-hours",
+        "Giờ làm việc bệnh viện",
+        "Bệnh viện mở cửa 06:30-20:00 tất cả các ngày trong tuần.",
+        vector,
+        embedding_model="local-hash",
+        embedding_provenance="local_provider",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    monkeypatch.setattr("app.main.rag_service", local_rag)
+    monkeypatch.setattr(
+        "app.main.embed",
+        lambda *_, **__: EmbeddingResult(vector, "local-hash", "local_provider"),
+    )
+
+    response = client.post("/chat", json={"message": "Giờ làm việc bệnh viện"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["safety_action"] == "ANSWER"
+    assert payload["routing_reason"] == "high_similarity_internal_kb"
+    assert "06:30" in payload["answer"]
+
+
 def test_public_education_never_generates_from_operational_projection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
