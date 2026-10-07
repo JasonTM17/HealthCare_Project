@@ -4043,6 +4043,10 @@ main {
     grid-template-columns: repeat(4, 1fr);
     min-height: 64px;
     padding: var(--sp-2) 1rem;
+    /* viewport-fit: cover lets the iPhone home indicator overlay bottom: 0;
+       without this inset the rail's tappable row sits under the system
+       gesture area and taps on the lower half of the bar are swallowed. */
+    padding-bottom: max(var(--sp-2), env(safe-area-inset-bottom));
     border-top: 1px solid var(--color-line-dark);
     background: var(--color-teal-950);
   }
