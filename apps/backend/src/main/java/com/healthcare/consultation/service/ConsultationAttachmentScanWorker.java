@@ -38,7 +38,7 @@ public class ConsultationAttachmentScanWorker {
         this.leaseSeconds = Math.max(30, Math.min(900, leaseSeconds));
     }
 
-    @Scheduled(fixedDelayString = "${storage.consultation.scan-poll-ms:2000}")
+    @Scheduled(fixedDelayString = "${storage.consultation.scan-poll-ms:60000}")
     public void scanOne() {
         if (!enabled) return;
         transactions.executeWithoutResult(status -> expireAbandoned());

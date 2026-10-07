@@ -52,7 +52,7 @@ public class EmailOutboxWorker {
         this.retentionDays = Math.max(1, Math.min(retentionDays, 3650));
     }
 
-    @Scheduled(fixedDelayString = "${app.mail.outbox.poll-ms:5000}")
+    @Scheduled(fixedDelayString = "${app.mail.outbox.poll-ms:60000}")
     public void deliverOne() {
         transactionTemplate.executeWithoutResult(status -> repository.expireDueAtDatabaseTime(dueStatusNames()));
         EmailOutboxClaim claim = transactionTemplate.execute(status -> claimOne());

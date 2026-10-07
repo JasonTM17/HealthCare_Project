@@ -39,7 +39,7 @@ public class ConsultationAttachmentObjectCleanupWorker {
         this.leaseSeconds = Math.max(30, Math.min(900, leaseSeconds));
     }
 
-    @Scheduled(fixedDelayString = "${storage.consultation.cleanup-poll-ms:5000}")
+    @Scheduled(fixedDelayString = "${storage.consultation.cleanup-poll-ms:60000}")
     public void cleanupOne() {
         if (!enabled || !storage.isEnabled()) return;
         CleanupClaim claim = transactions.execute(this::claimOne);

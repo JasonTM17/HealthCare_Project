@@ -460,7 +460,16 @@ public class BookingService {
             Map.of(
                 "code", otpCode,
                 "minutes", String.valueOf(OTP_DURATION_MINUTES),
-                "bookingCode", appointment.getBookingCode()
+                "bookingCode", appointment.getBookingCode(),
+                "patientName", nullToBlank(patient.getFullName()),
+                "doctorName", nullToBlank(appointment.getDoctor().getFullName()),
+                "branchName", nullToBlank(appointment.getBranch().getName()),
+                "appointmentDate", appointment.getAppointmentDate()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                "appointmentTime", appointment.getStartTime()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                    + " – " + appointment.getEndTime()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
             ),
             "booking-otp-" + appointment.getId(),
             patient.getUserId(),
@@ -564,7 +573,16 @@ public class BookingService {
             Map.of(
                 "code", otpCode,
                 "minutes", String.valueOf(OTP_DURATION_MINUTES),
-                "bookingCode", appointment.getBookingCode()
+                "bookingCode", appointment.getBookingCode(),
+                "patientName", nullToBlank(appointment.getPatient().getFullName()),
+                "doctorName", nullToBlank(appointment.getDoctor().getFullName()),
+                "branchName", nullToBlank(appointment.getBranch().getName()),
+                "appointmentDate", appointment.getAppointmentDate()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                "appointmentTime", appointment.getStartTime()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                    + " – " + appointment.getEndTime()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
             ),
             "booking-otp-resend-" + appointment.getId() + "-" + otpExpiry.toEpochSecond(),
             appointment.getPatient().getUserId(),
@@ -1343,6 +1361,10 @@ public class BookingService {
     }
 
     private record PatientResolution(PatientProfile patient, String otpRecipient) {
+    }
+
+    private static String nullToBlank(String value) {
+        return value == null ? "" : value;
     }
 
     private AppointmentResponse responseForViewer(Appointment appointment, UserDetails principal) {

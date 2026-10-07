@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -20,7 +21,8 @@ public class EmailTemplateRenderer {
     private static final String FOOTER =
         "Nếu bạn không mong đợi email này, hãy bỏ qua và đăng nhập cổng bệnh nhân nếu cần kiểm tra.";
     private static final Set<String> OTP_VARIABLES = Set.of("code", "minutes", "portalUrl");
-    private static final Set<String> BOOKING_OTP_VARIABLES = Set.of("code", "minutes", "portalUrl", "bookingCode");
+    private static final Set<String> BOOKING_OTP_VARIABLES = Set.of("code", "minutes", "portalUrl", "bookingCode",
+        "patientName", "doctorName", "branchName", "appointmentDate", "appointmentTime");
     // "transitionKey" is allowed-but-optional: it is never rendered into the
     // email, it only lets the outbox idempotency key distinguish successive
     // business transitions (e.g. two separate payment rejections).
@@ -40,6 +42,14 @@ public class EmailTemplateRenderer {
     public RenderedEmail render(EmailTemplateKey templateKey, Map<String, String> variables) {
         Objects.requireNonNull(templateKey, "templateKey");
         Map<String, String> safeVariables = variables == null ? Map.of() : variables;
+        // Booking OTPs always carry a portal link: recipients are often guests
+        // without an account, so the public booking-lookup page is the only
+        // useful destination. The origin is server config, never caller input.
+        if (isBookingOtp(templateKey) && portalOrigin != null && !safeVariables.containsKey("portalUrl")) {
+            Map<String, String> withPortal = new LinkedHashMap<>(safeVariables);
+            withPortal.put("portalUrl", portalOrigin.toASCIIString() + "/tra-cuu");
+            safeVariables = withPortal;
+        }
         validateVariables(templateKey, safeVariables);
 
         String subject = sanitizeSubject(templateKey.defaultSubject());
