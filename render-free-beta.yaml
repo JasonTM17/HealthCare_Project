@@ -173,6 +173,12 @@ services:
       # connection string is a dashboard/API-managed secret.
       - key: REDIS_URL
         sync: false
+      # Google Identity Services Web client id for the GOOGLE browser-session
+      # grant (the verifier requires `aud` to match exactly). Leave unset to
+      # keep Google sign-in disabled; the grant then answers 503
+      # GOOGLE_SIGN_IN_UNAVAILABLE and the UI hides the button.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: APP_SECURITY_RATE_LIMIT_REDIS_REQUIRED
         value: "true"
       - key: CMS_DISTRIBUTED_REALTIME_ENABLED

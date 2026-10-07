@@ -46,3 +46,9 @@
 .card :global(.auth-card__brand) { align-items: center; }
 .card :global(.auth-card__brand > .brand-identity) { display: inline-flex; flex-direction: row; align-items: center; gap: 12px; }
 @media (max-width: 760px) { .layout { display: block; width: min(100%, 560px); border-radius: var(--radius-sm); } .welcome { display: none; } .layout .card { border-radius: var(--radius-sm); } }
+
+.googleSection { margin-top: 20px; }
+.divider { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; color: var(--login-muted, #6b8288); font-size: .8rem; font-weight: 600; }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: #dde8e7; }
+.googleButton { display: flex; justify-content: center; min-height: 44px; }
+.googleBusy { margin-top: 10px; text-align: center; color: var(--login-muted, #6b8288); font-size: .82rem; }

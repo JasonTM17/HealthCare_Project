@@ -89,6 +89,7 @@ export function authErrorMessage(error: unknown, fallback: string): string {
   if (apiError.code === "OTP_EXPIRED") return "Mã đã hết hạn. Hãy yêu cầu gửi lại mã mới.";
   if (apiError.code === "OTP_ATTEMPTS_EXCEEDED") return "Bạn đã nhập sai quá số lần cho phép. Hãy yêu cầu mã mới.";
   if (apiError.code === "EMAIL_DELIVERY_UNAVAILABLE") return "Email chưa thể được gửi lúc này. Vui lòng thử lại sau.";
+  if (apiError.code === "GOOGLE_SIGN_IN_UNAVAILABLE") return "Đăng nhập Google tạm thời không khả dụng. Vui lòng dùng email và mật khẩu.";
   if (apiError.status === 429) return "Bạn đang thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.";
   if (apiError.status >= 500) {
     return "Dịch vụ xác thực hiện chưa sẵn sàng hoặc máy chủ đang khởi động. Vui lòng thử lại sau ít phút.";
