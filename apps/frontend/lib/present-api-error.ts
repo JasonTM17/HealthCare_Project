@@ -18,6 +18,9 @@ const ERROR_COPY_BY_CODE = Object.freeze({
   APPOINTMENT_NOT_FOUND: "Không tìm thấy thông tin lịch hẹn. Vui lòng kiểm tra lại.",
   DOCTOR_UNAVAILABLE: "Bác sĩ hiện không có lịch tiếp nhận vào khung giờ này. Vui lòng chọn thời gian khác.",
   PAYMENT_FAILED: "Thanh toán không thành công. Vui lòng kiểm tra phương thức và thử lại.",
+  DOWNLOAD_SIZE_MISMATCH: "Tệp PDF tải về không đầy đủ. Vui lòng thử lại.",
+  DOWNLOAD_NOT_PDF: "Tệp tải về không phải định dạng PDF hợp lệ. Vui lòng thử lại.",
+  DOWNLOAD_HASH_MISMATCH: "Tệp PDF tải về bị lỗi nội dung. Vui lòng thử lại.",
   BFF_UPSTREAM_UNAVAILABLE: "Máy chủ y tế đang kết nối lại (khoảng 15-30 giây). Vui lòng đợi trong giây lát rồi thử lại.",
   BFF_UPSTREAM_TIMEOUT: "Máy chủ y tế phản hồi chậm. Vui lòng đợi trong giây lát rồi thử lại.",
 

@@ -470,11 +470,12 @@ class DocumentServiceTest {
      * ADR-005 under concurrency, reuse branch: adopting an orphan FAILED row
      * writes a fresh idempotency key (DocumentService sets it in place before
      * flushing). If a concurrent request claims that key first, the flush hits
-     * the V71 unique constraint and must yield the winner's row — exactly what
-     * the INSERT branch already does — instead of surfacing a 500.
+     * the V71 unique constraint and the retryable conflict propagates — the
+     * aborted transaction cannot read the winner's row back, so the global
+     * 409 handler surfaces it instead of a 500.
      */
     @Test
-    void reuseRaceOnIdempotencyKeyReturnsWinnerRowInsteadOfFailing() throws Exception {
+    void reuseRaceOnIdempotencyKeyPropagatesRetryableConflict() throws Exception {
         MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
         PatientProfile patient = patientMock(PATIENT_ID);
         User generator = userMock();
@@ -523,7 +524,7 @@ class DocumentServiceTest {
      * winner's row back); no second object write occurs.
      */
     @Test
-    void insertRaceOnIdempotencyKeyReturnsWinnerRowInsteadOfFailing() throws Exception {
+    void insertRaceOnIdempotencyKeyPropagatesRetryableConflict() throws Exception {
         MedicalRecord ownRecord = medicalRecord(PATIENT_ID, DOCTOR_ID);
         PatientProfile patient = patientMock(PATIENT_ID);
         User generator = userMock();

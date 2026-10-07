@@ -21,7 +21,7 @@ function browserSession(account) {
   };
 }
 
-async function loadApiClient({ contentDisposition }) {
+async function loadApiClient({ contentDisposition, bodyBytes } = {}) {
   const source = await readFile(apiClientPath, "utf8");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -93,12 +93,13 @@ async function loadApiClient({ contentDisposition }) {
   const headers = new Headers();
   if (contentDisposition !== undefined) headers.set("Content-Disposition", contentDisposition);
   const fetchImpl = async () =>
-    new Response(new Uint8Array([1, 2, 3]), { status: 200, headers });
+    new Response(bodyBytes ?? new Uint8Array([1, 2, 3]), { status: 200, headers });
 
   const compiledModule = { exports: {} };
   const context = vm.createContext({
     AbortController,
     Blob,
+    crypto,
     clearTimeout,
     console,
     DOMException,
@@ -202,4 +203,30 @@ test("downloadProtectedFile survives a broken percent-encoded filename*", async 
   });
   await harness.api.downloadProtectedFile("/files/abc-bad", "ket-qua");
   assert.equal(harness.anchor.download, "report.pdf");
+});
+
+const PDF_BYTES = new TextEncoder().encode("%PDF-1.7 integrity-check-fixture");
+
+test("downloadPatientDocument rejects bytes whose digest differs from the record sha256", async () => {
+  const harness = await loadApiClient({ bodyBytes: PDF_BYTES });
+  await assert.rejects(
+    harness.api.downloadPatientDocument("patient-1", "doc-1", "ho-so.pdf", {
+      byteSize: PDF_BYTES.length,
+      sha256: "0".repeat(64),
+    }),
+    (error) => error.code === "DOWNLOAD_HASH_MISMATCH",
+  );
+  assert.equal(harness.created.length, 0, "a corrupted download must never reach the save dialog");
+});
+
+test("downloadPatientDocument saves bytes whose digest matches the record sha256", async () => {
+  const digest = await crypto.subtle.digest("SHA-256", PDF_BYTES);
+  const sha256 = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const harness = await loadApiClient({ bodyBytes: PDF_BYTES });
+  await harness.api.downloadPatientDocument("patient-1", "doc-1", "ho-so.pdf", {
+    byteSize: PDF_BYTES.length,
+    sha256,
+  });
+  assert.equal(harness.created.length, 1);
+  assert.equal(harness.anchor.download, "ho-so.pdf");
 });

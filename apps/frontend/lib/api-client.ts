@@ -3467,7 +3467,7 @@ export async function downloadPatientDocument(
   patientId: string,
   documentId: string,
   filename = "tai-lieu-tong-hop.pdf",
-  expected?: { byteSize?: number | null },
+  expected?: { byteSize?: number | null; sha256?: string | null },
 ): Promise<void> {
   const path = `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/download`;
   const response = await withAuthenticatedSession(path, async () => {
@@ -3501,6 +3501,17 @@ export async function downloadPatientDocument(
   const header = new Uint8Array(await blob.slice(0, 5).arrayBuffer());
   if (header.length < 5 || new TextDecoder().decode(header) !== "%PDF-") {
     throw new ApiError("Tệp tải về không phải định dạng PDF hợp lệ.", 0, path, { code: "DOWNLOAD_NOT_PDF" });
+  }
+  // The backend remains the integrity authority, but a length+magic-preserving
+  // mid-body corruption would still pass the checks above — when the document
+  // record carries a digest, compare it to the actual bytes before saving.
+  const expectedSha256 = expected?.sha256?.trim().toLowerCase();
+  if (expectedSha256 && typeof crypto !== "undefined" && crypto.subtle) {
+    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+    const actual = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+    if (actual !== expectedSha256) {
+      throw new ApiError("Tệp PDF tải về bị lỗi nội dung, vui lòng thử lại.", 0, path, { code: "DOWNLOAD_HASH_MISMATCH" });
+    }
   }
   const blobUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
