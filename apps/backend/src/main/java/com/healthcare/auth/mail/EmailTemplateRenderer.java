@@ -113,9 +113,22 @@ public class EmailTemplateRenderer {
             case EMAIL_VERIFICATION, PASSWORD_RESET, BOOKING_OTP, BOOKING_VERIFICATION_OTP -> {
                 String code = firstNonBlank(variables.get("code"), "******");
                 String minutes = firstNonBlank(variables.get("minutes"), "10");
+                String greeting = variables.get("patientName");
+                if (isBookingOtp(templateKey) && greeting != null && !greeting.isBlank()) {
+                    lines.add("Xin chào " + greeting + ",");
+                    lines.add("");
+                }
                 lines.add("Mã xác minh của bạn là " + code + ".");
                 if (isBookingOtp(templateKey) && variables.containsKey("bookingCode")) {
                     lines.add("Mã đặt lịch: " + variables.get("bookingCode") + ".");
+                    appendTextDetail(lines, "Bác sĩ phụ trách", variables.get("doctorName"));
+                    appendTextDetail(lines, "Cơ sở khám", variables.get("branchName"));
+                    String date = variables.get("appointmentDate");
+                    String time = variables.get("appointmentTime");
+                    if ((date != null && !date.isBlank()) || (time != null && !time.isBlank())) {
+                        lines.add("Thời gian khám: " + (date == null ? "" : date)
+                            + (time == null || time.isBlank() ? "" : ", " + time) + ".");
+                    }
                 }
                 lines.add("Mã này hết hạn sau " + minutes + " phút.");
                 lines.add("Lưu ý an toàn: Tuyệt đối không cung cấp mã này cho người khác.");
@@ -142,6 +155,12 @@ public class EmailTemplateRenderer {
         return String.join("\n", lines);
     }
 
+    private void appendTextDetail(List<String> lines, String label, String value) {
+        if (value != null && !value.isBlank()) {
+            lines.add(label + ": " + value + ".");
+        }
+    }
+
     private String buildHtml(
         EmailTemplateKey templateKey,
         Map<String, String> variables,
@@ -158,12 +177,13 @@ public class EmailTemplateRenderer {
         builder.append(escapeHtml(preheader));
         builder.append("</div>");
         builder.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#eef3f2;\"><tr><td align=\"center\" style=\"padding:24px 12px 40px;\">");
-        builder.append("<table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;max-width:600px;background:#ffffff;border:1px solid #d9e5e2;\">");
+        builder.append("<table role=\"presentation\" width=\"600\" cellspacing=\"0\" cellpadding=\"0\" style=\"width:100%;max-width:600px;background:#ffffff;border:1px solid #d9e5e2;border-radius:8px;\">");
 
         // Flat-color, table-based header remains legible in common mail clients.
         builder.append("<tr><td bgcolor=\"#0f766e\" style=\"background:#0f766e;padding:24px 32px;\">");
         builder.append("<table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\"><tr>");
-        builder.append("<td style=\"color:#ffffff;font-size:21px;font-weight:700;letter-spacing:0.03em;\">HealthCare</td>");
+        builder.append("<td style=\"color:#ffffff;font-size:21px;font-weight:700;letter-spacing:0.03em;\">HealthCare");
+        builder.append("<div style=\"font-size:11px;font-weight:400;letter-spacing:0.1em;opacity:0.85;margin-top:2px;\">CHĂM SÓC SỨC KHỎE TIN CẬY</div></td>");
         builder.append("</tr></table></td></tr>");
 
         // Content body
@@ -171,21 +191,31 @@ public class EmailTemplateRenderer {
         // Category badge
         builder.append(buildBadgeHtml(templateKey));
 
-        // Subject
+        // Subject headline — the "[HealthCare] " prefix is for the mailbox list;
+        // inside the body it would only repeat the brand header above.
+        String headline = subject.startsWith("[" + BRAND + "] ")
+            ? subject.substring(BRAND.length() + 3) : subject;
         builder.append("<h1 style=\"margin:0 0 16px;font-size:22px;line-height:1.35;color:#0f172a;font-weight:700;\">");
-        builder.append(escapeHtml(subject));
+        builder.append(escapeHtml(headline));
         builder.append("</h1>");
 
         if (isOtp(templateKey)) {
             String code = firstNonBlank(variables.get("code"), "******");
             String minutes = firstNonBlank(variables.get("minutes"), "10");
+            String patientName = variables.get("patientName");
+
+            if (patientName != null && !patientName.isBlank()) {
+                builder.append("<p style=\"margin:0 0 14px;color:#0f172a;font-size:16px;line-height:1.6;\">");
+                builder.append("Xin chào <strong>").append(escapeHtml(patientName)).append("</strong>,");
+                builder.append("</p>");
+            }
 
             builder.append("<p style=\"margin:0 0 16px;color:#334155;font-size:16px;line-height:1.6;\">");
             builder.append("Dùng mã dưới đây để hoàn tất yêu cầu của bạn. Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email.");
             builder.append("</p>");
 
             // Highlighted OTP Box
-            builder.append("<div style=\"background:#f0f8f6;border:1px solid #b9dcd6;padding:24px 16px;text-align:center;margin:24px 0;\">");
+            builder.append("<div style=\"background:#f0f8f6;border:1px solid #b9dcd6;border-radius:8px;padding:24px 16px;text-align:center;margin:24px 0;\">");
             builder.append("<div style=\"font-size:12px;font-weight:700;color:#31635c;letter-spacing:0.08em;margin-bottom:8px;\">MÃ XÁC THỰC</div>");
             builder.append("<div style=\"font-family:'Courier New',Courier,monospace;font-size:34px;font-weight:700;letter-spacing:0.14em;color:#0b6259;margin:8px 0;\">");
             builder.append(escapeHtml(code));
@@ -193,15 +223,14 @@ public class EmailTemplateRenderer {
             builder.append("<div style=\"color:#31635c;font-size:13px;margin-top:8px;\">");
             builder.append("Có hiệu lực trong ").append(escapeHtml(minutes)).append(" phút");
             builder.append("</div>");
-            if (isBookingOtp(templateKey) && variables.containsKey("bookingCode")) {
-                builder.append("<div style=\"margin-top:12px;font-size:14px;color:#0f766e;font-weight:600;\">");
-                builder.append("Mã đặt lịch: ").append(escapeHtml(variables.get("bookingCode")));
-                builder.append("</div>");
-            }
             builder.append("</div>");
 
+            if (isBookingOtp(templateKey)) {
+                builder.append(buildBookingDetailsHtml(variables));
+            }
+
             // Security callout
-            builder.append("<div style=\"background:#fff9ed;border:1px solid #f0ddb6;padding:12px 16px;margin:20px 0;font-size:14px;color:#654a1f;line-height:1.5;\">");
+            builder.append("<div style=\"background:#fff9ed;border:1px solid #f0ddb6;border-radius:6px;padding:12px 16px;margin:20px 0;font-size:14px;color:#654a1f;line-height:1.5;\">");
             builder.append("<strong>Giữ mã riêng tư.</strong> Không chia sẻ mã xác thực với bất kỳ ai. Nhân viên hỗ trợ không cần biết mã này.");
             builder.append("</div>");
         } else {
@@ -241,6 +270,47 @@ public class EmailTemplateRenderer {
         builder.append("</td></tr></table>");
         builder.append("</body></html>");
         return builder.toString();
+    }
+
+    private String buildBookingDetailsHtml(Map<String, String> variables) {
+        StringBuilder card = new StringBuilder();
+        String bookingCode = variables.get("bookingCode");
+        String doctorName = variables.get("doctorName");
+        String branchName = variables.get("branchName");
+        String date = variables.get("appointmentDate");
+        String time = variables.get("appointmentTime");
+        boolean hasAny = (bookingCode != null && !bookingCode.isBlank())
+            || (doctorName != null && !doctorName.isBlank())
+            || (branchName != null && !branchName.isBlank())
+            || (date != null && !date.isBlank());
+        if (!hasAny) {
+            return "";
+        }
+        card.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"border:1px solid #d9e5e2;border-radius:8px;margin:20px 0;\">");
+        card.append("<tr><td style=\"padding:14px 18px;border-bottom:1px solid #e2e8f0;font-size:12px;font-weight:700;color:#31635c;letter-spacing:0.06em;\">THÔNG TIN LỊCH HẸN</td></tr>");
+        card.append("<tr><td style=\"padding:6px 18px 14px;\">");
+        card.append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\">");
+        appendDetailRow(card, "Mã đặt lịch", bookingCode);
+        appendDetailRow(card, "Bác sĩ phụ trách", doctorName);
+        appendDetailRow(card, "Cơ sở khám", branchName);
+        String timeLabel = date == null ? "" : date;
+        if (time != null && !time.isBlank()) {
+            timeLabel += (timeLabel.isEmpty() ? "" : ", ") + time;
+        }
+        appendDetailRow(card, "Thời gian khám", timeLabel);
+        card.append("</table></td></tr></table>");
+        return card.toString();
+    }
+
+    private void appendDetailRow(StringBuilder card, String label, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        card.append("<tr><td width=\"140\" style=\"padding:6px 0;color:#647b76;font-size:14px;vertical-align:top;\">")
+            .append(escapeHtml(label))
+            .append("</td><td style=\"padding:6px 0;color:#0f172a;font-size:14px;font-weight:600;\">")
+            .append(escapeHtml(value))
+            .append("</td></tr>");
     }
 
     private String buildBadgeHtml(EmailTemplateKey templateKey) {
