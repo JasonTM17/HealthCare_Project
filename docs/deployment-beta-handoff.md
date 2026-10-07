@@ -103,3 +103,43 @@ curl -s "https://www.healthcare.id.vn/api/v1/hospital/specialties?page=0&size=2"
 Then rerun the browser E2E (screenshots in
 `verification_screenshots/prod-e2e-0913/`): home, `/dat-lich`, login for the
 three demo portals listed in the README.
+
+## Post-deploy verification — 2026-10-07 (commit 23455e01)
+
+Deployed identities:
+
+- Frontend (Vercel): `www.healthcare.id.vn` Ready, source `23455e01`.
+- Backend (Render `srv-daigprh5efls73dfau00`): deploy `dep-db2vsvijnfac73882k00`
+  LIVE on image `ghcr.io/jasontm17/healthcare-project-backend@sha256:6ddb1ebd71042b34eacd5f8b50b43c43916e86475c1bcbfd9b600809186b3105`.
+- AI (Render `srv-daigq6vqj5pc73a284l0`): live deploy `dep-db2v78e7bikc73blki00`
+  from commit `3e2f3ad4`, URL `https://healthcare-beta-ai-9mip.onrender.com`
+  (`/livez` 200). The old hostname `healthcare-beta-ai.onrender.com` is dead.
+
+Live evidence collected:
+
+- Backend `/actuator/health` 200 UP; tokenless patient/admin/document APIs 401.
+- BFF auth: `grantType=PASSWORD` required; direct-backend login without trusted
+  BFF credential 401 (fail closed); no-Origin BFF call 403.
+- Patient/admin/doctor UI+BFF login 200 each.
+- Patient documents: `generationConfigured=true`; live generate 201 →
+  `AVAILABLE`; download 200, 660,333 bytes, `%PDF-` magic, sha256
+  `de767ee6b3ef7c5a38314157c878192c6213d318e475de2b140c40536533c24b` matched
+  server digest exactly; doctor cross-tenant download 403.
+- Public chat canary: grounded answer + citations; records-access probe REFUSE.
+- Authenticated patient chat (HOSPITAL_SUPPORT): conversation created, answer
+  grounded with doctor citations, quota 100→99. Clinical modes deliberately
+  report `Tạm chưa khả dụng` — `enabledModes=["HOSPITAL_SUPPORT"]` per policy
+  `patient-chat-v1` (server-side config, honest fail-closed UI).
+- Production UI journeys (Playwright): homepage mobile+desktop no overflow,
+  login → patient dashboard → documents page renders, "Tải PDF" fires a real
+  download event.
+
+Known gaps (NOT a full production-ready claim):
+
+- Doctor portal write surfaces 403: demo `doctor@healthcare.local` has no
+  ACTIVE `doctors` row linked in production (seeding gap; code fails closed).
+- `GET /api/v1/me/preferences` 404 in browser (BFF route absent — cosmetic).
+- Chunked stream endpoint `messages/stream` 404 → client falls back; works.
+- OTP/email live delivery, payment approval roundtrip, Redis rate-limit, and
+  ClamAV scan not exercised in production.
+- JDK 24 build with `--release 21`; no cross-platform matrix.
