@@ -548,7 +548,20 @@ public class AuthService {
             user.setCreatedAt(OffsetDateTime.now());
             user.setUpdatedAt(OffsetDateTime.now());
             user.addRole(patientRole);
-            user = userRepository.save(user);
+            try {
+                user = userRepository.saveAndFlush(user);
+            } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
+                // Two Google sign-ins for the same new email can both pass
+                // findByEmailForUpdate in their own transactions; Postgres
+                // aborts the loser, so there is no in-transaction rescue —
+                // answer a stable 409 and let the client retry once into a
+                // normal login.
+                throw new BusinessException(
+                    409,
+                    ErrorCodes.CONFLICT,
+                    "Tài khoản vừa được tạo song song — vui lòng đăng nhập lại"
+                );
+            }
             notificationPreferenceService.ensureDefaultsForUser(user.getId());
         }
         // Match the password lane's AccountStatusException behavior: a

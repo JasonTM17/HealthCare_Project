@@ -71,6 +71,7 @@ class AuthServiceGoogleGrantTest {
         Role patientRole = new Role();
         patientRole.setCode("PATIENT");
         when(roleRepository.findByCode("PATIENT")).thenReturn(Optional.of(patientRole));
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(browserSessionService.issueReplacing(any(), any()))
             .thenReturn(Mockito.mock(BrowserSessionService.IssuedBrowserSession.class));
@@ -116,7 +117,7 @@ class AuthServiceGoogleGrantTest {
         authService.createBrowserSession(googleGrant("good-token"), httpRequest);
 
         org.mockito.ArgumentCaptor<User> captor = org.mockito.ArgumentCaptor.forClass(User.class);
-        verify(userRepository, Mockito.atLeastOnce()).save(captor.capture());
+        verify(userRepository, Mockito.atLeastOnce()).saveAndFlush(captor.capture());
         User saved = captor.getValue();
         assertThat(saved.getEmail()).isEqualTo("new@patient.dev");
         assertThat(saved.isEmailVerified()).isTrue();
