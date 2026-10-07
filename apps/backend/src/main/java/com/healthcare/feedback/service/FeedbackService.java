@@ -75,13 +75,16 @@ public class FeedbackService {
     }
 
     private FeedbackItemResponse toItem(UserFeedback value) {
+        // @CreationTimestamp only lands on flush; the just-saved entity can still
+        // be null here even though the row already carries DEFAULT now().
+        OffsetDateTime createdAt = value.getCreatedAt() != null ? value.getCreatedAt() : OffsetDateTime.now();
         return new FeedbackItemResponse(
             value.getId(),
             value.getCategory(),
             value.getSubject(),
             value.getMessage(),
             value.getStatus(),
-            value.getCreatedAt()
+            createdAt
         );
     }
 }
