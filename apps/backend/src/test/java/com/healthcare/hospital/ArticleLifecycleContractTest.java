@@ -2,18 +2,24 @@ package com.healthcare.hospital;
 
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.DuplicateResourceException;
+import com.healthcare.exception.ForbiddenException;
 import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.entity.Article;
 import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.service.AdminArticleService;
+import com.healthcare.security.HealthcareUserPrincipal;
+import com.healthcare.user.entity.Role;
+import com.healthcare.user.entity.User;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -24,9 +30,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -199,6 +207,127 @@ class ArticleLifecycleContractTest {
             Thread.currentThread().interrupt();
             throw new AssertionError("concurrent article task was interrupted", interrupted);
         }
+    }
+
+    @Test
+    void adminActorRetainsTwoArgumentEditAndDeleteRecoveryForLegacyRows() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        Article existing = new Article();
+        existing.setId(UUID.randomUUID());
+        existing.setSlug("legacy-admin-recovery");
+        existing.setTitle("Legacy article");
+        existing.setSummary("Summary");
+        existing.setBody("Body");
+        existing.setAuthorName("Legacy author");
+        existing.setReviewStatus("PENDING");
+        when(repository.findBySlug(existing.getSlug())).thenReturn(Optional.of(existing));
+        when(repository.saveAndFlush(any(Article.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User adminUser = new User();
+        adminUser.setId(UUID.randomUUID());
+        adminUser.setEmail("admin@example.test");
+        adminUser.setPasswordHash("synthetic-admin-hash");
+        adminUser.setDisplayName("Synthetic Admin");
+        adminUser.setStatus("ACTIVE");
+        Role adminRole = new Role();
+        adminRole.setCode("ADMIN");
+        adminUser.addRole(adminRole);
+        HealthcareUserPrincipal admin = HealthcareUserPrincipal.from(adminUser);
+
+        AdminArticleService service = new AdminArticleService(repository);
+        Article updated = service.update(existing.getSlug(), new ArticleRequest(
+            "Admin recovery", existing.getSlug(), "New summary", "New body", true), admin);
+        service.delete(existing.getSlug(), admin);
+
+        assertThat(updated.getReviewStatus()).isEqualTo("PENDING");
+        verify(repository).saveAndFlush(existing);
+        verify(repository).delete(existing);
+    }
+
+    @Test
+    void doctorPrincipalCannotUseAdminCreateUpdateOrDeleteOverloadsWithoutDoctorId() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        Map<String, Article> records = new HashMap<>();
+        when(repository.findBySlug(anyString()))
+            .thenAnswer(invocation -> Optional.ofNullable(records.get(invocation.getArgument(0))));
+        when(repository.saveAndFlush(any(Article.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Article existing = new Article();
+        existing.setId(UUID.randomUUID());
+        existing.setSlug("doctor-write-without-id");
+        existing.setTitle("Synthetic existing");
+        existing.setSummary("Synthetic summary");
+        existing.setBody("Synthetic body");
+        records.put(existing.getSlug(), existing);
+
+        AdminArticleService service = new AdminArticleService(repository);
+        HealthcareUserPrincipal doctor = doctorPrincipal();
+
+        assertAll(
+            () -> assertThatThrownBy(() -> service.create(new ArticleRequest(
+                    "Synthetic create", "doctor-create-without-id", "Summary", "Body", true), doctor))
+                .isInstanceOf(ForbiddenException.class),
+            () -> assertThatThrownBy(() -> service.update(existing.getSlug(), new ArticleRequest(
+                    "Synthetic update", existing.getSlug(), "Summary", "Body", true), doctor))
+                .isInstanceOf(ForbiddenException.class),
+            () -> assertThatThrownBy(() -> service.delete(existing.getSlug(), doctor))
+                .isInstanceOf(ForbiddenException.class)
+        );
+        verify(repository, never()).saveAndFlush(any(Article.class));
+        verify(repository, never()).delete(any(Article.class));
+    }
+
+    @Test
+    void doctorSubmissionEntersPendingWhileAdminCreateRemainsApproved() {
+        Fixture fixture = fixture();
+        HealthcareUserPrincipal doctor = doctorPrincipal();
+        UUID doctorId = UUID.randomUUID();
+
+        Article submitted = fixture.service().create(new ArticleRequest(
+            "Synthetic doctor article", "doctor-submission-pending", "Summary", "Body", true),
+            doctor, doctorId);
+        Article admin = fixture.service().create(new ArticleRequest(
+            "Synthetic admin article", "admin-publication-approved", "Summary", "Body", true));
+
+        assertThat(submitted.getAuthorDoctorId()).isEqualTo(doctorId);
+        assertThat(submitted.getReviewStatus()).isEqualTo("PENDING");
+        assertThat(submitted.isActive()).isTrue();
+        assertThat(submitted.getPublishedAt()).isNotNull();
+        assertThat(admin.getAuthorDoctorId()).isNull();
+        assertThat(admin.getReviewStatus()).isEqualTo("APPROVED");
+    }
+
+    private Fixture fixture() {
+        ArticleRepository repository = mock(ArticleRepository.class);
+        Map<String, Article> records = new HashMap<>();
+        when(repository.findBySlug(anyString()))
+            .thenAnswer(invocation -> Optional.ofNullable(records.get(invocation.getArgument(0))));
+        when(repository.saveAndFlush(any(Article.class)))
+            .thenAnswer(invocation -> {
+                Article article = invocation.getArgument(0);
+                records.put(article.getSlug(), article);
+                return article;
+            });
+        return new Fixture(new AdminArticleService(repository), records);
+    }
+
+    private static HealthcareUserPrincipal doctorPrincipal() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("doctor@example.test");
+        user.setPasswordHash("synthetic-password-hash");
+        user.setDisplayName("Synthetic Doctor");
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
+        Role role = new Role();
+        role.setCode("DOCTOR");
+        role.setName("Synthetic Doctor");
+        user.addRole(role);
+        return HealthcareUserPrincipal.from(user);
+    }
+
+    private record Fixture(AdminArticleService service, Map<String, Article> records) {
     }
 
     private static ArticleRequest requestWithVersion(long version) {
