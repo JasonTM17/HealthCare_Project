@@ -27,11 +27,12 @@ export function authSessionDestination(roles: readonly string[], next: string | 
   return "/";
 }
 
-export const REGISTRATION_PASSWORD_HELP = "Mật khẩu từ 8 đến 128 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.";
+export const REGISTRATION_PASSWORD_HELP = "Mật khẩu từ 8 đến 128 ký tự (tối đa 72 byte UTF-8), gồm chữ hoa, chữ thường, số và ký tự đặc biệt.";
 
 export function registrationPasswordError(password: string): string | null {
   const missing: string[] = [];
   if (password.length < 8 || password.length > 128) missing.push("từ 8 đến 128 ký tự");
+  if (new TextEncoder().encode(password).length > 72) missing.push("tối đa 72 byte UTF-8");
   if (!/[A-Z]/.test(password)) missing.push("chữ hoa");
   if (!/[a-z]/.test(password)) missing.push("chữ thường");
   if (!/[0-9]/.test(password)) missing.push("số");

@@ -263,11 +263,16 @@ export default function PatientProfilePage() {
 
   const handleChangePassword = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    const submitted = new FormData(e.currentTarget);
+    const submittedCurrentPassword = String(submitted.get("currentPassword") ?? "");
+    const submittedNewPassword = String(submitted.get("newPassword") ?? "");
+    const submittedConfirmPassword = String(submitted.get("confirmPassword") ?? "");
+    setPasswordForm({ currentPassword: submittedCurrentPassword, newPassword: submittedNewPassword, confirmPassword: submittedConfirmPassword });
+    if (submittedNewPassword !== submittedConfirmPassword) {
       setPasswordNotice({ tone: "error", text: "Mật khẩu mới và xác nhận mật khẩu không khớp." });
       return;
     }
-    const passwordError = registrationPasswordError(passwordForm.newPassword);
+    const passwordError = registrationPasswordError(submittedNewPassword);
     if (passwordError) {
       setPasswordNotice({ tone: "error", text: passwordError });
       return;
@@ -276,8 +281,8 @@ export default function PatientProfilePage() {
     setPasswordNotice(null);
     try {
       const res = await changePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
+        currentPassword: submittedCurrentPassword,
+        newPassword: submittedNewPassword,
       });
       setPasswordNotice({ tone: "success", text: res.message || "Đã cập nhật mật khẩu tài khoản thành công!" });
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -702,6 +707,7 @@ export default function PatientProfilePage() {
                   <input
                     className={styles.inputField}
                     id="currentPassword"
+                    name="currentPassword"
                     onChange={(e) =>
                       setPasswordForm((p) => ({ ...p, currentPassword: e.target.value }))
                     }
@@ -718,6 +724,7 @@ export default function PatientProfilePage() {
                   <input
                     className={styles.inputField}
                     id="newPassword"
+                    name="newPassword"
                     onChange={(e) =>
                       setPasswordForm((p) => ({ ...p, newPassword: e.target.value }))
                     }
@@ -734,6 +741,7 @@ export default function PatientProfilePage() {
                   <input
                     className={styles.inputField}
                     id="confirmPassword"
+                    name="confirmPassword"
                     onChange={(e) =>
                       setPasswordForm((p) => ({ ...p, confirmPassword: e.target.value }))
                     }
