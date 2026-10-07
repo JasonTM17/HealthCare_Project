@@ -22,7 +22,8 @@ public record BrowserSessionCreateRequest(
     @JsonAlias({"otp", "otpCode", "verificationCode", "token"})
     String code,
 
-    // GIS credential JWT; only meaningful for the GOOGLE grant.
+    // GIS credential JWT; GOOGLE optionally carries exactly one current-mailbox
+    // code or fresh local password proof. Email is always derived from the token.
     @JsonAlias({"idToken", "credential"})
     @Size(max = 8192)
     String googleIdToken

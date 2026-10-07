@@ -20,6 +20,7 @@ import { useAuthSession, useAuthSessionStatus } from "../../../components/useAut
 import ImageUpload from "../../../components/ImageUpload";
 import UiIcon, { type IconName } from "../../../components/UiIcon";
 import { presentApiError } from "../../../lib/present-api-error";
+import { registrationPasswordError } from "../../../lib/auth-flow";
 import styles from "./PatientProfile.module.css";
 
 interface TierDefinition {
@@ -266,8 +267,9 @@ export default function PatientProfilePage() {
       setPasswordNotice({ tone: "error", text: "Mật khẩu mới và xác nhận mật khẩu không khớp." });
       return;
     }
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordNotice({ tone: "error", text: "Mật khẩu mới phải có tối thiểu 8 ký tự." });
+    const passwordError = registrationPasswordError(passwordForm.newPassword);
+    if (passwordError) {
+      setPasswordNotice({ tone: "error", text: passwordError });
       return;
     }
     setSavingPassword(true);
@@ -711,7 +713,7 @@ export default function PatientProfilePage() {
 
                 <div className={styles.inputGroup}>
                   <label className={styles.inputLabel} htmlFor="newPassword">
-                    Mật khẩu mới (Tối thiểu 8 ký tự) *
+                    Mật khẩu mới *
                   </label>
                   <input
                     className={styles.inputField}

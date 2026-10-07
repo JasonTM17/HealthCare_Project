@@ -100,7 +100,7 @@ public class SecurityConfig {
                     "/api/v1/auth/password-reset-requests/**", "/api/v1/auth/forgot-password",
                     "/api/v1/auth/password-reset/**", "/api/v1/auth/reset-password/**"
                 ).permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/browser-sessions").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/browser-sessions", "/api/v1/auth/google/proof").permitAll()
                 // The controller independently requires the constant-time BFF service credential.
                 .requestMatchers("/api/v1/internal/ai/chat-cancellations/**").permitAll()
                 .requestMatchers("/api/v1/internal/ai/chat-leases/**").permitAll()

@@ -67,7 +67,7 @@ public class BrowserCsrfFilter extends OncePerRequestFilter {
         }
 
         boolean sessionCreation = "POST".equals(request.getMethod())
-            && "/api/v1/auth/browser-sessions".equals(request.getRequestURI());
+            && Set.of("/api/v1/auth/browser-sessions", "/api/v1/auth/google/proof").contains(request.getRequestURI());
         boolean hasBrowserCookie = StringUtils.hasText(browserSessionService.cookieValue(
             request,
             BrowserSessionService.SESSION_COOKIE_NAME

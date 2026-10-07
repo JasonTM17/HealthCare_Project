@@ -12,6 +12,34 @@ export type AuthFieldName =
 
 export type AuthFieldErrors = Partial<Record<AuthFieldName, string>>;
 
+/** Only destinations belonging to the issued session's role are accepted. */
+export function authSessionDestination(roles: readonly string[], next: string | null = null): string {
+  const safeNext = safeAuthNextPath(next);
+  for (const [role, prefix, fallback] of [
+    ["PATIENT", "/patient", "/patient/dashboard"],
+    ["DOCTOR", "/doctor", "/doctor/dashboard"],
+    ["ADMIN", "/admin", "/admin"],
+  ]) {
+    if (roles.includes(role)) {
+      return safeNext && (safeNext === prefix || safeNext.startsWith(`${prefix}/`)) ? safeNext : fallback;
+    }
+  }
+  return "/";
+}
+
+export const REGISTRATION_PASSWORD_HELP = "Mật khẩu từ 8 đến 128 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.";
+
+export function registrationPasswordError(password: string): string | null {
+  const missing: string[] = [];
+  if (password.length < 8 || password.length > 128) missing.push("từ 8 đến 128 ký tự");
+  if (!/[A-Z]/.test(password)) missing.push("chữ hoa");
+  if (!/[a-z]/.test(password)) missing.push("chữ thường");
+  if (!/[0-9]/.test(password)) missing.push("số");
+  if (!/[\W_]/.test(password)) missing.push("ký tự đặc biệt");
+  if (/[\r\n\u0085\u2028\u2029]/u.test(password)) missing.push("không chứa ký tự xuống dòng");
+  return missing.length ? `Mật khẩu cần ${missing.join(", ")}.` : null;
+}
+
 const FIELD_ALIASES: Record<string, AuthFieldName> = {
   display_name: "displayName",
   fullName: "displayName",
@@ -24,9 +52,9 @@ const FIELD_ALIASES: Record<string, AuthFieldName> = {
 
 const FIELD_ERROR_COPY: Record<AuthFieldName, string> = {
   displayName: "Vui lòng kiểm tra lại họ tên.",
-  phone: "Vui lòng kiểm tra lại số điện thoại.",
+  phone: "Số điện thoại chưa hợp lệ — dùng số bắt đầu bằng 0, gồm 8–15 chữ số (ví dụ 0901234567).",
   email: "Vui lòng kiểm tra lại địa chỉ email.",
-  password: "Mật khẩu chưa đáp ứng yêu cầu bảo mật.",
+  password: REGISTRATION_PASSWORD_HELP,
   confirmPassword: "Mật khẩu xác nhận chưa khớp.",
   code: "Mã xác minh chưa hợp lệ.",
   token: "Mã xác minh chưa hợp lệ hoặc đã hết hạn.",
@@ -35,7 +63,14 @@ const FIELD_ERROR_COPY: Record<AuthFieldName, string> = {
 // Error codes whose guidance must be shown on a specific input. Code-owned copy
 // always wins over the generic per-field copy so the recovery instruction is
 // never replaced by a bland "check this field" hint.
+const EMAIL_TAKEN_COPY =
+  "Email này đã có tài khoản. Hãy đăng nhập, hoặc dùng 'Quên mật khẩu' nếu bạn không nhớ mật khẩu.";
+
 const CODE_FIELD_COPY: Record<string, { field: AuthFieldName; message: string }> = {
+  EMAIL_ALREADY_REGISTERED: {
+    field: "email",
+    message: EMAIL_TAKEN_COPY,
+  },
   PHONE_LINKED_TO_BOOKING_EMAIL: {
     field: "email",
     message: "Hãy đăng ký bằng đúng email bạn đã dùng khi đặt lịch (email đã nhận mã xác nhận).",
@@ -100,11 +135,17 @@ export function authErrorMessage(error: unknown, fallback: string): string {
   if (apiError.status === 403) {
     return "Tài khoản của bạn không có quyền truy cập hoặc đã bị tạm khóa.";
   }
+  if (apiError.code === "EMAIL_ALREADY_REGISTERED") {
+    return EMAIL_TAKEN_COPY;
+  }
   if (apiError.code === "PHONE_LINKED_TO_BOOKING_EMAIL") {
     return "Hãy đăng ký bằng đúng email bạn đã dùng khi đặt lịch (email đã nhận mã xác nhận).";
   }
   if (apiError.code === "PHONE_OWNED_BY_ACCOUNT") {
     return "Số điện thoại này đã thuộc một tài khoản. Vui lòng đăng nhập bằng tài khoản đó thay vì tạo tài khoản mới.";
+  }
+  if (apiError.status === 400 && Object.keys(authFieldErrors(error)).length > 0) {
+    return "Vui lòng kiểm tra lại các trường được đánh dấu.";
   }
   if (apiError.status === 400 || apiError.status === 409 || apiError.status === 422) {
     return "Thông tin chưa hợp lệ hoặc đã được sử dụng. Vui lòng kiểm tra và thử lại.";

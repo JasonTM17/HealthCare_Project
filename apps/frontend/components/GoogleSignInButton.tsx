@@ -37,6 +37,8 @@ export function isGoogleSignInEnabled(): boolean {
 export default function GoogleSignInButton({ onCredential, busy = false }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scriptFailed, setScriptFailed] = useState(false);
+  const busyRef = useRef(busy);
+  useEffect(() => { busyRef.current = busy; }, [busy]);
   // Stable ref so the GIS callback always sees the latest handler without
   // re-running the loader effect.
   const handlerRef = useRef(onCredential);
@@ -53,7 +55,7 @@ export default function GoogleSignInButton({ onCredential, busy = false }: Props
       googleId.initialize({
         client_id: GOOGLE_CLIENT_ID,
         ux_mode: "popup",
-        callback: (response) => handlerRef.current(response.credential ?? ""),
+        callback: (response) => { if (!busyRef.current) handlerRef.current(response.credential ?? ""); },
       });
       const container = containerRef.current;
       if (container) {
@@ -72,12 +74,15 @@ export default function GoogleSignInButton({ onCredential, busy = false }: Props
       initialize();
       return;
     }
+    const failed = () => { if (!cancelled) setScriptFailed(true); };
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${GIS_SCRIPT_SRC}"]`);
     if (existing) {
       existing.addEventListener("load", initialize, { once: true });
+      existing.addEventListener("error", failed, { once: true });
       return () => {
         cancelled = true;
         existing.removeEventListener("load", initialize);
+        existing.removeEventListener("error", failed);
       };
     }
     const script = document.createElement("script");
@@ -85,15 +90,17 @@ export default function GoogleSignInButton({ onCredential, busy = false }: Props
     script.async = true;
     script.defer = true;
     script.addEventListener("load", initialize, { once: true });
-    script.addEventListener("error", () => setScriptFailed(true), { once: true });
+    script.addEventListener("error", failed, { once: true });
     document.head.appendChild(script);
     return () => {
       cancelled = true;
       script.removeEventListener("load", initialize);
+      script.removeEventListener("error", failed);
     };
   }, []);
 
-  if (!GOOGLE_CLIENT_ID || scriptFailed) return null;
+  if (!GOOGLE_CLIENT_ID) return null;
+  if (scriptFailed) return <p className="auth-form__note" role="status">Chưa tải được đăng nhập Google. Vui lòng tải lại trang hoặc đăng nhập bằng email.</p>;
 
   return (
     <div

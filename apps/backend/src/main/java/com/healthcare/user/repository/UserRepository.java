@@ -33,6 +33,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("select u from User u where u.email = :email")
     Optional<User> findByEmailForUpdate(@Param("email") String email);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.googleSubject = :subject")
+    Optional<User> findByGoogleSubjectForUpdate(@Param("subject") String subject);
+
     boolean existsByEmail(String email);
 
     /** Active shared demo personas (V70); non-demo deployments must have none. */

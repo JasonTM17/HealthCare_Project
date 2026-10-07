@@ -30,7 +30,9 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     ".next-header-probe/types/**/*.ts",
-    ".next-header-probe/dev/types/**/*.ts"
+    ".next-header-probe/dev/types/**/*.ts",
+    ".next-audit-261007/types/**/*.ts",
+    ".next-audit-261007/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

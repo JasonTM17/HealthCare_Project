@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
-import GoogleSignInButton, { isGoogleSignInEnabled } from "../../../components/GoogleSignInButton";
+import { isGoogleSignInEnabled } from "../../../components/GoogleSignInButton";
+import GoogleSignInFlow from "../../../components/google-sign-in-flow";
 import Icon from "../../../components/UiIcon";
 import styles from "./login.module.css";
-import { ApiError, hasRole, login, loginWithGoogle, type AuthSession } from "../../../lib/api-client";
-import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErrors } from "../../../lib/auth-flow";
+import { ApiError, login, type AuthSession } from "../../../lib/api-client";
+import { authErrorMessage, authFieldErrors, authSessionDestination, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 interface DemoRoleInfo {
   role: string;
@@ -83,43 +84,11 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
-  const [googleBusy, setGoogleBusy] = useState(false);
 
   const selectedRoleInfo = DEMO_ROLES.find((item) => item.role === selectedRole);
 
   const routeAfterLogin = (session: AuthSession): string => {
-    const nextPath = safeAuthNextPath(new URLSearchParams(window.location.search).get("next"));
-    return hasRole(session.user, "PATIENT") && nextPath?.startsWith("/patient")
-      ? nextPath
-      : hasRole(session.user, "DOCTOR") && nextPath?.startsWith("/doctor")
-        ? nextPath
-        : hasRole(session.user, "ADMIN") && nextPath?.startsWith("/admin")
-          ? nextPath
-          : hasRole(session.user, "PATIENT")
-            ? "/patient/dashboard"
-            : hasRole(session.user, "DOCTOR")
-              ? "/doctor/dashboard"
-              : hasRole(session.user, "ADMIN")
-                ? "/admin"
-                : "/";
-  };
-
-  const handleGoogleCredential = async (credential: string | undefined) => {
-    if (!credential) {
-      setErrorMessage("Google không trả về phiên đăng nhập hợp lệ. Vui lòng thử lại.");
-      return;
-    }
-    setGoogleBusy(true);
-    setErrorMessage(null);
-    try {
-      const session = await loginWithGoogle(credential);
-      // See handleSubmit: a hard navigation re-reads the just-set session
-      // cookie reliably.
-      window.location.assign(routeAfterLogin(session));
-    } catch (error) {
-      setErrorMessage(authErrorMessage(error, "Đăng nhập Google thất bại. Vui lòng thử lại."));
-      setGoogleBusy(false);
-    }
+    return authSessionDestination(session.user.roles, new URLSearchParams(window.location.search).get("next"));
   };
 
   const handleRoleSelect = (item: DemoRoleInfo) => {
@@ -145,15 +114,20 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    // Read the actual inputs: password managers may fill DOM values without
+    // dispatching React change events before the user submits.
+    const submitted = new FormData(event.currentTarget);
+    const submittedEmail = String(submitted.get("email") ?? "").trim();
+    const submittedPassword = String(submitted.get("password") ?? "");
     setErrorMessage(null);
     setFieldErrors({});
     setVerificationEmail(null);
 
     const clientErrors: AuthFieldErrors = {};
-    if (!email.trim()) {
+    if (!submittedEmail) {
       clientErrors.email = "Vui lòng nhập địa chỉ email của bạn.";
     }
-    if (!password) {
+    if (!submittedPassword) {
       clientErrors.password = "Vui lòng nhập mật khẩu đăng nhập.";
     }
     if (Object.keys(clientErrors).length > 0) {
@@ -169,7 +143,7 @@ export default function LoginPage() {
     }, 3000);
 
     try {
-      const session = await login({ email: email.trim(), password });
+      const session = await login({ email: submittedEmail, password: submittedPassword });
       const target = routeAfterLogin(session);
       // Hard navigation on purpose: the session cookie was just set by the
       // server, and a client-side replace occasionally raced the hydration and
@@ -179,7 +153,7 @@ export default function LoginPage() {
     } catch (error) {
       setFieldErrors(authFieldErrors(error));
       if (error instanceof ApiError && error.code === "EMAIL_VERIFICATION_REQUIRED") {
-        setVerificationEmail(email.trim());
+        setVerificationEmail(submittedEmail);
         setErrorMessage("Email này chưa được xác minh. Hãy nhập mã trong email để tiếp tục.");
       } else {
         setErrorMessage(authErrorMessage(error, "Email hoặc mật khẩu chưa chính xác."));
@@ -273,7 +247,7 @@ export default function LoginPage() {
           </div>
         ) : null}
 
-        <form className="auth-form" noValidate onSubmit={handleSubmit}>
+        <form autoComplete="on" className="auth-form" id="healthcare-login" noValidate onSubmit={handleSubmit}>
           {errorMessage ? (
             <div aria-live="assertive" className="auth-form__error" role="alert">
               <p>{errorMessage}</p>
@@ -316,10 +290,7 @@ export default function LoginPage() {
             <div className={styles.divider} role="separator" aria-hidden="true">
               <span>hoặc</span>
             </div>
-            <GoogleSignInButton busy={googleBusy} onCredential={(credential) => { void handleGoogleCredential(credential); }} />
-            {googleBusy ? (
-              <p className={styles.googleBusy}>Đang xác thực với Google…</p>
-            ) : null}
+            <GoogleSignInFlow onAuthenticated={(session) => window.location.assign(routeAfterLogin(session))} />
           </div>
         ) : null}
 

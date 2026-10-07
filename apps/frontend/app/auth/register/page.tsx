@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
-import GoogleSignInButton, { isGoogleSignInEnabled } from "../../../components/GoogleSignInButton";
-import { loginWithGoogle, register, resendVerificationEmail } from "../../../lib/api-client";
-import { authErrorMessage, authFieldErrors, maskEmail, type AuthFieldErrors } from "../../../lib/auth-flow";
+import { isGoogleSignInEnabled } from "../../../components/GoogleSignInButton";
+import GoogleSignInFlow from "../../../components/google-sign-in-flow";
+import { register, resendVerificationEmail } from "../../../lib/api-client";
+import { authErrorMessage, authFieldErrors, maskEmail, registrationPasswordError, REGISTRATION_PASSWORD_HELP, authSessionDestination, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 // Query-driven prefill (the /tra-cuu bridge appends ?phone=&email=) requires
 // the same Suspense boundary pattern as the verify-email and reset-password
@@ -26,27 +27,6 @@ function RegisterForm() {
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
-  const [googleBusy, setGoogleBusy] = useState(false);
-
-  const handleGoogleCredential = async (credential: string) => {
-    if (!credential) {
-      setErrorMessage("Google không trả về phiên đăng nhập hợp lệ. Vui lòng thử lại.");
-      return;
-    }
-    setGoogleBusy(true);
-    setErrorMessage(null);
-    try {
-      await loginWithGoogle(credential);
-      // Google-provisioned accounts are always patients; hard navigation so
-      // the just-set session cookie is re-read reliably (same reasoning as
-      // the login page's password flow).
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- hard reload is deliberate: the fresh session cookie must be re-read before client routing resumes
-      window.location.assign("/patient/dashboard");
-    } catch (error) {
-      setErrorMessage(authErrorMessage(error, "Đăng ký bằng Google thất bại. Vui lòng thử lại."));
-      setGoogleBusy(false);
-    }
-  };
 
   useEffect(() => {
     if (resendCooldown <= 0) return undefined;
@@ -62,9 +42,14 @@ function RegisterForm() {
     setFieldErrors({});
     setResendError(null);
     setResendMessage(null);
-    if (password !== confirmPassword) {
-      setFieldErrors({ confirmPassword: "Mật khẩu xác nhận chưa khớp." });
+    const clientErrors: AuthFieldErrors = {};
+    const passwordError = registrationPasswordError(password);
+    if (passwordError) clientErrors.password = passwordError;
+    if (password !== confirmPassword) clientErrors.confirmPassword = "Mật khẩu xác nhận chưa khớp.";
+    if (Object.keys(clientErrors).length > 0) {
+      setFieldErrors(clientErrors);
       setErrorMessage("Vui lòng kiểm tra lại các trường được đánh dấu.");
+      document.getElementById(passwordError ? "register-password" : "register-confirm")?.focus();
       return;
     }
 
@@ -153,8 +138,9 @@ function RegisterForm() {
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-password">Mật khẩu</label>
-              <input aria-describedby={fieldErrors.password ? "register-password-error" : "register-password-help"} aria-invalid={Boolean(fieldErrors.password)} autoComplete="new-password" id="register-password" maxLength={128} minLength={8} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
-              {fieldErrors.password ? <small className="auth-form__field-error" id="register-password-error">{fieldErrors.password}</small> : <small id="register-password-help">Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</small>}
+              <input aria-describedby={`register-password-help${fieldErrors.password ? " register-password-error" : ""}`} aria-invalid={Boolean(fieldErrors.password)} autoComplete="new-password" id="register-password" maxLength={128} minLength={8} onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => ({ ...current, password: undefined })); }} required type="password" value={password} />
+              <small id="register-password-help">{REGISTRATION_PASSWORD_HELP}</small>
+              {fieldErrors.password ? <small className="auth-form__field-error" id="register-password-error">{fieldErrors.password}</small> : null}
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-confirm">Xác nhận mật khẩu</label>
@@ -165,8 +151,9 @@ function RegisterForm() {
             {isGoogleSignInEnabled() ? (
               <div style={{ marginTop: 20 }}>
                 <div className="auth-form__divider" role="separator" aria-hidden="true"><span>hoặc</span></div>
-                <GoogleSignInButton busy={googleBusy} onCredential={(credential) => { void handleGoogleCredential(credential); }} />
-                {googleBusy ? <p className="auth-form__note" style={{ textAlign: "center" }}>Đang xác thực với Google…</p> : null}
+                <GoogleSignInFlow onAuthenticated={(session) => {
+                  window.location.assign(authSessionDestination(session.user.roles));
+                }} />
               </div>
             ) : null}
           </form>

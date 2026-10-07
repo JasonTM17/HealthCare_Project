@@ -1,0 +1,112 @@
+"use client";
+
+import { useEffect, useId, useRef, useState } from "react";
+import GoogleSignInButton from "./GoogleSignInButton";
+import { ApiError, loginWithGoogle, requestGoogleEmailProof, type AuthSession } from "../lib/api-client";
+import { authErrorMessage, maskEmail } from "../lib/auth-flow";
+
+/** Provider credentials are short-lived component memory, never browser storage. */
+export default function GoogleSignInFlow({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+  const inputId = useId();
+  const credentialRef = useRef<string | null>(null);
+  const inFlight = useRef(false);
+  const generation = useRef(0);
+  const [busy, setBusy] = useState(false);
+  const [proofMode, setProofMode] = useState<"email" | "password" | null>(null);
+  const [proofValue, setProofValue] = useState("");
+  const [email, setEmail] = useState("");
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => () => { generation.current += 1; credentialRef.current = null; }, []);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const timer = window.setTimeout(() => {
+      generation.current += 1;
+      credentialRef.current = null;
+      inFlight.current = false;
+      setBusy(false);
+      setProofMode(null);
+      setProofValue("");
+      setError("Phiên xác minh đã hết hạn. Vui lòng chọn tài khoản Google lại.");
+    }, Math.max(0, expiresAt - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [expiresAt]);
+
+  const attempt = async (credential: string, completing = false) => {
+    if (inFlight.current) return;
+    if (!credential) { setError("Google chưa trả về phiên hợp lệ. Vui lòng thử lại."); return; }
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    const current = ++generation.current;
+    credentialRef.current = credential;
+    try {
+      const session = await loginWithGoogle(credential, completing
+        ? proofMode === "email" ? { code: proofValue.trim() } : { password: proofValue }
+        : {});
+      if (generation.current !== current) return;
+      credentialRef.current = null;
+      setProofValue("");
+      onAuthenticated(session);
+    } catch (failure) {
+      if (generation.current !== current) return;
+      if (!completing && failure instanceof ApiError && failure.code === "GOOGLE_EMAIL_PROOF_REQUIRED") {
+        try {
+          const pending = await requestGoogleEmailProof(credential);
+          if (generation.current !== current) return;
+          setEmail(pending.email);
+          setProofMode("email");
+          setProofValue("");
+          setExpiresAt(Date.now() + Math.min(600, pending.expiresInSeconds) * 1000);
+        } catch (proofFailure) {
+          credentialRef.current = null;
+          setError(authErrorMessage(proofFailure, "Chưa thể gửi mã xác minh. Vui lòng thử lại."));
+        }
+      } else if (!completing && failure instanceof ApiError && failure.code === "GOOGLE_REAUTH_REQUIRED") {
+        setProofMode("password");
+        setProofValue("");
+        setExpiresAt(Date.now() + 5 * 60 * 1000);
+      } else {
+        setError(authErrorMessage(failure, "Chưa thể đăng nhập Google. Vui lòng thử lại."));
+        if (!completing) credentialRef.current = null;
+      }
+    } finally {
+      if (generation.current === current) { inFlight.current = false; setBusy(false); }
+    }
+  };
+
+  const cancel = () => {
+    generation.current += 1;
+    credentialRef.current = null;
+    inFlight.current = false;
+    setBusy(false);
+    setProofMode(null);
+    setProofValue("");
+    setExpiresAt(null);
+    setError(null);
+  };
+
+  return (
+    <section aria-label="Đăng nhập bằng Google" aria-busy={busy}>
+      {proofMode ? (
+        <div className="auth-form__field">
+          <p className="auth-form__note">{proofMode === "email"
+            ? `Nhập mã vừa gửi tới ${maskEmail(email)} để xác minh email và tiếp tục bằng Google.`
+            : "Nhập mật khẩu HealthCare hiện tại để liên kết an toàn tài khoản của bạn với Google."}</p>
+          <label htmlFor={inputId}>{proofMode === "email" ? "Mã xác minh Google" : "Mật khẩu HealthCare hiện tại"}</label>
+          <input id={inputId} autoComplete={proofMode === "email" ? "one-time-code" : "current-password"}
+            type={proofMode === "email" ? "text" : "password"} inputMode={proofMode === "email" ? "numeric" : undefined}
+            maxLength={proofMode === "email" ? 6 : 128} disabled={busy} value={proofValue}
+            onChange={(event) => setProofValue(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); if (proofValue && credentialRef.current) void attempt(credentialRef.current, true); } }} />
+          <button className="button button--primary" type="button" disabled={busy || !proofValue || (proofMode === "email" && !/^\d{6}$/.test(proofValue.trim()))}
+            onClick={() => { if (credentialRef.current) void attempt(credentialRef.current, true); }}>Xác minh và đăng nhập Google</button>
+          <button className="text-button" type="button" onClick={cancel}>Chọn lại tài khoản Google</button>
+        </div>
+      ) : <GoogleSignInButton busy={busy} onCredential={(credential) => { void attempt(credential); }} />}
+      {busy ? <p className="auth-form__note" role="status">Đang xác thực với Google…</p> : null}
+      {error ? <p className="auth-form__error" role="alert">{error}</p> : null}
+    </section>
+  );
+}

@@ -28,6 +28,10 @@ test("CI credential scan uses extended regex and catches synthetic secret-shaped
     await writeFile(path.join(tempRoot, "README.txt"), "synthetic fixture repo\n", "utf8");
     await writeFile(path.join(tempRoot, "safe.txt"), "plain note without secrets\n", "utf8");
     await writeFile(path.join(tempRoot, "secret.txt"), `token=${["AKIA", "0".repeat(16)].join("")}\n`, "utf8");
+    await writeFile(path.join(tempRoot, "private-key.txt"),
+      ["-----BEGIN ", "RSA PRIVATE KEY-----\nfixture\n"].join(""), "utf8");
+    await writeFile(path.join(tempRoot, "jwt.txt"),
+      ["eyJ", "a".repeat(15), ".", "b".repeat(15), ".", "c".repeat(15)].join(""), "utf8");
 
     const init = runGit(tempRoot, ["init", "-q"]);
     assert.equal(init.status, 0, init.stderr);
@@ -44,6 +48,8 @@ test("CI credential scan uses extended regex and catches synthetic secret-shaped
     const extended = runGit(tempRoot, ["grep", "-I", "-E", "-l", "-e", pattern, "HEAD", "--", "."]);
     assert.equal(extended.status, 0, extended.stderr);
     assert.match(extended.stdout, /secret\.txt/);
+    assert.match(extended.stdout, /private-key\.txt/);
+    assert.match(extended.stdout, /jwt\.txt/);
     assert.doesNotMatch(extended.stdout, /safe\.txt/);
 
     const basic = runGit(tempRoot, ["grep", "-I", "-l", "-e", pattern, "HEAD", "--", "."]);

@@ -53,7 +53,7 @@ jobs:
           # Explicit port publish instead of --network host: newer ubuntu-latest
           # runner images reject host networking for detached containers (exit 125).
           # quay.io mirror: Docker Hub anonymous pulls were rate-limited on the
-          # runner IP pool (pull access denied → exit 125) starting 2026-09-12.
+          # runner IP pool (pull access denied -> exit 125) starting 2026-09-12.
           # quay.io itself now intermittently rejects anonymous pulls with the
           # same exit 125, so try each registry in turn before failing the job.
           MINIO_IMAGE=""
@@ -391,7 +391,7 @@ jobs:
           set -euo pipefail
 
           forbidden_files="$({
-            git ls-files | grep -E '(^|/)\.env(\..*)?$|\.(pem|key|p12|pfx)$'
+            git ls-files | grep -E '(^|/)\.env(\..*)?$|\.(pem|key|p12|pfx)$|(^|/)\.auth/'
           } | grep -vE '(^|/)\.env\.example$' || true)"
           if [ -n "$forbidden_files" ]; then
             echo "::error::Tracked environment or private-key files detected"
@@ -400,7 +400,7 @@ jobs:
           fi
 
           credential_files=""
-          if credential_files="$(git grep -I -E -l -e '-----BEGIN (RSA|EC|OPENSSH|DSA|PGP|PRIVATE) KEY-----|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}' HEAD -- .)"; then
+          if credential_files="$(git grep -I -E -l -e '-----BEGIN ((RSA|EC|OPENSSH|DSA) )?PRIVATE KEY-----|-----BEGIN PGP PRIVATE KEY BLOCK-----|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' HEAD -- .)"; then
             :
           else
             grep_status=$?

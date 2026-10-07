@@ -56,6 +56,7 @@ import {
 } from "../../../components/PortalStates";
 import PortalAppointments from "../../../components/PortalAppointments";
 import { BUSINESS_TIME_ZONE, businessDate, formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
+import { registrationPasswordError, REGISTRATION_PASSWORD_HELP } from "../../../lib/auth-flow";
 import UiIcon, { type IconName } from "../../../components/UiIcon";
 import ImageUpload from "../../../components/ImageUpload";
 import careHubStyles from "./CareHub.module.css";
@@ -1435,8 +1436,9 @@ export default function PatientDashboardPage() {
       setPasswordNotice("Mật khẩu mới và xác nhận mật khẩu không khớp.");
       return;
     }
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordNotice("Mật khẩu mới phải có ít nhất 8 ký tự.");
+    const passwordError = registrationPasswordError(passwordForm.newPassword);
+    if (passwordError) {
+      setPasswordNotice(passwordError);
       return;
     }
     setPasswordOperation("saving");
@@ -2410,7 +2412,7 @@ export default function PatientDashboardPage() {
                       </span>
                       <div>
                         <h3 className="text-base font-bold text-teal-950 leading-snug">Đổi mật khẩu tài khoản</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Mật khẩu mới cần tối thiểu 8 ký tự để bảo vệ thông tin sức khỏe riêng tư</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{REGISTRATION_PASSWORD_HELP}</p>
                       </div>
                     </div>
                     <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-[4px] text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
