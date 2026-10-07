@@ -10,12 +10,18 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.RedisConnectionFailureException;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RequestRateLimitFilterTest {
@@ -104,6 +110,93 @@ class RequestRateLimitFilterTest {
 
         assertThat(response.getStatus()).isEqualTo(503);
         assertThat(accepted).hasValue(0);
+    }
+
+    @Test
+    void redisExpiryReadFailureKeepsTheSharedCounterForTheNextRequest() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment()
+            .withProperty("app.security.rate-limit.redis-required", "true");
+        AtomicLong sharedCounter = new AtomicLong();
+        AtomicInteger expiryCalls = new AtomicInteger();
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        ValueOperations values = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        when(values.increment(anyString())).thenAnswer(invocation -> sharedCounter.incrementAndGet());
+        when(redis.getExpire(anyString())).thenAnswer(invocation -> {
+            if (expiryCalls.incrementAndGet() == 2) {
+                throw new RedisConnectionFailureException("synthetic expiry-read failure");
+            }
+            return 60L;
+        });
+        when(redis.delete(anyString())).thenAnswer(invocation -> {
+            sharedCounter.set(0);
+            return true;
+        });
+
+        RequestRateLimitFilter filter = filter(environment, redis);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse first = invokeAuth(filter, accepted, "198.51.100.71", null, null, null, null);
+        MockHttpServletResponse unavailable = invokeAuth(filter, accepted, "198.51.100.71", null, null, null, null);
+        MockHttpServletResponse stillLimited = invokeAuth(filter, accepted, "198.51.100.71", null, null, null, null);
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(unavailable.getStatus()).isEqualTo(503);
+        assertThat(stillLimited.getStatus()).isEqualTo(429);
+        assertThat(accepted).hasValue(1);
+        verify(redis, never()).delete(anyString());
+    }
+
+    @Test
+    void redisRequiredFailuresNeverDeleteTheSharedCounter() throws Exception {
+        for (String failurePoint : List.of("increment", "null-count", "expiry-set")) {
+            MockEnvironment environment = rateLimitEnvironment()
+                .withProperty("app.security.rate-limit.redis-required", "true");
+            StringRedisTemplate redis = mock(StringRedisTemplate.class);
+            ValueOperations values = mock(ValueOperations.class);
+            when(redis.opsForValue()).thenReturn(values);
+            if ("increment".equals(failurePoint)) {
+                when(values.increment(anyString()))
+                    .thenThrow(new RedisConnectionFailureException("synthetic increment failure"));
+            } else if ("null-count".equals(failurePoint)) {
+                when(values.increment(anyString())).thenAnswer(invocation -> null);
+            } else {
+                when(values.increment(anyString())).thenReturn(1L);
+                when(redis.getExpire(anyString())).thenReturn(-1L);
+                when(redis.expire(anyString(), any(Duration.class))).thenReturn(false);
+            }
+
+            MockHttpServletResponse response = invokeAuth(
+                filter(environment, redis), new AtomicInteger(), "198.51.100.72", null, null, null, null
+            );
+
+            assertThat(response.getStatus()).as(failurePoint).isEqualTo(503);
+            verify(redis, never()).delete(anyString());
+        }
+    }
+
+    @Test
+    void redisOptionalFailureUsesTheBoundedLocalFallbackWithoutDeletingTheSharedCounter() throws Exception {
+        MockEnvironment environment = rateLimitEnvironment()
+            .withProperty("app.security.rate-limit.redis-required", "false");
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        ValueOperations values = mock(ValueOperations.class);
+        when(redis.opsForValue()).thenReturn(values);
+        when(values.increment(anyString())).thenReturn(1L, 2L, 3L);
+        when(redis.getExpire(anyString()))
+            .thenThrow(new RedisConnectionFailureException("synthetic optional Redis failure"));
+
+        RequestRateLimitFilter filter = filter(environment, redis);
+        AtomicInteger accepted = new AtomicInteger();
+
+        MockHttpServletResponse first = invokeAuth(filter, accepted, "198.51.100.73", null, null, null, null);
+        MockHttpServletResponse second = invokeAuth(filter, accepted, "198.51.100.73", null, null, null, null);
+        MockHttpServletResponse third = invokeAuth(filter, accepted, "198.51.100.73", null, null, null, null);
+
+        assertThat(first.getStatus()).isEqualTo(200);
+        assertThat(second.getStatus()).isEqualTo(429);
+        assertThat(third.getStatus()).isEqualTo(429);
+        verify(redis, never()).delete(anyString());
     }
 
     @Test
