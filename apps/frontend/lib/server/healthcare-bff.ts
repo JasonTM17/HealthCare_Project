@@ -178,6 +178,7 @@ const BLOCKED_BEARER_MINT_PATHS = new Set([
 
 export interface HealthcareBffRuntimeConfig {
   backendOrigin: string;
+  backupBackendOrigin?: string;
   publicOrigin?: string;
   serviceToken: string;
   requestTimeoutMs: number;
@@ -527,6 +528,27 @@ function recordUpstreamRetry(requestId: string, reason: string, status?: number)
   });
 }
 
+let primaryOutageUntil = 0;
+
+export function isPrimaryBackendDown(): boolean {
+  return Date.now() < primaryOutageUntil;
+}
+
+export function markPrimaryBackendDown(durationMs = 60_000): void {
+  primaryOutageUntil = Date.now() + durationMs;
+}
+
+export function markPrimaryBackendUp(): void {
+  primaryOutageUntil = 0;
+}
+
+export function resolveActiveBackendOrigin(runtime: HealthcareBffRuntimeConfig, forceBackup = false): string {
+  if ((forceBackup || isPrimaryBackendDown()) && runtime.backupBackendOrigin) {
+    return runtime.backupBackendOrigin;
+  }
+  return runtime.backendOrigin;
+}
+
 interface UpstreamRetryOptions {
   /** False for every non-retryable method (see RETRYABLE_METHODS). */
   allowed: boolean;
@@ -534,6 +556,8 @@ interface UpstreamRetryOptions {
   canRetry: () => boolean;
   requestId: string;
   signal: AbortSignal;
+  onFirstAttemptFailed?: () => void;
+  onAttemptSucceeded?: (isRetry: boolean) => void;
 }
 
 /**
@@ -547,29 +571,49 @@ interface UpstreamRetryOptions {
  * BFF_UPSTREAM_UNAVAILABLE.
  */
 async function fetchUpstreamWithRetry(
-  attempt: () => Promise<Response>,
+  attempt: (isRetry: boolean) => Promise<Response>,
   options: UpstreamRetryOptions,
 ): Promise<Response | null> {
-  if (!options.allowed) return attempt();
+  if (!options.allowed) {
+    try {
+      const response = await attempt(false);
+      options.onAttemptSucceeded?.(false);
+      return response;
+    } catch (error) {
+      options.onFirstAttemptFailed?.();
+      throw error;
+    }
+  }
 
   let response: Response;
   try {
-    response = await attempt();
+    response = await attempt(false);
   } catch (error) {
+    options.onFirstAttemptFailed?.();
     if (!options.canRetry()) throw error;
     recordUpstreamRetry(options.requestId, "network_error");
     await waitForRetryBackoff(options.signal);
     if (!options.canRetry()) throw error;
-    return attempt();
+    const retryResponse = await attempt(true);
+    options.onAttemptSucceeded?.(true);
+    return retryResponse;
   }
 
-  if (!RETRYABLE_UPSTREAM_STATUSES.has(response.status) || !options.canRetry()) return response;
+  if (!RETRYABLE_UPSTREAM_STATUSES.has(response.status)) {
+    options.onAttemptSucceeded?.(false);
+    return response;
+  }
+
+  options.onFirstAttemptFailed?.();
+  if (!options.canRetry()) return response;
 
   recordUpstreamRetry(options.requestId, "upstream_status", response.status);
   await cancelUpstreamBody(response, "BFF_UPSTREAM_RETRY");
   await waitForRetryBackoff(options.signal);
   if (!options.canRetry()) return null;
-  return attempt();
+  const retryResponse = await attempt(true);
+  options.onAttemptSucceeded?.(true);
+  return retryResponse;
 }
 
 function normalizeBackendOrigin(rawValue: string): string {
@@ -610,6 +654,10 @@ export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
   const backendOrigin = normalizeBackendOrigin(
     rawBackend || DEFAULT_BACKEND_ORIGIN,
   );
+  const rawBackup = process.env.BACKEND_BACKUP_URL?.trim() || process.env.BACKEND_FALLBACK_URL?.trim();
+  const backupBackendOrigin = rawBackup
+    ? normalizeBackendOrigin(rawBackup)
+    : (process.env.NODE_ENV === "production" ? "https://healthcare-backup-backend.onrender.com" : undefined);
   const configuredPublicOrigin = process.env.BFF_PUBLIC_ORIGIN?.trim();
   const defaultOrigins = "https://healthcare.id.vn,https://www.healthcare.id.vn";
   const mergedPublicOrigins = configuredPublicOrigin
@@ -623,6 +671,7 @@ export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
   }
   return {
     backendOrigin,
+    backupBackendOrigin,
     publicOrigin,
     serviceToken,
     requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
@@ -1192,8 +1241,12 @@ export async function proxyHealthcareRequest(
       throw new BffRequestError(503, "BFF_CONFIGURATION_UNAVAILABLE");
     }
     const browserOrigin = normalizedBrowserOrigin(request, runtime.publicOrigin);
-    const target = new URL(`${apiPath}${requestUrl.search}`, `${runtime.backendOrigin}/`);
-    if (target.origin !== normalizeBackendOrigin(runtime.backendOrigin)) {
+    const activeOrigin = resolveActiveBackendOrigin(runtime);
+    const target = new URL(`${apiPath}${requestUrl.search}`, `${activeOrigin}/`);
+    if (
+      target.origin !== normalizeBackendOrigin(runtime.backendOrigin)
+      && (!runtime.backupBackendOrigin || target.origin !== normalizeBackendOrigin(runtime.backupBackendOrigin))
+    ) {
       throw new BffRequestError(400, "BFF_TARGET_INVALID");
     }
 
@@ -1232,7 +1285,7 @@ export async function proxyHealthcareRequest(
         cancelHeaders.delete("x-csrf-token");
         const cancellationTarget = new URL(
           `${INTERNAL_CHAT_CANCEL_PATH}/${encodeURIComponent(requestId)}`,
-          `${runtime.backendOrigin}/`,
+          `${resolveActiveBackendOrigin(runtime)}/`,
         );
         let delivered = false;
         let lastStatus: number | undefined;
@@ -1341,7 +1394,7 @@ export async function proxyHealthcareRequest(
 
     const leaseTarget = new URL(
       `${INTERNAL_CHAT_LEASE_PATH}/${encodeURIComponent(requestId)}/renew`,
-      `${runtime.backendOrigin}/`,
+      `${resolveActiveBackendOrigin(runtime)}/`,
     );
     const leaseControlHeaders = new Headers({
       Accept: "application/json",
@@ -1458,7 +1511,7 @@ export async function proxyHealthcareRequest(
         const openStartedAt = Date.now();
         const openResponse = await (options.fetchImpl ?? fetch)(new URL(
           `${INTERNAL_CHAT_LEASE_PATH}/${encodeURIComponent(requestId)}/open`,
-          `${runtime.backendOrigin}/`,
+          `${resolveActiveBackendOrigin(runtime)}/`,
         ), {
           method: "POST",
           headers: openHeaders,
@@ -1504,7 +1557,7 @@ export async function proxyHealthcareRequest(
       const isStream = apiPath.endsWith("/messages/stream");
       const preparePath = apiPath.replace(/\/messages(?:\/stream)?$/u, "/messages/prepare");
       const commitPath = apiPath.replace(/\/messages(?:\/stream)?$/u, "/messages/commit");
-      const prepareTarget = new URL(preparePath, `${runtime.backendOrigin}/`);
+      const prepareTarget = new URL(preparePath, `${resolveActiveBackendOrigin(runtime)}/`);
       const prepareHeaders = new Headers(headers);
       if (isStream) prepareHeaders.set(PRIVATE_CHAT_DELIVERY_HEADER, "chunked");
       // Prepare returns JSON even when the browser asked for an SSE stream:
@@ -1583,7 +1636,7 @@ export async function proxyHealthcareRequest(
         commitHeaders.set("Accept", "application/json");
         let commitResponse: Response;
         try {
-          commitResponse = await (options.fetchImpl ?? fetch)(new URL(commitPath, `${runtime.backendOrigin}/`), {
+          commitResponse = await (options.fetchImpl ?? fetch)(new URL(commitPath, `${resolveActiveBackendOrigin(runtime)}/`), {
             method: "POST",
             headers: commitHeaders,
             body: JSON.stringify({ preparedPayload, commitPermit }),
@@ -1647,19 +1700,33 @@ export async function proxyHealthcareRequest(
       && !requestController.signal.aborted
       && retryDeadlineAt - Date.now() > RETRY_MIN_REMAINING_MS;
     const upstream = await fetchUpstreamWithRetry(
-      () => (options.fetchImpl ?? fetch)(target, {
-        method,
-        headers,
-        body,
-        cache: "no-store",
-        redirect: "manual",
-        signal: requestController.signal,
-      }),
+      (isRetry) => {
+        const originToUse = resolveActiveBackendOrigin(runtime, isRetry);
+        const activeTarget = new URL(`${apiPath}${requestUrl.search}`, `${originToUse}/`);
+        return (options.fetchImpl ?? fetch)(activeTarget, {
+          method,
+          headers,
+          body,
+          cache: "no-store",
+          redirect: "manual",
+          signal: requestController.signal,
+        });
+      },
       {
         allowed: retryAllowed,
         canRetry: canRetryUpstream,
         requestId,
         signal: requestController.signal,
+        onFirstAttemptFailed: () => {
+          if (runtime.backupBackendOrigin) {
+            markPrimaryBackendDown();
+          }
+        },
+        onAttemptSucceeded: (isRetry) => {
+          if (!isRetry) {
+            markPrimaryBackendUp();
+          }
+        },
       },
     );
     stopChatLeaseHeartbeat?.();
