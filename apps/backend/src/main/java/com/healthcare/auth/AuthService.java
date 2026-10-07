@@ -31,6 +31,7 @@ import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.appointment.service.AppointmentClaimService;
 import com.healthcare.appointment.service.BookingService;
 import com.healthcare.auth.security.AuthRateLimiter;
+import com.healthcare.auth.security.PasswordInputPolicy;
 import com.healthcare.auth.dto.BrowserSessionCreateRequest;
 import com.healthcare.auth.dto.GoogleProofResponse;
 import com.healthcare.auth.service.BrowserSessionService;
@@ -116,6 +117,12 @@ public class AuthService {
 
     @Transactional
     public RegistrationPendingResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
+        if (!PasswordInputPolicy.fitsBcrypt(request.password())) {
+            throw new ValidationException(
+                PasswordInputPolicy.EXCEEDS_BCRYPT_MESSAGE,
+                List.of(new ApiError.FieldError("password", PasswordInputPolicy.EXCEEDS_BCRYPT_MESSAGE))
+            );
+        }
         String normalizedEmail = request.email().toLowerCase().trim();
 
         if (userRepository.existsByEmail(normalizedEmail)) {
@@ -217,6 +224,9 @@ public class AuthService {
         User user = userSecurityLock.findByEmailForUpdate(normalizedEmail)
             .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
+        if (!PasswordInputPolicy.fitsBcrypt(request.password())) {
+            throw new BadCredentialsException("Invalid email or password");
+        }
         try {
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(normalizedEmail, request.password())
@@ -331,6 +341,12 @@ public class AuthService {
     @Transactional(noRollbackFor = OtpVerificationException.class)
     public AuthActionResponse confirmPasswordReset(PasswordResetConfirmRequest request,
                                                     HttpServletRequest httpRequest) {
+        if (!PasswordInputPolicy.fitsBcrypt(request.password())) {
+            throw new ValidationException(
+                PasswordInputPolicy.EXCEEDS_BCRYPT_MESSAGE,
+                List.of(new ApiError.FieldError("password", PasswordInputPolicy.EXCEEDS_BCRYPT_MESSAGE))
+            );
+        }
         User user = authOtpService.confirmPasswordReset(request.email(), request.token(), httpRequest);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setUpdatedAt(OffsetDateTime.now());
@@ -355,11 +371,18 @@ public class AuthService {
                                UUID currentBrowserSessionId) {
         User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new BadCredentialsException("Tài khoản không tồn tại"));
-        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+        if (!PasswordInputPolicy.fitsBcrypt(currentPassword)
+                || !passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new BadCredentialsException("Mật khẩu hiện tại không chính xác");
         }
-        if (newPassword == null || newPassword.trim().length() < 8) {
+        if (newPassword == null || newPassword.length() < 8) {
             throw new BusinessException(400, ErrorCodes.VALIDATION_ERROR, "Mật khẩu mới phải có ít nhất 8 ký tự");
+        }
+        if (!PasswordInputPolicy.fitsBcrypt(newPassword)) {
+            throw new ValidationException(
+                PasswordInputPolicy.EXCEEDS_BCRYPT_MESSAGE,
+                List.of(new ApiError.FieldError("newPassword", PasswordInputPolicy.EXCEEDS_BCRYPT_MESSAGE))
+            );
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setUpdatedAt(OffsetDateTime.now());
@@ -634,7 +657,8 @@ public class AuthService {
     }
 
     private void requireGooglePassword(User user, String password) {
-        if (!user.isEmailVerified() || password.isBlank() || !passwordEncoder.matches(password, user.getPasswordHash())) {
+        if (!user.isEmailVerified() || password.isBlank() || !PasswordInputPolicy.fitsBcrypt(password)
+                || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new BadCredentialsException("Invalid local account proof");
         }
     }

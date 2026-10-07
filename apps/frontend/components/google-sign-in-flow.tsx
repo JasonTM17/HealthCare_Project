@@ -9,6 +9,7 @@ import { authErrorMessage, maskEmail } from "../lib/auth-flow";
 export default function GoogleSignInFlow({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
   const inputId = useId();
   const credentialRef = useRef<string | null>(null);
+  const proofInputRef = useRef<HTMLInputElement>(null);
   const inFlight = useRef(false);
   const generation = useRef(0);
   const [busy, setBusy] = useState(false);
@@ -36,6 +37,18 @@ export default function GoogleSignInFlow({ onAuthenticated }: { onAuthenticated:
   const attempt = async (credential: string, completing = false) => {
     if (inFlight.current) return;
     if (!credential) { setError("Google chưa trả về phiên hợp lệ. Vui lòng thử lại."); return; }
+    const submittedProof = completing ? proofInputRef.current?.value ?? "" : "";
+    if (completing) {
+      if (proofMode === "email" && !/^\d{6}$/.test(submittedProof.trim())) {
+        setError("Vui lòng nhập mã xác minh gồm 6 chữ số.");
+        return;
+      }
+      if (proofMode === "password" && !submittedProof) {
+        setError("Vui lòng nhập mật khẩu HealthCare hiện tại.");
+        return;
+      }
+      setProofValue(submittedProof);
+    }
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -43,7 +56,7 @@ export default function GoogleSignInFlow({ onAuthenticated }: { onAuthenticated:
     credentialRef.current = credential;
     try {
       const session = await loginWithGoogle(credential, completing
-        ? proofMode === "email" ? { code: proofValue.trim() } : { password: proofValue }
+        ? proofMode === "email" ? { code: submittedProof.trim() } : { password: submittedProof }
         : {});
       if (generation.current !== current) return;
       credentialRef.current = null;
@@ -95,12 +108,12 @@ export default function GoogleSignInFlow({ onAuthenticated }: { onAuthenticated:
             ? `Nhập mã vừa gửi tới ${maskEmail(email)} để xác minh email và tiếp tục bằng Google.`
             : "Nhập mật khẩu HealthCare hiện tại để liên kết an toàn tài khoản của bạn với Google."}</p>
           <label htmlFor={inputId}>{proofMode === "email" ? "Mã xác minh Google" : "Mật khẩu HealthCare hiện tại"}</label>
-          <input id={inputId} autoComplete={proofMode === "email" ? "one-time-code" : "current-password"}
+          <input id={inputId} ref={proofInputRef} name="googleProof" autoComplete={proofMode === "email" ? "one-time-code" : "current-password"}
             type={proofMode === "email" ? "text" : "password"} inputMode={proofMode === "email" ? "numeric" : undefined}
             maxLength={proofMode === "email" ? 6 : 128} disabled={busy} value={proofValue}
             onChange={(event) => setProofValue(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); if (proofValue && credentialRef.current) void attempt(credentialRef.current, true); } }} />
-          <button className="button button--primary" type="button" disabled={busy || !proofValue || (proofMode === "email" && !/^\d{6}$/.test(proofValue.trim()))}
+            onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.stopPropagation(); if (credentialRef.current) void attempt(credentialRef.current, true); } }} />
+          <button className="button button--primary" type="button" disabled={busy}
             onClick={() => { if (credentialRef.current) void attempt(credentialRef.current, true); }}>Xác minh và đăng nhập Google</button>
           <button className="text-button" type="button" onClick={cancel}>Chọn lại tài khoản Google</button>
         </div>

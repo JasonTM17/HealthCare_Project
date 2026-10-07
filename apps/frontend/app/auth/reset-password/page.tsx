@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import { resetPassword } from "../../../lib/api-client";
-import { authErrorMessage, authFieldErrors, registrationPasswordError, type AuthFieldErrors } from "../../../lib/auth-flow";
+import { authErrorMessage, authFieldErrors, registrationPasswordError, REGISTRATION_PASSWORD_HELP, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -20,21 +20,30 @@ function ResetPasswordForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submitted = new FormData(event.currentTarget);
+    const submittedEmail = String(submitted.get("email") ?? "");
+    const submittedCode = String(submitted.get("code") ?? code);
+    const submittedPassword = String(submitted.get("password") ?? "");
+    const submittedConfirmPassword = String(submitted.get("confirmPassword") ?? "");
+    setEmail(submittedEmail);
+    setCode(submittedCode);
+    setPassword(submittedPassword);
+    setConfirmPassword(submittedConfirmPassword);
     setErrorMessage(null);
     setFieldErrors({});
-    const passwordError = registrationPasswordError(password);
-    if (passwordError || password !== confirmPassword) {
+    const passwordError = registrationPasswordError(submittedPassword);
+    if (passwordError || submittedPassword !== submittedConfirmPassword) {
       setFieldErrors({
         ...(passwordError ? { password: passwordError } : {}),
-        ...(password !== confirmPassword ? { confirmPassword: "Mật khẩu xác nhận chưa khớp." } : {}),
+        ...(submittedPassword !== submittedConfirmPassword ? { confirmPassword: "Mật khẩu xác nhận chưa khớp." } : {}),
       });
       setErrorMessage("Vui lòng kiểm tra lại các trường được đánh dấu.");
       return;
     }
-    if (!email.trim() || !code.trim()) {
+    if (!submittedEmail.trim() || !submittedCode.trim()) {
       setFieldErrors({
-        ...(email.trim() ? {} : { email: "Nhập email đã yêu cầu đặt lại." }),
-        ...(code.trim() ? {} : { code: "Nhập mã đặt lại trong email của bạn." }),
+        ...(submittedEmail.trim() ? {} : { email: "Nhập email đã yêu cầu đặt lại." }),
+        ...(submittedCode.trim() ? {} : { code: "Nhập mã đặt lại trong email của bạn." }),
       });
       setErrorMessage("Cần có email và mã đặt lại để tiếp tục.");
       return;
@@ -42,7 +51,7 @@ function ResetPasswordForm() {
 
     setSubmitting(true);
     try {
-      await resetPassword({ email: email.trim(), code: code.trim(), password });
+      await resetPassword({ email: submittedEmail.trim(), code: submittedCode.trim(), password: submittedPassword });
       setComplete(true);
     } catch (error) {
       setFieldErrors(authFieldErrors(error));
@@ -87,12 +96,12 @@ function ResetPasswordForm() {
             ) : null}
             <div className="auth-form__field">
               <label htmlFor="reset-password">Mật khẩu mới</label>
-              <input aria-describedby={fieldErrors.password ? "reset-password-error" : "reset-password-help"} aria-invalid={Boolean(fieldErrors.password)} autoComplete="new-password" id="reset-password" maxLength={128} minLength={8} onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
-              {fieldErrors.password ? <small className="auth-form__field-error" id="reset-password-error">{fieldErrors.password}</small> : <small id="reset-password-help">Ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</small>}
+              <input aria-describedby={fieldErrors.password ? "reset-password-error" : "reset-password-help"} aria-invalid={Boolean(fieldErrors.password)} autoComplete="new-password" id="reset-password" maxLength={128} minLength={8} name="password" onChange={(event) => setPassword(event.target.value)} required type="password" value={password} />
+              {fieldErrors.password ? <small className="auth-form__field-error" id="reset-password-error">{fieldErrors.password}</small> : <small id="reset-password-help">{REGISTRATION_PASSWORD_HELP}</small>}
             </div>
             <div className="auth-form__field">
               <label htmlFor="reset-confirm">Xác nhận mật khẩu mới</label>
-              <input aria-describedby={fieldErrors.confirmPassword ? "reset-confirm-error" : undefined} aria-invalid={Boolean(fieldErrors.confirmPassword)} autoComplete="new-password" id="reset-confirm" onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
+              <input aria-describedby={fieldErrors.confirmPassword ? "reset-confirm-error" : undefined} aria-invalid={Boolean(fieldErrors.confirmPassword)} autoComplete="new-password" id="reset-confirm" name="confirmPassword" onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
               {fieldErrors.confirmPassword ? <small className="auth-form__field-error" id="reset-confirm-error">{fieldErrors.confirmPassword}</small> : null}
             </div>
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">

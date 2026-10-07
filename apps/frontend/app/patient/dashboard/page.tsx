@@ -1432,11 +1432,16 @@ export default function PatientDashboardPage() {
 
   const handleChangePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+    const submitted = new FormData(event.currentTarget);
+    const submittedCurrentPassword = String(submitted.get("currentPassword") ?? "");
+    const submittedNewPassword = String(submitted.get("newPassword") ?? "");
+    const submittedConfirmPassword = String(submitted.get("confirmPassword") ?? "");
+    setPasswordForm({ currentPassword: submittedCurrentPassword, newPassword: submittedNewPassword, confirmPassword: submittedConfirmPassword });
+    if (submittedNewPassword !== submittedConfirmPassword) {
       setPasswordNotice("Mật khẩu mới và xác nhận mật khẩu không khớp.");
       return;
     }
-    const passwordError = registrationPasswordError(passwordForm.newPassword);
+    const passwordError = registrationPasswordError(submittedNewPassword);
     if (passwordError) {
       setPasswordNotice(passwordError);
       return;
@@ -1445,8 +1450,8 @@ export default function PatientDashboardPage() {
     setPasswordNotice(null);
     try {
       await changePassword({
-        currentPassword: passwordForm.currentPassword,
-        newPassword: passwordForm.newPassword,
+        currentPassword: submittedCurrentPassword,
+        newPassword: submittedNewPassword,
       });
       setPasswordNotice("Đã đổi mật khẩu thành công.");
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -2426,6 +2431,7 @@ export default function PatientDashboardPage() {
                       <input
                         required
                         type="password"
+                        name="currentPassword"
                         className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                         value={passwordForm.currentPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, currentPassword: e.target.value }))}
@@ -2438,6 +2444,7 @@ export default function PatientDashboardPage() {
                         required
                         type="password"
                         minLength={8}
+                        name="newPassword"
                         className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                         value={passwordForm.newPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, newPassword: e.target.value }))}
@@ -2450,6 +2457,7 @@ export default function PatientDashboardPage() {
                         required
                         type="password"
                         minLength={8}
+                        name="confirmPassword"
                         className="w-full h-11 px-3.5 bg-white border border-slate-300 focus:border-teal-600 focus:ring-1 focus:ring-teal-600 rounded-[4px] text-sm text-slate-900 font-medium transition-colors outline-none"
                         value={passwordForm.confirmPassword}
                         onChange={(e) => setPasswordForm((v) => ({ ...v, confirmPassword: e.target.value }))}

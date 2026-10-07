@@ -38,14 +38,25 @@ function RegisterForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submitted = new FormData(event.currentTarget);
+    const submittedDisplayName = String(submitted.get("displayName") ?? "");
+    const submittedPhone = String(submitted.get("phone") ?? "");
+    const submittedEmail = String(submitted.get("email") ?? "");
+    const submittedPassword = String(submitted.get("password") ?? "");
+    const submittedConfirmPassword = String(submitted.get("confirmPassword") ?? "");
+    setDisplayName(submittedDisplayName);
+    setPhone(submittedPhone);
+    setEmail(submittedEmail);
+    setPassword(submittedPassword);
+    setConfirmPassword(submittedConfirmPassword);
     setErrorMessage(null);
     setFieldErrors({});
     setResendError(null);
     setResendMessage(null);
     const clientErrors: AuthFieldErrors = {};
-    const passwordError = registrationPasswordError(password);
+    const passwordError = registrationPasswordError(submittedPassword);
     if (passwordError) clientErrors.password = passwordError;
-    if (password !== confirmPassword) clientErrors.confirmPassword = "Mật khẩu xác nhận chưa khớp.";
+    if (submittedPassword !== submittedConfirmPassword) clientErrors.confirmPassword = "Mật khẩu xác nhận chưa khớp.";
     if (Object.keys(clientErrors).length > 0) {
       setFieldErrors(clientErrors);
       setErrorMessage("Vui lòng kiểm tra lại các trường được đánh dấu.");
@@ -56,10 +67,10 @@ function RegisterForm() {
     setSubmitting(true);
     try {
       const pending = await register({
-        displayName: displayName.trim(),
-        phone: phone.trim(),
-        email: email.trim(),
-        password,
+        displayName: submittedDisplayName.trim(),
+        phone: submittedPhone.trim(),
+        email: submittedEmail.trim(),
+        password: submittedPassword,
       });
       setPendingEmail(pending.email);
       setResendCooldown(pending.resendAfterSeconds);
@@ -119,32 +130,32 @@ function RegisterForm() {
             </div>
           </section>
         ) : (
-          <form className="auth-form" onSubmit={handleSubmit}>
+          <form autoComplete="on" className="auth-form" onSubmit={handleSubmit}>
             {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
             <div className="auth-form__field">
               <label htmlFor="register-name">Họ và tên</label>
-              <input aria-describedby={fieldErrors.displayName ? "register-name-error" : undefined} aria-invalid={Boolean(fieldErrors.displayName)} autoComplete="name" id="register-name" maxLength={160} minLength={2} onChange={(event) => setDisplayName(event.target.value)} required value={displayName} />
+              <input aria-describedby={fieldErrors.displayName ? "register-name-error" : undefined} aria-invalid={Boolean(fieldErrors.displayName)} autoComplete="name" id="register-name" maxLength={160} minLength={2} name="displayName" onChange={(event) => setDisplayName(event.target.value)} required value={displayName} />
               {fieldErrors.displayName ? <small className="auth-form__field-error" id="register-name-error">{fieldErrors.displayName}</small> : null}
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-phone">Số điện thoại</label>
-              <input aria-describedby={fieldErrors.phone ? "register-phone-error" : undefined} aria-invalid={Boolean(fieldErrors.phone)} autoComplete="tel" id="register-phone" maxLength={20} onChange={(event) => setPhone(event.target.value)} pattern="[\\+0-9\\(\\) .\\-]*[0-9][\\+0-9\\(\\) .\\-]*" required type="tel" value={phone} />
+              <input aria-describedby={fieldErrors.phone ? "register-phone-error" : undefined} aria-invalid={Boolean(fieldErrors.phone)} autoComplete="tel" id="register-phone" maxLength={20} name="phone" onChange={(event) => setPhone(event.target.value)} pattern="[\\+0-9\\(\\) .\\-]*[0-9][\\+0-9\\(\\) .\\-]*" required type="tel" value={phone} />
               {fieldErrors.phone ? <small className="auth-form__field-error" id="register-phone-error">{fieldErrors.phone}</small> : null}
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-email">Email</label>
-              <input aria-describedby={fieldErrors.email ? "register-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="register-email" maxLength={320} onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
+              <input aria-describedby={fieldErrors.email ? "register-email-error" : undefined} aria-invalid={Boolean(fieldErrors.email)} autoComplete="email" id="register-email" maxLength={320} name="email" onChange={(event) => setEmail(event.target.value)} required type="email" value={email} />
               {fieldErrors.email ? <small className="auth-form__field-error" id="register-email-error">{fieldErrors.email}</small> : null}
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-password">Mật khẩu</label>
-              <input aria-describedby={`register-password-help${fieldErrors.password ? " register-password-error" : ""}`} aria-invalid={Boolean(fieldErrors.password)} autoComplete="new-password" id="register-password" maxLength={128} minLength={8} onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => ({ ...current, password: undefined })); }} required type="password" value={password} />
+              <input aria-describedby={`register-password-help${fieldErrors.password ? " register-password-error" : ""}`} aria-invalid={Boolean(fieldErrors.password)} autoComplete="new-password" id="register-password" maxLength={128} minLength={8} name="password" onChange={(event) => { setPassword(event.target.value); setFieldErrors((current) => ({ ...current, password: undefined })); }} required type="password" value={password} />
               <small id="register-password-help">{REGISTRATION_PASSWORD_HELP}</small>
               {fieldErrors.password ? <small className="auth-form__field-error" id="register-password-error">{fieldErrors.password}</small> : null}
             </div>
             <div className="auth-form__field">
               <label htmlFor="register-confirm">Xác nhận mật khẩu</label>
-              <input aria-describedby={fieldErrors.confirmPassword ? "register-confirm-error" : undefined} aria-invalid={Boolean(fieldErrors.confirmPassword)} autoComplete="new-password" id="register-confirm" onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
+              <input aria-describedby={fieldErrors.confirmPassword ? "register-confirm-error" : undefined} aria-invalid={Boolean(fieldErrors.confirmPassword)} autoComplete="new-password" id="register-confirm" name="confirmPassword" onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
               {fieldErrors.confirmPassword ? <small className="auth-form__field-error" id="register-confirm-error">{fieldErrors.confirmPassword}</small> : null}
             </div>
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">{submitting ? "Đang tạo tài khoản..." : "Tạo tài khoản"}</button>

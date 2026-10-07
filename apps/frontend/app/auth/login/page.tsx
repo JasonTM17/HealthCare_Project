@@ -119,6 +119,8 @@ export default function LoginPage() {
     const submitted = new FormData(event.currentTarget);
     const submittedEmail = String(submitted.get("email") ?? "").trim();
     const submittedPassword = String(submitted.get("password") ?? "");
+    setEmail(submittedEmail);
+    setPassword(submittedPassword);
     setErrorMessage(null);
     setFieldErrors({});
     setVerificationEmail(null);

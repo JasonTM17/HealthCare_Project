@@ -147,3 +147,15 @@ test("registration password preflight identifies each unmet backend requirement"
   ]) assert.match(registrationPasswordError(value), missing);
   assert.equal(registrationPasswordError("SyntheticValid1!"), null);
 });
+
+test("registration password preflight enforces the raw 72-byte UTF-8 ceiling", async () => {
+  const { registrationPasswordError } = await loadAuthFlow();
+  const ascii72 = `Aa1!${"x".repeat(68)}`;
+  const ascii73 = `${ascii72}y`;
+  const utf8Bytes72 = `Aa1!${"é".repeat(34)}`;
+  const utf8Bytes74 = `Aa1!${"é".repeat(35)}`;
+  assert.equal(registrationPasswordError(ascii72), null);
+  assert.match(registrationPasswordError(ascii73), /72 byte UTF-8/u);
+  assert.equal(registrationPasswordError(utf8Bytes72), null);
+  assert.match(registrationPasswordError(utf8Bytes74), /72 byte UTF-8/u);
+});

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
 import { hasRole, resendVerificationEmail, verifyEmail } from "../../../lib/api-client";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,7 @@ function VerifyEmailForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (cooldown <= 0) return undefined;
@@ -41,15 +42,20 @@ function VerifyEmailForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submitted = new FormData(event.currentTarget);
+    const submittedEmail = String(submitted.get("email") ?? "");
+    const submittedCode = String(submitted.get("code") ?? "");
+    setEmail(submittedEmail);
+    setCode(submittedCode);
     setErrorMessage(null);
     setMessage(null);
     setFieldErrors({});
 
     const clientErrors: AuthFieldErrors = {};
-    if (!email.trim()) {
+    if (!submittedEmail.trim()) {
       clientErrors.email = "Vui lòng nhập email đăng ký.";
     }
-    if (!code.trim()) {
+    if (!submittedCode.trim()) {
       clientErrors.code = "Vui lòng nhập mã xác minh (OTP).";
     }
     if (Object.keys(clientErrors).length > 0) {
@@ -60,7 +66,7 @@ function VerifyEmailForm() {
 
     setSubmitting(true);
     try {
-      const session = await verifyEmail({ email: email.trim(), code: code.trim() });
+      const session = await verifyEmail({ email: submittedEmail.trim(), code: submittedCode.trim() });
       if (hasRole(session.user, "PATIENT")) {
         router.replace("/patient/dashboard");
       } else {
@@ -76,12 +82,21 @@ function VerifyEmailForm() {
   };
 
   const handleResend = async () => {
-    if (!email.trim() || cooldown > 0 || resending) return;
+    if (cooldown > 0 || resending) return;
+    const resendForm = formRef.current;
+    const resendEmail = resendForm ? String(new FormData(resendForm).get("email") ?? "") : email;
+    setEmail(resendEmail);
+    if (!resendEmail.trim()) {
+      setFieldErrors({ email: "Vui lòng nhập email đăng ký." });
+      setErrorMessage("Vui lòng nhập email để gửi lại mã.");
+      return;
+    }
     setResending(true);
     setErrorMessage(null);
     setMessage(null);
+    setFieldErrors({});
     try {
-      await resendVerificationEmail({ email: email.trim() });
+      await resendVerificationEmail({ email: resendEmail.trim() });
       setCooldown(RESEND_COOLDOWN_SECONDS);
       setMessage("Mã xác minh mới đã được gửi.");
     } catch (error) {
@@ -110,7 +125,7 @@ function VerifyEmailForm() {
             </div>
           </section>
         ) : (
-          <form className="auth-form" noValidate onSubmit={handleSubmit}>
+          <form ref={formRef} className="auth-form" noValidate onSubmit={handleSubmit}>
             {errorMessage ? <p aria-live="assertive" className="auth-form__error" role="alert">{errorMessage}</p> : null}
             {message ? <p aria-live="polite" className="auth-form__success" role="status">{message}</p> : null}
             <div className="auth-form__field">
@@ -126,7 +141,7 @@ function VerifyEmailForm() {
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">
               {submitting ? "Đang xác minh..." : "Xác minh email"}
             </button>
-            <button className="outline-button auth-form__secondary" disabled={resending || cooldown > 0 || !email.trim()} onClick={() => void handleResend()} type="button">
+            <button className="outline-button auth-form__secondary" disabled={resending || cooldown > 0} onClick={() => void handleResend()} type="button">
               {resending ? "Đang gửi..." : cooldown > 0 ? `Gửi lại sau ${cooldown}s` : "Gửi lại mã"}
             </button>
           </form>
