@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # TinyMCE URL policy + live-compose editor/SortableJS E2E).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:33f9956c4b7591d8ab2c616d77b355f090f4533d5c04a199e1373101233c776d"
+    "sha256:f8502a95d6cf574d7efe0a07372d73f19cc18d3daf9a3ff5310009ee006124b2"
 )
 
 
