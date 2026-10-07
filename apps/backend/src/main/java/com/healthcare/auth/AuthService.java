@@ -31,6 +31,7 @@ import com.healthcare.appointment.service.BookingService;
 import com.healthcare.auth.security.AuthRateLimiter;
 import com.healthcare.auth.dto.BrowserSessionCreateRequest;
 import com.healthcare.auth.service.BrowserSessionService;
+import com.healthcare.auth.service.GoogleIdTokenVerifier;
 import com.healthcare.notification.service.NotificationPreferenceService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -69,6 +70,7 @@ public class AuthService {
     private final BrowserSessionService browserSessionService;
     private final NotificationPreferenceService notificationPreferenceService;
     private final DemoBoundaryProperties demoBoundaryProperties;
+    private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
     public AuthService(UserRepository userRepository,
                        UserSecurityLock userSecurityLock,
@@ -84,7 +86,8 @@ public class AuthService {
                        AppointmentClaimService appointmentClaimService,
                        BrowserSessionService browserSessionService,
                        NotificationPreferenceService notificationPreferenceService,
-                       DemoBoundaryProperties demoBoundaryProperties) {
+                       DemoBoundaryProperties demoBoundaryProperties,
+                       GoogleIdTokenVerifier googleIdTokenVerifier) {
         this.userRepository = userRepository;
         this.userSecurityLock = userSecurityLock;
         this.roleRepository = roleRepository;
@@ -100,6 +103,7 @@ public class AuthService {
         this.browserSessionService = browserSessionService;
         this.notificationPreferenceService = notificationPreferenceService;
         this.demoBoundaryProperties = demoBoundaryProperties;
+        this.googleIdTokenVerifier = googleIdTokenVerifier;
     }
 
     @Transactional
@@ -271,14 +275,25 @@ public class AuthService {
         User user = switch (request.grantType()) {
             case PASSWORD -> {
                 requireGrantValue(request.password(), request.code());
-                yield authenticatePasswordLocked(new LoginRequest(request.email(), request.password()));
+                yield authenticatePasswordLocked(new LoginRequest(requireEmail(request), request.password()));
             }
             case EMAIL_VERIFICATION -> {
                 requireGrantValue(request.code(), request.password());
                 yield confirmEmailLocked(
-                    new EmailVerificationRequest(request.email(), request.code()),
+                    new EmailVerificationRequest(requireEmail(request), request.code()),
                     httpRequest
                 );
+            }
+            case GOOGLE -> {
+                if (request.googleIdToken() == null || request.googleIdToken().isBlank()
+                    || request.password() != null || request.code() != null) {
+                    throw new BusinessException(
+                        400,
+                        ErrorCodes.VALIDATION_ERROR,
+                        "Browser session grant is invalid"
+                    );
+                }
+                yield authenticateGoogleLocked(request.googleIdToken());
             }
         };
 
@@ -489,6 +504,67 @@ public class AuthService {
         String refreshToken = tokenProvider.generateRefreshToken(user.getId());
         saveRefreshToken(user, refreshToken);
         return buildAuthResponse(user, accessToken, refreshToken);
+    }
+
+    private String requireEmail(BrowserSessionCreateRequest request) {
+        if (request.email() == null || request.email().isBlank()) {
+            throw new BusinessException(
+                400,
+                ErrorCodes.VALIDATION_ERROR,
+                "Browser session grant is invalid"
+            );
+        }
+        return request.email();
+    }
+
+    /**
+     * Google Identity Services grant: verifies the ID token against Google's
+     * JWKS, then links an existing account on the verified email or provisions
+     * a patient account. Email verification is satisfied by the provider — a
+     * Google token with {@code email_verified=true} is stronger evidence than
+     * our OTP loop. A pre-existing account that never finished verification
+     * becomes verified here, matching the account-linking convention.
+     */
+    private User authenticateGoogleLocked(String idToken) {
+        GoogleIdTokenVerifier.GoogleIdentity identity = googleIdTokenVerifier.verify(idToken);
+        String normalizedEmail = identity.email();
+        authRateLimiter.checkEmail(normalizedEmail, "login");
+
+        User user = userSecurityLock.findByEmailForUpdate(normalizedEmail).orElse(null);
+        if (user == null) {
+            Role patientRole = roleRepository.findByCode("PATIENT")
+                .orElseThrow(() -> new ResourceNotFoundException("Default PATIENT role not found"));
+            user = new User();
+            user.setEmail(normalizedEmail);
+            // Password login stays impossible for this account: the hash never
+            // matches any input and a real password can be set later through
+            // the reset flow.
+            user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID() + ":" + normalizedEmail));
+            String displayName = identity.displayName() != null && !identity.displayName().isBlank()
+                ? identity.displayName().trim()
+                : normalizedEmail.substring(0, normalizedEmail.indexOf('@'));
+            user.setDisplayName(displayName);
+            user.setStatus("ACTIVE");
+            user.setCreatedAt(OffsetDateTime.now());
+            user.setUpdatedAt(OffsetDateTime.now());
+            user.addRole(patientRole);
+            user = userRepository.save(user);
+            notificationPreferenceService.ensureDefaultsForUser(user.getId());
+        }
+        // Match the password lane's AccountStatusException behavior: a
+        // suspended or disabled account must not get a session just because
+        // Google verified the email.
+        if (user.getStatus() != null && !"ACTIVE".equals(user.getStatus())) {
+            throw new BadCredentialsException("Invalid email or password");
+        }
+        if (!user.isEmailVerified()) {
+            user.setEmailVerified(true);
+            user.setEmailVerifiedAt(OffsetDateTime.now());
+            user.setUpdatedAt(OffsetDateTime.now());
+            user = userRepository.save(user);
+        }
+        rejectDemoPrincipalWhenLoginDisabled(user);
+        return user;
     }
 
     private void requireGrantValue(String required, String forbidden) {

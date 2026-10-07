@@ -100,7 +100,8 @@ class AuthServicePhoneConflictTest {
             refreshTokenRepository, passwordEncoder, authenticationManager, tokenProvider,
             jwtProperties, patientProfileRepository, authOtpService, authRateLimiter,
             appointmentClaimService, browserSessionService, notificationPreferenceService,
-            demoBoundaryProperties);
+            demoBoundaryProperties,
+            org.mockito.Mockito.mock(com.healthcare.auth.service.GoogleIdTokenVerifier.class));
     }
 
     private PatientProfile unboundProfile(String phone, String email) {

@@ -113,6 +113,7 @@ class AuthConcurrencyRegressionTest extends TestcontainersIntegrationTest {
                     BrowserSessionCreateRequest.GrantType.PASSWORD,
                     user.getEmail(),
                     "Str0ng!Pass",
+                    null,
                     null
                 ),
                 new MockHttpServletRequest()
@@ -149,6 +150,7 @@ class AuthConcurrencyRegressionTest extends TestcontainersIntegrationTest {
                         BrowserSessionCreateRequest.GrantType.PASSWORD,
                         user.getEmail(),
                         "Str0ng!Pass",
+                        null,
                         null
                     ),
                     new MockHttpServletRequest()
