@@ -87,9 +87,25 @@ public class SupabaseRestDocumentObjectStore implements DocumentObjectStore {
     @Override
     public boolean isConfigured() {
         // A blank endpoint normalizes to "" but apiBase would still be
-        // "/storage/v1" — configuredness must require the real endpoint too,
-        // otherwise capabilities report true while every request 503s.
-        return !endpoint.isBlank() && isRealCredential(serviceKey);
+        // "/storage/v1" — configuredness must require the endpoint too,
+        // otherwise capabilities report true while every request 503s. A
+        // non-blank but unparseable or scheme-less endpoint is equally not
+        // configured: URI.create would throw on every call.
+        return isHttpEndpoint(endpoint) && isRealCredential(serviceKey);
+    }
+
+    private static boolean isHttpEndpoint(String endpoint) {
+        if (endpoint.isBlank()) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(endpoint);
+            String scheme = uri.getScheme();
+            return ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))
+                && uri.getHost() != null;
+        } catch (IllegalArgumentException malformed) {
+            return false;
+        }
     }
 
     private void ensureBucket() throws Exception {

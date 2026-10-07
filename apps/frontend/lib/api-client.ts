@@ -3504,9 +3504,19 @@ export async function downloadPatientDocument(
   }
   // The backend remains the integrity authority, but a length+magic-preserving
   // mid-body corruption would still pass the checks above — when the document
-  // record carries a digest, compare it to the actual bytes before saving.
+  // record carries a digest, compare it to the actual bytes before saving. A
+  // context without WebCrypto (non-secure origin, embedded webview) must fail
+  // closed: silently skipping would defeat the check exactly when it matters.
   const expectedSha256 = expected?.sha256?.trim().toLowerCase();
-  if (expectedSha256 && typeof crypto !== "undefined" && crypto.subtle) {
+  if (expectedSha256) {
+    if (typeof crypto === "undefined" || !crypto.subtle) {
+      throw new ApiError(
+        "Trình duyệt không hỗ trợ kiểm tra toàn vẹn tệp. Vui lòng dùng kết nối bảo mật (HTTPS) rồi thử lại.",
+        0,
+        path,
+        { code: "DOWNLOAD_HASH_UNAVAILABLE" },
+      );
+    }
     const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
     const actual = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
     if (actual !== expectedSha256) {

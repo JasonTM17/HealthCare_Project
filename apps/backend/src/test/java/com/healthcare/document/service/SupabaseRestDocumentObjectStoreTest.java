@@ -26,6 +26,21 @@ class SupabaseRestDocumentObjectStoreTest {
     }
 
     @Test
+    void malformedOrSchemelessEndpointIsNotConfigured() {
+        // A non-blank endpoint that URI.create cannot parse would crash every
+        // call inside authed(); capabilities must report false instead.
+        assertThat(new SupabaseRestDocumentObjectStore(
+                "supabase.internal", "bucket", "service-role-jwt", "")
+                .isConfigured()).isFalse();
+        assertThat(new SupabaseRestDocumentObjectStore(
+                "ht tp://bad host", "bucket", "service-role-jwt", "")
+                .isConfigured()).isFalse();
+        assertThat(new SupabaseRestDocumentObjectStore(
+                "ftp://project.supabase.co", "bucket", "service-role-jwt", "")
+                .isConfigured()).isFalse();
+    }
+
+    @Test
     void blankOrPlaceholderCredentialsAreNotConfigured() {
         assertThat(new SupabaseRestDocumentObjectStore(
                 "https://project.supabase.co", "bucket", "", "")
