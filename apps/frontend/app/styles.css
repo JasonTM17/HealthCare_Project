@@ -4058,13 +4058,27 @@ main {
     align-items: center;
     justify-content: center;
     gap: 2px;
+    border-radius: var(--radius-sm);
     color: oklch(78% 0.04 182);
     font-size: 0.75rem;
     font-weight: 700;
+    -webkit-tap-highlight-color: transparent;
+    transition: color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
   }
 
   .mobile-care-rail a:first-child {
     color: var(--color-amber);
+  }
+
+  /* Touch feedback: without :active the rail looked frozen on tap. The press
+     state dims the item and scales it slightly so the tap registers visually
+     even when navigation is instant. */
+  .mobile-care-rail a:active {
+    color: var(--color-paper-bright);
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(0.94);
   }
 
   .mobile-care-rail a:hover {
@@ -8080,11 +8094,24 @@ main {
     color: var(--hospital-teal-dark);
   }
 
+  /* The white rail needs a dark press tint — the translucent-white :active
+     used on the dark rail is invisible here. */
+  .site-shell .mobile-care-rail a:active {
+    color: var(--hospital-teal);
+    background: rgba(13, 148, 136, 0.14);
+  }
+
   .site-shell .mobile-care-rail .mobile-care-rail__primary {
     margin-block: -0.85rem 0;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--hospital-teal);
     color: #fff;
+  }
+
+  .site-shell .mobile-care-rail .mobile-care-rail__primary:active {
+    background: var(--hospital-teal-dark);
+    color: #fff;
+    transform: scale(0.96);
   }
 }
 
@@ -10922,6 +10949,13 @@ main {
 .mobile-care-rail .mobile-care-rail__primary {
   background: var(--color-teal-700);
   box-shadow: none;
+}
+
+/* Pressed state for the primary rail action: the raised teal pill otherwise
+   kept a static background on tap, which read as a frozen/fixed button. */
+.mobile-care-rail .mobile-care-rail__primary:active {
+  background: var(--color-teal-900, #134e4a);
+  color: var(--color-paper-bright);
 }
 
 /* ── Text selection color stays branded ── */
