@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
-import { register, resendVerificationEmail } from "../../../lib/api-client";
+import GoogleSignInButton, { isGoogleSignInEnabled } from "../../../components/GoogleSignInButton";
+import { loginWithGoogle, register, resendVerificationEmail } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, maskEmail, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 // Query-driven prefill (the /tra-cuu bridge appends ?phone=&email=) requires
@@ -25,6 +26,27 @@ function RegisterForm() {
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+
+  const handleGoogleCredential = async (credential: string) => {
+    if (!credential) {
+      setErrorMessage("Google không trả về phiên đăng nhập hợp lệ. Vui lòng thử lại.");
+      return;
+    }
+    setGoogleBusy(true);
+    setErrorMessage(null);
+    try {
+      await loginWithGoogle(credential);
+      // Google-provisioned accounts are always patients; hard navigation so
+      // the just-set session cookie is re-read reliably (same reasoning as
+      // the login page's password flow).
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- hard reload is deliberate: the fresh session cookie must be re-read before client routing resumes
+      window.location.assign("/patient/dashboard");
+    } catch (error) {
+      setErrorMessage(authErrorMessage(error, "Đăng ký bằng Google thất bại. Vui lòng thử lại."));
+      setGoogleBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (resendCooldown <= 0) return undefined;
@@ -140,6 +162,13 @@ function RegisterForm() {
               {fieldErrors.confirmPassword ? <small className="auth-form__field-error" id="register-confirm-error">{fieldErrors.confirmPassword}</small> : null}
             </div>
             <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">{submitting ? "Đang tạo tài khoản..." : "Tạo tài khoản"}</button>
+            {isGoogleSignInEnabled() ? (
+              <div style={{ marginTop: 20 }}>
+                <div className="auth-form__divider" role="separator" aria-hidden="true"><span>hoặc</span></div>
+                <GoogleSignInButton busy={googleBusy} onCredential={(credential) => { void handleGoogleCredential(credential); }} />
+                {googleBusy ? <p className="auth-form__note" style={{ textAlign: "center" }}>Đang xác thực với Google…</p> : null}
+              </div>
+            ) : null}
           </form>
         )}
       </section>

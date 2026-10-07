@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useState, useSyncExternalStore, type FormEvent } from "react";
 import BrandMark from "../../../components/BrandMark";
+import GoogleSignInButton, { isGoogleSignInEnabled } from "../../../components/GoogleSignInButton";
 import Icon from "../../../components/UiIcon";
 import styles from "./login.module.css";
-import { ApiError, hasRole, login } from "../../../lib/api-client";
+import { ApiError, hasRole, login, loginWithGoogle, type AuthSession } from "../../../lib/api-client";
 import { authErrorMessage, authFieldErrors, safeAuthNextPath, type AuthFieldErrors } from "../../../lib/auth-flow";
 
 interface DemoRoleInfo {
@@ -56,6 +57,9 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 // opt-in via build-time env so hosted builds default to a plain login form.
 const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
 
+// Google Identity Services button only renders when a Web client id is
+// configured at build time (see components/GoogleSignInButton).
+
 const noopSubscribe = () => () => {};
 function useHydrated(): boolean {
   // Server snapshot renders the shell; after hydration the client snapshot
@@ -79,8 +83,44 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   const selectedRoleInfo = DEMO_ROLES.find((item) => item.role === selectedRole);
+
+  const routeAfterLogin = (session: AuthSession): string => {
+    const nextPath = safeAuthNextPath(new URLSearchParams(window.location.search).get("next"));
+    return hasRole(session.user, "PATIENT") && nextPath?.startsWith("/patient")
+      ? nextPath
+      : hasRole(session.user, "DOCTOR") && nextPath?.startsWith("/doctor")
+        ? nextPath
+        : hasRole(session.user, "ADMIN") && nextPath?.startsWith("/admin")
+          ? nextPath
+          : hasRole(session.user, "PATIENT")
+            ? "/patient/dashboard"
+            : hasRole(session.user, "DOCTOR")
+              ? "/doctor/dashboard"
+              : hasRole(session.user, "ADMIN")
+                ? "/admin"
+                : "/";
+  };
+
+  const handleGoogleCredential = async (credential: string | undefined) => {
+    if (!credential) {
+      setErrorMessage("Google không trả về phiên đăng nhập hợp lệ. Vui lòng thử lại.");
+      return;
+    }
+    setGoogleBusy(true);
+    setErrorMessage(null);
+    try {
+      const session = await loginWithGoogle(credential);
+      // See handleSubmit: a hard navigation re-reads the just-set session
+      // cookie reliably.
+      window.location.assign(routeAfterLogin(session));
+    } catch (error) {
+      setErrorMessage(authErrorMessage(error, "Đăng nhập Google thất bại. Vui lòng thử lại."));
+      setGoogleBusy(false);
+    }
+  };
 
   const handleRoleSelect = (item: DemoRoleInfo) => {
     if (!SHOW_DEMO_ACCOUNTS) return;
@@ -130,20 +170,7 @@ export default function LoginPage() {
 
     try {
       const session = await login({ email: email.trim(), password });
-      const nextPath = safeAuthNextPath(new URLSearchParams(window.location.search).get("next"));
-      const target = hasRole(session.user, "PATIENT") && nextPath?.startsWith("/patient")
-        ? nextPath
-        : hasRole(session.user, "DOCTOR") && nextPath?.startsWith("/doctor")
-          ? nextPath
-          : hasRole(session.user, "ADMIN") && nextPath?.startsWith("/admin")
-            ? nextPath
-            : hasRole(session.user, "PATIENT")
-              ? "/patient/dashboard"
-              : hasRole(session.user, "DOCTOR")
-                ? "/doctor/dashboard"
-                : hasRole(session.user, "ADMIN")
-                  ? "/admin"
-                  : "/";
+      const target = routeAfterLogin(session);
       // Hard navigation on purpose: the session cookie was just set by the
       // server, and a client-side replace occasionally raced the hydration and
       // left the user stranded on the login form even though /users/me already
@@ -283,6 +310,18 @@ export default function LoginPage() {
               : "Đăng nhập"}
           </button>
         </form>
+
+        {isGoogleSignInEnabled() ? (
+          <div className={styles.googleSection}>
+            <div className={styles.divider} role="separator" aria-hidden="true">
+              <span>hoặc</span>
+            </div>
+            <GoogleSignInButton busy={googleBusy} onCredential={(credential) => { void handleGoogleCredential(credential); }} />
+            {googleBusy ? (
+              <p className={styles.googleBusy}>Đang xác thực với Google…</p>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className={styles.register}>
           <span>Chưa có tài khoản bệnh nhân?</span>

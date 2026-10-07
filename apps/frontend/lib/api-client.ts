@@ -1819,6 +1819,29 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
   }
 }
 
+/**
+ * Google Identity Services credential grant. The ID token is verified
+ * server-side against Google's JWKS; the browser never supplies the email —
+ * identity comes from the token itself.
+ */
+export async function loginWithGoogle(idToken: string): Promise<AuthSession> {
+  const path = "/auth/browser-sessions";
+  const attempt = beginAuthMutation();
+  try {
+    const response = await getJson<unknown>(path, {
+      method: "POST",
+      signal: attempt.controller.signal,
+      body: JSON.stringify({
+        grantType: "GOOGLE",
+        idToken,
+      }),
+    }, 28_000);
+    return commitIssuedAuthSession(response, attempt, path);
+  } catch (error) {
+    settleFailedAuthMutation(attempt, path, error);
+  }
+}
+
 export interface VerifyEmailPayload {
   email: string;
   code: string;
@@ -2392,7 +2415,7 @@ function parseAssistantAccountSettings(raw: unknown, path: string): AssistantAcc
 export async function fetchAssistantAccountSettings(
   options: { signal?: AbortSignal } = {},
 ): Promise<AssistantAccountSettings> {
-  const path = "/me/preferences";
+  const path = "/users/me/preferences";
   const response = await getAuthenticatedJson<unknown>(path, { signal: options.signal });
   return parseAssistantAccountSettings(response, path);
 }
@@ -2400,7 +2423,7 @@ export async function fetchAssistantAccountSettings(
 export async function patchAssistantAccountSettings(
   patch: Partial<Omit<AssistantAccountSettings, "chatDefaultMode">> & { chatDefaultMode?: ChatMode },
 ): Promise<AssistantAccountSettings> {
-  const path = "/me/preferences";
+  const path = "/users/me/preferences";
   const response = await getAuthenticatedJson<unknown>(path, {
     method: "PATCH",
     body: JSON.stringify(patch),
