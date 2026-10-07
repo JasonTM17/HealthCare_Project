@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { expect, test, type BrowserContext, type Route } from "@playwright/test";
 import type { MedicalRecord, PatientDocument, PatientProfile, Prescription } from "../../types/hospital";
 import {
@@ -25,6 +26,10 @@ const AVAILABLE_DOCUMENT_ID = "document-available-e2e";
 // The download path is fail-closed on declared byteSize — the fixture must
 // agree with the bytes the mocked route actually serves.
 const AVAILABLE_PDF_BYTES = Buffer.from("%PDF-1.7\n% synthetic patient document e2e\n%%EOF", "utf8");
+// The download path is fail-closed on the record sha256 too — fixtures that a
+// test actually downloads must carry the real digest of the served bytes.
+const sha256Hex = (bytes: Buffer): string => createHash("sha256").update(bytes).digest("hex");
+const AVAILABLE_PDF_SHA256 = sha256Hex(AVAILABLE_PDF_BYTES);
 
 const SESSION = browserSessionFixture("PATIENT", PATIENT_ID, "Bệnh nhân PDF");
 
@@ -120,7 +125,7 @@ function initialDocuments(): PatientDocument[] {
       sourceVersion: 1772359200000,
       templateVersion: "synthetic-v1",
       status: "AVAILABLE",
-      sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      sha256: AVAILABLE_PDF_SHA256,
       byteSize: AVAILABLE_PDF_BYTES.length,
       generatedBy: PATIENT_ID,
       generatedAt: "2026-09-10T02:30:00Z",
@@ -342,6 +347,7 @@ test("patient document center can generate and download synthetic PDFs", async (
 });
 
 const REMINDER_PDF_BYTES = Buffer.from("%PDF-1.7\n% synthetic appointment reminder e2e\n%%EOF", "utf8");
+const REMINDER_PDF_SHA256 = sha256Hex(REMINDER_PDF_BYTES);
 const REMINDER_DOCUMENT_ID = "reminder-doc-0001";
 const REMINDER_SOURCE_TYPE = "APPOINTMENT_REMINDER" as string;
 const REMINDER_DOCUMENT: PatientDocument = {
@@ -352,7 +358,7 @@ const REMINDER_DOCUMENT: PatientDocument = {
   sourceVersion: 1772359200004,
   templateVersion: "synthetic-v1",
   status: "AVAILABLE",
-  sha256: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  sha256: REMINDER_PDF_SHA256,
   byteSize: REMINDER_PDF_BYTES.length,
   generatedBy: PATIENT_ID,
   generatedAt: "2026-09-10T02:35:00Z",

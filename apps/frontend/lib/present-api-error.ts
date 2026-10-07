@@ -21,6 +21,7 @@ const ERROR_COPY_BY_CODE = Object.freeze({
   DOWNLOAD_SIZE_MISMATCH: "Tệp PDF tải về không đầy đủ. Vui lòng thử lại.",
   DOWNLOAD_NOT_PDF: "Tệp tải về không phải định dạng PDF hợp lệ. Vui lòng thử lại.",
   DOWNLOAD_HASH_MISMATCH: "Tệp PDF tải về bị lỗi nội dung. Vui lòng thử lại.",
+  DOWNLOAD_HASH_UNAVAILABLE: "Trình duyệt không hỗ trợ kiểm tra toàn vẹn tệp. Vui lòng dùng kết nối HTTPS rồi thử lại.",
   BFF_UPSTREAM_UNAVAILABLE: "Máy chủ y tế đang kết nối lại (khoảng 15-30 giây). Vui lòng đợi trong giây lát rồi thử lại.",
   BFF_UPSTREAM_TIMEOUT: "Máy chủ y tế phản hồi chậm. Vui lòng đợi trong giây lát rồi thử lại.",
 
