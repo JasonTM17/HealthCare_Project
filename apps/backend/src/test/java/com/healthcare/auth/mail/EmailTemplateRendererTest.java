@@ -98,6 +98,42 @@ class EmailTemplateRendererTest {
     }
 
     @Test
+    void rendersBookingDetailsAndDefaultLookupLinkForBookingOtp() {
+        RenderedEmail rendered = renderer.render(EmailTemplateKey.BOOKING_OTP, Map.of(
+            "code", "826194",
+            "minutes", "5",
+            "bookingCode", "APT-20261007-042",
+            "patientName", "Nguyễn Văn Tèo <script>",
+            "doctorName", "BS. CKI Nguyễn Văn An",
+            "branchName", "HealthCare Quận 1",
+            "appointmentDate", "09/10/2026",
+            "appointmentTime", "08:30 – 09:00"
+        ));
+
+        String html = rendered.htmlBody();
+        String text = rendered.textBody();
+
+        // Greeting is personalized and HTML-escaped
+        assertTrue(html.contains("Xin chào <strong>Nguyễn Văn Tèo &lt;script&gt;</strong>"));
+        assertTrue(text.contains("Xin chào Nguyễn Văn Tèo <script>,"));
+
+        // Appointment detail card
+        assertTrue(html.contains("THÔNG TIN LỊCH HẸN"));
+        assertTrue(html.contains("APT-20261007-042"));
+        assertTrue(html.contains("BS. CKI Nguyễn Văn An"));
+        assertTrue(html.contains("HealthCare Quận 1"));
+        assertTrue(html.contains("09/10/2026, 08:30 – 09:00"));
+        assertTrue(text.contains("Bác sĩ phụ trách: BS. CKI Nguyễn Văn An."));
+        assertTrue(text.contains("Cơ sở khám: HealthCare Quận 1."));
+        assertTrue(text.contains("Thời gian khám: 09/10/2026, 08:30 – 09:00."));
+
+        // Guests get a booking-lookup CTA even when caller passes no portalUrl
+        assertTrue(html.contains("https://portal.example.test/tra-cuu"));
+        assertTrue(html.contains("Kiểm tra lịch đặt khám"));
+        assertTrue(text.contains("Xem tại cổng bệnh nhân: https://portal.example.test/tra-cuu"));
+    }
+
+    @Test
     void rendersDedicatedCategoryBadgesAndContextualGuidanceForClinicalTemplates() {
         // 1. Appointment confirmation
         RenderedEmail appointment = renderer.render(EmailTemplateKey.APPOINTMENT_CONFIRMATION, Map.of(
@@ -176,9 +212,13 @@ class EmailTemplateRendererTest {
         // 1. Booking OTP
         RenderedEmail bookingOtp = liveRenderer.render(EmailTemplateKey.BOOKING_OTP, Map.of(
             "code", "826194",
-            "minutes", "10",
+            "minutes", "5",
             "bookingCode", "APT-20260916-088",
-            "portalUrl", "https://www.healthcare.id.vn/patient/appointments"
+            "patientName", "Trần Minh Khang",
+            "doctorName", "BS. CKI Nguyễn Văn An",
+            "branchName", "HealthCare Quận 1",
+            "appointmentDate", "09/10/2026",
+            "appointmentTime", "08:30 – 09:00"
         ));
         java.nio.file.Files.writeString(previewDir.resolve("booking_otp.html"), bookingOtp.htmlBody());
 
