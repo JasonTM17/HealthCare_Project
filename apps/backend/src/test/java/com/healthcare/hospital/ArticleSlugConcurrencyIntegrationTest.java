@@ -9,8 +9,11 @@ import com.healthcare.hospital.repository.ArticleRepository;
 import com.healthcare.hospital.service.AdminArticleService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -25,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -36,6 +40,13 @@ class ArticleSlugConcurrencyIntegrationTest extends TestcontainersIntegrationTes
 
     @Autowired
     private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    private static UserDetails adminActor() {
+        UserDetails admin = mock(UserDetails.class);
+        when(admin.getAuthorities())
+            .thenAnswer(invocation -> List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        return admin;
+    }
 
     @Test
     void concurrentCreatesKeepOneRowAndReturnOneStableConflict() throws Exception {
@@ -71,8 +82,9 @@ class ArticleSlugConcurrencyIntegrationTest extends TestcontainersIntegrationTes
         );
 
         try {
-            Future<Article> first = executor.submit(() -> transaction.execute(status -> articleService.create(request)));
-            Future<Article> second = executor.submit(() -> transaction.execute(status -> articleService.create(request)));
+            UserDetails admin = adminActor();
+            Future<Article> first = executor.submit(() -> transaction.execute(status -> articleService.create(request, admin)));
+            Future<Article> second = executor.submit(() -> transaction.execute(status -> articleService.create(request, admin)));
 
             int successes = 0;
             int conflicts = 0;
@@ -100,7 +112,7 @@ class ArticleSlugConcurrencyIntegrationTest extends TestcontainersIntegrationTes
             executor.shutdownNow();
             executor.awaitTermination(5, TimeUnit.SECONDS);
             if (articleRepository.findBySlug(fixtureSlug).isPresent()) {
-                transaction.executeWithoutResult(status -> articleService.delete(fixtureSlug));
+                transaction.executeWithoutResult(status -> articleService.delete(fixtureSlug, adminActor()));
             }
             assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM articles WHERE slug = ?", Long.class, fixtureSlug
