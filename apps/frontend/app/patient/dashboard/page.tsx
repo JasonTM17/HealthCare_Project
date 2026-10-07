@@ -1963,7 +1963,7 @@ export default function PatientDashboardPage() {
                     <form className={paymentStyles.form} onSubmit={handleSubmitPayment}>
                       <label htmlFor="payment-reference">Mã giao dịch từ ứng dụng ngân hàng</label>
                       <p id="payment-reference-help">Chỉ nhập mã giao dịch sau khi ngân hàng báo chuyển khoản thành công.</p>
-                      <input aria-describedby="payment-reference-help" autoComplete="off" id="payment-reference" maxLength={100} minLength={6} onChange={(event) => setPaymentReference(event.target.value)} pattern="[A-Za-z0-9._/ -]+" placeholder="Ví dụ: FT123456789" required spellCheck={false} type="text" value={paymentReference} />
+                      <input aria-describedby="payment-reference-help" autoComplete="off" id="payment-reference" maxLength={100} minLength={6} onChange={(event) => setPaymentReference(event.target.value)} pattern="[A-Za-z0-9._\-\/ ]+" placeholder="Ví dụ: FT123456789" required spellCheck={false} type="text" value={paymentReference} />
                       <button className="button button--primary" disabled={paymentSubmitting} type="submit">{paymentSubmitting ? "Đang gửi…" : payment.data.status === "REJECTED" ? "Gửi lại để đối soát" : "Tôi đã chuyển khoản"}</button>
                     </form>
                   ) : null}

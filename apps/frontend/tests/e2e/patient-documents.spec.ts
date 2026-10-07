@@ -338,7 +338,7 @@ test("patient document center can generate and download synthetic PDFs", async (
   await expect(page.locator("article.portal-record").filter({ hasText: "RX-PDF-OLD" }).getByRole("button", { name: "Tạo PDF đơn thuốc" })).toBeDisabled();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.locator("article.portal-record").filter({ hasText: "0123456789ab" }).getByRole("button", { name: "Tải PDF" }).click();
+  await page.locator("article.portal-record").filter({ hasText: AVAILABLE_PDF_SHA256.slice(0, 12) }).getByRole("button", { name: "Tải PDF" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^ho-so-kham-document\.pdf$/);
   await expect(page.getByRole("status").filter({ hasText: "Đã bắt đầu tải PDF về máy" })).toBeVisible();
@@ -427,7 +427,7 @@ test("patient document center disables generation when the server reports storag
   await expect(page.getByRole("button", { name: "Tạo PDF tổng kết" })).toBeDisabled();
   await expect(page.locator("article.portal-record").filter({ hasText: "RX-PDF-001" }).getByRole("button", { name: "Tạo PDF đơn thuốc" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Thử tạo lại" })).toBeDisabled();
-  await expect(page.locator("article.portal-record").filter({ hasText: "0123456789ab" }).getByRole("button", { name: "Tải PDF" })).toBeEnabled();
+  await expect(page.locator("article.portal-record").filter({ hasText: AVAILABLE_PDF_SHA256.slice(0, 12) }).getByRole("button", { name: "Tải PDF" })).toBeEnabled();
 
   await assertNoSensitiveBrowserStorage(page);
 });
@@ -674,7 +674,7 @@ test("a stale generation callback cannot clear or clobber a newer session", asyn
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
-  await expect(page.getByText("0123456789ab")).toBeVisible();
+  await expect(page.getByText(AVAILABLE_PDF_SHA256.slice(0, 12))).toBeVisible();
 
   await page.getByRole("button", { name: "Tạo PDF tổng kết" }).click();
   await expect.poll(() => held.post !== null).toBe(true);
@@ -701,7 +701,7 @@ test("a stale generation callback cannot clear or clobber a newer session", asyn
 
   await expect(page.getByRole("heading", { name: "Trung tâm tài liệu lâm sàng" })).toBeVisible();
   await expect(page.getByText("dddddddddddd")).toBeVisible();
-  await expect(page.getByText("0123456789ab")).toHaveCount(0);
+  await expect(page.getByText(AVAILABLE_PDF_SHA256.slice(0, 12))).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Đăng nhập để mở cổng thông tin" })).toHaveCount(0);
   await expect(page.locator(".portal-inline-error")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Tạo PDF tổng kết" })).toBeEnabled();
