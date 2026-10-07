@@ -72,7 +72,7 @@ public class DocumentObjectCleanupService {
             """, objectKey));
     }
 
-    @Scheduled(fixedDelayString = "${storage.document.cleanup-poll-ms:5000}")
+    @Scheduled(fixedDelayString = "${storage.document.cleanup-poll-ms:60000}")
     public void cleanupOne() {
         if (!enabled || !objectStore.isConfigured()) {
             return;
