@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SupabaseRestDocumentObjectStore implements DocumentObjectStore {
 
     private final HttpClient httpClient;
+    private final String endpoint;
     private final String apiBase;
     private final String bucket;
     private final String serviceKey;
@@ -43,7 +44,8 @@ public class SupabaseRestDocumentObjectStore implements DocumentObjectStore {
             .connectTimeout(Duration.ofSeconds(15))
             .version(HttpClient.Version.HTTP_1_1)
             .build();
-        this.apiBase = normalizeEndpoint(endpoint) + "/storage/v1";
+        this.endpoint = normalizeEndpoint(endpoint);
+        this.apiBase = this.endpoint + "/storage/v1";
         this.bucket = bucket;
         // Supabase REST accepts the service-role JWT as both apikey and bearer;
         // access-key may carry a distinct apikey when operators choose to split.
@@ -84,7 +86,10 @@ public class SupabaseRestDocumentObjectStore implements DocumentObjectStore {
 
     @Override
     public boolean isConfigured() {
-        return !apiBase.isBlank() && isRealCredential(serviceKey);
+        // A blank endpoint normalizes to "" but apiBase would still be
+        // "/storage/v1" — configuredness must require the real endpoint too,
+        // otherwise capabilities report true while every request 503s.
+        return !endpoint.isBlank() && isRealCredential(serviceKey);
     }
 
     private void ensureBucket() throws Exception {

@@ -319,7 +319,7 @@ export default function PatientDocumentsPage() {
     setDownloadingId(document.id);
     setNotice(null);
     try {
-      await downloadPatientDocument(profile.data.id, document.id, documentFilename(document), { byteSize: document.byteSize });
+      await downloadPatientDocument(profile.data.id, document.id, documentFilename(document), { byteSize: document.byteSize, sha256: document.sha256 });
       if (isStale(expectedSession, runId)) return;
       setNotice({ tone: "success", message: "Đã bắt đầu tải PDF về máy." });
     } catch (error) {
