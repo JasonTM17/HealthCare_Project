@@ -3,6 +3,7 @@ package com.healthcare.hospital.service;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.DuplicateResourceException;
 import com.healthcare.exception.ErrorCodes;
+import com.healthcare.exception.ForbiddenException;
 import com.healthcare.hospital.dto.ArticleRequest;
 import com.healthcare.hospital.dto.ArticleSectionRequest;
 import com.healthcare.hospital.entity.Article;
@@ -61,6 +62,9 @@ public class AdminArticleService {
      */
     @Transactional
     public Article create(ArticleRequest request, UserDetails actor, UUID authorDoctorId) {
+        if (authorDoctorId == null) {
+            requireAdminActor(actor);
+        }
         if (articleRepository.findBySlug(request.slug()).isPresent()) {
             throw new DuplicateResourceException("Article slug already exists: " + request.slug());
         }
@@ -103,8 +107,19 @@ public class AdminArticleService {
      */
     @Transactional
     public Article update(String slug, ArticleRequest request, UserDetails actor, UUID authorDoctorId) {
-        Article article = articleRepository.findBySlug(slug)
+        if (authorDoctorId == null) {
+            requireAdminActor(actor);
+        }
+        // Doctor path: lock the row and re-verify ownership inside this
+        // transaction — the controller's earlier read races with concurrent
+        // owner changes (TOCTOU).
+        Article article = (authorDoctorId != null
+            ? articleRepository.findBySlugForUpdate(slug)
+            : articleRepository.findBySlug(slug))
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Article not found: " + slug));
+        if (authorDoctorId != null && !authorDoctorId.equals(article.getAuthorDoctorId())) {
+            throw new ForbiddenException("Bạn không có quyền chỉnh sửa hoặc xóa bài viết của tác giả khác");
+        }
         if (request.version() != null && !request.version().equals(article.getVersion())) {
             throw new BusinessException(
                 409,
@@ -150,10 +165,41 @@ public class AdminArticleService {
 
     @Transactional
     public void delete(String slug, UserDetails actor) {
-        Article article = articleRepository.findBySlug(slug)
+        delete(slug, actor, null);
+    }
+
+    /**
+     * Doctor-portal delete. A non-null {@code authorDoctorId} locks the row
+     * and re-asserts the durable {@code author_doctor_id} binding inside the
+     * transaction, so an ownership change between the controller's precheck
+     * and this write cannot slip through (TOCTOU). A null id is the admin
+     * lane and demands an ADMIN principal.
+     */
+    @Transactional
+    public void delete(String slug, UserDetails actor, UUID authorDoctorId) {
+        if (authorDoctorId == null) {
+            requireAdminActor(actor);
+        }
+        Article article = (authorDoctorId != null
+            ? articleRepository.findBySlugForUpdate(slug)
+            : articleRepository.findBySlug(slug))
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Article not found: " + slug));
+        if (authorDoctorId != null && !authorDoctorId.equals(article.getAuthorDoctorId())) {
+            throw new ForbiddenException("Bạn không có quyền chỉnh sửa hoặc xóa bài viết của tác giả khác");
+        }
         if (revisionService != null) revisionService.recordArticleDeletion(article, actor);
         articleRepository.delete(article);
+    }
+
+    private void requireAdminActor(UserDetails actor) {
+        if (actor == null) {
+            return;
+        }
+        boolean admin = actor.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+        if (!admin) {
+            throw new ForbiddenException("Chức năng này chỉ dành cho quản trị viên");
+        }
     }
 
     /** The only review decisions the gate accepts; anything else is a client bug. */

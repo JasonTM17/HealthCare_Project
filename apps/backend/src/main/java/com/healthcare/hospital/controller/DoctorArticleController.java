@@ -67,12 +67,10 @@ public class DoctorArticleController {
      *
      * <p>Read ownership uses the same authority as PUT/DELETE: the caller's
      * doctor id.  Matching on the free-text {@code author_name} here would let
-     * two doctors that share a display name read each other's rows, and would
-     * show an empty list to a renamed doctor whose edits and deletes still
-     * succeed — a read/write contract mismatch.  The legacy name query is kept
-     * only for a caller that has no resolvable {@code doctors} row at all; rows
+     * two doctors that share a display name read each other's rows, and rows
      * the V93 backfill deliberately left unbound because their name was
-     * ambiguous are never resurrected through fuzzy matching.
+     * ambiguous are never resurrected through fuzzy matching. A caller with no
+     * resolvable ACTIVE {@code doctors} row is denied outright.
      */
     @Operation(summary = "Bài viết y khoa của bác sĩ", description = "Lấy danh sách các bài viết cẩm nang sức khỏe do chính bác sĩ biên soạn")
     @GetMapping
@@ -80,14 +78,8 @@ public class DoctorArticleController {
             @RequestParam(required = false) String contentKind,
             @PageableDefault(size = 20) Pageable pageable,
             @AuthenticationPrincipal UserDetails actor) {
-        UUID doctorId = resolveDoctorId(actor);
-        if (doctorId != null) {
-            return articleService.listByAuthorDoctorId(doctorId, contentKind, pageable);
-        }
-        String doctorName = resolveDoctorName(actor);
-        String altName = resolveDoctorAltName(actor);
-        String pureName = stripAcademicTitles(doctorName);
-        return articleService.listByAuthor(doctorName, altName, pureName, contentKind, pageable);
+        Doctor doctor = requireActiveDoctor(actor);
+        return articleService.listByAuthorDoctorId(doctor.getId(), contentKind, pageable);
     }
 
     @Operation(summary = "Đăng bài viết y khoa mới", description = "Bác sĩ tạo và xuất bản bài viết hướng dẫn phòng bệnh hoặc cẩm nang sức khỏe")
@@ -95,11 +87,10 @@ public class DoctorArticleController {
     public ResponseEntity<Article> createArticle(
             @Valid @RequestBody ArticleRequest request,
             @AuthenticationPrincipal UserDetails actor) {
-        UUID doctorId = resolveDoctorId(actor);
-        String doctorName = resolveDoctorName(actor);
-        ArticleRequest effectiveRequest = enforceDoctorAuthor(request, doctorName);
+        Doctor doctor = requireActiveDoctor(actor);
+        ArticleRequest effectiveRequest = enforceDoctorAuthor(request, displayName(doctor));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(adminArticleService.create(effectiveRequest, actor, doctorId));
+                .body(adminArticleService.create(effectiveRequest, actor, doctor.getId()));
     }
 
     @Operation(summary = "Chỉnh sửa bài viết của bác sĩ", description = "Cập nhật nội dung chuyên môn bài viết của chính bác sĩ")
@@ -108,15 +99,12 @@ public class DoctorArticleController {
             @PathVariable String slug,
             @Valid @RequestBody ArticleRequest request,
             @AuthenticationPrincipal UserDetails actor) {
+        Doctor doctor = requireActiveDoctor(actor);
         Article existing = articleRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found: " + slug));
-        UUID doctorId = resolveDoctorId(actor);
-        assertAuthorOwnership(existing, actor, doctorId);
-        String doctorName = resolveDoctorName(actor);
-        ArticleRequest effectiveRequest = enforceDoctorAuthor(request, doctorName);
-        // The write itself re-binds author_doctor_id to the caller, which
-        // self-heals legacy rows that were still matched by name only.
-        return ResponseEntity.ok(adminArticleService.update(slug, effectiveRequest, actor, doctorId));
+        assertAuthorOwnership(existing, doctor.getId());
+        ArticleRequest effectiveRequest = enforceDoctorAuthor(request, displayName(doctor));
+        return ResponseEntity.ok(adminArticleService.update(slug, effectiveRequest, actor, doctor.getId()));
     }
 
     @Operation(summary = "Xóa bài viết của bác sĩ", description = "Gỡ bài viết của chính bác sĩ khỏi chuyên trang cẩm nang")
@@ -124,63 +112,47 @@ public class DoctorArticleController {
     public ResponseEntity<Void> deleteArticle(
             @PathVariable String slug,
             @AuthenticationPrincipal UserDetails actor) {
+        Doctor doctor = requireActiveDoctor(actor);
         Article existing = articleRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Article not found: " + slug));
-        assertAuthorOwnership(existing, actor, resolveDoctorId(actor));
-        adminArticleService.delete(slug, actor);
+        assertAuthorOwnership(existing, doctor.getId());
+        adminArticleService.delete(slug, actor, doctor.getId());
         return ResponseEntity.noContent().build();
     }
 
     /**
-     * Ownership is decided by doctor id, not by the mutable display-name
-     * string: a rename no longer revokes access and two doctors sharing a
-     * name can no longer claim each other's articles.  Rows predating the
-     * {@code author_doctor_id} backfill fall back to the historical
-     * display-name matching.
+     * Ownership is decided by the durable {@code author_doctor_id} binding
+     * alone: a rename no longer revokes access, two doctors sharing a display
+     * name can no longer claim each other's articles, and rows the backfill
+     * deliberately left unbound stay locked until an admin re-binds them —
+     * display-name matching is not an authorization authority.
      */
-    private void assertAuthorOwnership(Article article, UserDetails actor, UUID doctorId) {
-        UUID ownerId = article.getAuthorDoctorId();
-        if (ownerId != null) {
-            if (doctorId == null || !ownerId.equals(doctorId)) {
-                throw new ForbiddenException("Bạn không có quyền chỉnh sửa hoặc xóa bài viết của tác giả khác");
-            }
-            return;
-        }
-        String doctorName = resolveDoctorName(actor);
-        String altName = resolveDoctorAltName(actor);
-        String pureName = stripAcademicTitles(doctorName);
-        if (!isAuthorMatch(article.getAuthorName(), doctorName, altName, pureName)) {
+    private void assertAuthorOwnership(Article article, UUID doctorId) {
+        if (!doctorId.equals(article.getAuthorDoctorId())) {
             throw new ForbiddenException("Bạn không có quyền chỉnh sửa hoặc xóa bài viết của tác giả khác");
         }
     }
 
-    private boolean isAuthorMatch(String articleAuthor, String doctorName, String altName, String pureName) {
-        if (articleAuthor == null || articleAuthor.isBlank()) {
-            return false;
+    /**
+     * Every portal operation requires an ACTIVE doctor profile bound to the
+     * caller. Without it there is no ownership authority to evaluate, so the
+     * request is denied before any article access — including the legacy
+     * display-name paths that previously let an unlinked account slip through.
+     */
+    private Doctor requireActiveDoctor(UserDetails actor) {
+        User user = actor == null ? null : findUserFromActor(actor);
+        Doctor doctor = user == null
+                ? null
+                : doctorRepository.findByUserId(user.getId()).orElse(null);
+        if (doctor == null || !doctor.isActive()) {
+            throw new ForbiddenException("Bạn không có quyền chỉnh sửa hoặc xóa bài viết của tác giả khác");
         }
-        String author = articleAuthor.trim();
-        if (doctorName != null && author.equalsIgnoreCase(doctorName.trim())) {
-            return true;
-        }
-        if (altName != null && author.equalsIgnoreCase(altName.trim())) {
-            return true;
-        }
-        if (pureName != null && !pureName.isBlank()) {
-            String strippedAuthor = stripAcademicTitles(author);
-            if (strippedAuthor.equalsIgnoreCase(pureName)) {
-                return true;
-            }
-            if (strippedAuthor.toLowerCase().contains(pureName.toLowerCase())
-                    || pureName.toLowerCase().contains(strippedAuthor.toLowerCase())) {
-                return true;
-            }
-        }
-        return false;
+        return doctor;
     }
 
-    private String stripAcademicTitles(String name) {
-        if (name == null) return "";
-        return name.replaceAll("(?i)^(GS\\.TS\\.BS|PGS\\.TS\\.BS|TS\\.BS|ThS\\.BS|BS\\.CKII|BS\\.CKI|GS|PGS|TS|ThS|BS|Bác sĩ)\\.?\\s*", "").trim();
+    private static String displayName(Doctor doctor) {
+        String fullName = doctor.getFullName();
+        return (fullName != null && !fullName.isBlank()) ? fullName : "Bác sĩ Chuyên khoa";
     }
 
     private ArticleRequest enforceDoctorAuthor(ArticleRequest request, String doctorName) {
@@ -194,45 +166,6 @@ public class DoctorArticleController {
             request.whenToSeekCare(), request.sourceReferences(), request.clinicalMetadata(),
             request.clinicalDisclaimer(), request.featured(), request.active()
         );
-    }
-
-    private UUID resolveDoctorId(UserDetails actor) {
-        if (actor == null) {
-            return null;
-        }
-        User user = findUserFromActor(actor);
-        if (user == null) {
-            return null;
-        }
-        return doctorRepository.findByUserId(user.getId())
-                .map(Doctor::getId)
-                .orElse(null);
-    }
-
-    private String resolveDoctorName(UserDetails actor) {
-        if (actor == null) {
-            return "Bác sĩ Chuyên khoa";
-        }
-        User user = findUserFromActor(actor);
-        if (user != null) {
-            Doctor doctor = doctorRepository.findByUserId(user.getId()).orElse(null);
-            if (doctor != null && doctor.getFullName() != null && !doctor.getFullName().isBlank()) {
-                return doctor.getFullName();
-            }
-            if (user.getDisplayName() != null && !user.getDisplayName().isBlank()) {
-                return user.getDisplayName();
-            }
-        }
-        return "Bác sĩ Chuyên khoa";
-    }
-
-    private String resolveDoctorAltName(UserDetails actor) {
-        if (actor == null) {
-            return null;
-        }
-        User user = findUserFromActor(actor);
-        return (user != null && user.getDisplayName() != null && !user.getDisplayName().isBlank())
-                ? user.getDisplayName() : null;
     }
 
     private User findUserFromActor(UserDetails actor) {

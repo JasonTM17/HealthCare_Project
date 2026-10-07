@@ -16,6 +16,18 @@ public interface ArticleRepository extends JpaRepository<Article, UUID> {
     Optional<Article> findBySlug(String slug);
 
     /**
+     * Row-locking read for write paths whose authorization depends on the
+     * stored owner: the doctor-portal update/delete must re-check
+     * {@code author_doctor_id} on the locked row so an ownership change
+     * between the controller's precheck read and the transactional write
+     * cannot slip through (TOCTOU).
+     */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Article a WHERE a.slug = :slug")
+    Optional<Article> findBySlugForUpdate(
+        @org.springframework.data.repository.query.Param("slug") String slug);
+
+    /**
      * True when some other row already owns a slug that only differs in case.
      * The database unique constraint is case-sensitive, so it happily stores
      * {@code tang-huyet} next to {@code Tang-Huyet}; this pre-check keeps new
