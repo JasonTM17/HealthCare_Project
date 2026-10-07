@@ -524,7 +524,7 @@ MockHttpServletRequest:
       HTTP Method = POST
       Request URI = /api/v1/patients/1f454232-b902-4dae-b12b-3974a2a178e4/documents
        Parameters = {}
-          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJiMmIwZDcxOS02Nzc1LTQzMjItYTdkYy0wYzA2ZWY3N2FhNDIiLCJlbWFpbCI6IjVjYzc1ZDgwLTc3Y2YtNDRlZC1iZDJiLTQ5MjA4ZmQ3YzQ5YkBleGFtcGxlLnRlc3QiLCJ0eXBlIjoiYWNjZXNzIiwianRpIjoiN2RiZTE4MjQtZGU4ZC00OThiLWE1OTYtZGNmMjY5OWFkYjU4IiwiaWF0IjoxNzkxMDk2NzM3LCJleHAiOjE3OTEwOTc2Mzd9.OP0cxvXhctUAnCrQviVzWnOeui_Zb5hEN3ag8pfKNld0VXBNctj9kxzb-ULZLBmL", Content-Length:"94"]
+          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer [REDACTED-LOCAL-TEST-JWT]", Content-Length:"94"]
              Body = {"sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"5cf27b7b-760f-4e04-8ce2-f58200dda7d8"}
 
     Session Attrs = {}
@@ -562,7 +562,7 @@ MockHttpServletRequest:
       HTTP Method = POST
       Request URI = /api/v1/patients/1f454232-b902-4dae-b12b-3974a2a178e4/documents
        Parameters = {}
-          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJiMmIwZDcxOS02Nzc1LTQzMjItYTdkYy0wYzA2ZWY3N2FhNDIiLCJlbWFpbCI6IjVjYzc1ZDgwLTc3Y2YtNDRlZC1iZDJiLTQ5MjA4ZmQ3YzQ5YkBleGFtcGxlLnRlc3QiLCJ0eXBlIjoiYWNjZXNzIiwianRpIjoiN2RiZTE4MjQtZGU4ZC00OThiLWE1OTYtZGNmMjY5OWFkYjU4IiwiaWF0IjoxNzkxMDk2NzM3LCJleHAiOjE3OTEwOTc2Mzd9.OP0cxvXhctUAnCrQviVzWnOeui_Zb5hEN3ag8pfKNld0VXBNctj9kxzb-ULZLBmL", Content-Length:"94"]
+          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer [REDACTED-LOCAL-TEST-JWT]", Content-Length:"94"]
              Body = {"sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"5cf27b7b-760f-4e04-8ce2-f58200dda7d8"}
 
     Session Attrs = {}
@@ -600,7 +600,7 @@ MockHttpServletRequest:
       HTTP Method = POST
       Request URI = /api/v1/patients/1ee7a4b2-cfe3-437c-af6b-201d2f4413ec/documents
        Parameters = {}
-          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIxYjVmNGVlOS1kZjQ3LTQxNGUtOGRkOS03Yzk0MTM5NzExNzUiLCJlbWFpbCI6IjNjZTM0N2IwLTMwMzktNGI1Zi04ZmJiLTYzNjQ4Y2EyMjI2N0BleGFtcGxlLnRlc3QiLCJ0eXBlIjoiYWNjZXNzIiwianRpIjoiZTcyNmE3Y2YtY2ExMS00NDgwLWFlMTgtYTUwOTc4ODVjZTVhIiwiaWF0IjoxNzkxMDk2NzM5LCJleHAiOjE3OTEwOTc2Mzl9.CeM74nSNEkTTiKKcNn_xf5-zAhlAPzVKKnKrvkyl6rE70V5bGfGPBwFxr4O_ptgt", Content-Length:"94"]
+          Headers = [Content-Type:"application/json;charset=UTF-8", Authorization:"Bearer [REDACTED-LOCAL-TEST-JWT]", Content-Length:"94"]
              Body = {"sourceType":"APPOINTMENT_REMINDER","sourceRecordId":"14eb58bc-fb97-46c1-adfc-c84caf5cd57e"}
 
     Session Attrs = {}
@@ -638,7 +638,7 @@ MockHttpServletRequest:
       HTTP Method = GET
       Request URI = /api/v1/patients/1ee7a4b2-cfe3-437c-af6b-201d2f4413ec/documents/2590e8c3-c958-480e-bd43-9c252fc174d7/download
        Parameters = {}
-          Headers = [Authorization:"Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIxYjVmNGVlOS1kZjQ3LTQxNGUtOGRkOS03Yzk0MTM5NzExNzUiLCJlbWFpbCI6IjNjZTM0N2IwLTMwMzktNGI1Zi04ZmJiLTYzNjQ4Y2EyMjI2N0BleGFtcGxlLnRlc3QiLCJ0eXBlIjoiYWNjZXNzIiwianRpIjoiZTcyNmE3Y2YtY2ExMS00NDgwLWFlMTgtYTUwOTc4ODVjZTVhIiwiaWF0IjoxNzkxMDk2NzM5LCJleHAiOjE3OTEwOTc2Mzl9.CeM74nSNEkTTiKKcNn_xf5-zAhlAPzVKKnKrvkyl6rE70V5bGfGPBwFxr4O_ptgt"]
+          Headers = [Authorization:"Bearer [REDACTED-LOCAL-TEST-JWT]"]
              Body = null
     Session Attrs = {}
 
@@ -5518,7 +5518,7 @@ MockHttpServletRequest:
       HTTP Method = GET
       Request URI = /api/v1/patients/1ee7a4b2-cfe3-437c-af6b-201d2f4413ec/documents/by-booking/REMIN-1bf0f358-03ee-48/download
        Parameters = {}
-          Headers = [Authorization:"Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIxYjVmNGVlOS1kZjQ3LTQxNGUtOGRkOS03Yzk0MTM5NzExNzUiLCJlbWFpbCI6IjNjZTM0N2IwLTMwMzktNGI1Zi04ZmJiLTYzNjQ4Y2EyMjI2N0BleGFtcGxlLnRlc3QiLCJ0eXBlIjoiYWNjZXNzIiwianRpIjoiZTcyNmE3Y2YtY2ExMS00NDgwLWFlMTgtYTUwOTc4ODVjZTVhIiwiaWF0IjoxNzkxMDk2NzM5LCJleHAiOjE3OTEwOTc2Mzl9.CeM74nSNEkTTiKKcNn_xf5-zAhlAPzVKKnKrvkyl6rE70V5bGfGPBwFxr4O_ptgt"]
+          Headers = [Authorization:"Bearer [REDACTED-LOCAL-TEST-JWT]"]
              Body = null
     Session Attrs = {}
 
