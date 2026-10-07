@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 52c6ee4 (wave-14: article-section sanitization +
-# TinyMCE URL policy + live-compose editor/SortableJS E2E).
+# release line, built from 3e2f3ad4 (IDOR + rate-limit fail-closed + PDF
+# download sha256 verification + admin fail-closed gating).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:f8502a95d6cf574d7efe0a07372d73f19cc18d3daf9a3ff5310009ee006124b2"
+    "sha256:57bbd39f9fcb8ee9ad8a4c3d02db4eb435b92908db0f09a4ad00589c4f9a8a8d"
 )
 
 
