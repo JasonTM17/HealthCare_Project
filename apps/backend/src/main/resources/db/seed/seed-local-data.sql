@@ -70,6 +70,11 @@ ON CONFLICT (slug) DO UPDATE SET
 -- "user_id IS NULL" guard never fired on a fresh chain and /doctor/profile
 -- 404'd for the compose demo doctor. The local seed runs after the chain and
 -- is the authority for the local demo, so rebind unconditionally.
+-- uq_doctors_user_id allows only one doctors row per user: V112 may already
+-- have bound the .local user to a fallback row, so release it first.
+UPDATE doctors SET user_id = NULL
+WHERE user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.local')
+  AND slug <> 'nguyen-minh-khoi';
 UPDATE doctors SET user_id = (SELECT id FROM users WHERE email = 'doctor@healthcare.local')
 WHERE slug = 'nguyen-minh-khoi';
 
