@@ -8,9 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -330,7 +332,112 @@ class AiCreditRefillTest extends AbstractIntegrationTest {
         assertThat(ledgerRows(patient.getId(), "AI_CHAT_REFILL")).hasSize(1);
     }
 
+    @Test
+    @DisplayName("An active promo floor lifts every tier's refill target to at least the floor")
+    void promoFloorLiftsRefillTargetInsideWindow() {
+        User patient = createUser("patient.refill-promo@example.com");
+        createPatientProfile(patient, "0901910009", "STANDARD", 3);
+        String end = LocalDate.now(AiCreditService.CREDIT_REFILL_ZONE).toString();
+        withPromo(100, end, () -> {
+            assertThat(aiCreditService.refillPatientCreditsWeekly(patient.getId())).isTrue();
+            assertThat(balanceOf(patient)).isEqualTo(100);
+            var ledger = ledgerRows(patient.getId(), "AI_CHAT_REFILL");
+            assertThat(ledger).hasSize(1);
+            assertThat(ledger.get(0).get("amount")).isEqualTo(100 - 3);
+            assertThat(ledger.get(0).get("balance_after")).isEqualTo(100);
+        });
+    }
+
+    @Test
+    @DisplayName("The promo floor is inert once the end date passes — no deploy needed to revert")
+    void promoFloorTurnsOffAfterEndDate() {
+        User patient = createUser("patient.refill-promo-expired@example.com");
+        createPatientProfile(patient, "0901910010", "STANDARD", 3);
+        String yesterday = LocalDate.now(AiCreditService.CREDIT_REFILL_ZONE).minusDays(1).toString();
+        withPromo(100, yesterday, () -> {
+            assertThat(aiCreditService.refillPatientCreditsWeekly(patient.getId())).isTrue();
+            assertThat(balanceOf(patient)).isEqualTo(20);
+        });
+    }
+
+    @Test
+    @DisplayName("The promo floor never lowers a higher tier and a malformed end date fails closed")
+    void promoFloorCapsAtHigherTierAndRejectsBadDate() {
+        User vip = createUser("patient.refill-promo-vip@example.com");
+        createPatientProfile(vip, "0901910011", "VIP", 5);
+        String end = LocalDate.now(AiCreditService.CREDIT_REFILL_ZONE).toString();
+        withPromo(100, end, () -> {
+            assertThat(aiCreditService.refillPatientCreditsWeekly(vip.getId())).isTrue();
+            assertThat(balanceOf(vip)).isEqualTo(300);
+        });
+
+        User standard = createUser("patient.refill-promo-baddate@example.com");
+        createPatientProfile(standard, "0901910012", "STANDARD", 3);
+        withPromo(100, "not-a-date", () -> {
+            assertThat(aiCreditService.refillPatientCreditsWeekly(standard.getId())).isTrue();
+            assertThat(balanceOf(standard)).isEqualTo(20);
+        });
+    }
+
+    @Test
+    @DisplayName("A patient who already refilled this ISO week still gets the promo top-up, ledgered under the promo marker")
+    void promoTopUpAppliesEvenWhenTheWeekIsAlreadyGranted() {
+        User patient = createUser("patient.refill-promo-midweek@example.com");
+        createPatientProfile(patient, "0901910013", "STANDARD", 20);
+        // Simulates a refill that ran before the promotion window opened:
+        // stamp AND ledger row for this week both exist (consistent history),
+        // but no promo grant exists yet.
+        jdbcTemplate.update(
+            "update patient_profiles set last_credit_refill_period = ? where user_id = ?",
+            AiCreditService.currentRefillPeriod(), patient.getId());
+        insertLedgerRow(patient.getId(), "AI_CHAT_REFILL", 17, 20, AiCreditService.currentRefillPeriod());
+        String end = LocalDate.now(AiCreditService.CREDIT_REFILL_ZONE).toString();
+        withPromo(100, end, () -> {
+            assertThat(aiCreditService.refillPatientCreditsWeekly(patient.getId())).isTrue();
+            assertThat(balanceOf(patient)).isEqualTo(100);
+            var ledger = ledgerRows(patient.getId(), "AI_CHAT_REFILL");
+            assertThat(ledger).hasSize(2);
+            assertThat(ledger.get(1).get("refill_period")).isEqualTo("promo-" + end);
+            assertThat(ledger.get(1).get("amount")).isEqualTo(80);
+            assertThat(ledger.get(1).get("balance_after")).isEqualTo(100);
+            // Exactly once: a second call in the same window grants nothing.
+            assertThat(aiCreditService.refillPatientCreditsWeekly(patient.getId())).isFalse();
+            assertThat(ledgerRows(patient.getId(), "AI_CHAT_REFILL")).hasSize(2);
+        });
+    }
+
+    @Test
+    @DisplayName("The promo top-up is a floor, not a reset: a balance above the floor keeps its value and its weekly stamp")
+    void promoTopUpPreservesHigherBalances() {
+        User patient = createUser("patient.refill-promo-admin-grant@example.com");
+        createPatientProfile(patient, "0901910014", "STANDARD", 150);
+        jdbcTemplate.update(
+            "update patient_profiles set last_credit_refill_period = ? where user_id = ?",
+            AiCreditService.currentRefillPeriod(), patient.getId());
+        String end = LocalDate.now(AiCreditService.CREDIT_REFILL_ZONE).toString();
+        withPromo(100, end, () -> {
+            assertThat(aiCreditService.refillPatientCreditsWeekly(patient.getId())).isFalse();
+            assertThat(balanceOf(patient)).isEqualTo(150);
+            assertThat(lastRefillPeriodOf(patient)).isEqualTo(AiCreditService.currentRefillPeriod());
+            assertThat(ledgerRows(patient.getId(), "AI_CHAT_REFILL")).isEmpty();
+        });
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
+
+    /** Sets the promo fields on the injected singleton, then always restores
+     * the off state so no other test inherits an active promotion. */
+    private void withPromo(int floor, String until, Runnable body) {
+        ReflectionTestUtils.setField(aiCreditService, "promoFloor", floor);
+        ReflectionTestUtils.setField(aiCreditService, "promoUntil", until);
+        try {
+            body.run();
+        } finally {
+            ReflectionTestUtils.setField(aiCreditService, "promoFloor", 0);
+            ReflectionTestUtils.setField(aiCreditService, "promoUntil", "");
+        }
+    }
+
 
     private int balanceOf(User user) {
         Integer balance = jdbcTemplate.queryForObject(

@@ -102,18 +102,21 @@ class DoctorAiCreditNotMeteredTest {
         assertThat(doctorMutations).isEmpty();
 
         // Positive control plus the actual scope assertion: the only @Modifying
-        // balance writers in this domain are the patient deduct/refund pair and
-        // the V108 weekly refill, and each of them updates PatientProfile —
-        // never Doctor. The refill is a conditional SET to the caller-supplied
-        // tier maximum keyed on the ISO-week stamp; it is patient-scoped like
-        // the spend pair, so the doctor invariant holds across all three.
+        // balance writers in this domain are the patient deduct/refund pair,
+        // the V108 weekly refill and the promotional floor top-up, and each of
+        // them updates PatientProfile — never Doctor. The refill is a
+        // conditional SET to the caller-supplied tier maximum keyed on the
+        // ISO-week stamp; the top-up is a conditional floor keyed on the promo
+        // marker. Both are patient-scoped like the spend pair, so the doctor
+        // invariant holds across all four.
         List<Method> patientMutations = Arrays.stream(PatientProfileRepository.class.getMethods())
             .filter(method -> method.isAnnotationPresent(Modifying.class))
             .toList();
-        assertThat(patientMutations).hasSize(3)
+        assertThat(patientMutations).hasSize(4)
             .extracting(Method::getName)
             .containsExactlyInAnyOrder(
-                "deductAiCreditByUserId", "refundAiCreditByUserId", "refillAiCreditsByUserId");
+                "deductAiCreditByUserId", "refundAiCreditByUserId",
+                "refillAiCreditsByUserId", "topUpAiCreditsToFloor");
         for (Method mutation : patientMutations) {
             Query jpql = AnnotatedElementUtils.findMergedAnnotation(mutation, Query.class);
             assertThat(jpql).isNotNull();

@@ -49,7 +49,7 @@ public class PatientAiCreditController {
         // agreed — and the weekly refill now resets the balance to exactly the
         // service map. The badge ceiling must be the number the refill tops up
         // to, or a STANDARD patient would refill to 20 against a "100" badge.
-        int tierMax = AiCreditService.tierMaxCredits(tier);
+        int tierMax = aiCreditService.effectiveTierMaxCredits(tier);
         // W4: max(tierMax, credits), not max(tierMax, historyMax, credits).
         // historyMax (the highest balance ever seen across the whole ledger)
         // let a one-off admin grant of 500 pin the badge at "/500" forever,
