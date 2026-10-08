@@ -124,7 +124,35 @@ class ChatRequestCancellationRegistryIntegrationTest extends AbstractRedisIntegr
     }
 
     @Test
-    void renewalPermitRotatesOnceAndCannotCrossChatScopes() {
+    void renewalPermitAcceptsOneSupersededGenerationThenRejectsOlder() {
+        String requestId = UUID.randomUUID().toString();
+        String permit = cancellations.openLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseBinding.publicChat());
+        String nextPermit = cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
+            permit);
+
+        // The lost-response case: a renewal carrying the just-superseded
+        // permit still extends the lease and returns a fresh permit.
+        String thirdPermit = cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
+            permit);
+        assertThat(thirdPermit).isNotBlank().isNotEqualTo(nextPermit);
+
+        // A digest two generations old is a genuine stale replay: rejected,
+        // and the rejection cancels the turn — so it is asserted last.
+        assertThatThrownBy(() -> cancellations.renewLease(
+            requestId,
+            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
+            permit)).isInstanceOf(CancellationException.class);
+        redis.delete(stateKey(requestId));
+    }
+
+    @Test
+    void renewalPermitCannotCrossChatScopes() {
         String requestId = UUID.randomUUID().toString();
         String permit = cancellations.openLease(
             requestId,
@@ -136,17 +164,8 @@ class ChatRequestCancellationRegistryIntegrationTest extends AbstractRedisIntegr
 
         assertThatThrownBy(() -> cancellations.renewLease(
             requestId,
-            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
-            permit)).isInstanceOf(CancellationException.class);
-
-        assertThatThrownBy(() -> cancellations.renewLease(
-            requestId,
             ChatRequestCancellationRegistry.LeaseScope.PATIENT,
             nextPermit)).isInstanceOf(CancellationException.class);
-        assertThat(cancellations.renewLease(
-            requestId,
-            ChatRequestCancellationRegistry.LeaseScope.PUBLIC_CHAT,
-            nextPermit)).isNotBlank();
         redis.delete(stateKey(requestId));
     }
 
