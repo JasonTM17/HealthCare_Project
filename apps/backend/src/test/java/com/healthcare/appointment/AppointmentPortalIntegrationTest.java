@@ -651,6 +651,72 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
             .isEqualTo(com.healthcare.payment.entity.PaymentStatus.REJECTED);
     }
 
+    @Test
+    void pendingOnlyCancelLeavesAConfirmedAppointmentUntouched() throws Exception {
+        User patientUser = createUser("PATIENT", "pendingonly.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "pendingonly-doctor-" + UUID.randomUUID());
+        PatientProfile patient = createPatient(patientUser, "097" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "pendingonly-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("pendingonly-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, PORTAL_DATE, LocalTime.of(10, 0), AppointmentStatus.CONFIRMED);
+
+        // The wizard's automatic abandon-release path must never cancel a
+        // booking whose confirmation committed behind a lost response.
+        mockMvc.perform(post("/api/v1/appointments/" + appointment.getBookingCode() + "/cancel")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Bệnh nhân rời luồng đặt lịch trước khi xác nhận\",\"pendingOnly\":true}"))
+            .andExpect(status().isConflict());
+
+        org.assertj.core.api.Assertions.assertThat(
+                appointmentRepository.findById(appointment.getId()).orElseThrow().getStatus())
+            .isEqualTo(AppointmentStatus.CONFIRMED);
+    }
+
+    @Test
+    void pendingOnlyCancelReleasesAPendingHold() throws Exception {
+        User patientUser = createUser("PATIENT", "pendingonly.pending." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "pendingonly-pending-doctor-" + UUID.randomUUID());
+        PatientProfile patient = createPatient(patientUser, "096" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "pendingonly-pending-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("pendingonly-pending-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, PORTAL_DATE, LocalTime.of(11, 0), AppointmentStatus.PENDING_CONFIRMATION);
+
+        mockMvc.perform(post("/api/v1/appointments/" + appointment.getBookingCode() + "/cancel")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Bệnh nhân rời luồng đặt lịch trước khi xác nhận\",\"pendingOnly\":true}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        org.assertj.core.api.Assertions.assertThat(
+                appointmentRepository.findById(appointment.getId()).orElseThrow().getStatus())
+            .isEqualTo(AppointmentStatus.CANCELLED);
+    }
+
+    @Test
+    void explicitCancelWithoutPendingOnlyStillCancelsAConfirmedAppointment() throws Exception {
+        User patientUser = createUser("PATIENT", "pendingonly.explicit." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "pendingonly-explicit-doctor-" + UUID.randomUUID());
+        PatientProfile patient = createPatient(patientUser, "098" + randomDigits());
+        Doctor doctor = createDoctor(doctorUser, "pendingonly-explicit-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("pendingonly-explicit-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            patient, doctor, branch, PORTAL_DATE, LocalTime.of(14, 0), AppointmentStatus.CONFIRMED);
+
+        mockMvc.perform(post("/api/v1/appointments/" + appointment.getBookingCode() + "/cancel")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"reason\":\"Thay đổi kế hoạch\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
     private String webhookPayload(BankTransferPayment payment, String transactionReference) {
         return "{\"transferContent\":\"" + payment.getTransferContent()
             + "\",\"amount\":" + payment.getAmount().toPlainString()
