@@ -2209,12 +2209,16 @@ export async function adminCancelAppointment(
 export async function cancelPatientAppointment(
   bookingCode: string,
   reason?: string,
-  options?: { phone?: string },
+  options?: { phone?: string; pendingOnly?: boolean },
 ): Promise<AppointmentDetails> {
   const trimmedReason = reason?.trim();
   const normalizedPhone = options?.phone?.trim() || undefined;
   const path = `/appointments/${encodeURIComponent(bookingCode)}/cancel`;
-  const body = JSON.stringify({ reason: trimmedReason || undefined, phone: normalizedPhone });
+  const body = JSON.stringify({
+    reason: trimmedReason || undefined,
+    phone: normalizedPhone,
+    pendingOnly: options?.pendingOnly === true || undefined,
+  });
   if (readAuthSession()) {
     return withAuthenticatedSession<AppointmentDetails>(
       path,

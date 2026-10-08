@@ -601,3 +601,36 @@ test("admin AI credit inventory caps window walking against a server that never 
   // until the browser or backend kills the tab.
   assert.equal(calls, 50);
 });
+
+test("cancelPatientAppointment serializes pendingOnly only for automatic hold releases", async () => {
+  const requests = [];
+  const { api } = await loadApiClient(async (input, init = {}) => {
+    requests.push({ url: String(input), body: init.body ? JSON.parse(String(init.body)) : null });
+    return jsonResponse({ bookingCode: "APT-1" });
+  });
+
+  // An explicit patient cancel must keep the original wire shape: no
+  // pendingOnly key at all, so the backend keeps normal semantics.
+  await api.cancelPatientAppointment("APT-EXPLICIT", "Đổi kế hoạch", { phone: "0901234567" });
+  assert.deepEqual(requests[0].body, { reason: "Đổi kế hoạch", phone: "0901234567" });
+  assert.equal("pendingOnly" in requests[0].body, false);
+
+  // An automatic hold release must flag pendingOnly so a confirmation that
+  // committed behind a lost response cannot be cancelled by the abandon path.
+  await api.cancelPatientAppointment(
+    "APT-RELEASE",
+    "Bệnh nhân rời luồng đặt lịch trước khi xác nhận",
+    { phone: "0901234567", pendingOnly: true },
+  );
+  assert.deepEqual(requests[1].body, {
+    reason: "Bệnh nhân rời luồng đặt lịch trước khi xác nhận",
+    phone: "0901234567",
+    pendingOnly: true,
+  });
+
+  // An omitted option and an explicit false must serialize identically absent.
+  await api.cancelPatientAppointment("APT-MINIMAL");
+  assert.deepEqual(requests[2].body, {});
+  await api.cancelPatientAppointment("APT-FALSE", undefined, { pendingOnly: false });
+  assert.equal("pendingOnly" in requests[3].body, false);
+});

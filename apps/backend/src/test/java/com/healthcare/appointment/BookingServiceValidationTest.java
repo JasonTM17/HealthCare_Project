@@ -1137,4 +1137,76 @@ class BookingServiceValidationTest {
             });
         verify(fixture.appointments, never()).findByBookingCodeWithDetailsForUpdate(anyString());
     }
+
+    private Appointment cancellableAppointment(com.healthcare.appointment.entity.AppointmentStatus status) {
+        Appointment appointment = pendingAppointment(UUID.randomUUID(), UUID.randomUUID(), "0900000001");
+        appointment.setDoctor(activeDoctor(UUID.randomUUID()));
+        appointment.setBranch(activeBranch(UUID.randomUUID()));
+        appointment.setAppointmentDate(LocalDate.now().plusDays(1));
+        appointment.setStartTime(LocalTime.of(9, 0));
+        appointment.setEndTime(LocalTime.of(9, 30));
+        appointment.setStatus(status);
+        return appointment;
+    }
+
+    @Test
+    void pendingOnlyReleaseCancelsAPendingHold() {
+        HoldFixture fixture = new HoldFixture();
+        BookingService service = fixture.service();
+        Appointment appointment = cancellableAppointment(
+            com.healthcare.appointment.entity.AppointmentStatus.PENDING_CONFIRMATION);
+        when(fixture.appointments.findByBookingCodeWithDetailsForUpdate("APT-OWNER"))
+            .thenReturn(Optional.of(appointment));
+        when(fixture.claimService.claimedUserIds(appointment.getId())).thenReturn(List.of());
+
+        service.cancelAppointment(
+            "APT-OWNER", "Bệnh nhân rời luồng đặt lịch trước khi xác nhận", "0900000001", null, true);
+
+        assertEquals(com.healthcare.appointment.entity.AppointmentStatus.CANCELLED, appointment.getStatus());
+        assertNull(appointment.getHoldExpiresAt());
+        assertNull(appointment.getOtpCode());
+        verify(fixture.appointments).save(appointment);
+        verify(fixture.payments).markAppointmentCancelled(appointment);
+    }
+
+    @Test
+    void pendingOnlyReleaseRefusesAConfirmedAppointment() {
+        HoldFixture fixture = new HoldFixture();
+        BookingService service = fixture.service();
+        Appointment appointment = cancellableAppointment(
+            com.healthcare.appointment.entity.AppointmentStatus.CONFIRMED);
+        when(fixture.appointments.findByBookingCodeWithDetailsForUpdate("APT-OWNER"))
+            .thenReturn(Optional.of(appointment));
+
+        assertThatThrownBy(() -> service.cancelAppointment(
+                "APT-OWNER", "Bệnh nhân rời luồng đặt lịch trước khi xác nhận", "0900000001", null, true))
+            .isInstanceOfSatisfying(ResponseStatusException.class, exception -> {
+                assertEquals(409, exception.getStatusCode().value());
+                assertEquals(
+                    "Giữ chỗ đã được xác nhận hoặc kết thúc; không hủy tự động.",
+                    exception.getReason());
+            });
+        // A confirmation that committed behind a lost response must survive:
+        // no status change, no payment mutation, no patient notification.
+        assertEquals(com.healthcare.appointment.entity.AppointmentStatus.CONFIRMED, appointment.getStatus());
+        verify(fixture.appointments, never()).save(any());
+        verify(fixture.payments, never()).markAppointmentCancelled(any());
+        verify(fixture.notifications, never()).create(any(), any(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void explicitCancellationStillCancelsAConfirmedAppointment() {
+        HoldFixture fixture = new HoldFixture();
+        BookingService service = fixture.service();
+        Appointment appointment = cancellableAppointment(
+            com.healthcare.appointment.entity.AppointmentStatus.CONFIRMED);
+        when(fixture.appointments.findByBookingCodeWithDetailsForUpdate("APT-OWNER"))
+            .thenReturn(Optional.of(appointment));
+        when(fixture.claimService.claimedUserIds(appointment.getId())).thenReturn(List.of());
+
+        service.cancelAppointment("APT-OWNER", "Đổi kế hoạch", "0900000001", null, false);
+
+        assertEquals(com.healthcare.appointment.entity.AppointmentStatus.CANCELLED, appointment.getStatus());
+        verify(fixture.appointments).save(appointment);
+    }
 }

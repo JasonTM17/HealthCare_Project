@@ -144,6 +144,27 @@ export async function installMockNotificationFeed(
   });
 }
 
+export async function installMockUserPreferences(
+  target: BrowserContext | Page,
+): Promise<void> {
+  await target.route("**/api/v1/users/me/preferences", async (route) => {
+    const request = route.request();
+    expect(request.method()).toBe("GET");
+    expect(new URL(request.url()).origin).toBe(expectedBrowserOrigin());
+    expect(request.headers()["authorization"]).toBeUndefined();
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "Cache-Control": "no-store" },
+      body: JSON.stringify({
+        chatTone: "than_thien",
+        chatDefaultMode: "HOSPITAL_SUPPORT",
+        chatPersonalized: false,
+      }),
+    });
+  });
+}
+
 export async function installMockPatientPortalSession(
   target: BrowserContext | Page,
   session: BrowserSessionFixture,
@@ -158,6 +179,7 @@ export async function installMockPatientPortalSession(
   // elsewhere in the spec needs this route answered or it 401s and clears
   // the freshly mocked session.
   await installMockNotificationFeed(target);
+  await installMockUserPreferences(target);
 
   await target.route("**/api/v1/patient/profile", async (route) => {
     const request = route.request();

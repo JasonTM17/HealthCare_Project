@@ -199,3 +199,19 @@ New feature: authenticated user feedback ("Góp ý") at `/gop-y`.
   submit shows success banner and prepends the new item (no console errors).
 - Note: three patient demo rows ("Góp ý kiểm thử production" et al.) are
   seeded test submissions under `patient@healthcare.com` — safe to triage/delete.
+
+## Post-deploy verification — 2026-10-08 (Google/auth release)
+
+Application source: `f78215e38ce34bac8cbb3fd5c7b68c1c62a5b16e` (includes Google subject binding and the autofill/password fixes).
+
+- CI run `37713239493`: all six required jobs PASS. Image publication run `37713906749`: PASS; immutable registry digests verified.
+- Backend: `ghcr.io/jasontm17/healthcare-project-backend@sha256:6775ddd62c1296ef0a50068a1bbfd330bc795077a5406125072c86e538c01dde`, Render deploy `dep-db3fhfl9fdbs73dini80` LIVE, health UP.
+- AI: `ghcr.io/jasontm17/healthcare-project-ai-service@sha256:c080a7c8820cf096fed64fcc4acbf18e5db38fdde811e469bbd699d8e69770fe`, Render deploy `dep-db3fjpbtqb8s73dq1s90` LIVE, `/livez` 200. Readiness endpoints returned 401 without service authentication; anonymous readiness is not claimed as PASS.
+- V114 initially failed because the limited application database role is not table owner. After explicit operator approval, the owner applied the V114 DDL and matching Flyway history atomically; checksum `1016370147` was computed with Flyway 11.7.2. Schema/constraints/history were independently read back by the lead. The backend then reported schema 114 up to date. No runtime privilege escalation, ownership changes, user-data deletion, or Flyway repair occurred.
+- Password forms capture actual DOM values and preserve autofill across rejected submissions. New/reset/change passwords reject inputs above 72 UTF-8 bytes before hashing; login/current-password/Google staff proof reject oversized inputs before matching. Passwords are not trimmed or silently truncated.
+- Local evidence: 19 password-boundary tests, 64 focused auth/Google tests, 12 running-build browser regressions, and 14 real local role/registration checks PASS. Registration 202 -> Mailpit OTP -> native DOM OTP submission -> PATIENT session was exercised without mocked backend responses.
+- Production evidence: 15 safe smoke checks PASS. Patient/doctor/admin login routing, anonymous 401, cross-role 403, and logout revocation were exercised with test personas. Oversized registration returned 400 with a password field error. Valid registration UI used an intercepted response; no real production signup/email was performed.
+- Public BFF chat canary returned 200 with four citations. This is a bounded smoke check, not a comprehensive chatbot quality evaluation.
+- Google client ID is configured consistently on Render/Vercel; GIS button and SDK load on production login/register. Real interactive Google authentication remains NOT_RUN. Verify Authorized JavaScript origins for both production hostnames and complete a real consent/sign-in journey before claiming end-to-end Google provider success. Client Secret is not required for this GIS ID-token flow and was not added to source or frontend.
+- Demo/test persona login remains enabled on the beta backend. Do not call this a fully locked-down non-demo production deployment; disabling demo access needs a separate coordinated configuration decision.
+- Security scanner self-match was repaired without changing accepted detection patterns or excluding files; regression fixtures confirm private-key/token/JWT detection. Hygiene CI PASS does not prove historical Git secret eradication.
