@@ -2259,3 +2259,52 @@ def test_approved_clinical_source_survives_clinical_prose_but_operational_does_n
     ops_doc = operational.index.get("service:ops-prose")
     assert ops_doc is not None
     assert grounded_source_is_echo_safe(ops_doc, ChatMode.HOSPITAL_SUPPORT) is False
+
+
+def test_local_triage_recommends_the_grounded_specialty_title() -> None:
+    """Regression: the static rule table still names pre-catalog specialties
+    ("Da Liễu & Thẩm Mỹ Da") that Spring's TRIAGE_SPECIALTIES never accepts —
+    a local answer carrying such a name returned 502 upstream. The governed
+    top source title is the recommendation instead, and the lead sentence
+    stays coherent with it rather than quoting mismatched rule advice."""
+
+    eye_content = (
+        "Chuyên khoa Mắt: đau mắt, mắt đỏ, chảy nước mắt, ngứa mắt, "
+        "viêm kết mạc, cận - viễn - loạn thị."
+    )
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "mat",
+        "Mắt",
+        eye_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(eye_content),
+    )
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="đau mắt đỏ ngứa và chảy nước mắt",
+            mode=ChatMode.SYMPTOM_TRIAGE,
+            authorized_sources=[
+                AuthorizedSource(
+                    source_type="specialty",
+                    source_id="mat",
+                    projection_kind="CLINICAL",
+                    content_revision=1,
+                    eligibility_revision=1,
+                    content_hash="c" * 64,
+                    approval_id="round-1",
+                )
+            ],
+        ),
+        _settings(),
+        service,
+    )
+
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert response.triage is not None
+    assert response.triage.recommended_specialty == "Mắt"
+    assert "chuyên khoa Mắt" in response.answer
+    assert "da liễu" not in response.answer.casefold()

@@ -1216,16 +1216,28 @@ def _local_grounded_response(
     )
     if mode is ChatMode.SYMPTOM_TRIAGE:
         triage = rule_based_triage(message)
+        # The governed top source is the better specialty signal: rule labels
+        # predate the live catalog ("Da Liễu & Thẩm Mỹ Da", "Mắt & Nhãn Khoa")
+        # and can point at a specialty the retrieved evidence never supported.
+        grounded_specialty = metas[0].document.title if metas else None
+        if grounded_specialty and grounded_specialty != triage.recommended_specialty:
+            advice = (
+                f"Triệu chứng bạn mô tả phù hợp để thăm khám tại chuyên khoa {grounded_specialty}."
+            )
+            recommended = grounded_specialty
+        else:
+            advice = triage.clinical_advice
+            recommended = triage.recommended_specialty
         excerpts = " ".join(_grounded_excerpt(meta) for meta in metas[:3])
         answer = (
-            f"{triage.clinical_advice} Theo nguồn tham khảo đã được duyệt: {excerpts} "
+            f"{advice} Theo nguồn tham khảo đã được duyệt: {excerpts} "
             "Hãy trao đổi với bác sĩ để được đánh giá trực tiếp."
         )
         urgency = TriageUrgency(triage.urgency_level)
         action = ChatSafetyAction.EMERGENCY if urgency is TriageUrgency.EMERGENCY else ChatSafetyAction.ANSWER
         summary = TriageSummary(
             urgency_level=urgency,
-            recommended_specialty=triage.recommended_specialty,
+            recommended_specialty=recommended,
         )
     elif specialty_guidance:
         titles = [meta.document.title for meta in metas[:3]]
