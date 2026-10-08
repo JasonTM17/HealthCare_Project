@@ -2149,9 +2149,11 @@ public class AiConversationService {
                 "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
                     + "để xem thông tin hiện tại trước khi đến khám.";
             case PREPARATION ->
-                "Trước khi đi khám, bạn nên kiểm tra hướng dẫn của cơ sở, mang giấy tờ cần thiết "
-                    + "và các kết quả hoặc đơn thuốc liên quan nếu có. Yêu cầu chuẩn bị có thể khác "
-                    + "theo dịch vụ; hãy xác nhận lại khi đặt lịch hoặc với cơ sở.";
+                "Trước khi đi khám, bạn nên mang theo giấy tờ tùy thân (CCCD/CMND), "
+                    + "thẻ BHYT nếu có, các kết quả xét nghiệm hoặc chẩn đoán hình ảnh gần nhất "
+                    + "và danh sách thuốc đang sử dụng. Nên đến sớm khoảng 15–30 phút để làm thủ tục. "
+                    + "Một số xét nghiệm hoặc dịch vụ có yêu cầu riêng (ví dụ nhịn ăn) — "
+                    + "bạn nên xác nhận trước khi đặt lịch hoặc gọi cho cơ sở.";
             case EDUCATION ->
                 "Mình chưa tìm thấy bài viết hoặc câu hỏi thường gặp phù hợp trong kho kiến thức "
                     + "đã được kiểm duyệt. Bạn có thể mở Cẩm nang sức khỏe hoặc Câu hỏi thường gặp.";
@@ -2377,12 +2379,6 @@ public class AiConversationService {
         );
     }
 
-    /**
-     * Server-owned pre-visit checklist for generic preparation questions
-     * ("chuẩn bị trước khi khám", "cần mang theo gì").  The guidance is a
-     * complete deterministic answer — nothing a provider round-trip could
-     * improve — so it reports ANSWER with the free local tier.
-     */
     /**
      * Resolve explicit branch identities before the semantic index is asked
      * to generate.  Numeric branch labels are especially prone to nearby-row

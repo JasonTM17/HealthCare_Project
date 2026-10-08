@@ -1983,6 +1983,7 @@ def test_retrieve_pool_rescue_outranks_wrong_above_threshold_hit() -> None:
     )
     ent_doc = service.index.get("specialty:spec-tmh")
     assert ent_doc is not None
+    ent_hit: RagDocument = ent_doc
 
     class NoisyVectorRag(RagService):
         """Vector noise ranks the wrong specialty above the threshold and
@@ -1993,7 +1994,7 @@ def test_retrieve_pool_rescue_outranks_wrong_above_threshold_hit() -> None:
             self._inner = inner
 
         def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
-            return [(ent_doc, 0.667)]
+            return [(ent_hit, 0.667)]
 
         def lexical_candidates(
             self, query_text: str, *, source_types: Any = None, limit: int = 800
