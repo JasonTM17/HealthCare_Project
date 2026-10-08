@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Final, Sequence
@@ -596,6 +597,40 @@ def _lexical_overlap(query_tokens: frozenset[str], document_text: str) -> float:
     # A single shared token proves nothing (Kongming review: one-token
     # queries trivially reach 1.0 and open the grounded path on tangential
     # documents); require at least two distinct shared tokens.
+    if shared < 2:
+        return 0.0
+    return shared / len(query_tokens)
+
+
+# Pool rescoring normalizes every pooled document on every request; the
+# token set only changes when the content does, so cache it by the
+# content-derived hash.  Bounded LRU keeps memory flat between deployments.
+_DOC_TOKEN_CACHE_MAX = 2_000
+_doc_token_cache: "OrderedDict[tuple[object, object], frozenset[str]]" = OrderedDict()
+
+
+def _document_tokens(document: RagDocument) -> frozenset[str]:
+    key = (document.id, getattr(document, "content_hash", None))
+    cached = _doc_token_cache.get(key)
+    if cached is not None:
+        _doc_token_cache.move_to_end(key)
+        return cached
+    tokens = _lexical_tokens(
+        normalize_sensitive_text(
+            f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}"
+        )
+    )
+    _doc_token_cache[key] = tokens
+    _doc_token_cache.move_to_end(key)
+    while len(_doc_token_cache) > _DOC_TOKEN_CACHE_MAX:
+        _doc_token_cache.popitem(last=False)
+    return tokens
+
+
+def _lexical_overlap_document(query_tokens: frozenset[str], document: RagDocument) -> float:
+    if not query_tokens:
+        return 0.0
+    shared = len(query_tokens & _document_tokens(document))
     if shared < 2:
         return 0.0
     return shared / len(query_tokens)
@@ -1462,7 +1497,7 @@ def retrieve_chat_candidates(
                 # content.  An unbounded education pool (~700 rows) multiplied
                 # by per-document normalization pushes /chat/retrieve past the
                 # caller's six-second budget on every request.
-                limit=300,
+                limit=150,
             )
         except (EmbeddingContractError, ProviderUnavailable):
             pool = []
@@ -1492,10 +1527,7 @@ def retrieve_chat_candidates(
             # ~700-row education pool into a minute-long request.  Order does
             # not change which documents can become candidates — a row that
             # fails safety is still dropped before it is appended.
-            overlap = _lexical_overlap(
-                query_tokens,
-                f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}",
-            )
+            overlap = _lexical_overlap_document(query_tokens, document)
             if overlap < threshold and expansion_only:
                 title_tokens = _lexical_tokens(
                     normalize_sensitive_text(getattr(document, "title", ""))
