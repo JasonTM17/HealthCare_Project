@@ -1053,6 +1053,171 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
             .andExpect(jsonPath("$.status").value("NO_SHOW"));
     }
 
+    @Test
+    void patientWithoutProfileGetsEmptyPortalData() throws Exception {
+        // Google sign-in and phone-less registration produce a verified
+        // PATIENT account with no patient_profiles row — reads must answer
+        // empty collections, not 403s that render as dashboard failures.
+        User patientUser = createUser("PATIENT", "noprofile.patient." + UUID.randomUUID() + "@example.com");
+
+        mockMvc.perform(get("/api/v1/patient/medical-records")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/v1/patient/prescriptions")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/v1/patient/diagnostic-results")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+        mockMvc.perform(get("/api/v1/patient/overview")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.appointmentCount").value(0))
+            .andExpect(jsonPath("$.diagnosticResultCount").value(0))
+            .andExpect(jsonPath("$.prescriptionCount").value(0));
+        // The profile resource itself stays typed: 403 means "not created yet".
+        mockMvc.perform(get("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void firstProfileSaveCreatesProfileFromValidatedPhone() throws Exception {
+        User patientUser = createUser("PATIENT", "provision.patient." + UUID.randomUUID() + "@example.com");
+        String phone = "093" + randomDigits();
+
+        // Missing phone cannot provision: phone is NOT NULL + UNIQUE.
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Provisioned Patient\"}"))
+            .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Provisioned Patient\",\"phone\":\"" + phone + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.phone").value(phone))
+            .andExpect(jsonPath("$.fullName").value("Provisioned Patient"));
+
+        mockMvc.perform(get("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Provisioned Patient"));
+    }
+
+    @Test
+    void firstProfileSaveRejectsPhoneOwnedByAnotherAccount() throws Exception {
+        String ownedPhone = "092" + randomDigits();
+        User owner = createUser("PATIENT", "phone.owner." + UUID.randomUUID() + "@example.com");
+        createPatient(owner, ownedPhone);
+        User newcomer = createUser("PATIENT", "phone.newcomer." + UUID.randomUUID() + "@example.com");
+
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(newcomer))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Newcomer\",\"phone\":\"" + ownedPhone + "\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("PHONE_OWNED_BY_ACCOUNT"));
+    }
+
+    @Test
+    void firstProfileSaveClaimsGuestProfileWithMatchingEmail() throws Exception {
+        String email = "guest.claim." + UUID.randomUUID() + "@example.com";
+        String guestPhone = "091" + randomDigits();
+        // A guest booking left a profile with no account link; a later sign-up
+        // with the same email may claim it, exactly like AuthService.register.
+        PatientProfile guest = new PatientProfile();
+        guest.setFullName("Guest Booker");
+        guest.setPhone(guestPhone);
+        guest.setEmail(email);
+        patientProfileRepository.saveAndFlush(guest);
+        User patientUser = createUser("PATIENT", email);
+
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Claimed Patient\",\"phone\":\"" + guestPhone + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fullName").value("Claimed Patient"))
+            .andExpect(jsonPath("$.phone").value(guestPhone));
+
+        PatientProfile claimed = patientProfileRepository.findByUserId(patientUser.getId()).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(claimed.getId()).isEqualTo(guest.getId());
+    }
+
+    @Test
+    void profilelessAccountStillSeesClaimedAppointmentsInOverview() throws Exception {
+        // A phone-less account can hold appointment_account_claims rows (guest
+        // booking confirmed under its email before sign-up). The overview must
+        // surface them even with no linked patient profile.
+        User patientUser = createUser("PATIENT", "claimonly.patient." + UUID.randomUUID() + "@example.com");
+        User doctorUser = createUser("DOCTOR", "claimonly.doctor." + UUID.randomUUID() + "@example.com");
+        PatientProfile guest = new PatientProfile();
+        guest.setFullName("Guest Booker");
+        guest.setPhone("090" + randomDigits());
+        guest.setEmail("guest.other." + UUID.randomUUID() + "@example.com");
+        patientProfileRepository.saveAndFlush(guest);
+        Doctor doctor = createDoctor(doctorUser, "claimonly-doctor-" + UUID.randomUUID());
+        Branch branch = createBranch("claimonly-branch-" + UUID.randomUUID());
+        assignDoctorToBranch(doctor, branch);
+        Appointment appointment = createAppointment(
+            guest, doctor, branch, LocalDate.now(BUSINESS_ZONE), LocalTime.of(10, 0), AppointmentStatus.CONFIRMED);
+        jdbcTemplate.update(
+            "INSERT INTO appointment_account_claims (id, appointment_id, user_id, claim_source) VALUES (?, ?, ?, 'BOOKING_OTP')",
+            UUID.randomUUID(), appointment.getId(), patientUser.getId());
+
+        mockMvc.perform(get("/api/v1/patient/overview")
+                .header("Authorization", bearer(patientUser)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.appointmentCount").value(1))
+            .andExpect(jsonPath("$.latestAppointment.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void firstProfileSaveRejectsPhoneBookedUnderAnotherEmail() throws Exception {
+        // Anti-hijack gate: a guest profile booked under a different email must
+        // never be adopted by an unrelated account just for knowing the phone.
+        String guestPhone = "089" + randomDigits();
+        PatientProfile guest = new PatientProfile();
+        guest.setFullName("Other Guest");
+        guest.setPhone(guestPhone);
+        guest.setEmail("other.guest." + UUID.randomUUID() + "@example.com");
+        patientProfileRepository.saveAndFlush(guest);
+        User patientUser = createUser("PATIENT", "mismatch.patient." + UUID.randomUUID() + "@example.com");
+
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Mismatch\",\"phone\":\"" + guestPhone + "\"}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("PHONE_LINKED_TO_BOOKING_EMAIL"));
+        org.assertj.core.api.Assertions.assertThat(
+            patientProfileRepository.findByUserId(patientUser.getId())).isEmpty();
+        org.assertj.core.api.Assertions.assertThat(
+            patientProfileRepository.findByPhone(guestPhone).orElseThrow().getUserId()).isNull();
+    }
+
+    @Test
+    void existingProfileUpdateCannotRewritePhone() throws Exception {
+        String phone = "097" + randomDigits();
+        User patientUser = createUser("PATIENT", "immutable.phone." + UUID.randomUUID() + "@example.com");
+        createPatient(patientUser, phone);
+        String foreignPhone = "096" + randomDigits();
+
+        mockMvc.perform(put("/api/v1/patient/profile")
+                .header("Authorization", bearer(patientUser))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"fullName\":\"Renamed Patient\",\"phone\":\"" + foreignPhone + "\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.phone").value(phone))
+            .andExpect(jsonPath("$.fullName").value("Renamed Patient"));
+    }
+
     private User createUser(String roleCode, String email) {
         Role role = roleRepository.findByCode(roleCode).orElseThrow();
         User user = new User();

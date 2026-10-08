@@ -72,7 +72,7 @@ const initialAppointments: Loadable<Page<PatientPortalAppointment>> = { status: 
 const initialPrescriptions: Loadable<Prescription[]> = { status: "loading" };
 const initialDiagnostics: Loadable<DiagnosticResult[]> = { status: "loading" };
 const initialNotifications: Loadable<Page<Notification>> = { status: "loading" };
-const initialProfile: Loadable<PatientProfile> = { status: "loading" };
+const initialProfile: Loadable<PatientProfile | null> = { status: "loading" };
 const initialOverview: Loadable<PatientOverview> = { status: "loading" };
 const initialCarePlans: Loadable<CarePlan[]> = { status: "loading" };
 
@@ -83,7 +83,7 @@ interface DashboardLoadSnapshot {
   prescriptions: Loadable<Prescription[]>;
   diagnostics: Loadable<DiagnosticResult[]>;
   notifications: Loadable<Page<Notification>>;
-  profile: Loadable<PatientProfile>;
+  profile: Loadable<PatientProfile | null>;
   overview: Loadable<PatientOverview>;
   carePlans: Loadable<CarePlan[]>;
 }
@@ -292,6 +292,10 @@ function StateContent<T>({
 }) {
   if (state.status === "loading") return <LoadingState />;
   if (state.status === "error") return <ErrorState message={state.message} onRetry={retry} status={state.statusCode} />;
+  // A null payload is a meaningful state (e.g. no patient profile yet), not an
+  // empty collection — hand it to the child instead of the empty-state checks,
+  // which would dereference `.empty` on null.
+  if (state.data === null) return children(state.data);
   if (Array.isArray(state.data) && state.data.length === 0) {
     return <EmptyState description={emptyDescription ?? "Mục này chưa có thông tin. Nếu bạn vừa cập nhật dữ liệu, hãy thử tải lại trang."} title={emptyTitle ?? "Chưa có mục để hiển thị"} />;
   }
@@ -734,7 +738,7 @@ export default function PatientDashboardPage() {
   const [prescriptions, setPrescriptions] = useState<Loadable<Prescription[]>>(initialPrescriptions);
   const [diagnostics, setDiagnostics] = useState<Loadable<DiagnosticResult[]>>(initialDiagnostics);
   const [notifications, setNotifications] = useState<Loadable<Page<Notification>>>(initialNotifications);
-  const [profile, setProfile] = useState<Loadable<PatientProfile>>(initialProfile);
+  const [profile, setProfile] = useState<Loadable<PatientProfile | null>>(initialProfile);
   const [overview, setOverview] = useState<Loadable<PatientOverview>>(initialOverview);
   const [carePlans, setCarePlans] = useState<Loadable<CarePlan[]>>(initialCarePlans);
   const [profileForm, setProfileForm] = useState<ProfileForm>(EMPTY_PROFILE_FORM);
@@ -814,8 +818,15 @@ export default function PatientDashboardPage() {
       }
 
       setAppointments(toLoadable(appointmentsResult));
-      setProfile(toLoadable(profileResult));
-      if (profileResult.status === "fulfilled") {
+      // A verified account can exist before its patient profile does (Google
+      // sign-in, phone-less registration): the profile endpoint answers 403,
+      // which means "not created yet" — an empty/setup state, not a failure.
+      setProfile(
+        profileResult.status === "rejected" && getErrorStatus(profileResult.reason) === 403
+          ? { status: "success", data: null }
+          : toLoadable(profileResult)
+      );
+      if (profileResult.status === "fulfilled" && profileResult.value != null) {
         const value = profileResult.value;
         setProfileForm({
           fullName: value.fullName,
@@ -1400,7 +1411,7 @@ export default function PatientDashboardPage() {
     setProfileOperation("saving");
     setProfileNotice(null);
     try {
-      const previousAvatarUrl = profile?.status === "success" ? profile.data.avatarUrl ?? "" : "";
+      const previousAvatarUrl = profile?.status === "success" ? profile.data?.avatarUrl ?? "" : "";
       const saved = await updatePatientProfile({
         fullName: profileForm.fullName.trim(),
         dateOfBirth: profileForm.dateOfBirth || undefined,
@@ -1512,7 +1523,7 @@ export default function PatientDashboardPage() {
             <p className="section-note">CỔNG BỆNH NHÂN</p>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="mb-0">Xin chào, {user.displayName}</h1>
-              {profile.status === "success" && (
+              {profile.status === "success" && profile.data && (
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${
                     profile.data.patientTier === "VIP" ? "bg-purple-50 text-purple-900 border-purple-200" :
@@ -2218,9 +2229,28 @@ export default function PatientDashboardPage() {
             </div>
           </div>
           <StateContent retry={retry} state={profile}>
-            {() => (
+            {(data) => (
               <div className="portal-profile-layout space-y-6">
-                {/* Form 1: Profile & Medical History */}
+                {data === null ? (
+                  <div className="bg-white border border-teal-200/80 rounded-[4px] p-6 sm:p-8 shadow-xs text-center">
+                    <span className="mx-auto mb-4 flex items-center justify-center w-12 h-12 rounded-[4px] bg-teal-50 text-teal-700 border border-teal-200/70">
+                      <UiIcon name="user" size={24} />
+                    </span>
+                    <h3 className="text-base font-bold text-teal-950">Hoàn thiện hồ sơ bệnh nhân</h3>
+                    <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
+                      Tài khoản của bạn chưa có hồ sơ bệnh nhân. Thêm số điện thoại liên hệ để tạo hồ sơ
+                      và bắt đầu đặt lịch, xem kết quả khám.
+                    </p>
+                    <Link
+                      href="/patient/profile"
+                      className="inline-flex items-center gap-2 mt-5 h-11 px-5 rounded-[4px] bg-teal-700 text-white text-sm font-bold hover:bg-teal-800 transition-colors"
+                    >
+                      <UiIcon name="arrow-right" size={15} />
+                      Tạo hồ sơ ngay
+                    </Link>
+                  </div>
+                ) : (
+                /* Form 1: Profile & Medical History */
                 <form className="space-y-6" onSubmit={handleSaveProfile}>
                   {/* Card 1: Thông tin cá nhân & Ảnh đại diện */}
                   <div className="bg-white border border-slate-200/90 rounded-[4px] p-6 sm:p-7 shadow-xs">
@@ -2407,6 +2437,7 @@ export default function PatientDashboardPage() {
                     </div>
                   </div>
                 </form>
+                )}
 
                 {/* Form 2: Change Password */}
                 <form className="bg-white border border-slate-200/90 rounded-[4px] p-6 sm:p-7 shadow-xs" onSubmit={handleChangePassword}>

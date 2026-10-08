@@ -60,6 +60,9 @@ const ERROR_COPY_BY_CODE = Object.freeze({
   HEALTH_QUESTION_REPORT_STATUS_INVALID: "Trạng thái báo cáo không hợp lệ.",
   HEALTH_QUESTION_SELF_APPROVAL: "Bác sĩ không thể tự duyệt câu trả lời của mình.",
   HEALTH_QUESTION_TOPIC_INVALID: "Chủ đề câu hỏi không hợp lệ. Chỉ dùng chữ thường, số và dấu gạch ngang.",
+
+  PHONE_OWNED_BY_ACCOUNT: "Số điện thoại này đã liên kết một tài khoản khác. Vui lòng dùng số khác.",
+  PHONE_LINKED_TO_BOOKING_EMAIL: "Số điện thoại này đã dùng đặt lịch với một email khác. Vui lòng dùng số khác.",
 } as const);
 
 const ERROR_COPY_BY_STATUS = Object.freeze({

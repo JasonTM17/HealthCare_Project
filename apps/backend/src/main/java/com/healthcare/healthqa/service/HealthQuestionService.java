@@ -142,8 +142,14 @@ public class HealthQuestionService {
     @Transactional(readOnly = true)
     public List<HealthQuestionContracts.Summary> patientList(UserDetails principal) {
         UUID user = currentUser(principal);
-        UUID profile = scalar("SELECT id FROM patient_profiles WHERE user_id = ?", user);
-        return list("WHERE q.patient_profile_id = ?", profile);
+        // No patient profile yet (Google sign-in / phone-less registration):
+        // the account owns no questions, so the list is empty — not forbidden.
+        List<UUID> profile = jdbc.queryForList(
+            "SELECT id FROM patient_profiles WHERE user_id = ?", UUID.class, user);
+        if (profile.isEmpty()) {
+            return List.of();
+        }
+        return list("WHERE q.patient_profile_id = ?", profile.get(0));
     }
 
     /** A patient can report a published question without adding free-text moderation data. */

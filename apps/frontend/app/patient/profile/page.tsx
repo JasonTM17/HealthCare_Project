@@ -81,6 +81,10 @@ export default function PatientProfilePage() {
   const [creditStatus, setCreditStatus] = useState<AiCreditStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // True when the account exists but has no patient_profiles row yet (Google
+  // sign-in or a phone-less registration): the profile endpoint answers 403,
+  // and this page becomes the creation surface with an editable phone input.
+  const [profileMissing, setProfileMissing] = useState(false);
 
   // Form states
   const [fullName, setFullName] = useState("");
@@ -163,11 +167,17 @@ export default function PatientProfilePage() {
         setAllergies(data.allergies || "");
       } catch (err: unknown) {
         if (cancelled) return;
-        setLoadError(
-          err instanceof ApiError
-            ? presentApiError(err.code, err.status)
-            : "Không thể tải hồ sơ bệnh nhân.",
-        );
+        if (err instanceof ApiError && err.status === 403) {
+          setProfileMissing(true);
+          setFullName((current) => current || session.user?.displayName || "");
+          setEmail((current) => current || session.user?.email || "");
+        } else {
+          setLoadError(
+            err instanceof ApiError
+              ? presentApiError(err.code, err.status)
+              : "Không thể tải hồ sơ bệnh nhân.",
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -229,6 +239,9 @@ export default function PatientProfilePage() {
       const previousAvatarUrl = profile?.avatarUrl || "";
       const updated = await updatePatientProfile({
         fullName: fullName.trim(),
+        // First save doubles as profile creation: the backend requires a real
+        // contact phone because patient_profiles.phone is NOT NULL + UNIQUE.
+        phone: profileMissing ? phone.trim() : undefined,
         dateOfBirth: dateOfBirth || undefined,
         gender,
         // Blank strings are sent deliberately: the backend maps them to null,
@@ -242,6 +255,8 @@ export default function PatientProfilePage() {
         allergies: allergies.trim(),
       });
       setProfile(updated);
+      setProfileMissing(false);
+      setPhone(updated.phone || "");
       // The backend now keeps users.display_name equal to the profile name;
       // force-refresh the session snapshot so the portal header, navbar chip
       // and dashboard greeting show the new name without a manual reload.
@@ -263,7 +278,7 @@ export default function PatientProfilePage() {
       });
     } catch (err: unknown) {
       const msg = err instanceof ApiError
-        ? presentApiError(err.code, err.status)
+        ? (err.fieldErrors.phone ?? presentApiError(err.code, err.status))
         : "Không thể lưu thông tin hồ sơ.";
       setProfileNotice({ tone: "error", text: msg });
       showToast({
@@ -340,6 +355,12 @@ export default function PatientProfilePage() {
         {loadError && (
           <div className="portal-inline-error mb-6" role="alert">
             {loadError}
+          </div>
+        )}
+
+        {profileMissing && !loadError && (
+          <div className="portal-inline-error mb-6" role="status" style={{ borderColor: "var(--color-teal-300, #5eead4)", background: "var(--color-teal-50, #f0fdfa)", color: "var(--color-teal-900, #134e4a)" }}>
+            Tài khoản của bạn chưa có hồ sơ bệnh nhân. Nhập số điện thoại liên hệ và lưu để tạo hồ sơ.
           </div>
         )}
 
@@ -524,16 +545,28 @@ export default function PatientProfilePage() {
 
                 <div className={styles.inputGroup}>
                   <label className={styles.inputLabel} htmlFor="phone">
-                    Số điện thoại xác thực (Cố định OTP)
+                    {profileMissing ? "Số điện thoại liên hệ (bắt buộc để tạo hồ sơ)" : "Số điện thoại xác thực (Cố định OTP)"}
                   </label>
-                  <input
-                    className={`${styles.inputField} ${styles.inputFieldReadOnly}`}
-                    id="phone"
-                    readOnly
-                    title="Thông tin xác thực SMS. Để thay đổi, vui lòng liên hệ quầy tiếp tân."
-                    type="tel"
-                    value={phone || "Chưa cập nhật"}
-                  />
+                  {profileMissing ? (
+                    <input
+                      className={styles.inputField}
+                      id="phone"
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="VD: 0901234567"
+                      required
+                      type="tel"
+                      value={phone}
+                    />
+                  ) : (
+                    <input
+                      className={`${styles.inputField} ${styles.inputFieldReadOnly}`}
+                      id="phone"
+                      readOnly
+                      title="Thông tin xác thực SMS. Để thay đổi, vui lòng liên hệ quầy tiếp tân."
+                      type="tel"
+                      value={phone || "Chưa cập nhật"}
+                    />
+                  )}
                 </div>
 
                 <div className={styles.inputGroup}>

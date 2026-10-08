@@ -2243,6 +2243,9 @@ export interface UpdatePatientProfilePayload {
   medicalHistory?: string;
   allergies?: string;
   bloodType?: string;
+  // Required only on the first save, when the account has no patient profile
+  // yet (Google sign-in / phone-less registration); ignored afterwards.
+  phone?: string;
 }
 
 export async function updatePatientProfile(payload: UpdatePatientProfilePayload): Promise<PatientProfile> {
