@@ -1457,6 +1457,12 @@ def retrieve_chat_candidates(
             pool = pool_getter(
                 request.message,
                 source_types=mode_source_types(request.mode),
+                # Bound the rescore pool: the durable backend already orders
+                # FTS-matching rows first, so the tail is the least relevant
+                # content.  An unbounded education pool (~700 rows) multiplied
+                # by per-document normalization pushes /chat/retrieve past the
+                # caller's six-second budget on every request.
+                limit=300,
             )
         except (EmbeddingContractError, ProviderUnavailable):
             pool = []
@@ -1481,8 +1487,11 @@ def retrieve_chat_candidates(
             meta = _source_metadata(document)
             if not _mode_allows(meta, request.mode) or _expired(meta):
                 continue
-            if not _context_is_safe(meta):
-                continue
+            # Cheap gates first: the full-content safety scan costs ~100 ms
+            # per document, so running it before the overlap bar multiplies a
+            # ~700-row education pool into a minute-long request.  Order does
+            # not change which documents can become candidates — a row that
+            # fails safety is still dropped before it is appended.
             overlap = _lexical_overlap(
                 query_tokens,
                 f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}",
@@ -1494,6 +1503,8 @@ def retrieve_chat_candidates(
                 if len(title_tokens & expansion_only) >= 2:
                     overlap = threshold
             if overlap >= threshold:
+                if not _context_is_safe(meta):
+                    continue
                 scored_pool.append((meta, overlap))
         scored_pool.sort(key=lambda item: item[1], reverse=True)
         if scored_pool:

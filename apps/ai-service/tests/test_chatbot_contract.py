@@ -2018,6 +2018,80 @@ def test_retrieve_pool_rescue_outranks_wrong_above_threshold_hit() -> None:
     assert response.candidates[0].score >= response.candidates[-1].score
 
 
+def test_retrieve_pool_rescue_skips_safety_scan_for_sub_threshold_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-document safety scans cost ~100 ms; running them before the
+    overlap bar multiplied a ~700-row education pool into a minute-long
+    /chat/retrieve on production (backend budget: 6 s).  The gate order must
+    stay cheap-first, and the pool itself must stay bounded."""
+
+    import app.chatbot as chatbot_module
+
+    service = RagService()
+    service.ingest(
+        "faq",
+        "faq-match",
+        "Nhịn ăn xét nghiệm máu thế nào",
+        "Nhịn ăn 8-10 tiếng trước khi xét nghiệm máu.",
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata("Nhịn ăn 8-10 tiếng trước khi xét nghiệm máu."),
+    )
+    service.ingest(
+        "faq",
+        "faq-unrelated",
+        "Giờ làm việc của phòng khám",
+        "Phòng khám mở cửa từ 7h đến 18h hằng ngày.",
+        [0.0] * 384,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata("Phòng khám mở cửa từ 7h đến 18h hằng ngày."),
+    )
+
+    safety_calls: list[str] = []
+    real_safe = chatbot_module._context_is_safe
+
+    def counting_safe(meta: Any) -> bool:
+        safety_calls.append(meta.document.source_id)
+        return real_safe(meta)
+
+    monkeypatch.setattr(chatbot_module, "_context_is_safe", counting_safe)
+
+    seen_limits: list[int] = []
+
+    class EmptyVectorRag(RagService):
+        def __init__(self, inner: RagService) -> None:
+            super().__init__(index=inner.index)
+            self._inner = inner
+
+        def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return []
+
+        def lexical_candidates(
+            self, query_text: str, *, source_types: Any = None, limit: int = 800
+        ) -> list[RagDocument]:
+            seen_limits.append(limit)
+            return self._inner.lexical_candidates(
+                query_text, source_types=source_types, limit=limit
+            )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Tôi cần nhịn ăn bao lâu trước khi xét nghiệm máu?",
+            mode=ChatMode.HEALTH_EDUCATION,
+        ),
+        _threshold_settings(),
+        EmptyVectorRag(service),
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert [candidate.source_id for candidate in response.candidates] == ["faq-match"]
+    assert safety_calls == ["faq-match"], (
+        "safety scans must only run on rows that already passed the overlap bar"
+    )
+    assert seen_limits and seen_limits[0] <= 300
+
+
 def test_retrieve_pool_rescue_never_promotes_ineligible_rows() -> None:
     """The pool widens recall, not authorization: operational rows and
     unapproved clinical rows stay fenced out of clinical modes."""
