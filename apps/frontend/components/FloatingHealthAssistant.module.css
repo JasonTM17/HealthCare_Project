@@ -190,6 +190,10 @@
 }
 
 .consentPanel {
+  /* Shrinkable + internally scrollable so the consent CTA can never push the
+     composer outside the panel on a short viewport. */
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   gap: 0.45rem;
   padding: 0.8rem 0.85rem;
@@ -294,7 +298,11 @@
 }
 
 .thread {
-  min-height: 10rem;
+  /* No minimum: the thread is the flex panel's shock absorber. A fixed floor
+     let tall fixed chrome (picker, suggestions, consent, alerts) push the
+     composer past the panel box, where overflow:hidden clipped it and the
+     launcher overlapped the input row. It still grows to fill spare space. */
+  min-height: 0;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
@@ -781,6 +789,10 @@
  * wall of warning: the conversation above it is intact, so the strip stays
  * one row tall, separates cleanly, and the retry stays a compact pill. */
 .failure {
+  /* Alert banner must never push the composer out of the panel: it may
+     compress and scroll on a crowded short viewport. */
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -829,6 +841,10 @@
 }
 
 .suggestions {
+  /* Decorative affordance: allowed to shrink (with its own scroll) before the
+     composer or thread ever has to give up space. */
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   gap: 0.4rem;
   padding: 0.85rem 1rem 0;
@@ -864,6 +880,10 @@
 /* Login gate replaces the composer for anonymous visitors: the assistant is
    a signed-in surface, but emergency and booking channels stay reachable. */
 .loginGate {
+  /* Same contract as the composer it replaces: its actions stay inside the
+     panel on short viewports by scrolling internally. */
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   gap: 0.5rem;
   margin: 0.85rem 1rem 0;
@@ -929,6 +949,9 @@
 }
 
 .composer {
+  /* The input row is the one control that may never shrink or be pushed out
+     of the panel — every optional section above it yields first. */
+  flex-shrink: 0;
   display: flex;
   align-items: flex-end;
   gap: 0.5rem;
@@ -1199,6 +1222,36 @@
   .launcher::after {
     right: -0.08rem;
     bottom: 0;
+  }
+}
+
+/* Very short viewports: even with every section shrinkable, the fixed
+   chrome (mode picker, suggestions, credit line, footer link) can exceed
+   the panel's max-height, which pushed the composer out of the panel box
+   and under the launcher — the input row was clipped and unreachable.
+   Below this height the mode picker compacts instead of disappearing
+   (all three modes stay reachable) and the purely decorative chrome
+   yields so the thread keeps a usable scroll region. */
+@media (max-height: 540px) {
+  /* The thread's vertical padding is a hidden floor once its content shrinks
+     to zero — slim it too, or the composer still overflows by a few px. */
+  .thread {
+    padding: 0.6rem 0.85rem;
+  }
+
+  .modePicker {
+    padding: 0.4rem 0.85rem;
+  }
+
+  .modeOption,
+  .modeOptionActive {
+    min-height: 2rem;
+  }
+
+  .panel .suggestions,
+  .panel .composerCredit,
+  .panel .fullChatLink {
+    display: none;
   }
 }
 
