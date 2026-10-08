@@ -356,7 +356,7 @@ export default function DoctorProfilePage() {
                     minLength={8}
                     value={passwordForm.newPassword}
                     onChange={(e) => setPasswordForm((v) => ({ ...v, newPassword: e.target.value }))}
-                    placeholder="Tối thiểu 8 ký tự, gồm hoa, thường, số, ký tự đặc biệt"
+                    placeholder="Tối thiểu 8 ký tự, gồm ít nhất một chữ cái và một chữ số"
                     className={styles.inputField}
                   />
                 </div>

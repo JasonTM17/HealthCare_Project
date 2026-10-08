@@ -291,6 +291,31 @@ class AuthServicePasswordBoundaryTest {
     }
 
     @Test
+    void dtoConstraintAcceptsLetterDigitPasswordWithoutSpecialClass() {
+        // Password-manager secrets are commonly letters+digits only; the
+        // relaxed policy must accept them (the user's reported blocker).
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        assertThat(validator.validate(registerRequest("kQ9vX2mP7wRz")))
+            .noneMatch(v -> v.getPropertyPath().toString().equals("password"));
+        assertThat(validator.validate(registerRequest("matkhau123")))
+            .noneMatch(v -> v.getPropertyPath().toString().equals("password"));
+    }
+
+    @Test
+    void dtoConstraintFlagsPasswordWithoutLetter() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        assertThat(validator.validate(registerRequest("12345678!")))
+            .anyMatch(v -> v.getPropertyPath().toString().equals("password"));
+    }
+
+    @Test
+    void dtoConstraintFlagsPasswordWithoutDigit() {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        assertThat(validator.validate(registerRequest("allletters!")))
+            .anyMatch(v -> v.getPropertyPath().toString().equals("password"));
+    }
+
+    @Test
     void dtoConstraintFlags74ByteUtf8() {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         assertThat(validator.validate(registerRequest(PASSWORD_74_UTF8)))

@@ -147,18 +147,19 @@ test("password validation explains the missing requirements without suggesting a
   const error = new ApiError("Validation failed", 400, "/api/auth/register", {
     code: "VALIDATION_ERROR", fieldErrors: { password: "unsafe backend detail" },
   });
-  assert.match(authFieldErrors(error).password, /8.*128.*chữ hoa.*chữ thường.*số.*ký tự đặc biệt/u);
+  assert.match(authFieldErrors(error).password, /8.*128.*chữ cái.*chữ số/u);
   assert.equal(authErrorMessage(error, "fallback"), "Vui lòng kiểm tra lại các trường được đánh dấu.");
 });
 
 test("registration password preflight identifies each unmet backend requirement", async () => {
   const { registrationPasswordError } = await loadAuthFlow();
   for (const [value, missing] of [
-    ["Aa1!", /8.*128/u], ["lowercase1!", /chữ hoa/u],
-    ["UPPERCASE1!", /chữ thường/u], ["NoDigits!", /số/u],
-    ["NoSymbol123", /ký tự đặc biệt/u], ["Aa1!".repeat(33), /8.*128/u],
+    ["Aa1!", /8.*128/u], ["12345678!", /chữ cái/u],
+    ["allletters!", /chữ số/u], ["Aa1!".repeat(33), /8.*128/u],
   ]) assert.match(registrationPasswordError(value), missing);
-  assert.equal(registrationPasswordError("SyntheticValid1!"), null);
+  // Manager-generated secrets (letters + digits, no symbol class) must pass.
+  for (const value of ["NoSymbol123", "SyntheticValid1!", "matkhau123", "kQ9vX2mP7wRz"])
+    assert.equal(registrationPasswordError(value), null, value);
 });
 
 test("registration password preflight enforces the raw 72-byte UTF-8 ceiling", async () => {

@@ -22,8 +22,8 @@ public record PasswordResetConfirmRequest(
     @Size(min = 8, max = 128, message = "Password must be between 8 and 128 characters")
     @BcryptInputLength
     @Pattern(
-        regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).*$",
-        message = "Password must contain at least one lowercase, uppercase, digit, and special character"
+        regexp = "^(?=.*\\p{L})(?=.*\\d).*$",
+        message = "Password must contain at least one letter and one digit"
     )
     @JsonAlias({"newPassword"})
     String password

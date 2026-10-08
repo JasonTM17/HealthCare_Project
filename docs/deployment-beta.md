@@ -182,6 +182,53 @@ coordinate is `dep-db3ha8mi0phs73a6fulg`/`dep-db3ha8mi0phs73a6g0gg` on
 `sha256:cad5ab83...`; V115 only rewrites `display_name`, so an image rollback
 is schema-safe (the divergent names simply stop auto-healing).
 
+### Current hosted overlay (2026-10-08, release 115798dc — backup cluster containers refreshed, AI traffic on backup-ai)
+
+**All five Render services now run the `115798dc` release.** Publish run
+`37747077435` built new immutable images after `cb370fc5` (self-harm crisis
+routing) and `115798dc` (pending re-registration resend):
+
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:da612421e76c6f165ad13434ec97e7de84da540d9824e7f92cfac4cf4160085a
+    ghcr.io/jasontm17/healthcare-project-ai-service@sha256:3d52e47fa89fa9c46c2a31b85c470233ea75d2af1b50913393aa6487114c6ae1
+
+**Legacy `healthcare-backup-*` cluster (workspace `tea-db345p2jnfac738l3kdg`,
+screenshot services):**
+
+- `healthcare-backup-backend` (`srv-db3492om7kps73cvsv7g`): image
+  `f495ce35` -> `da612421`, deploy `dep-db3ktcjtqb8s73ee1kl0` live.
+  `AI_CHAT_SYMPTOM_TRIAGE_ENABLED`/`AI_CHAT_HEALTH_EDUCATION_ENABLED` flipped
+  to `true` and `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` imported for
+  OAuth parity with the managed cluster.
+- `healthcare-backup-ai` (`srv-db348qrbc2fs73cifnsg`): Python source deploy
+  (autoDeploy off) redeployed to `83cfedfe` — carries every ai-service fix
+  including the self-harm crisis routing. `BACKEND_WARM_URL` set to its
+  cluster sibling. `/readyz` 200: `rag_ready`, 1283 docs on the same
+  Supabase corpus.
+- `healthcare-backup-redis` (`red-db348nrbc2fs73cifgcg`): managed Valkey
+  8.1.10 — no container to update; verified reachable.
+
+**Managed workspace (`tea-daigolvqj5pc73a217vg`):** `healthcare-backup-backend`
+(`srv-db3gpdl9fdbs73dnstb0`), `healthcare-beta-backend`
+(`srv-daigprh5efls73dfau00`) re-imaged to `da612421`; `healthcare-beta-ai`
+(`srv-daigq6vqj5pc73a284l0`) re-imaged to `3d52e47f`. All deploys `live`,
+`/actuator/health` and `/readyz` 200.
+
+**AI routing flipped to the backup AI service.** Per the blueprint contract,
+both managed backends now carry
+`AI_SERVICE_URL=https://healthcare-backup-ai.onrender.com` (the third-account
+`healthcare-backup-backend` already pointed there). `AI_SERVICE_TOKEN` and
+`RAG_INGEST_TOKEN` are shared across both workspaces, so service auth and
+outbox ingest remain intact. `healthcare-beta-ai` stays deployed as the
+managed standby on identical code.
+
+**Live evidence:** `GET /api/v1/ai/chat-policy` on
+`healthcare-backup-backend.onrender.com` returns
+`enabledModes=[HOSPITAL_SUPPORT, SYMPTOM_TRIAGE, HEALTH_EDUCATION]`.
+Production BFF journey on `www.healthcare.id.vn` (login -> policy ->
+SYMPTOM_TRIAGE conversation -> consent -> message) returns a grounded 200
+answer through Vercel -> `healthcare-beta-backend-4wb7` ->
+`healthcare-backup-ai`.
+
 ### Current hosted overlay (2026-10-08, release 210d35c0 — clinical chat modes live on the new Render cluster)
 
 **Traffic re-pointed to the managed workspace.** The Vercel BFF previously

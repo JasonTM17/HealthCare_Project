@@ -201,10 +201,10 @@ test("register: DOM-only replacement after normal typing submits latest DOM valu
 test("register: DOM-autofilled syntactically invalid password rejects locally with no API call", async () => {
   const { page } = await mount();
   try {
-    await domFill(page, { ...VALID, password: "alllowercase1!", confirmPassword: "alllowercase1!" });
+    await domFill(page, { ...VALID, password: "allletters!", confirmPassword: "allletters!" });
     await submit(page);
     await page.locator("#register-password-error").waitFor();
-    assert.equal(await page.locator("#register-password-error").innerText(), "Mật khẩu cần chữ hoa.");
+    assert.equal(await page.locator("#register-password-error").innerText(), "Mật khẩu cần chữ số.");
     assert.equal(await page.evaluate(() => registerFixture.registrations.length), 0);
   } finally { await page.close(); }
 });
