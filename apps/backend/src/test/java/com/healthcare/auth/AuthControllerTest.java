@@ -319,7 +319,7 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
     }
 
     @Test
-    void duplicateEmailReturnsConflict() throws Exception {
+    void duplicateVerifiedEmailReturnsConflict() throws Exception {
         String body = """
             {
               "email": "duplicate@example.com",
@@ -331,8 +331,102 @@ class AuthControllerTest extends TestcontainersIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
             .andExpect(status().isAccepted());
 
+        User user = userRepository.findByEmail("duplicate@example.com").orElseThrow();
+        user.setEmailVerified(true);
+        user.setEmailVerifiedAt(java.time.OffsetDateTime.now());
+        userRepository.saveAndFlush(user);
+
         mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
-            .andExpect(status().isConflict());
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("EMAIL_ALREADY_REGISTERED"));
+    }
+
+    /**
+     * Regression for the pending-account dead end: a lost code used to lock the
+     * email forever (re-register 409, login EMAIL_VERIFICATION_REQUIRED). The
+     * repeat request now re-issues the code and answers like a fresh
+     * registration without touching the existing account.
+     */
+    @Test
+    void duplicatePendingEmailResendsVerificationInsteadOfConflict() throws Exception {
+        String body = """
+            {
+              "email": "pending.dup@example.com",
+              "password": "Str0ng!Pass",
+              "displayName": "Pending Duplicate"
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isAccepted());
+
+        User user = userRepository.findByEmail("pending.dup@example.com").orElseThrow();
+        String originalHash = user.getPasswordHash();
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.verificationRequired").value(true))
+            .andExpect(jsonPath("$.email").value("pending.dup@example.com"));
+
+        User after = userRepository.findByEmail("pending.dup@example.com").orElseThrow();
+        assertThat(after.getPasswordHash()).isEqualTo(originalHash);
+        assertThat(after.isEmailVerified()).isFalse();
+        // Inside the resend cooldown the already-issued code stays valid and
+        // no duplicate mail is sent — same contract as the resend endpoint.
+        assertThat(sentEmailCount).hasValue(1);
+    }
+
+    /**
+     * Companion to the within-cooldown pin: once the original challenge ages
+     * past the resend cooldown, a repeated registration actually issues a
+     * fresh code + email and consumes the stale one — the path that unblocks
+     * a pending user whose first mail never arrived.
+     */
+    @Test
+    void duplicatePendingEmailAfterCooldownIssuesFreshCodeAndMail() throws Exception {
+        String body = """
+            {
+              "email": "pending.cooldown@example.com",
+              "password": "Str0ng!Pass",
+              "displayName": "Pending Cooldown"
+            }
+            """;
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isAccepted());
+
+        var challenges = authOtpChallengeRepository.findAll();
+        assertThat(challenges).hasSize(1);
+        var stale = challenges.getFirst();
+        stale.setCreatedAt(java.time.OffsetDateTime.now().minusMinutes(30));
+        authOtpChallengeRepository.saveAndFlush(stale);
+
+        mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.verificationRequired").value(true));
+
+        assertThat(sentEmailCount).hasValue(2);
+        var after = authOtpChallengeRepository.findAll();
+        assertThat(after).hasSize(2);
+        assertThat(after.stream().filter(c -> c.getConsumedAt() != null).count()).isEqualTo(1);
+    }
+
+    /**
+     * Mail clients and the verify form let grouped codes through ("123 456",
+     * "123-456"); the digit check happens after separator stripping so a
+     * well-meant paste is not rejected as INVALID_OTP.
+     */
+    @Test
+    void emailVerificationAcceptsCodeWithGroupingSeparators() throws Exception {
+        registerPending("verify.spaced@example.com", "Str0ng!Pass", "Verify Spaced");
+        String otp = otpFromLastEmail();
+        String grouped = otp.substring(0, 3) + "-" + otp.substring(3);
+
+        mockMvc.perform(post("/api/v1/auth/email-verifications/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"verify.spaced@example.com\",\"otp\":\"%s\"}".formatted(grouped)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.emailVerified").value(true));
     }
 
     @Test

@@ -97,6 +97,19 @@ test("server-marked phone field errors show the canonical-format hint", async ()
   assert.equal(authErrorMessage(error, "fallback"), "Vui lòng kiểm tra lại các trường được đánh dấu.");
 });
 
+test("EMAIL_VERIFICATION_REQUIRED never falls through to the generic 403 lock copy", async () => {
+  const { authErrorMessage, ApiError } = await loadAuthFlow();
+
+  // Login returns 403 + this code for pending accounts; the generic 403 branch
+  // read as "account locked", which sent users to the wrong recovery path.
+  const error = new ApiError("Forbidden", 403, "/api/auth/browser-sessions", {
+    code: "EMAIL_VERIFICATION_REQUIRED",
+  });
+
+  assert.match(authErrorMessage(error, "fallback"), /chưa được xác minh/u);
+  assert.doesNotMatch(authErrorMessage(error, "fallback"), /tạm khóa/u);
+});
+
 test("PHONE_OWNED_BY_ACCOUNT guides the user to sign in instead of registering", async () => {
   const { authErrorMessage, authFieldErrors, ApiError } = await loadAuthFlow();
 

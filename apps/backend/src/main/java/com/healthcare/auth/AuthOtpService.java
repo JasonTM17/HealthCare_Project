@@ -199,7 +199,12 @@ public class AuthOtpService {
     }
 
     private AuthOtpChallenge verify(User user, AuthOtpPurpose purpose, String suppliedCode, String subject) {
-        String code = suppliedCode == null ? "" : suppliedCode.trim();
+        // Codes are digit-only; mail clients and the verify form let grouped
+        // separators through ("123 456", "123‑456" incl. NBSP and Unicode
+        // dashes), so strip them before the hash comparison instead of failing
+        // a well-meant paste.
+        String code = suppliedCode == null ? "" : suppliedCode.trim()
+            .replaceAll("[\\p{IsWhite_Space}\\p{Pd}]", "");
         AuthOtpChallenge challenge = challengeRepository
             .findActiveLatestForUpdate(user.getId(), purpose)
             .orElseGet(() -> challengeRepository.findLatestRecordForUpdate(user.getId(), purpose)

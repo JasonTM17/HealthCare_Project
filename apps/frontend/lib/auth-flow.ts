@@ -133,6 +133,9 @@ export function authErrorMessage(error: unknown, fallback: string): string {
   if (apiError.status === 401) {
     return fallback || "Email hoặc mật khẩu chưa chính xác. Vui lòng kiểm tra lại.";
   }
+  if (apiError.code === "EMAIL_VERIFICATION_REQUIRED") {
+    return "Email này chưa được xác minh. Hãy nhập mã xác minh đã gửi qua email, hoặc yêu cầu gửi lại mã.";
+  }
   if (apiError.status === 403) {
     return "Tài khoản của bạn không có quyền truy cập hoặc đã bị tạm khóa.";
   }
