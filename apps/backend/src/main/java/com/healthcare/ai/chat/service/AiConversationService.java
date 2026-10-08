@@ -41,6 +41,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.OffsetDateTime;
@@ -110,6 +112,12 @@ public class AiConversationService {
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AiPatientContextService patientContextService;
 
+    // Same field-injection contract as patientContextService above: hand-built
+    // test instances must still construct without the collaborator, and a
+    // missing service only means no admin fan-out — never a failed chat turn.
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.healthcare.notification.service.NotificationService notificationService;
+
     private final AiConversationRepository conversationRepository;
     private final AiMessageRepository messageRepository;
     private final AiMessageFeedbackRepository feedbackRepository;
@@ -118,6 +126,7 @@ public class AiConversationService {
     private final AiCreditService aiCreditService;
     private final AiChatSourceResolver sourceResolver;
     private final TransactionTemplate transactions;
+    private final TransactionTemplate alertTransactions;
     private final int retentionDays;
     private final boolean cleanupEnabled;
     private final int cleanupBatchSize;
@@ -162,7 +171,7 @@ public class AiConversationService {
             @Value("${ai.chat.cleanup-batch-size:200}") int cleanupBatchSize,
             @Value("${ai.chat.cleanup-max-batches:20}") int cleanupMaxBatches,
             @Value("${ai.chat.processing-lease-seconds:120}") int processingLeaseSeconds,
-            @Value("${ai.chat.remote-provider-enabled:true}") boolean remoteProviderEnabled,
+            @Value("${ai.chat.remote-provider-enabled:false}") boolean remoteProviderEnabled,
             @Value("${ai.chat.symptom-triage-enabled:false}") boolean symptomTriageEnabled,
             @Value("${ai.chat.health-education-enabled:false}") boolean healthEducationEnabled,
             @Value("${ai.chat.synthetic-beta-asserted:false}") boolean syntheticBetaAsserted,
@@ -176,6 +185,13 @@ public class AiConversationService {
         this.aiCreditService = aiCreditService;
         this.sourceResolver = sourceResolver;
         this.transactions = new TransactionTemplate(transactionManager);
+        // afterCommit work runs while the completed transaction's context is
+        // still bound: a REQUIRED template would join the dying transaction
+        // and its EntityManager would see no live JDBC transaction. The alert
+        // fan-out therefore suspends that context and starts a real one.
+        this.alertTransactions = new TransactionTemplate(transactionManager);
+        this.alertTransactions.setPropagationBehavior(
+            org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.retentionDays = Math.max(1, Math.min(retentionDays, 365));
         this.cleanupEnabled = cleanupEnabled;
         this.cleanupBatchSize = Math.max(1, Math.min(cleanupBatchSize, 1_000));
@@ -1426,6 +1442,13 @@ public class AiConversationService {
         reply.setCompletedAt(completedAt);
         messageRepository.save(reply);
 
+        // A persisted self-harm turn alerts the admin queue — afterCommit, so a
+        // rolled-back exchange never alerts and a notification failure can
+        // never abort the chat transaction the user is waiting on.
+        if ("self_harm_crisis".equals(response.routingReason())) {
+            registerSelfHarmAlert(userId, conversation, request.getContent());
+        }
+
         if (DEFAULT_TITLE.equals(conversation.getTitle()) || "Cuoc tro chuyen moi".equals(conversation.getTitle())) {
             conversation.setTitle(deriveTitle(request.getContent()));
         }
@@ -1934,8 +1957,97 @@ public class AiConversationService {
         );
     }
 
+    /** Excerpt cap for the admin alert body — enough to judge severity, not a transcript. */
+    private static final int SELF_HARM_ALERT_EXCERPT_CHARS = 200;
+
     /**
-     * A refusal that names an identifier or record kind should say so.  The
+     * Defers the admin fan-out to afterCommit, mirroring {@link
+     * com.healthcare.auth.mail.AfterCommitEmailSender#runAfterCommit}: the
+     * alert exists only once the crisis exchange is durably committed, and a
+     * notification row that fails to insert cannot abort the chat transaction
+     * the patient is blocked on. With no active transaction (hand-built tests)
+     * the alert runs inline.
+     */
+    private void registerSelfHarmAlert(UUID userId, AiConversation conversation, String userContent) {
+        Runnable alert = () -> notifyAdminsOfSelfHarm(userId, conversation.getId(), userContent);
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    alert.run();
+                }
+            });
+            return;
+        }
+        alert.run();
+    }
+
+    /**
+     * Fans the self-harm flag out to every active admin, the same recipient
+     * walk the payment review queue uses. The body names the patient and a
+     * bounded excerpt so a reviewer can judge severity without reading the
+     * thread; {@code referenceId} points at the conversation for follow-up.
+     * Strictly best-effort: any failure is logged and swallowed because a
+     * dropped alert must never cost the patient their crisis answer.
+     */
+    private void notifyAdminsOfSelfHarm(UUID patientUserId, UUID conversationId, String userContent) {
+        if (notificationService == null) {
+            return;
+        }
+        // afterCommit runs with no transaction; notification preference
+        // materialization (NotificationPreferenceRepository#ensureDefaults)
+        // is a @Modifying INSERT, so the fan-out needs its own transaction.
+        // The catch wraps the commit, not just the inserts: a poisoned
+        // transaction throws on the way out and must still be swallowed here —
+        // anything reaching afterCommit would fail a request whose crisis
+        // exchange already committed.
+        try {
+            alertTransactions.executeWithoutResult(status ->
+                notifyAdminsOfSelfHarmInTransaction(patientUserId, conversationId, userContent));
+        } catch (RuntimeException exception) {
+            log.warn("self-harm admin alert fan-out failed", exception);
+        }
+    }
+
+    private void notifyAdminsOfSelfHarmInTransaction(UUID patientUserId, UUID conversationId, String userContent) {
+        String patientName = userRepository.findById(patientUserId)
+            .map(user -> {
+                String display = user.getDisplayName();
+                return display != null && !display.isBlank() ? display : user.getEmail();
+            })
+            .orElse("patient " + patientUserId);
+        String excerpt = userContent == null ? ""
+            : userContent.length() <= SELF_HARM_ALERT_EXCERPT_CHARS
+                ? userContent
+                : userContent.substring(0, SELF_HARM_ALERT_EXCERPT_CHARS) + "…";
+        String title = "Cảnh báo an toàn AI";
+        String body = patientName + " đã gửi tin nhắn có dấu hiệu tự hại trong trò chuyện AI"
+            + (excerpt.isBlank() ? "." : ": \"" + excerpt + "\"");
+        int notified = 0;
+        for (int page = 0; ; page++) {
+            List<UUID> adminIds = userRepository.findActiveAdminUserIds(
+                PageRequest.of(page, 50));
+            if (adminIds.isEmpty()) {
+                return;
+            }
+            for (UUID adminId : adminIds) {
+                if (notified >= 500) {
+                    return;
+                }
+                if (adminId.equals(patientUserId)) {
+                    continue;
+                }
+                notificationService.create(
+                    adminId,
+                    com.healthcare.notification.entity.Notification.EventType.AI_SAFETY_ALERT,
+                    title, body, conversationId);
+                notified++;
+            }
+        }
+    }
+
+    /** A refusal that names an identifier or record kind should say so.  The
      * generic diagnose/prescribe refusal otherwise reads as a non-sequitur
      * when the rejected request was for someone else's data.
      */

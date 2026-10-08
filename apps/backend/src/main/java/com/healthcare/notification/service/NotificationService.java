@@ -101,6 +101,7 @@ public class NotificationService {
             case PAYMENT_SUBMITTED, PAYMENT_CONFIRMED, PAYMENT_REJECTED,
                  PAYMENT_REFUNDED -> NotificationCategory.PAYMENT;
             case CONSULTATION_MESSAGE -> NotificationCategory.CONSULTATION;
+            case AI_SAFETY_ALERT -> NotificationCategory.SECURITY;
             case CARE_PLAN_CREATED, CARE_PLAN_ITEM_COMPLETED,
                  CARE_PLAN_ITEM_CANCELLED -> NotificationCategory.CARE_PLAN;
         };
