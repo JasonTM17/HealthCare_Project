@@ -35,6 +35,10 @@ class PatientAiCreditControllerTest {
         when(aiCreditService.countTransactions(userId)).thenReturn(0L);
         // Whole-ledger max balance ever seen (e.g. an old admin grant of 500).
         when(aiCreditService.getMaxTransactionBalance(userId)).thenReturn(historyMax);
+        // Promo-aware ceiling: with no promotion configured this is the same
+        // tier map the refill uses.
+        when(aiCreditService.effectiveTierMaxCredits(org.mockito.ArgumentMatchers.any()))
+            .thenAnswer(inv -> AiCreditService.tierMaxCredits(inv.getArgument(0)));
 
         User user = new User();
         user.setId(userId);

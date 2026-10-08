@@ -66,6 +66,26 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfile, 
                                 @Param("period") String period);
 
     /**
+     * Atomically tops the AI credit balance up to a promotional floor, at
+     * most once per {@code period} marker. Unlike the weekly refill this
+     * never lowers a balance: the WHERE excludes balances already at or
+     * above the floor, so admin grants and higher tiers are preserved. The
+     * stamp is written to the same {@code last_credit_refill_period} column —
+     * a {@code promo-…} marker can never collide with an ISO-week stamp —
+     * and the conditional update serializes concurrent top-ups exactly like
+     * the weekly grant, with
+     * {@code ux_ai_credit_refill_patient_week (user_id, refill_period)} as
+     * the ledger backstop.
+     */
+    @Modifying
+    @Query("update PatientProfile p set p.aiCredits = :floor, p.lastCreditRefillPeriod = :period"
+            + " where p.userId = :userId and p.aiCredits < :floor"
+            + " and (p.lastCreditRefillPeriod is null or p.lastCreditRefillPeriod <> :period)")
+    int topUpAiCreditsToFloor(@Param("userId") UUID userId,
+                              @Param("floor") int floor,
+                              @Param("period") String period);
+
+    /**
      * Scalar projection of the membership tier for the weekly refill. It is
      * deliberately a projection and not an entity find: the refill path must
      * not load the {@code PatientProfile} into the persistence context before

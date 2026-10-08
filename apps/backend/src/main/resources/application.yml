@@ -319,6 +319,13 @@ ai:
       state-ttl-seconds: ${AI_CHAT_CANCELLATION_STATE_TTL_SECONDS:180}
       # Pub/Sub is the fast path; active owners reconcile missed messages at this bounded interval.
       owner-poll-interval-ms: ${AI_CHAT_CANCELLATION_OWNER_POLL_INTERVAL_MS:50}
+  credits:
+    # Time-boxed promotion: while today <= promo-until (Asia/Ho_Chi_Minh),
+    # every refill tops the balance to at least promo-floor credits instead of
+    # the tier cap. Higher tiers keep their larger allowance; after the date
+    # passes the map returns to 20/50/100/300 with no deploy. 0/empty = off.
+    promo-floor: ${AI_CREDITS_PROMO_FLOOR:0}
+    promo-until: ${AI_CREDITS_PROMO_UNTIL:}
   service:
     url: ${AI_SERVICE_URL:http://localhost:8000}
     token: ${AI_SERVICE_TOKEN:}

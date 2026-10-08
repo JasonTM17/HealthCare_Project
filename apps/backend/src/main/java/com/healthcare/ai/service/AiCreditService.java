@@ -12,6 +12,7 @@ import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.WeekFields;
 import java.util.List;
 import java.util.Locale;
@@ -139,6 +141,62 @@ public class AiCreditService {
         int weekBasedYear = today.get(WeekFields.ISO.weekBasedYear());
         int week = today.get(WeekFields.ISO.weekOfWeekBasedYear());
         return String.format(Locale.ROOT, "%04d-W%02d", weekBasedYear, week);
+    }
+
+    /**
+     * Time-bounded credit promotion: while {@code ai.credits.promo-floor > 0}
+     * and today (in {@link #CREDIT_REFILL_ZONE}) is on or before
+     * {@code ai.credits.promo-until} (ISO date), every tier refills to at
+     * least the promo floor. After the end date the check flips off on its
+     * own — no deploy or data cleanup is needed to return to the tier map.
+     * Field-injected (like {@link #entityManager}) so the constructor used by
+     * hand-built unit tests keeps its signature.
+     */
+    @Value("${ai.credits.promo-floor:0}")
+    private int promoFloor;
+
+    @Value("${ai.credits.promo-until:}")
+    private String promoUntil;
+
+    /**
+     * The refill target a tier is allowed to reach right now: the configured
+     * tier maximum, raised to the promo floor while the promotion is active.
+     * A malformed {@code promo-until} fails closed — the promotion silently
+     * deactivates rather than risking an unbounded grant. VIP-tier accounts
+     * keep their higher allowance; the floor only lifts lower tiers.
+     */
+    public int effectiveTierMaxCredits(String tier) {
+        int base = tierMaxCredits(tier);
+        return promoActive() ? Math.max(base, promoFloor) : base;
+    }
+
+    private boolean promoActive() {
+        return promoRefillPeriod() != null;
+    }
+
+    /**
+     * The idempotency marker stamped on the profile and the ledger for the
+     * one-time promotional top-up: {@code promo-<end date>}. It shares the
+     * 16-char {@code last_credit_refill_period} column but can never collide
+     * with an ISO-week stamp, and it keys the same
+     * {@code ux_ai_credit_refill_patient_week} backstop. {@code null} while
+     * the promotion is off — including for a malformed end date, which fails
+     * closed instead of granting an unbounded allowance.
+     */
+    private String promoRefillPeriod() {
+        if (promoFloor <= 0 || promoUntil == null || promoUntil.isBlank()) {
+            return null;
+        }
+        try {
+            LocalDate end = LocalDate.parse(promoUntil.trim());
+            if (LocalDate.now(CREDIT_REFILL_ZONE).isAfter(end)) {
+                return null;
+            }
+            String marker = "promo-" + end;
+            return marker.length() <= 16 ? marker : null;
+        } catch (DateTimeParseException e) {
+            return null;
+        }
     }
 
     private final PatientProfileRepository patientProfileRepository;
@@ -324,33 +382,70 @@ public class AiCreditService {
             // separately (fail closed), so no ledger row is ever owed to it.
             return false;
         }
-        int tierMax = tierMaxCredits(tier);
+        int tierMax = effectiveTierMaxCredits(tier);
         String period = currentRefillPeriod();
-        if (transactionRepository.existsPatientRefillInPeriod(userId, period)) {
-            // The grant for this period is already in the ledger even though
-            // the profile stamp says otherwise (inconsistent history). A
-            // no-op that touches nothing: repairing the stamp here would
-            // rewrite surgical state, and the insert below would collide
-            // with ux_ai_credit_refill_patient_week and abort a transaction.
+        boolean granted = false;
+        if (!transactionRepository.existsPatientRefillInPeriod(userId, period)) {
+            int before = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
+            int updated = patientProfileRepository.refillAiCreditsByUserId(userId, tierMax, period);
+            if (updated > 0) {
+                // Scalar projection: the ledger must record the balance the
+                // row actually holds after the conditional update.
+                int after = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
+                AiCreditTransaction tx = new AiCreditTransaction(
+                        userId, "PATIENT", tierMax - before, after, AI_CHAT_REFILL_TYPE,
+                        "Hồi credit AI hằng tuần (kỳ " + period + ", hạng "
+                                + tier.toUpperCase(Locale.ROOT) + ")"
+                );
+                tx.setRefillPeriod(period);
+                transactionRepository.save(tx);
+                granted = true;
+            }
+            // updated == 0: already refilled this ISO week (or the profile
+            // vanished concurrently): exactly-once per period, no ledger row.
+        }
+        // A ledger row for the current period without a matching update is
+        // the inconsistent-history case: leave the surgery untouched (a
+        // stamp repair would rewrite it, and a blind insert would collide
+        // with ux_ai_credit_refill_patient_week and abort the transaction).
+        // The promotional top-up still runs on every exit path — a patient
+        // who already refilled this week must not wait for the next one.
+        return grantPromoTopUp(userId) || granted;
+    }
+
+    /**
+     * One-time promotional top-up: while {@link #promoRefillPeriod()} is
+     * non-null, any balance below {@link #promoFloor} is lifted to the floor
+     * exactly once per promotion. Runs inside the refill transaction after
+     * the weekly grant, so a patient who already refilled this ISO week —
+     * before the promotion started — still receives the full promotional
+     * allowance on their next chat instead of waiting for the next week.
+     * Balances at or above the floor (higher tiers, admin grants) are left
+     * untouched: the grant is a floor, not a reset. The marker row is an
+     * ordinary {@code AI_CHAT_REFILL} ledger entry whose
+     * {@code refill_period} is the promo marker, so the V108 unique index
+     * enforces exactly-once even across racing instances.
+     *
+     * @return {@code true} when this call performed the promotional grant
+     *         and wrote its marker ledger row.
+     */
+    private boolean grantPromoTopUp(UUID userId) {
+        String promoPeriod = promoRefillPeriod();
+        if (promoPeriod == null
+                || transactionRepository.existsPatientRefillInPeriod(userId, promoPeriod)) {
             return false;
         }
         int before = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
-        int updated = patientProfileRepository.refillAiCreditsByUserId(userId, tierMax, period);
+        int updated = patientProfileRepository.topUpAiCreditsToFloor(userId, promoFloor, promoPeriod);
         if (updated == 0) {
-            // Already refilled this ISO week (or the profile vanished
-            // concurrently): exactly-once per period, no ledger row.
             return false;
         }
-        // Scalar projection: the ledger must record the balance the row
-        // actually holds after the conditional update.
         int after = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
-
         AiCreditTransaction tx = new AiCreditTransaction(
-                userId, "PATIENT", tierMax - before, after, AI_CHAT_REFILL_TYPE,
-                "Hồi credit AI hằng tuần (kỳ " + period + ", hạng "
-                        + tier.toUpperCase(Locale.ROOT) + ")"
+                userId, "PATIENT", after - before, after, AI_CHAT_REFILL_TYPE,
+                "Tặng lượt AI khuyến mãi (dùng đến hết " + promoUntil.trim() + ")"
         );
-        tx.setRefillPeriod(period);
+        tx.setRefillPeriod(promoPeriod);
         transactionRepository.save(tx);
         return true;
     }
@@ -555,7 +650,7 @@ public class AiCreditService {
         // Single source of truth: the weekly refill resets to this same map.
         int credits = newCredits != null && newCredits >= 0
                 ? newCredits
-                : tierMaxCredits(newTier);
+                : effectiveTierMaxCredits(newTier);
         profile.setAiCredits(credits);
         patientProfileRepository.save(profile);
 
