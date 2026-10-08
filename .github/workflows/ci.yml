@@ -400,7 +400,7 @@ jobs:
           fi
 
           credential_files=""
-          if credential_files="$(git grep -I -E -l -e '-----BEGIN ((RSA|EC|OPENSSH|DSA) )?PRIVATE KEY-----|-----BEGIN PGP PRIVATE KEY BLOCK-----|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' HEAD -- .)"; then
+          if credential_files="$(git grep -I -E -l -e '-----BEGIN ((RSA|EC|OPENSSH|DSA) )?PRIVATE KEY-----|-----BEGIN [P]GP PRIVATE KEY BLOCK-----|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' HEAD -- .)"; then
             :
           else
             grep_status=$?
