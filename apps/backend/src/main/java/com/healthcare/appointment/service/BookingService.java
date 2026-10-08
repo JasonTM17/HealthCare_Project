@@ -209,12 +209,12 @@ public class BookingService {
     /**
      * Atomically holds an appointment slot for 10 minutes to prevent double-booking.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public HoldSlotResponse holdSlot(HoldSlotRequest request) {
         return holdSlot(request, null, null);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public HoldSlotResponse holdSlot(HoldSlotRequest request, UserDetails userDetails) {
         return holdSlot(request, userDetails, null);
     }
@@ -226,7 +226,7 @@ public class BookingService {
      * present and already used by a live hold, that hold is returned instead of
      * creating a second appointment, so a retry after a lost response is safe.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public HoldSlotResponse holdSlot(HoldSlotRequest request, UserDetails userDetails, String rawIdempotencyKey) {
         if (request == null || request.doctorId() == null || request.appointmentDate() == null
                 || request.startTime() == null) {
@@ -429,6 +429,11 @@ public class BookingService {
         try {
             appointmentRepository.saveAndFlush(appointment);
         } catch (DataIntegrityViolationException exception) {
+            // The tx is aborted by the failed flush; force rollback so the
+            // surrounding noRollbackFor policy cannot mask this 409 with a
+            // commit failure.
+            org.springframework.transaction.interceptor.TransactionAspectSupport
+                .currentTransactionStatus().setRollbackOnly();
             if (idempotencyKey != null) {
                 // The unique hold-key index rejected a racing retry. The
                 // transaction is aborted so the winner cannot be read here; the
@@ -486,7 +491,7 @@ public class BookingService {
      * checked before any state is disclosed and the database row is locked so
      * concurrent retries cannot create competing codes.
      */
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public com.healthcare.appointment.dto.ResendOtpResponse resendBookingOtp(
             String bookingCode,
             String phone,
