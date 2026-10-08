@@ -1015,7 +1015,7 @@ class AiChatContractsTest {
             .contains("Giờ làm việc")
             .doesNotContain("07:30");
         assertThat(fallbackAnswer(service, "Tôi nên chuẩn bị gì trước khi đi khám?"))
-            .contains("kiểm tra hướng dẫn")
+            .contains("BHYT")
             .doesNotContain("Nhịn ăn")
             .doesNotContain("6-8");
     }
@@ -1064,7 +1064,10 @@ class AiChatContractsTest {
     }
 
     @Test
-    void preparationQuestionGetsDeterministicChecklistBeforeUpstream() {
+    void preparationQuestionReachesRetrievalAndKeepsChecklistFloor() {
+        // Retrieval runs before the deterministic lane: governed FAQs answer
+        // preparation questions with citations.  The checklist is the floor
+        // when nothing authorizes — not a shortcut that skips the corpus.
         AiConversationService service = localFallbackService();
 
         Object response = ReflectionTestUtils.invokeMethod(
@@ -1072,12 +1075,21 @@ class AiChatContractsTest {
             com.healthcare.ai.chat.entity.ChatMode.HOSPITAL_SUPPORT,
             "Cần chuẩn bị gì trước khi đi khám?", List.of());
 
-        assertThat(response).isNotNull();
-        assertThat((String) ReflectionTestUtils.invokeMethod(response, "answer"))
+        assertThat(response).isNull();
+
+        Object floor = ReflectionTestUtils.invokeMethod(
+            service, "supportAwareFallback",
+            com.healthcare.ai.chat.entity.ChatMode.HOSPITAL_SUPPORT,
+            "Cần chuẩn bị gì trước khi đi khám?");
+
+        assertThat(floor).isNotNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(floor, "answer"))
             .contains("BHYT")
             .contains("15–30 phút");
-        assertThat((ChatSafetyAction) ReflectionTestUtils.invokeMethod(response, "safetyAction"))
-            .isEqualTo(ChatSafetyAction.ANSWER);
+        // The floor stays honest: an ungrounded canned checklist reports
+        // INSUFFICIENT_EVIDENCE, not a fake grounded ANSWER.
+        assertThat((ChatSafetyAction) ReflectionTestUtils.invokeMethod(floor, "safetyAction"))
+            .isEqualTo(ChatSafetyAction.INSUFFICIENT_EVIDENCE);
     }
 
     @Test
