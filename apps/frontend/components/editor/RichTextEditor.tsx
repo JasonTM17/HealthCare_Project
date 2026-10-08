@@ -778,7 +778,7 @@ export function RichTextEditor({
         }
       },
     }),
-    [isFullscreen, purpose]
+    [purpose]
   );
 
   // Handle escape key in fullscreen or modal

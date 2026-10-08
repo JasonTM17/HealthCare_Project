@@ -690,7 +690,7 @@ function BookingExperience({
     void cancelPatientAppointment(
       held.bookingCode,
       "Bệnh nhân rời luồng đặt lịch trước khi xác nhận",
-      { phone: held.phone },
+      { phone: held.phone, pendingOnly: true },
     )
       .then(() => {
         if (heldSlotRef.current?.bookingCode === held.bookingCode) {

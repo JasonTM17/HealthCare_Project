@@ -932,10 +932,37 @@ public class BookingService {
             String reason,
             String phone,
             UserDetails principal) {
+        return cancelAppointment(bookingCode, reason, phone, principal, false);
+    }
+
+    /**
+     * Cancel an appointment.
+     *
+     * <p>{@code pendingOnly} is the wizard's abandon-release contract: the
+     * frontend fires it when the patient leaves the booking flow, and it must
+     * only release a still-pending hold. If the confirmation actually committed
+     * behind a lost response, the booking is CONFIRMED — a real appointment the
+     * clinic expects to honor — so the automatic release must refuse with 409
+     * instead of silently cancelling a live booking.
+     */
+    @Transactional
+    public AppointmentResponse cancelAppointment(
+            String bookingCode,
+            String reason,
+            String phone,
+            UserDetails principal,
+            boolean pendingOnly) {
         Appointment appointment = appointmentRepository.findByBookingCodeWithDetailsForUpdate(bookingCode.trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, BOOKING_NOT_FOUND_MESSAGE));
 
         authorizeAppointment(appointment, phone, principal, BOOKING_NOT_FOUND_MESSAGE);
+
+        if (pendingOnly && appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Giữ chỗ đã được xác nhận hoặc kết thúc; không hủy tự động."
+            );
+        }
 
         if (appointment.getStatus() != AppointmentStatus.PENDING_CONFIRMATION
                 && appointment.getStatus() != AppointmentStatus.CONFIRMED) {
