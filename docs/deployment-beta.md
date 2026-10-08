@@ -164,19 +164,36 @@ live on that digest: `srv-db3gpdl9fdbs73dnstb0` (oqv4), `srv-daigprh5efls73dfau0
 (4wb7), `srv-db3492om7kps73cvsv7g` (3rd-backup). Both AI services carry
 `AI_TIMEOUT_SECONDS=16` (< backend `chat-generate-timeout-ms:18000`).
 
-**V116 ownership incident (resolved):** the first rollout of this image failed on
-all three backends with `nonZeroExit:1` — Flyway `V116__ai_safety_alert_event_type`
-could not `ALTER TABLE notifications` because the table is owned by `postgres`
-while the app now migrates as `healthcare_app` (V94 rebuilt the same constraint as
-`postgres`; V112–V115 only created app-owned objects). V116 was applied manually
-via the Supabase Management API (`database/query`, runs as `postgres`) and a
-matching `flyway_schema_history` row was inserted (rank 119, checksum
-`-1429341660`, `installed_by=postgres`); the redeployed services then booted
-cleanly. **Operator note:** any future migration that ALTERs a `postgres`-owned
-table (`notifications`, `media_assets`, …) must be applied the same way before
-rolling the image, or `DATABASE_URL` must temporarily use an owner role. Flyway
-11.7.2 checksum = CRC32 over each `readLine()` result's UTF-8 bytes with **no**
-line-separator bytes appended (BOM stripped from the first line).
+**V116 ownership incident (resolved + hardened):** the first rollout of this
+image failed on all three backends with `nonZeroExit:1` — Flyway
+`V116__ai_safety_alert_event_type` could not `ALTER TABLE notifications` because
+the table was owned by `postgres` while the app now migrates as `healthcare_app`
+(V94 rebuilt the same constraint as `postgres`; V112–V115 only created
+app-owned objects). Recovery had two parts:
+
+1. V116 was applied manually via the Supabase Management API (`database/query`,
+   runs as `postgres`) and a matching `flyway_schema_history` row was inserted
+   (rank 119, checksum `-1429341660`, `installed_by=postgres`); the redeployed
+   services then booted cleanly. Flyway 11.7.2 checksum = CRC32 over each
+   `readLine()` result's UTF-8 bytes with **no** line-separator bytes appended
+   (BOM stripped from the first line).
+2. **Structural fix (2026-10-08):** ownership of every app object in the
+   `public` schema was transferred to `healthcare_app` — 72 tables (incl.
+   `notifications`, `media_assets`, `flyway_schema_history`), 4 sequences, and
+   29 non-extension functions. `ALTER ... OWNER TO` required first granting
+   `healthcare_app TO postgres` because the Management API's `postgres` role is
+   not `rolsuper` (only `supabase_admin` is); the remaining `supabase_admin`-
+   granted `postgres∈healthcare_app` edge is Supabase's standard platform grant
+   and is security-neutral (it lets `postgres` impersonate the weaker app role,
+   never the reverse). Verified afterwards: `healthcare_app` can now
+   `ALTER TABLE`/`COMMENT` on `notifications` directly. Future Flyway
+   `ALTER`/`DROP`/`CREATE INDEX` migrations run by `healthcare_app` will no
+   longer hit `must be owner of table` errors. **Caveat:** objects created
+   later through the Management API/SQL editor will again be `postgres`-owned —
+   either transfer them the same way or create app objects as `healthcare_app`.
+   The separate `healthcare` schema (15 RAG tables) intentionally stays
+   `postgres`-owned: it is managed out-of-band via the Management API, not via
+   Flyway.
 
 **E2E evidence (production):** patient login 200 → `/ai/chat-policy` returns all
 three modes → `SYMPTOM_TRIAGE` 200 (8.8 s), `HEALTH_EDUCATION` 200 (7.3 s),
