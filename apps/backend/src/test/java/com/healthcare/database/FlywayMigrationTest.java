@@ -1276,10 +1276,12 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             String branches = table(schema, "branches");
             String doctorBranches = table(schema, "doctor_branches");
 
+            // The seed emits 20 shift rows per doctor-branch pair (Mon–Sat
+            // morning+afternoon+evening, Sun morning+afternoon) over 6 pairs.
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + schedules,
                 Integer.class
-            )).isEqualTo(30);
+            )).isEqualTo(120);
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + schedules + " s "
                     + "left join " + doctorBranches + " db "
@@ -1294,7 +1296,7 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
                     + "where d.slug in ('le-van-duc', 'pham-hoang-yen') "
                     + "and b.slug = 'phong-kham-thao-dien'",
                 Integer.class
-            )).isEqualTo(10);
+            )).isEqualTo(40);
         } finally {
             dropMigrationSchema(schema);
         }

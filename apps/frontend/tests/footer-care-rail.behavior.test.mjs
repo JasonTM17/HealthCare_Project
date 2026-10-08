@@ -292,13 +292,16 @@ test("rail: press feedback and keyboard focus stay visible under the real cascad
     assert.equal(focused.outlineStyle, "solid", "keyboard focus must draw a visible outline");
     assert.notEqual(focused.outlineWidth, "0px");
 
-    await page.evaluate(() => { footerFixture.siteShell = true; footerFixture.render(); });
-    // Let one animation frame run so the rail's 1ms reduced-motion transition
-    // settles; measuring immediately catches the interpolated start color.
-    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(null)))));
-    const cta = await railStyles(page, "/dat-lich");
-    assert.equal(cta.color, "rgb(255, 255, 255)", "the site-shell primary CTA keeps white text");
   } finally { await page.close(); }
+
+  // Headless Chromium does not reliably invalidate link color when an ancestor
+  // class flips in place, so the site-shell variant mounts fresh — the way the
+  // variant is always entered in production.
+  const shellPage = await mount({ pathname: "/", siteShell: true });
+  try {
+    const cta = await railStyles(shellPage, "/dat-lich");
+    assert.equal(cta.color, "rgb(255, 255, 255)", "the site-shell primary CTA keeps white text");
+  } finally { await shellPage.close(); }
 });
 
 test("rail: the rail stays hidden at 768px, 1024px and 1440px regardless of the current item", async () => {
