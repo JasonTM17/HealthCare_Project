@@ -2031,13 +2031,34 @@ _APPROVED_MEDICATION_DIRECTIVE_PATTERN = re.compile(
 )
 _APPROVED_CAUTION_PREFIX_PATTERN = re.compile(
     r"\b(?:khong|khong\s+nen|khong\s+duoc|khong\s+tu\s+y|tranh|"
-    r"lam\s+dung|tu\s+y|ngung|han\s+che|can\s+than|luu\s+y|chi\s+khi|"
+    r"lam\s+dung|tu\s+y|ngung|han\s+che|chi\s+khi|"
     r"thay\s+vi|khi\s+bac\s+si|theo\s+chi\s+dinh|theo\s+huong\s+dan|"
     r"theo\s+bac\s+si|trao\s+doi\s+bac\s+si|tham\s+khao\s+bac\s+si|"
     r"tham\s+van\s+bac\s+si|xin\s+y\s+kien\s+bac\s+si|"
     r"neu\s+bac\s+si|duoc\s+bac\s+si|sau\s+khi\s+bac\s+si)\b",
     re.IGNORECASE,
 )
+# Clause boundary for the caution excusal: punctuation plus list
+# conjunctions.  "Hạn chế muối và ngừng thuốc" must not let "hạn chế"
+# (governing "muối") excuse the "ngừng thuốc" directive after "và" —
+# the frame and the action it governs share one coordinated span
+# (Wukong CE-5/CE-6/CE-7).
+_APPROVED_CLAUSE_BOUNDARY_PATTERN = re.compile(
+    r"[,;:()\[\]–—\-_/•|]|\s(?:va|hoac|or|and)\s"
+)
+
+
+def _approved_caution_excuses(prefix: str) -> bool:
+    """A caution frame excuses a medication action only in the same clause.
+
+    Judging the whole sentence prefix lets "Tránh stress, kê đơn an thần"
+    and "Lưu ý: ngừng thuốc khi cần" launder a real directive through a
+    caution word that modified an earlier clause (Wukong CE-1/CE-2), so the
+    frame must live in the clause that contains the match.
+    """
+
+    clause = _APPROVED_CLAUSE_BOUNDARY_PATTERN.split(prefix)[-1]
+    return bool(_APPROVED_CAUTION_PREFIX_PATTERN.search(clause))
 # Only a bare verb plus a drug *class* can be excused as education inside
 # approved prose ("tự ý dùng kháng sinh gây kháng thuốc").  Named drugs,
 # doses and directive prefixes ("bạn nên uống", "hãy dùng") never qualify.
@@ -2058,7 +2079,7 @@ def _approved_medication_match_is_unsafe(sentence: str) -> bool:
         prefix = sentence[: match.start()]
         if _CONTRASTIVE_WORD_PATTERN.search(prefix):
             return True
-        if not _APPROVED_CAUTION_PREFIX_PATTERN.search(prefix):
+        if not _approved_caution_excuses(prefix):
             return True
     return False
 
@@ -2102,7 +2123,7 @@ def _has_unnegated_forbidden_match(
                     prefix = sentence[: match.start()]
                     if not _CONTRASTIVE_WORD_PATTERN.search(
                         prefix
-                    ) and _APPROVED_CAUTION_PREFIX_PATTERN.search(prefix):
+                    ) and _approved_caution_excuses(prefix):
                         continue
                     return True
                 if phrase not in _REFUSABLE_CLINICAL_ACTIONS:
@@ -2114,7 +2135,7 @@ def _has_unnegated_forbidden_match(
                 if (
                     not refusal_excused
                     and allow_approved_clinical
-                    and _APPROVED_CAUTION_PREFIX_PATTERN.search(prefix)
+                    and _approved_caution_excuses(prefix)
                 ):
                     refusal_excused = True
                 if not refusal_excused:
@@ -2180,7 +2201,12 @@ def remote_answer_is_grounded(
     allow_public_generic_guidance: bool = False,
     allow_approved_clinical: bool = False,
 ) -> bool:
-    """Apply a conservative lexical/numeric grounding check to remote text."""
+    """Apply a conservative lexical/numeric grounding check to remote text.
+
+    ``allow_approved_clinical`` is accepted for signature parity with the
+    sibling safety gates but intentionally unused: grounding stays uniform —
+    an answer must track whatever context it was given, approved or not.
+    """
 
     normalized_answer = _normalize_sensitive_text(answer)
     if not context:

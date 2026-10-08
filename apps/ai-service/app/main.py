@@ -887,6 +887,16 @@ def _chat_sync(request: ChatRequest, cancellation: ChatCancellation) -> ChatResp
             )
         ]
         hits = focus_public_retrieval_hits(message, hits)
+    else:
+        # The non-public escalation below can carry these rows as citations
+        # and context. Apply the same per-row fences the fast path already
+        # requires — expiry, content safety, mode and clinical eligibility —
+        # so an ungated search hit can never become a citation (Wukong H3).
+        hits = [
+            (document, score)
+            for document, score in hits
+            if grounded_source_is_echo_safe(document, effective_mode)
+        ]
     context = [f"{doc.title}: {doc.content}" for doc, _ in hits]
     citations = [
         _citation(doc.source_type, doc.source_id, doc.title)
