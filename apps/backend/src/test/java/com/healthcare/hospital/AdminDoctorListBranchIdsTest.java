@@ -2,6 +2,7 @@ package com.healthcare.hospital;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.hospital.dto.AdminDoctorResponse;
+import com.healthcare.hospital.dto.DoctorRequest;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
@@ -196,6 +197,42 @@ class AdminDoctorListBranchIdsTest {
 
         assertThat(result.getContent()).isEmpty();
         verify(doctorBranchRepository, never()).findByDoctorIdIn(anyCollection());
+    }
+
+    // ── T5: renaming a linked doctor realigns users.display_name ─────────────
+
+    @Test
+    void updateSyncsLinkedAccountDisplayNameWithDoctorName() {
+        UUID doctorId = UUID.fromString("30000000-0000-0000-0000-00000000000a");
+        UUID linkedUserId = UUID.fromString("10000000-0000-0000-0000-000000000009");
+        Doctor existing = doctor("BS Cũ", "bs-cu", doctorId);
+        when(doctorRepository.findBySlug("bs-cu")).thenReturn(java.util.Optional.of(existing));
+        when(doctorRepository.save(any(Doctor.class))).thenAnswer(inv -> inv.getArgument(0));
+        com.healthcare.user.entity.User account = new com.healthcare.user.entity.User();
+        account.setId(linkedUserId);
+        account.setDisplayName("BS Cũ");
+        when(userRepository.findById(linkedUserId)).thenReturn(java.util.Optional.of(account));
+
+        service.update("bs-cu", new DoctorRequest(
+            "BS Mới Tên", "bs-cu", "bio", null, true, null));
+
+        verify(userRepository).save(org.mockito.ArgumentMatchers.argThat(
+            user -> "BS Mới Tên".equals(user.getDisplayName())));
+    }
+
+    @Test
+    void updateWithoutLinkedUserNeverTouchesAccounts() {
+        UUID doctorId = UUID.fromString("30000000-0000-0000-0000-00000000000b");
+        Doctor existing = doctor("BS Không Link", "bs-khong-link", doctorId);
+        existing.setUserId(null);
+        when(doctorRepository.findBySlug("bs-khong-link")).thenReturn(java.util.Optional.of(existing));
+        when(doctorRepository.save(any(Doctor.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.update("bs-khong-link", new DoctorRequest(
+            "BS Đổi Tên", "bs-khong-link", "bio", null, true, null));
+
+        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).save(any());
     }
 
     @SuppressWarnings("unchecked")

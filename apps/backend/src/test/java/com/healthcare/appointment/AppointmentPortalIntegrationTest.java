@@ -884,6 +884,12 @@ class AppointmentPortalIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", bearer(patientUser)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.address").value("Ho Chi Minh City"));
+
+        // The session surfaces (portal header, navbar chip, dashboard greeting)
+        // all read users.display_name — a profile rename must keep it in step.
+        org.assertj.core.api.Assertions.assertThat(jdbcTemplate.queryForObject(
+                "SELECT display_name FROM users WHERE id=?", String.class, patientUser.getId()))
+            .isEqualTo("Nguyen Van Updated");
     }
 
     @Test

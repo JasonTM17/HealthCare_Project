@@ -727,6 +727,14 @@ public class BookingService {
             created.setFullName(request.fullName().trim());
             created.setPhone(cleanPhone);
             created.setEmail(verifiedDestination);
+            // The first booking materializes the patient's profile: keep the
+            // account display name equal to it so the portal header matches
+            // the name the patient just typed instead of a stale/Google name.
+            if (!created.getFullName().equals(authenticatedUser.getDisplayName())) {
+                authenticatedUser.setDisplayName(created.getFullName());
+                authenticatedUser.setUpdatedAt(OffsetDateTime.now());
+                userRepository.save(authenticatedUser);
+            }
             return new PatientResolution(
                 patientProfileRepository.save(created),
                 verifiedDestination

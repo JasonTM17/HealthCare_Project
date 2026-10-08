@@ -89,7 +89,9 @@ public class AdminDoctorService {
         if (request.userId() != null) {
             applyUserLink(doctor, request.userId());
         }
-        return doctorRepository.save(doctor);
+        Doctor saved = doctorRepository.save(doctor);
+        syncLinkedUserDisplayName(saved);
+        return saved;
     }
 
     @Transactional
@@ -107,7 +109,25 @@ public class AdminDoctorService {
         if (request.userId() != null) {
             applyUserLink(doctor, request.userId());
         }
-        return doctorRepository.save(doctor);
+        Doctor saved = doctorRepository.save(doctor);
+        syncLinkedUserDisplayName(saved);
+        return saved;
+    }
+
+    private void syncLinkedUserDisplayName(Doctor doctor) {
+        // The doctor portal header and article author credit both read
+        // users.display_name; keeping it equal to the doctor's full name
+        // prevents the stale-account-name defect class from V103 recurring.
+        if (doctor.getUserId() == null) {
+            return;
+        }
+        userRepository.findById(doctor.getUserId()).ifPresent(user -> {
+            if (!doctor.getFullName().equals(user.getDisplayName())) {
+                user.setDisplayName(doctor.getFullName());
+                user.setUpdatedAt(java.time.OffsetDateTime.now());
+                userRepository.save(user);
+            }
+        });
     }
 
     @Transactional

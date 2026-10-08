@@ -145,6 +145,46 @@ class GoogleIdentityBindingIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void patientBindAdoptsGoogleDisplayNameAndSyncsLinkedProfile() {
+        User local = patient("bind-name@example.com", true);
+        jdbcTemplate.update("UPDATE users SET display_name='Old Local Name' WHERE id=?", local.getId());
+        UUID profileId = UUID.randomUUID();
+        jdbcTemplate.update(
+            "INSERT INTO patient_profiles (id, user_id, full_name, phone, email) VALUES (?,?,?,?,?)",
+            profileId, local.getId(), "Old Local Name", "0987" + String.format("%06d", Math.abs(profileId.hashCode()) % 1_000_000), local.getEmail());
+        identity("synthetic-bind-name", "bind-name-subject", local.getEmail(), true);
+        auth.createBrowserSession(grant("synthetic-bind-name", null), new MockHttpServletRequest());
+        User bound = users.findById(local.getId()).orElseThrow();
+        assertThat(bound.getGoogleSubject()).isEqualTo("bind-name-subject");
+        assertThat(bound.getDisplayName()).isEqualTo("Synthetic Patient");
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT full_name FROM patient_profiles WHERE id=?", String.class, profileId))
+            .isEqualTo("Synthetic Patient");
+    }
+
+    @Test
+    void staffBindKeepsProfessionalDisplayName() throws Exception {
+        User doctor = new User();
+        doctor.setEmail("bind-doctor@example.com"); doctor.setDisplayName("BS. Nguyen Van A");
+        doctor.setStatus("ACTIVE"); doctor.setEmailVerified(true);
+        String password = "DoctorPass!234";
+        doctor.setPasswordHash(encoder.encode(password));
+        doctor.setCreatedAt(OffsetDateTime.now()); doctor.setUpdatedAt(OffsetDateTime.now());
+        doctor = users.saveAndFlush(doctor);
+        jdbcTemplate.update("INSERT INTO user_roles(user_id,role_id) VALUES (?,?)", doctor.getId(), roles.findByCode("DOCTOR").orElseThrow().getId());
+        identity("synthetic-staff", "staff-subject", doctor.getEmail(), true);
+        // Staff binding requires a local password proof; name adoption must not
+        // overwrite their professional display name.
+        auth.createBrowserSession(
+            new BrowserSessionCreateRequest(BrowserSessionCreateRequest.GrantType.GOOGLE,
+                null, password, null, "synthetic-staff"),
+            new MockHttpServletRequest());
+        User bound = users.findById(doctor.getId()).orElseThrow();
+        assertThat(bound.getGoogleSubject()).isEqualTo("staff-subject");
+        assertThat(bound.getDisplayName()).isEqualTo("BS. Nguyen Van A");
+    }
+
+    @Test
     void returningSubjectPreservesOriginalAccountWhenProviderEmailChanges() {
         identity("synthetic-first", "stable-subject", "original@gmail.com", true);
         auth.createBrowserSession(grant("synthetic-first", null), new MockHttpServletRequest());
