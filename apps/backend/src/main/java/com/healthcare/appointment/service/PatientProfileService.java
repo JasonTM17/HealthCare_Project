@@ -8,12 +8,17 @@ import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.exception.ApiError;
+import com.healthcare.exception.DuplicateResourceException;
+import com.healthcare.exception.ErrorCodes;
+import com.healthcare.exception.ValidationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -34,12 +39,14 @@ public class PatientProfileService {
 
     @Transactional
     public PatientProfileResponse updateProfile(UpdatePatientProfileRequest request, UserDetails principal) {
-        PatientProfile patient = requireProfile(principal);
+        UUID userId = resolveUserId(principal);
         // Lock the user row before writing the profile so this path and the
         // Google bind path (which locks the user first) take locks in the same
         // order and cannot deadlock.
-        User account = patient.getUserId() == null ? null
-            : userRepository.findByIdForUpdate(patient.getUserId()).orElse(null);
+        User account = userRepository.findByIdForUpdate(userId)
+            .orElseThrow(() -> new AccessDeniedException("Authenticated user no longer exists"));
+        PatientProfile patient = patientProfileRepository.findByUserId(userId)
+            .orElseGet(() -> provisionProfile(request, account));
         patient.setFullName(request.fullName().trim());
         patient.setDateOfBirth(request.dateOfBirth());
         patient.setGender(request.gender() == null ? PatientGender.UNSPECIFIED : request.gender());
@@ -78,16 +85,61 @@ public class PatientProfileService {
         return user.getRoles().stream().anyMatch(role -> !"PATIENT".equals(role.getCode()));
     }
 
+    /**
+     * First-save provisioning: the account exists without a patient profile
+     * (Google sign-in or a phone-less registration), so the PUT becomes an
+     * idempotent create. The phone rules mirror AuthService.register exactly —
+     * a profile already owned by another account or booked under a different
+     * email can never be hijacked through this path.
+     */
+    private PatientProfile provisionProfile(UpdatePatientProfileRequest request, User account) {
+        String providedPhone = request.phone();
+        String normalizedPhone = providedPhone == null || providedPhone.isBlank()
+            ? null
+            : BookingService.canonicalContactPhone(providedPhone);
+        if (normalizedPhone == null || !BookingService.isValidContactPhone(normalizedPhone)) {
+            throw new ValidationException(
+                "Nhập số điện thoại hợp lệ để tạo hồ sơ bệnh nhân",
+                List.of(new ApiError.FieldError("phone", BookingService.INVALID_CONTACT_PHONE_MESSAGE))
+            );
+        }
+        String accountEmail = account.getEmail() == null
+            ? null
+            : account.getEmail().trim().toLowerCase();
+        PatientProfile reusable = patientProfileRepository.findByPhone(normalizedPhone).orElse(null);
+        if (reusable != null && reusable.getUserId() != null) {
+            throw new DuplicateResourceException(
+                ErrorCodes.PHONE_OWNED_BY_ACCOUNT,
+                "Số điện thoại này đã liên kết một tài khoản khác — hãy đăng nhập hoặc dùng SĐT khác"
+            );
+        }
+        if (reusable != null && (reusable.getEmail() == null || accountEmail == null
+                || !accountEmail.equals(reusable.getEmail().trim().toLowerCase()))) {
+            throw new DuplicateResourceException(
+                ErrorCodes.PHONE_LINKED_TO_BOOKING_EMAIL,
+                "Số điện thoại này đã dùng đặt lịch với một email khác — hãy dùng SĐT khác"
+            );
+        }
+        PatientProfile profile = reusable == null ? new PatientProfile() : reusable;
+        profile.setPhone(normalizedPhone);
+        profile.setEmail(accountEmail);
+        profile.setUserId(account.getId());
+        return profile;
+    }
+
     private PatientProfile requireProfile(UserDetails principal) {
+        return patientProfileRepository.findByUserId(resolveUserId(principal))
+            .orElseThrow(() -> new AccessDeniedException("No patient profile is linked to this account"));
+    }
+
+    private UUID resolveUserId(UserDetails principal) {
         if (principal == null) {
             throw new AccessDeniedException("Authentication required");
         }
-        UUID userId = principal instanceof HealthcareUserPrincipal healthcarePrincipal
+        return principal instanceof HealthcareUserPrincipal healthcarePrincipal
             ? healthcarePrincipal.getUserId()
             : userRepository.findByEmail(principal.getUsername()).map(User::getId)
                 .orElseThrow(() -> new AccessDeniedException("Authenticated user no longer exists"));
-        return patientProfileRepository.findByUserId(userId)
-            .orElseThrow(() -> new AccessDeniedException("No patient profile is linked to this account"));
     }
 
     private String trimToNull(String value) {

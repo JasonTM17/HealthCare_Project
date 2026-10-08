@@ -44,6 +44,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -315,7 +316,14 @@ public class ClinicalService {
 
     @Transactional(readOnly = true)
     public List<MedicalRecordResponse> getPatientPortalRecords(UserDetails principal) {
-        PatientProfile patient = requireLinkedPatient(principal);
+        Optional<PatientProfile> linked = findLinkedPatient(principal);
+        if (linked.isEmpty()) {
+            // A verified patient account may exist before any patient profile
+            // does (Google sign-in or a phone-less registration). Their own
+            // lists are empty, not forbidden.
+            return List.of();
+        }
+        PatientProfile patient = linked.get();
         authorizeAudited(
             principal,
             patient.getId(),
@@ -331,7 +339,11 @@ public class ClinicalService {
 
     @Transactional(readOnly = true)
     public List<PrescriptionResponse> getPatientPortalPrescriptions(UserDetails principal) {
-        PatientProfile patient = requireLinkedPatient(principal);
+        Optional<PatientProfile> linked = findLinkedPatient(principal);
+        if (linked.isEmpty()) {
+            return List.of();
+        }
+        PatientProfile patient = linked.get();
         authorizeAudited(
             principal,
             patient.getId(),
@@ -347,7 +359,11 @@ public class ClinicalService {
 
     @Transactional(readOnly = true)
     public List<DiagnosticResultResponse> getPatientPortalDiagnostics(UserDetails principal) {
-        PatientProfile patient = requireLinkedPatient(principal);
+        Optional<PatientProfile> linked = findLinkedPatient(principal);
+        if (linked.isEmpty()) {
+            return List.of();
+        }
+        PatientProfile patient = linked.get();
         authorizeAudited(
             principal,
             patient.getId(),
@@ -653,8 +669,12 @@ public class ClinicalService {
     }
 
     private PatientProfile requireLinkedPatient(UserDetails principal) {
-        return patientProfileRepository.findByUserId(resolveUserId(principal))
+        return findLinkedPatient(principal)
                 .orElseThrow(() -> new AccessDeniedException("No patient profile is linked to this account"));
+    }
+
+    private Optional<PatientProfile> findLinkedPatient(UserDetails principal) {
+        return patientProfileRepository.findByUserId(resolveUserId(principal));
     }
 
     private Doctor requireLinkedDoctor(UserDetails principal) {

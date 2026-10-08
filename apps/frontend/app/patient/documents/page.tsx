@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import PortalChrome from "../../../components/PortalChrome";
 import {
@@ -165,7 +166,7 @@ export default function PatientDocumentsPage() {
   const session = useAuthSession();
   const authStatus = useAuthSessionStatus();
   const loadRun = useRef(0);
-  const [profile, setProfile] = useState<Loadable<PatientProfile>>(LOADING);
+  const [profile, setProfile] = useState<Loadable<PatientProfile | null>>(LOADING);
   const [documents, setDocuments] = useState<Loadable<PatientDocument[]>>(LOADING);
   const [records, setRecords] = useState<Loadable<MedicalRecord[]>>(LOADING);
   const [prescriptions, setPrescriptions] = useState<Loadable<Prescription[]>>(LOADING);
@@ -212,6 +213,17 @@ export default function PatientDocumentsPage() {
     } catch (error) {
       if (!isCurrent()) return;
       if (getErrorStatus(error) === 401) clearAuthSession();
+      if (getErrorStatus(error) === 403) {
+        // Account without a patient profile (Google sign-in / phone-less
+        // registration): the vault is legitimately empty — render the setup
+        // state instead of five generic failure tiles.
+        setProfile({ status: "success", data: null });
+        setDocuments({ status: "success", data: [] });
+        setRecords({ status: "success", data: [] });
+        setPrescriptions({ status: "success", data: [] });
+        setCapabilities({ status: "success", data: { generationConfigured: false } });
+        return;
+      }
       const failed = {
         status: "error" as const,
         message: getErrorMessage(error),
@@ -268,7 +280,7 @@ export default function PatientDocumentsPage() {
     || loadRun.current !== runId;
 
   const handleGenerate = async (sourceType: PatientDocumentSourceType, sourceRecordId: string) => {
-    if (profile.status !== "success") return;
+    if (profile.status !== "success" || profile.data === null) return;
     const expectedSession = readAuthSession();
     const runId = loadRun.current;
     const actionKey = `${sourceType}:${sourceRecordId}`;
@@ -313,7 +325,7 @@ export default function PatientDocumentsPage() {
   };
 
   const handleDownload = async (document: PatientDocument) => {
-    if (profile.status !== "success" || document.status !== "AVAILABLE" || document.sourceCurrent === false) return;
+    if (profile.status !== "success" || profile.data === null || document.status !== "AVAILABLE" || document.sourceCurrent === false) return;
     const expectedSession = readAuthSession();
     const runId = loadRun.current;
     setDownloadingId(document.id);
@@ -356,7 +368,7 @@ export default function PatientDocumentsPage() {
 
   return (
     <PortalChrome
-      avatarUrl={profile.status === "success" ? profile.data.avatarUrl : null}
+      avatarUrl={profile.status === "success" ? profile.data?.avatarUrl ?? null : null}
       role="PATIENT"
       user={session.user}
     >
@@ -391,6 +403,16 @@ export default function PatientDocumentsPage() {
             <small>Chưa ký số, chỉ tải qua tài khoản của bạn.</small>
           </article>
         </div>
+
+        {profile.status === "success" && profile.data === null && (
+          <section className="portal-panel" aria-label="Tạo hồ sơ bệnh nhân">
+            <p className="info-banner" role="status">
+              Tài khoản của bạn chưa có hồ sơ bệnh nhân — chưa có tài liệu nào để hiển thị.
+              {" "}
+              <Link href="/patient/profile">Tạo hồ sơ ngay</Link>
+            </p>
+          </section>
+        )}
 
         {capabilities.status === "error" ? (
           <ErrorState

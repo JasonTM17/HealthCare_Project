@@ -42,9 +42,12 @@ public class PatientOverviewService {
     @Transactional(readOnly = true)
     public PatientOverviewResponse getOverview(UserDetails principal) {
         UUID userId = resolvePatientUser(principal);
-        PatientProfile profile = patientProfiles.findByUserId(userId)
-            .orElseThrow(() -> new AccessDeniedException("No patient profile is linked to this account"));
-        UUID patientId = profile.getId();
+        // A verified patient account can exist before any patient profile does
+        // (Google sign-in, phone-less registration). A null patient id makes
+        // every patient-keyed predicate false while claim-based appointments
+        // stay visible — the same contract getPatientAppointments already uses.
+        UUID patientId = patientProfiles.findByUserId(userId)
+            .map(PatientProfile::getId).orElse(null);
 
         // Claim-by-email (appointment_account_claims) makes bookings linked to this
         // account reachable in /appointments through findPortalAppointmentsForPatientOrClaim
