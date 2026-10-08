@@ -95,4 +95,34 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfile, 
      */
     @Query("select p.patientTier from PatientProfile p where p.userId = :userId")
     Optional<String> findPatientTierByUserId(@Param("userId") UUID userId);
+
+    /**
+     * Atomically applies an admin credit delta (grant or revocation). The
+     * entity read-modify-write it replaces lost any atomic deduct/refill that
+     * committed between the load and the save; the conditional bulk update
+     * serializes against {@link #deductAiCreditByUserId} exactly like refunds
+     * do. A negative delta is floored at zero — matching the previous
+     * {@code Math.max(0, …)} clamp — and legacy null balances read as 0.
+     * Returns 0 when the profile does not exist.
+     */
+    @Modifying
+    @Query("update PatientProfile p set p.aiCredits = case"
+            + " when coalesce(p.aiCredits, 0) + :delta < 0 then 0"
+            + " else coalesce(p.aiCredits, 0) + :delta end"
+            + " where p.userId = :userId")
+    int applyAiCreditDeltaByUserId(@Param("userId") UUID userId, @Param("delta") int delta);
+
+    /**
+     * Atomically applies an admin tier change together with its absolute
+     * credit assignment. Pairing the two columns in one bulk update removes
+     * the same read-modify-write window as the credit delta variant; the
+     * caller's absolute {@code credits} value is the intended end state, so
+     * last-writer-wins is correct for an explicit admin set.
+     */
+    @Modifying
+    @Query("update PatientProfile p set p.patientTier = :tier, p.aiCredits = :credits"
+            + " where p.id = :id")
+    int applyTierAndCreditsById(@Param("id") UUID id,
+                                @Param("tier") String tier,
+                                @Param("credits") int credits);
 }
