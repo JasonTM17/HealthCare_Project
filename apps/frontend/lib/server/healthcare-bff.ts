@@ -54,7 +54,12 @@ const CHAT_CANCEL_NOTIFY_TIMEOUT_MS = 750;
 // the measured cross-region latency and must stay consistent with the backend's
 // LEASE_TTL_MILLIS / RENEWAL_PERMIT_FRESHNESS_MILLIS (ChatRequestCancellationRegistry):
 // renew interval < permit freshness < lease TTL, and each timeout < permit freshness.
-const CHAT_LEASE_OPEN_TIMEOUT_MS = 3_000;
+// Open is sized for a Render Free cold start (~26-42s observed): the request
+// queues at the router until the instance wakes, so a 3s budget converted
+// almost every first-of-day chat into an immediate 502 even though the 30s
+// turn budget was intact. 8s still leaves >2s of permit-freshness margin
+// before the first renewal and stays well inside the 30s absolute deadline.
+const CHAT_LEASE_OPEN_TIMEOUT_MS = 8_000;
 const CHAT_LEASE_RENEW_INTERVAL_MS = 2_000;
 const CHAT_LEASE_RENEW_TIMEOUT_MS = 5_000;
 // The fallback answer must still work when every upstream is down, so the

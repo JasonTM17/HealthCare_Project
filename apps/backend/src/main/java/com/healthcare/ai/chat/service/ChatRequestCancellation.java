@@ -11,6 +11,12 @@ public final class ChatRequestCancellation {
     private final Object monitor = new Object();
     private final List<Runnable> callbacks = new ArrayList<>();
     private boolean cancelled;
+    // Upper bound on the distributed lease deadline as last observed by this
+    // instance: registration time + lease TTL at most, refreshed by every
+    // successful renewal. 0 means no lease is bound (legacy registrations),
+    // which the reconcile sweep treats as already expired so it stays
+    // fail-closed on shared-store outages.
+    private volatile long lastKnownLeaseDeadlineMs;
 
     ChatRequestCancellation(String requestId) {
         this.requestId = requestId;
@@ -23,6 +29,16 @@ public final class ChatRequestCancellation {
     public boolean isCancelled() {
         synchronized (monitor) {
             return cancelled;
+        }
+    }
+
+    long lastKnownLeaseDeadlineMs() {
+        return lastKnownLeaseDeadlineMs;
+    }
+
+    void noteLeaseDeadline(long deadlineMs) {
+        synchronized (monitor) {
+            if (deadlineMs > lastKnownLeaseDeadlineMs) lastKnownLeaseDeadlineMs = deadlineMs;
         }
     }
 

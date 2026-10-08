@@ -59,6 +59,28 @@ class ChatRequestCancellationReconciliationTest {
     }
 
     @Test
+    void redisFlapKeepsRequestsWhoseLeaseIsStillLive() {
+        // A sub-lease-TTL outage must not mass-cancel in-flight turns: only a
+        // request whose last-known lease deadline has already passed (or a
+        // legacy request that never carried a lease) is stopped.
+        StringRedisTemplate redis = mock(StringRedisTemplate.class);
+        when(redis.execute(any(), anyList(), any())).thenThrow(new RedisConnectionFailureException("synthetic flap"));
+
+        ChatRequestCancellationRegistry registry = new ChatRequestCancellationRegistry(redis, 180);
+        ChatRequestCancellation liveLease = seedActiveRequest(registry);
+        liveLease.noteLeaseDeadline(System.currentTimeMillis() + 15_000);
+        ChatRequestCancellation expiredLease = seedActiveRequest(registry);
+        expiredLease.noteLeaseDeadline(System.currentTimeMillis() - 1_000);
+        ChatRequestCancellation unleased = seedActiveRequest(registry);
+
+        registry.reconcileActiveRequests();
+
+        assertThat(liveLease.isCancelled()).isFalse();
+        assertThat(expiredLease.isCancelled()).isTrue();
+        assertThat(unleased.isCancelled()).isTrue();
+    }
+
+    @Test
     void activeAndCommitWinningStatesDoNotCancelTheOwnerContext() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         when(redis.execute(any(), anyList(), any())).thenReturn("ACTIVE", "COMMITTING", "COMMITTED");

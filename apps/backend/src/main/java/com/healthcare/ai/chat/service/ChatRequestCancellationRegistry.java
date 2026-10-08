@@ -109,8 +109,24 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             or now - tonumber(value.renewalPermitIssuedAtMs or 0) > tonumber(ARGV[5]) then
           return cancelled(KEYS[1], ARGV[7])
         end
-        if value.renewalPermitDigest ~= ARGV[2] then return '!PERMIT' end
+        -- A renewal lands and rotates the permit, then its response is lost
+        -- (GC stall, cross-region latency, Render network blip): the BFF's
+        -- next renewal necessarily presents the superseded digest. Accept
+        -- exactly one generation of slack while the supersession is still
+        -- inside the freshness window — replay risk is unchanged because a
+        -- two-generations-old digest still fails.
+        local permitted = value.renewalPermitDigest == ARGV[2]
+        if not permitted
+            and type(value.previousPermitDigest) == 'string'
+            and value.previousPermitDigest == ARGV[2]
+            and type(value.previousPermitSupersededAtMs) == 'number'
+            and now - value.previousPermitSupersededAtMs <= tonumber(ARGV[5]) then
+          permitted = true
+        end
+        if not permitted then return '!PERMIT' end
         value.leaseExpiresAtMs = now + tonumber(ARGV[6])
+        value.previousPermitDigest = value.renewalPermitDigest
+        value.previousPermitSupersededAtMs = now
         value.renewalPermitDigest = ARGV[3]
         value.renewalPermitIssuedAtMs = now
         redis.call('SET', KEYS[1], cjson.encode(value), 'PX', ARGV[7])
@@ -310,7 +326,15 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             cancelLocal(requestId);
             throw exception;
         }
-        if (nextToken.equals(result)) return nextToken;
+        if (nextToken.equals(result)) {
+            // Record the new lease deadline so a shared-store flap later only
+            // cancels requests whose lease has provably expired already.
+            ChatRequestCancellation cancellation = active.get(requestId);
+            if (cancellation != null) {
+                cancellation.noteLeaseDeadline(System.currentTimeMillis() + LEASE_TTL_MILLIS);
+            }
+            return nextToken;
+        }
         // The result code ('!MISSING', '!PERMIT', '!STATE', 'CANCELLED', …)
         // decides the fix, so it must be observable when operations hit a
         // renewal rejection storm — the thrown message alone cannot.
@@ -351,7 +375,11 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             }
             throw new CancellationException("Chat request lease binding is unavailable");
         }
-        return registerOwner(requestId);
+        Registration registration = registerOwner(requestId);
+        // The lease was live at open; its deadline is at most now + TTL. Every
+        // successful renewal tightens this bound — see renewLease.
+        registration.cancellation().noteLeaseDeadline(System.currentTimeMillis() + LEASE_TTL_MILLIS);
+        return registration;
     }
 
     /** Legacy direct route registration; trusted BFF routes must use {@link #registerBffLease}. */
@@ -527,10 +555,22 @@ public class ChatRequestCancellationRegistry implements MessageListener {
                 }
             }
         } catch (RuntimeException exception) {
-            sharedOwned.forEach(ChatRequestCancellation::cancel);
+            // A sub-lease-TTL store flap must not mass-cancel in-flight turns
+            // whose leases are still valid — they recover on the next healthy
+            // tick. Cancel only requests whose last-known lease deadline has
+            // already passed; unleased (legacy) requests carry deadline 0 and
+            // stay fail-closed.
+            long now = System.currentTimeMillis();
+            int stopped = 0;
+            for (ChatRequestCancellation cancellation : sharedOwned) {
+                if (cancellation.lastKnownLeaseDeadlineMs() <= now) {
+                    cancellation.cancel();
+                    stopped++;
+                }
+            }
             log.warn(
-                "AI chat cancellation state unavailable; stopped active provider requests count={} errorType={}",
-                sharedOwned.size(), exception.getClass().getSimpleName()
+                "AI chat cancellation state unavailable; stopped expired provider requests count={} surviving={} errorType={}",
+                stopped, sharedOwned.size() - stopped, exception.getClass().getSimpleName()
             );
         }
     }
@@ -698,7 +738,7 @@ public class ChatRequestCancellationRegistry implements MessageListener {
                 || !state.matchesBinding(scope, null, null, null)
                 || state.expired(now)
                 || state.notRenewableAt(now)
-                || !state.matchesPermit(rawPermit)) {
+                || !state.matchesPermit(rawPermit, now)) {
             cancelLocal(requestId);
             cancelLocalState(requestId);
             throw new CancellationException("Chat lease renewal was rejected");
@@ -797,6 +837,8 @@ public class ChatRequestCancellationRegistry implements MessageListener {
         private long leaseExpiresAtMs;
         private String renewalPermitDigest;
         private long renewalPermitIssuedAtMs;
+        private String previousPermitDigest;
+        private long previousPermitSupersededAtMs;
 
         LocalRequestState(
                 LeaseBinding binding, String state, long leaseExpiresAtMs,
@@ -826,16 +868,28 @@ public class ChatRequestCancellationRegistry implements MessageListener {
             }
         }
 
-        boolean matchesPermit(String rawPermit) {
+        /**
+         * Renewal accepts the current permit or, mirroring the shared-store
+         * RENEW script, the superseded digest while it is still inside the
+         * freshness window — one generation of slack for a lost response.
+         */
+        boolean matchesPermit(String rawPermit, long nowMillis) {
             synchronized (this) {
-                return renewalPermitDigest != null
-                    && renewalPermitDigest.equals(sha256(rawPermit));
+                String digest = sha256(rawPermit);
+                if (renewalPermitDigest != null && renewalPermitDigest.equals(digest)) {
+                    return true;
+                }
+                return previousPermitDigest != null
+                    && previousPermitDigest.equals(digest)
+                    && nowMillis - previousPermitSupersededAtMs <= RENEWAL_PERMIT_FRESHNESS_MILLIS;
             }
         }
 
         void rotatePermit(String nextDigest, long nowMillis, long leaseTtlMillis) {
             synchronized (this) {
                 leaseExpiresAtMs = nowMillis + leaseTtlMillis;
+                previousPermitDigest = renewalPermitDigest;
+                previousPermitSupersededAtMs = nowMillis;
                 renewalPermitDigest = nextDigest;
                 renewalPermitIssuedAtMs = nowMillis;
             }
