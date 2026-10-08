@@ -2368,15 +2368,24 @@ def chat_safety_response(
     message_normalized = _normalize_sensitive_text(message)
     crisis_hit = _crisis_detected(message_normalized)
     if crisis_hit:
+        # Self-harm gets dedicated wording: the generic "triệu chứng" script
+        # answers a message the visitor did not send, and the routing_reason
+        # marker lets the Spring contract and the client render the crisis
+        # card. Detection order is untouched — this only selects the reply.
+        self_harm = emergency_terms.self_harm_hit(_policy_variants(message_normalized))
         return ChatResponse(
             answer=(
-                "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc "
-                "đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
+                "Nghe bạn nói vậy tôi rất lo cho bạn. Nếu bạn đang có ý nghĩ tự làm tổn "
+                "thương mình, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất — đừng ở một "
+                "mình, hãy nói với một người bạn tin tưởng. Tôi không tự động gọi thay bạn."
+                if self_harm
+                else "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 "
+                "hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
             ),
             provenance="local_fallback",
             safety_action=ChatSafetyAction.EMERGENCY,
             cost_tier="local_free",
-            routing_reason="safety_guardrail_shortcircuit",
+            routing_reason="self_harm_crisis" if self_harm else "safety_guardrail_shortcircuit",
         )
     if contains_prompt_injection(message) or any(
         contains_prompt_injection(content) for content in turn_contents

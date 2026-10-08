@@ -1047,6 +1047,110 @@ class PublicAiChatControllerTest {
     }
 
     @Test
+    void selfHarmMessageGetsCrisisWordingAndMarker() {
+        // The guest lane mirrors the authenticated lane: a self-harm
+        // message gets the dedicated crisis answer and the
+        // self_harm_crisis marker — the generic "dangerous signs" script
+        // only fits physical emergencies.
+        AiService aiService = mock(AiService.class);
+        Map<String, Object> body = new PublicAiChatController(
+            aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("Tôi muốn chết", null))
+            .getBody();
+        assertThat(body)
+            .containsEntry("safety_action", "EMERGENCY")
+            .containsEntry("routingReason", "self_harm_crisis")
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+        assertThat((String) body.get("answer"))
+            .contains("115")
+            .contains("tin tưởng")
+            .doesNotContain("dấu hiệu nguy hiểm");
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
+
+        // A physical emergency keeps the generic wording + marker.
+        Map<String, Object> physical = new PublicAiChatController(
+            aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "đau ngực dữ dội và khó thở", null))
+            .getBody();
+        assertThat(physical)
+            .containsEntry("safety_action", "EMERGENCY")
+            .containsEntry("routingReason", "public_safety_guardrail");
+        assertThat((String) physical.get("answer")).contains("dấu hiệu nguy hiểm");
+        verify(aiService, org.mockito.Mockito.never()).chat(any());
+    }
+
+    @Test
+    void upstreamSelfHarmMarkerReachesThePublicWire() {
+        // The AI lexicon catches obfuscated self-harm the local cue misses
+        // (leet "t0i mu0n ch3t" slips past every local pattern). The upstream
+        // self_harm_crisis marker must reach the wire verbatim so the guest
+        // card is the same crisis card the authenticated lane renders.
+        AiService aiService = mock(AiService.class);
+        when(aiService.chat(any())).thenReturn(Map.of(
+            "answer",
+            "Nghe bạn nói vậy tôi rất lo cho bạn. Nếu bạn đang có ý nghĩ tự làm tổn thương mình, "
+                + "hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất — đừng ở một mình, hãy nói với "
+                + "một người bạn tin tưởng. Tôi không tự động gọi thay bạn.",
+            "mode", "HOSPITAL_SUPPORT",
+            "safety_action", "EMERGENCY",
+            "routing_reason", "self_harm_crisis",
+            "provenance", "local_fallback",
+            "disclaimer", "Thông tin chỉ mang tính tham khảo.",
+            "citations", List.of()
+        ));
+
+        Map<String, Object> body = new PublicAiChatController(
+            aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest("t0i mu0n ch3t", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("safety_action", "EMERGENCY")
+            .containsEntry("routingReason", "self_harm_crisis")
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+        assertThat((String) body.get("answer"))
+            .contains("115")
+            .contains("tin tưởng");
+        verify(aiService).chat(any());
+    }
+
+    @Test
+    void educationLaneHonorsTheUpstreamSelfHarmMarker() {
+        // Kongming F2: the education lane's retrieve→non-ANSWER fallback used
+        // to drop the upstream marker entirely. A Python-only self-harm
+        // phrasing (leet slips every local pattern) riding an education
+        // keyword must still get the dedicated crisis card.
+        AiService aiService = mock(AiService.class);
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "mode", "HEALTH_EDUCATION",
+            "provenance", "local_fallback",
+            "safety_action", "EMERGENCY",
+            "routing_reason", "self_harm_crisis"));
+
+        Map<String, Object> body = new PublicAiChatController(
+            aiService, resolverForSpecialty())
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "cẩm nang t0i mu0n ch3t", null))
+            .getBody();
+
+        assertThat(body)
+            .containsEntry("mode", "HEALTH_EDUCATION")
+            .containsEntry("safety_action", "EMERGENCY")
+            .containsEntry("routingReason", "self_harm_crisis")
+            .containsEntry("suggested_actions", List.of(
+                Map.of("kind", "CALL_EMERGENCY", "label", "Gọi 115", "href", "tel:115")));
+        assertThat((String) body.get("answer"))
+            .contains("115")
+            .contains("tin tưởng")
+            .doesNotContain("dấu hiệu nguy hiểm");
+        verify(aiService).retrieveChat(any());
+        verify(aiService, org.mockito.Mockito.never()).generateChat(any());
+    }
+
+    @Test
     void doesNotTurnProtectedInsufficientEvidenceIntoBranchFallback() {
         AiService aiService = mock(AiService.class);
         when(aiService.chat(any())).thenReturn(Map.of(

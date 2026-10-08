@@ -625,6 +625,49 @@ test("BFF keeps emergency guidance deterministic when public AI is unavailable",
   assert.match(body.answer, /115/);
 });
 
+test("BFF fallback mirrors the backend crisis split for self-harm", async () => {
+  // An outage fallback must keep the same self-harm distinction: crisis
+  // wording + marker, never the physical-symptom script.
+  const bff = await loadBff();
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Tôi muốn chết" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      fetchImpl: async () => Response.json({ unavailable: true }, { status: 503 }),
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.safety_action, "EMERGENCY");
+  assert.equal(body.routingReason, "self_harm_crisis");
+  assert.match(body.answer, /tin tưởng/);
+  assert.match(body.answer, /115/);
+  assert.doesNotMatch(body.answer, /Triệu chứng/);
+
+  const physical = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/public/ai/chat", {
+      method: "POST",
+      headers: { Origin: "https://beta.healthcare.test", "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "đau ngực dữ dội" }),
+    }),
+    ["public", "ai", "chat"],
+    {
+      runtimeConfig,
+      fetchImpl: async () => Response.json({ unavailable: true }, { status: 503 }),
+    },
+  );
+  const physicalBody = await physical.json();
+  assert.equal(physicalBody.safety_action, "EMERGENCY");
+  assert.equal(physicalBody.routingReason, "public_bff_fallback");
+  assert.match(physicalBody.answer, /Triệu chứng/);
+});
+
 test("BFF emergency fallback keeps parity with the backend self-harm lexicon", async () => {
   // Kongming wave-7: the BFF shadow list must catch the same crisis phrases
   // the Spring lexicon does — an outage is exactly when it must not miss.

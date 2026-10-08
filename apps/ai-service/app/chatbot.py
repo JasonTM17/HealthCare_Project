@@ -1307,6 +1307,7 @@ def retrieve_chat_candidates(
             relevance_threshold=_threshold(settings),
             safety_action=safety.safety_action,
             provenance="local_fallback",
+            routing_reason=safety.routing_reason,
         )
 
     if (
@@ -1511,7 +1512,7 @@ def generate_chat_response(
             "mode": request.mode,
             "used_sources": [],
             "cost_tier": "local_free",
-            "routing_reason": "safety_guardrail_shortcircuit",
+            "routing_reason": safety.routing_reason or "safety_guardrail_shortcircuit",
         })
     if cancellation is not None:
         cancellation.raise_if_cancelled()

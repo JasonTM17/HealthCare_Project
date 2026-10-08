@@ -895,6 +895,7 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
   const suggestedActions = value.suggestedActions ?? value.suggested_actions;
   const feedback = value.feedback;
   const sourceStatus = value.sourceStatus ?? value.source_status;
+  const routingReason = value.routingReason ?? value.routing_reason;
   if (
     typeof value.id !== "string"
     || !value.id.trim()
@@ -908,6 +909,7 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
     || (typeof disclaimer !== "string" && disclaimer !== null && typeof disclaimer !== "undefined")
     || (typeof safetyAction !== "undefined" && !isChatSafetyAction(safetyAction))
     || (typeof sourceStatus !== "undefined" && !isSourceStatus(sourceStatus))
+    || (typeof routingReason !== "string" && routingReason !== null && typeof routingReason !== "undefined")
     || typeof value.createdAt !== "string"
     || (typeof value.completedAt !== "string" && value.completedAt !== null && typeof value.completedAt !== "undefined")
   ) {
@@ -931,6 +933,7 @@ function parseAiChatMessage(value: unknown, path: string): AiChatMessage {
     suggestedActions: sanitizeSuggestedActions(suggestedActions),
     feedback: parseFeedback(feedback, path),
     sourceStatus: sourceStatus as AiSourceStatus | undefined,
+    routingReason: routingReason ?? null,
     createdAt: value.createdAt,
     completedAt: value.completedAt ?? null,
   };
@@ -2681,6 +2684,7 @@ export interface PublicAiChatResult {
   /** The server may route a public question to the governed education mode. */
   mode: PublicAiChatMode;
   safetyAction: ChatSafetyAction;
+  routingReason?: string | null;
   suggestedActions: SuggestedAction[];
 }
 
@@ -2701,11 +2705,13 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
   const mode = value.mode;
   const safetyAction = value.safety_action ?? value.safetyAction;
   const suggestedActions = value.suggestedActions ?? value.suggested_actions;
+  const routingReason = value.routingReason ?? value.routing_reason;
   if (
     !isPublicAiChatMode(mode)
     || !Array.isArray(citations)
     || (provenance !== "local_provider" && provenance !== "local_fallback" && provenance !== "remote_provider")
     || !isChatSafetyAction(safetyAction)
+    || (typeof routingReason !== "string" && routingReason !== null && typeof routingReason !== "undefined")
   ) {
     throw invalidAiChatResponse(path);
   }
@@ -2724,6 +2730,7 @@ function parsePublicAiChatResponse(value: unknown, path: string): PublicAiChatRe
     provenance,
     mode,
     safetyAction,
+    routingReason: routingReason ?? null,
     suggestedActions: sanitizeSuggestedActions(suggestedActions),
   };
 }

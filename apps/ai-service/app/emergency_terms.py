@@ -889,6 +889,29 @@ def emergency_hit(variants: tuple[str, ...] | list[str]) -> bool:
     return False
 
 
+def self_harm_hit(variants: tuple[str, ...] | list[str]) -> bool:
+    """Return whether the crisis signal is specifically a self-harm statement.
+
+    Runs the self-harm lanes of ``emergency_hit`` only — physical tier-1
+    terms, convulsions, fainting and severity-escalated symptoms stay out.
+    Callers use this to pick the dedicated crisis wording; it never widens
+    or narrows detection itself.
+    """
+
+    for variant in variants:
+        if _TUTU_CRISIS.search(variant):
+            return True
+        if _boundary_hit(_SELF_HARM_BOUNDARY, variant):
+            return True
+        if _intent_bound_self_harm_hit(variant):
+            return True
+        if _ambiguous_self_harm_hit(variant):
+            return True
+        if _squashed_self_harm_hit(_squash_text(variant)):
+            return True
+    return False
+
+
 # "do" is doubly ambiguous in squash ("đồ" laundry vs "do" because-of), and
 # Inside a squash stream there is no \b, so prefix matching is unsafe: "la"
 # would swallow "cogiatlai" (co giật lại) and "ta" would swallow

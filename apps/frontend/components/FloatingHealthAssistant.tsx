@@ -1076,12 +1076,27 @@ function FloatingHealthAssistantPanel({
                           </p>
                         ) : null}
                         {message.safetyAction === "EMERGENCY" ? (
+                          // Self-harm carries its own card — the server marks
+                          // it via routingReason="self_harm_crisis" and
+                          // re-derives the marker on history reload.
                           <div aria-live="assertive" className={styles.emergencyAction} role="alert">
-                            <div className={styles.emergencyHeader}>
-                              <UiIcon name="alert-triangle" size={17} />
-                              <strong>Đây có thể là tình huống khẩn cấp.</strong>
-                            </div>
-                            <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
+                            {message.routingReason === "self_harm_crisis" ? (
+                              <>
+                                <div className={styles.emergencyHeader}>
+                                  <UiIcon name="alert-triangle" size={17} />
+                                  <strong>Bạn không đơn độc trong lúc này.</strong>
+                                </div>
+                                <span>Nếu bạn đang nghĩ đến việc làm tổn thương bản thân, hãy gọi 115 hoặc đến cơ sở y tế gần nhất ngay — đừng ở một mình, hãy nói với một người bạn tin tưởng.</span>
+                              </>
+                            ) : (
+                              <>
+                                <div className={styles.emergencyHeader}>
+                                  <UiIcon name="alert-triangle" size={17} />
+                                  <strong>Đây có thể là tình huống khẩn cấp.</strong>
+                                </div>
+                                <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
+                              </>
+                            )}
                             <div className={styles.emergencyActions}>
                               <a href="tel:115">Gọi 115</a>
                               <Link className={styles.emergencyBranchLink} href="/branches">Xem danh sách cơ sở</Link>
