@@ -90,6 +90,7 @@ export function formatNotificationType(eventType: string): string {
     HEALTH_QUESTION_SUBMITTED: "Câu hỏi mới chờ duyệt",
     HEALTH_QUESTION_ANSWERED: "Câu hỏi đã có trả lời",
     CONSULTATION_MESSAGE: "Tư vấn có tin nhắn mới",
+    AI_SAFETY_ALERT: "Cảnh báo an toàn AI",
     CARE_PLAN_CREATED: "Kế hoạch chăm sóc mới",
     CARE_PLAN_ITEM_COMPLETED: "Nhiệm vụ kế hoạch hoàn thành",
     CARE_PLAN_ITEM_CANCELLED: "Nhiệm vụ kế hoạch đã hủy",

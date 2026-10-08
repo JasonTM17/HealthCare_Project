@@ -42,6 +42,8 @@ public class Notification {
         HEALTH_QUESTION_ANSWERED,
         /** A message was posted in a patient-doctor consultation thread. */
         CONSULTATION_MESSAGE,
+        /** An AI chat turn showed unambiguous self-harm intent and needs review. */
+        AI_SAFETY_ALERT,
     }
 
     @Id
