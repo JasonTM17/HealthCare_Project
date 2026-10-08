@@ -134,7 +134,7 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["STORAGE_MIME_VALIDATION_REQUIRED"]["value"] == "true"
     assert backend["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert backend["RAG_STORAGE_BACKEND"]["value"] == "memory"
-    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai-9mip.onrender.com"
+    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-backup-ai.onrender.com"
     # Shared-secret pair set verbatim on both services after the env wipe
     # (generateValue secrets could not be recovered through the API).
     assert backend["AI_SERVICE_TOKEN"]["sync"] is False
