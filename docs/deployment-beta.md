@@ -232,6 +232,32 @@ three modes → `SYMPTOM_TRIAGE` 200 (8.8 s), `HEALTH_EDUCATION` 200 (7.3 s),
 `HOSPITAL_SUPPORT` 200 (2.3 s) through Vercel → backend → AI chain. The chk
 constraint now accepts `AI_SAFETY_ALERT`.
 
+**Full production validation on the new PRIMARY (2026-10-08, ~13:00 ICT):**
+end-to-end suite run against `www.healthcare.id.vn` → `healthcare-backup-backend`
+(verified via Render request-thread logs + Resend sender logs on that service):
+
+- Registration → `202` + real OTP email (Resend → mail.tm inbox, code read from
+  the actual message) → `EMAIL_VERIFICATION` grant 200 → session `PATIENT`,
+  `emailVerified=true`. Proves `RESEND_API_KEY` synced onto the new primary.
+- Role matrix 15/15 effective checks: anon→protected `401`; PATIENT→`/admin/*`
+  and `/doctor/*` `403` while own resources `200`; DOCTOR→`/admin/*` `403`,
+  `/doctor/*` `200`; ADMIN→`/admin/*` `200`.
+- Authenticated chatbot: all three modes `200` with citations (TRIAGE 10.4 s,
+  EDUCATION 6.0 s, SUPPORT 2.7 s); anonymous `/public/ai/chat` `200` grounded
+  answer. Traffic confirmed on `backup-backend` exec threads + `backup-ai`.
+- Booking chain on a second fresh account: hold `201` → booking OTP read from
+  real mail → confirm `200` `CONFIRMED`/`UNPAID` → payment submit `200`
+  `PENDING_VERIFICATION` → admin `VERIFY` `200` → `PAID` → second `PATCH`
+  decision refused `409` (stale-decision guard) → `invoice.pdf` `200`,
+  `application/pdf`, 659,610 bytes, `%PDF-` magic → patient re-read `PAID`.
+- Hold anti-abuse limit `429` after two live holds; hold `cancel` `200` on both
+  pending bookings. Logout `DELETE` `204`; subsequent session read fails
+  closed (`BFF_COOKIE_INVALID`).
+- Resend dashboard cross-check: every send shows `delivered` (MX accepted).
+  Disposable inboxes (mail.tm/guerrillamail/maildrop) drop or expire mailboxes
+  receiver-side — use a fresh mailbox per run; this is a receiver limitation,
+  not an app defect.
+
 ### Previous hosted overlay (2026-10-08, release 25227993)
 
 **Release content:** `25227993` (fix) + `4ab73e5a` (pin) on `main` — the
