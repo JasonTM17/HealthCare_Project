@@ -1740,7 +1740,7 @@ public class AiConversationService {
             disclaimer = SAFE_DISCLAIMER;
         }
         ChatSafetyAction safetyAction = parseSafety(response.get("safety_action"));
-        TriageSummary triage = parseTriage(response.get("triage"), mode);
+        TriageSummary triage = parseTriage(response.get("triage"), mode, groundedTitles(authorized));
         List<AiChatSourceResolver.ResolvedSource> finalSources = new ArrayList<>();
         // The exact-echo contract only applies when the provider claims an
         // answer: a non-ANSWER turn (INSUFFICIENT_EVIDENCE, REFUSE, HANDOFF,
@@ -1875,6 +1875,23 @@ public class AiConversationService {
     }
 
     private TriageSummary parseTriage(Object raw, ChatMode mode) {
+        // Read path: the stored value already passed the write-time gate, so
+        // structural validation is sufficient — re-checking a mutable catalog
+        // allowlist on reload would break history when a specialty is renamed.
+        return parseTriage(raw, mode, null);
+    }
+
+    private Set<String> groundedTitles(List<AiChatSourceResolver.ResolvedSource> authorized) {
+        Set<String> titles = new java.util.HashSet<>();
+        for (AiChatSourceResolver.ResolvedSource source : authorized) {
+            if (source != null && source.title() != null && !source.title().isBlank()) {
+                titles.add(source.title());
+            }
+        }
+        return titles;
+    }
+
+    private TriageSummary parseTriage(Object raw, ChatMode mode, Set<String> groundedTitles) {
         if (raw == null) return null;
         // Triage is a mode-specific contract.  Never persist or expose a
         // provider-supplied triage object for operational/educational chats.
@@ -1908,8 +1925,15 @@ public class AiConversationService {
         if (urgency == null) urgency = stringValue(value.get("urgencyLevel"));
         String specialty = stringValue(value.get("recommended_specialty"));
         if (specialty == null) specialty = stringValue(value.get("recommendedSpecialty"));
-        if (urgency == null || !TRIAGE_URGENCY.contains(urgency)
-                || (specialty != null && !TRIAGE_SPECIALTIES.contains(specialty))) {
+        // The write path accepts the static display names plus a specialty
+        // grounded in this turn's authorized sources (local triage now
+        // recommends the top authorized source title — a live catalog name
+        // such as "Mắt" that predates the nine-name display allowlist).
+        boolean specialtyOk = specialty == null
+            || TRIAGE_SPECIALTIES.contains(specialty)
+            || groundedTitles == null
+            || groundedTitles.contains(specialty);
+        if (urgency == null || !TRIAGE_URGENCY.contains(urgency) || !specialtyOk) {
             throw invalidAiResponse();
         }
         return new TriageSummary(urgency, specialty);
@@ -2476,6 +2500,11 @@ public class AiConversationService {
                             : ambiguousBranchResponse(content, boundedOwn);
                     }
                 }
+                // Generic branch-intent questions with no resolvable identity
+                // ("giờ làm việc của bệnh viện?") still have a deterministic
+                // answer: the live branch overview, same as the public lane.
+                SanitizedAiResponse overview = branchHoursOverviewResponse(content);
+                if (overview != null) return overview;
                 return null;
             }
             List<AiChatSourceResolver.BranchDetails> matches = sourceResolver.branchDetails(content);
@@ -2592,6 +2621,65 @@ public class AiConversationService {
             sources,
             "local_free",
             "ambiguous_branch_fallback"
+        );
+    }
+
+    /** Mirrors the public lane's opening-hours overview: generic branch questions answer from the live catalog. */
+    private static final int MAX_BRANCH_HOURS_OVERVIEW_ROWS = 4;
+
+    private SanitizedAiResponse branchHoursOverviewResponse(String content) {
+        List<AiChatSourceResolver.BranchDetails> branches;
+        try {
+            branches = sourceResolver.activeBranchOverview(MAX_BRANCH_HOURS_OVERVIEW_ROWS);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (branches == null || branches.isEmpty()) return null;
+        List<String> parts = new ArrayList<>();
+        List<AiChatSourceResolver.ResolvedSource> sources = new ArrayList<>();
+        for (AiChatSourceResolver.BranchDetails branch : branches) {
+            if (branch == null || branch.source() == null) continue;
+            String hours = branch.workingHours() == null || branch.workingHours().isBlank()
+                ? "giờ làm việc đang cập nhật"
+                : branch.workingHours();
+            parts.add(branch.source().title() + " — " + hours);
+            sources.add(branch.source());
+        }
+        if (parts.isEmpty()) return null;
+        List<Map<String, String>> citations;
+        try {
+            citations = sourceResolver.citations(sources);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (citations == null || citations.isEmpty()) return null;
+        List<Map<String, String>> actions;
+        try {
+            actions = sourceResolver.actions(sources).stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(value -> "VIEW_SOURCE".equals(value.get("kind")))
+                .limit(3)
+                .toList();
+        } catch (RuntimeException ex) {
+            actions = List.of();
+        }
+        if (actions.isEmpty()) {
+            actions = ChatSuggestedActionResolver.hospitalSupportFallback(content);
+        }
+        return new SanitizedAiResponse(
+            "Theo dữ liệu cơ sở đang hoạt động, giờ làm việc của bệnh viện như sau: "
+                + String.join("; ", parts)
+                + ". Giờ có thể thay đổi trong ngày lễ; bạn nên kiểm tra lại trước khi đến khám.",
+            SAFE_DISCLAIMER,
+            "local_fallback",
+            citations,
+            ChatSafetyAction.ANSWER,
+            null,
+            actions,
+            "CURRENT",
+            sources,
+            "local_free",
+            "branch_hours_overview"
         );
     }
 
