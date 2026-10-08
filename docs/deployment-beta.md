@@ -141,7 +141,48 @@ master-code fallback is therefore no longer live. The original re-pin procedure 
 in git history; auth-OTP password reset still stays non-functional until real SMTP is
 configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
 
-### Current hosted overlay (2026-10-08, release f5ef9189)
+### Current hosted overlay (2026-10-08, release 25227993)
+
+**Release content:** `25227993` (fix) + `4ab73e5a` (pin) on `main` — the
+display-name identity sync: `PatientProfileService.updateProfile` now updates
+`users.display_name` in the same transaction (user row locked first for a
+stable user→profile lock order; staff/doctor accounts skipped), Google bind
+adopts the provider `displayName` once for non-staff patients and syncs the
+linked profile, `AdminDoctorService` realigns a linked account when an admin
+renames a doctor, `BookingService` adopts the typed name when a first booking
+materializes the profile, and registration stores the trimmed display name.
+Frontend: `/patient/profile` save and both booking modals force
+`hydrateAuthSession(true)` on success so the header/navbar/dashboard show the
+new name without reload; the profile loader is keyed by user id so the refresh
+cannot refire the fetch or clobber in-progress edits. Migration **V115**
+backfills `users.display_name ← patient_profiles.full_name` for user-linked
+profiles, excluding doctor-linked accounts.
+
+**Evidence:** CI green on `25227993` (run 37727998219). Backend tests on real
+Postgres: `GoogleIdentityBindingIntegrationTest` 11/11 (incl. bind-adopts-name
+and staff-preserves-name), `AppointmentPortalIntegrationTest` 23/23 (profile
+rename now asserts `users.display_name` changes), `FlywayMigrationTest` 33/33
+(V115 applies cleanly), `BookingServiceValidationTest` 30/30,
+`AdminDoctorListBranchIdsTest` 7/7. Frontend: `display-name-sync` contract test
+3/3, booking suites 25/25, `tsc`+eslint clean. Advisor `PROCEED-WITH-CONDITIONS`
+and Kongming `SHIP_WITH_NOTES` (0 CRITICAL/HIGH) reviewed the frozen diff; all
+three MEDIUM findings were fixed before commit. Image publication run
+`37728755878` built `25227993`; pin commit `4ab73e5a` recorded:
+
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:7662ae06ef07bf02bc372a68385682dcdbd5706213fe48e7b7bd59776879d944
+
+Render deploys `dep-db3i0pei0phs73a964n0` (beta backend) and
+`dep-db3i0sfavr4c739sthq0` (backup backend) are `live` on that digest;
+`service.imagePath` confirmed the digest on both. Health gates post-deploy:
+`/actuator/health` `UP` on beta + backup (V115 applied — a failed migration
+would fail boot), `/livez` 200 on AI, `/api/v1/hospital/branches` 200 with 23
+branches via the Vercel BFF. Vercel `dpl_724vNqXnX2Xi9q5a` on `25227993` is
+`READY` on `www.healthcare.id.vn`. The pre-existing `imagePath` rollback
+coordinate is `dep-db3ha8mi0phs73a6fulg`/`dep-db3ha8mi0phs73a6g0gg` on
+`sha256:cad5ab83...`; V115 only rewrites `display_name`, so an image rollback
+is schema-safe (the divergent names simply stop auto-healing).
+
+### Historical hosted overlay (2026-10-08, release f5ef9189 — superseded by the 25227993 overlay)
 
 **Infrastructure identity changed (provider recreation detected this session):**
 the documented Supabase project `awaknzhadjglbfkhigck` no longer exists (Management
