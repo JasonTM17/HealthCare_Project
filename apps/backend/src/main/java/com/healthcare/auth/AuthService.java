@@ -179,7 +179,7 @@ public class AuthService {
         User user = new User();
         user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setDisplayName(request.displayName());
+        user.setDisplayName(request.displayName().trim());
         user.setStatus("ACTIVE");
         user.setEmailVerified(false);
         user.setEmailVerifiedAt(null);

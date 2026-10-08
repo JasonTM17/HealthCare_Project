@@ -35,6 +35,11 @@ public class PatientProfileService {
     @Transactional
     public PatientProfileResponse updateProfile(UpdatePatientProfileRequest request, UserDetails principal) {
         PatientProfile patient = requireProfile(principal);
+        // Lock the user row before writing the profile so this path and the
+        // Google bind path (which locks the user first) take locks in the same
+        // order and cannot deadlock.
+        User account = patient.getUserId() == null ? null
+            : userRepository.findByIdForUpdate(patient.getUserId()).orElse(null);
         patient.setFullName(request.fullName().trim());
         patient.setDateOfBirth(request.dateOfBirth());
         patient.setGender(request.gender() == null ? PatientGender.UNSPECIFIED : request.gender());
@@ -58,15 +63,19 @@ public class PatientProfileService {
         // The account display name must follow the patient-owned name: the
         // portal header, navbar chip, dashboard greeting and every other
         // session surface read users.display_name, which would otherwise keep
-        // showing the stale pre-rename value.
-        userRepository.findById(patient.getUserId()).ifPresent(user -> {
-            if (!saved.getFullName().equals(user.getDisplayName())) {
-                user.setDisplayName(saved.getFullName());
-                user.setUpdatedAt(OffsetDateTime.now());
-                userRepository.save(user);
-            }
-        });
+        // showing the stale pre-rename value. Staff/doctor accounts are owned
+        // by their professional name instead (AdminDoctorService + V103/V115).
+        if (account != null && !isStaff(account)
+                && !saved.getFullName().equals(account.getDisplayName())) {
+            account.setDisplayName(saved.getFullName());
+            account.setUpdatedAt(OffsetDateTime.now());
+            userRepository.save(account);
+        }
         return PatientProfileResponse.from(saved);
+    }
+
+    private boolean isStaff(User user) {
+        return user.getRoles().stream().anyMatch(role -> !"PATIENT".equals(role.getCode()));
     }
 
     private PatientProfile requireProfile(UserDetails principal) {

@@ -24,6 +24,7 @@ import {
   fetchDoctors,
   fetchSpecialties,
   getAuthSessionSnapshot,
+  hydrateAuthSession,
   ApiError,
   cancelPatientAppointment,
   resendAppointmentOtp,
@@ -1359,6 +1360,10 @@ function BookingExperience({
       // The hold became a real appointment: drop the intent so closing the
       // success card or starting a new booking can never cancel this booking.
       heldSlotRef.current = null;
+      // A first booking materializes the patient's profile and adopts the
+      // typed name as users.display_name — refresh the session so the portal
+      // header shows it immediately instead of the stale/Google name.
+      if (getAuthSessionSnapshot()) void hydrateAuthSession(true);
       setConfirmedAppointment(details);
     } catch (error: unknown) {
       if (bookingSession === bookingSessionRef.current) {

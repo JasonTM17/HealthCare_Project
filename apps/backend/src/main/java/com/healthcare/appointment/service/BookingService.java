@@ -730,7 +730,10 @@ public class BookingService {
             // The first booking materializes the patient's profile: keep the
             // account display name equal to it so the portal header matches
             // the name the patient just typed instead of a stale/Google name.
-            if (!created.getFullName().equals(authenticatedUser.getDisplayName())) {
+            // Staff accounts keep their professional name (doctor-owned).
+            boolean staff = authenticatedUser.getRoles().stream()
+                .anyMatch(role -> !"PATIENT".equals(role.getCode()));
+            if (!staff && !created.getFullName().equals(authenticatedUser.getDisplayName())) {
                 authenticatedUser.setDisplayName(created.getFullName());
                 authenticatedUser.setUpdatedAt(OffsetDateTime.now());
                 userRepository.save(authenticatedUser);
