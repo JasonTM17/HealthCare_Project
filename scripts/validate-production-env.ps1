@@ -141,6 +141,19 @@ Require-Boolean "REMOTE_AI_KILL_SWITCH" $true
 Require-Boolean "REMOTE_AI_SYNTHETIC_ONLY" $true
 Require-Boolean "SUPABASE_RAG_FALLBACK_TO_MEMORY" $false
 
+# The promotional credit floor is optional but must be a coherent pair on
+# every backend replica: a floor without an end date never activates, and a
+# replica missing the pair silently grants differently after failover. The
+# marker is minted from promo-until, so do not edit it mid-promotion.
+$promoFloor = Get-ConfigValue "AI_CREDITS_PROMO_FLOOR"
+$promoUntil = Get-ConfigValue "AI_CREDITS_PROMO_UNTIL"
+if (-not [string]::IsNullOrWhiteSpace($promoFloor) -and $promoFloor -ne "0") {
+    if ($promoFloor -notmatch '^\d+$') { $failures.Add("AI_CREDITS_PROMO_FLOOR must be a whole number of credits.") }
+    if ([string]::IsNullOrWhiteSpace($promoUntil) -or $promoUntil -notmatch '^\d{4}-\d{2}-\d{2}$') {
+        $failures.Add("AI_CREDITS_PROMO_UNTIL must be an ISO date (yyyy-MM-dd) while AI_CREDITS_PROMO_FLOOR is set.")
+    }
+}
+
 $origins = Require-Value "CORS_ALLOWED_ORIGINS"
 foreach ($origin in ($origins -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
     if (-not $origin.StartsWith("https://", [System.StringComparison]::OrdinalIgnoreCase) -or

@@ -744,6 +744,37 @@ the project.
    failure requiring TLS is a provider access-control signal; do not open
    0.0.0.0/0 as a workaround.
 
+### Hosted environment change gate
+
+The 2026-10-08 incident proved `PUT /v1/services/{id}/env-vars` is a
+replace-all write: a partial body wiped 69 variables across all three
+backends. `sync:false` secrets exist only on Render, so every hosted env
+change — dashboard or API — follows this gate:
+
+1. Confirm the target service name, id and region against the hosted
+   snapshot table above before any call.
+2. `GET /v1/services/{id}/env-vars` (paginate) and store the full JSON in a
+   timestamped file outside the repo (gitignored `env-backups/` or a password
+   manager). Never print or commit values; report key names and count only.
+   This file is the only restore source for `sync:false` values.
+3. Compose the intended key delta explicitly; hand-written PUT bodies are
+   banned.
+4. Prefer per-key `PUT /env-vars/{key}` (merge semantics). If a collection
+   PUT is truly required, generate the body programmatically as
+   `backup ∪ delta`, assert the key count equals
+   `count(backup) − removals + additions`, then send.
+5. Re-GET envs and assert the key-name set matches the expectation, run
+   `scripts/validate-production-env.ps1` over a rendering of the snapshot,
+   then probe `/actuator/health` plus one chat canary.
+6. Log service id, date, keys touched and the snapshot path in the release
+   evidence. Two-person rule for any collection PUT or a change covering
+   more than five keys.
+
+`AI_CREDITS_PROMO_FLOOR`/`AI_CREDITS_PROMO_UNTIL` live only in hosted env:
+set them on every backend replica (validator covers the pair) and never edit
+`promo-until` mid-promotion — a new end date mints a new marker and re-grants
+the floor to every user below it.
+
 ## Supabase Free procedure
 
 The existing Spring/Flyway public schema remains the account and clinical
