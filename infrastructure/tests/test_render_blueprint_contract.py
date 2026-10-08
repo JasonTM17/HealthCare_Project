@@ -141,9 +141,12 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["AI_RAG_INGEST_TOKEN"]["sync"] is False
     assert backend["AI_RAG_INGEST_ENABLED"]["value"] == "true"
     assert backend["CMS_DISTRIBUTED_REALTIME_ENABLED"]["value"] == "true"
+    # Clinical chat modes went live after the grounded catalog + rule-based
+    # triage pipeline proved safe; keep them pinned ON in the blueprint.
+    assert backend["AI_CHAT_SYMPTOM_TRIAGE_ENABLED"]["value"] == "true"
+    assert backend["AI_CHAT_HEALTH_EDUCATION_ENABLED"]["value"] == "true"
     for key in (
-        "AI_CHAT_SYMPTOM_TRIAGE_ENABLED",
-        "AI_CHAT_HEALTH_EDUCATION_ENABLED", "AI_CHAT_SYNTHETIC_BETA_ASSERTED",
+        "AI_CHAT_SYNTHETIC_BETA_ASSERTED",
         "AI_CHAT_CHUNKED_ENABLED",
         "APP_MAIL_OUTBOX_ENABLED", "APP_PAYMENT_BANK_TRANSFER_ENABLED",
         "STORAGE_UPLOAD_ENABLED", "STORAGE_CONSULTATION_ENABLED",
