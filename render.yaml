@@ -244,7 +244,7 @@ services:
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
-        value: https://healthcare-beta-ai-9mip.onrender.com
+        value: https://healthcare-backup-ai.onrender.com
       # 2026-10-07: the fromService links stopped re-materializing after the
       # env-layer wipe (generateValue secrets are never readable via API), so
       # both tokens are dashboard/API-managed secrets kept identical on this
