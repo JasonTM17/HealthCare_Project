@@ -22,6 +22,10 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
   const contactBranch = branches.find((branch) => Boolean(branch.phone));
   const contactPhone = emergencyBranch?.emergencyHotline ?? contactBranch?.phone;
   const contactHref = safeTelephoneHref(contactPhone);
+  const railCurrent = (href: string, detailPrefix?: string): "page" | undefined =>
+    pathname === href || pathname.startsWith(`${href}/`) || (detailPrefix !== undefined && pathname.startsWith(detailPrefix))
+      ? "page"
+      : undefined;
 
   const handleLogoClick = (e: React.MouseEvent<HTMLAnchorElement>): void => {
     if (typeof window !== "undefined") {
@@ -103,10 +107,10 @@ const Footer: React.FC<FooterProps> = ({ branches = [], cmsSlug }) => {
     </div>
 
     <nav aria-label="Lối tắt trên thiết bị nhỏ" className="mobile-care-rail">
-      <Link href="/specialties"><Icon name="layers" size={19} /><span>Chuyên khoa</span></Link>
-      <Link href="/doctors"><Icon name="stethoscope" size={19} /><span>Tìm bác sĩ</span></Link>
-      <Link className="mobile-care-rail__primary" href="/dat-lich"><Icon name="calendar" size={19} /><span>Đặt lịch khám</span></Link>
-      {contactHref ? <a href={contactHref}><Icon name="phone" size={19} /><span>Liên hệ</span></a> : <Link href="/contact"><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
+      <Link href="/specialties" aria-current={railCurrent("/specialties", "/chuyen-khoa/")}><Icon name="layers" size={19} /><span>Chuyên khoa</span></Link>
+      <Link href="/doctors" aria-current={railCurrent("/doctors", "/bac-si/")}><Icon name="stethoscope" size={19} /><span>Tìm bác sĩ</span></Link>
+      <Link className="mobile-care-rail__primary" href="/dat-lich" aria-current={railCurrent("/dat-lich")}><Icon name="calendar" size={19} /><span>Đặt lịch khám</span></Link>
+      {contactHref ? <a href={contactHref}><Icon name="phone" size={19} /><span>Liên hệ</span></a> : <Link href="/contact" aria-current={railCurrent("/contact")}><Icon name="phone" size={19} /><span>Liên hệ</span></Link>}
     </nav>
   </footer>
   );
