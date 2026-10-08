@@ -106,7 +106,7 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     # [L1] Cross-warmer ai→backend must stay enabled: without this key the
     # startup hook in app/main.py self-disables and the warm chain is one-way.
     assert ai_env["BACKEND_WARM_URL"]["value"] == (
-        "https://healthcare-backup-backend.onrender.com/actuator/health"
+        "https://healthcare-backup-backend-oqv4.onrender.com/actuator/health"
     )
 
 
@@ -134,7 +134,7 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["STORAGE_MIME_VALIDATION_REQUIRED"]["value"] == "true"
     assert backend["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert backend["RAG_STORAGE_BACKEND"]["value"] == "memory"
-    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-backup-ai.onrender.com"
+    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai-9mip.onrender.com"
     # Shared-secret pair set verbatim on both services after the env wipe
     # (generateValue secrets could not be recovered through the API).
     assert backend["AI_SERVICE_TOKEN"]["sync"] is False

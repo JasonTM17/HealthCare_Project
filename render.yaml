@@ -135,7 +135,7 @@ services:
       # a public health endpoint (no credentials), matching the warm cron in
       # .github/workflows/render-warm.yml.
       - key: BACKEND_WARM_URL
-        value: https://healthcare-backup-backend.onrender.com/actuator/health
+        value: https://healthcare-backup-backend-oqv4.onrender.com/actuator/health
 
   - type: web
     name: healthcare-beta-backend
@@ -144,7 +144,7 @@ services:
     region: singapore
     autoDeployTrigger: "off"
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:7662ae06ef07bf02bc372a68385682dcdbd5706213fe48e7b7bd59776879d944
+      url: ghcr.io/jasmon17/healthcare-project-backend@sha256:4cde960998676b99a06649012267f37b00c4caf10db5eb598afaacc4846fef75
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
@@ -244,7 +244,7 @@ services:
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
-        value: https://healthcare-backup-ai.onrender.com
+        value: https://healthcare-beta-ai-9mip.onrender.com
       # 2026-10-07: the fromService links stopped re-materializing after the
       # env-layer wipe (generateValue secrets are never readable via API), so
       # both tokens are dashboard/API-managed secrets kept identical on this
