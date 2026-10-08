@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { before, after, test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { before, after, test as nodeTest } from 'node:test';
+import { readFileSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,9 +24,15 @@ sources.button = ts.transpileModule(readFileSync(path.join(rootPath, 'components
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText.replace(/require\(".*\.module\.css"\)/g, 'require("css")');
 
+const hasChromium = existsSync(chromium.executablePath());
 let browser;
-before(async () => { browser = await chromium.launch({ headless: true }); });
+before(async () => {
+  if (!hasChromium) return;
+  browser = await chromium.launch({ headless: true });
+});
 after(async () => { await browser?.close(); });
+
+const test = (name, fn) => nodeTest(name, { skip: !hasChromium ? 'Playwright Chromium not installed' : false }, fn);
 
 async function mount({ sdk = true, clientId = 'fixture.apps.googleusercontent.com', busy = false, clock = false } = {}) {
   const page = await browser.newPage({ viewport: { width: 500, height: 500 } });
