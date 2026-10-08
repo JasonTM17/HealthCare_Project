@@ -4069,19 +4069,10 @@ main {
       transform var(--duration-fast) var(--ease-out);
   }
 
-  .mobile-care-rail a:first-child {
-    color: var(--color-amber);
-  }
-
+  /* Route selection is shared by every item, including booking. */
   .mobile-care-rail a[aria-current="page"] {
     color: var(--color-paper-bright);
-    background: rgba(255, 255, 255, 0.1);
-    border-bottom-color: var(--color-amber);
-  }
-
-  .mobile-care-rail .mobile-care-rail__primary[aria-current="page"] {
-    color: var(--color-paper-bright);
-    background: var(--color-teal-900, #134e4a);
+    background: var(--color-teal-700);
     border-bottom-color: var(--color-paper-bright);
   }
 
@@ -8108,12 +8099,6 @@ main {
   }
 
   .site-shell .mobile-care-rail a[aria-current="page"] {
-    color: var(--hospital-teal-dark);
-    background: rgba(13, 148, 136, 0.1);
-    border-bottom-color: var(--hospital-teal);
-  }
-
-  .site-shell .mobile-care-rail .mobile-care-rail__primary[aria-current="page"] {
     color: #fff;
     background: var(--hospital-teal-dark);
     border-bottom-color: #fff;
@@ -8126,18 +8111,6 @@ main {
     background: rgba(13, 148, 136, 0.14);
   }
 
-  .site-shell .mobile-care-rail .mobile-care-rail__primary {
-    margin-block: -0.85rem 0;
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    background: var(--hospital-teal);
-    color: #fff;
-  }
-
-  .site-shell .mobile-care-rail .mobile-care-rail__primary:active {
-    background: var(--hospital-teal-dark);
-    color: #fff;
-    transform: scale(0.96);
-  }
 }
 
 /* About page follows the same editorial visual language as the homepage. */
@@ -10968,19 +10941,6 @@ main {
 .hm-doctor-grid .doctor-photo {
   aspect-ratio: 3 / 4;
   min-height: unset !important;
-}
-
-/* ── Mobile care rail active ── */
-.mobile-care-rail .mobile-care-rail__primary {
-  background: var(--color-teal-700);
-  box-shadow: none;
-}
-
-/* Pressed state for the primary rail action: the raised teal pill otherwise
-   kept a static background on tap, which read as a frozen/fixed button. */
-.mobile-care-rail .mobile-care-rail__primary:active {
-  background: var(--color-teal-900, #134e4a);
-  color: var(--color-paper-bright);
 }
 
 /* ── Text selection color stays branded ── */
