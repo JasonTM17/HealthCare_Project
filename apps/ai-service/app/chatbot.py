@@ -1623,8 +1623,11 @@ def generate_chat_response(
         response = _local_grounded_response(request.message, request.mode, metas)
     else:
         is_complex = is_complex_multisymptom_query(request.message)
-        is_operational = request.mode is ChatMode.HOSPITAL_SUPPORT or all(meta.projection_kind == "OPERATIONAL" for meta in metas)
-        if not is_complex and is_operational:
+        if not is_complex:
+            # RAG-first per operator requirement: once sources are authorized,
+            # the grounded local answer serves every mode — not only
+            # operational support. Remote synthesis stays reserved for complex
+            # multisymptom reasoning and the no-source uncited lane above.
             response = _local_grounded_response(request.message, request.mode, metas)
             response = response.model_copy(update={
                 "cost_tier": "local_free",
