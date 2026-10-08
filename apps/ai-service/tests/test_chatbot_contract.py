@@ -1873,6 +1873,8 @@ def test_retrieve_pool_rescue_finds_document_buried_below_top_k() -> None:
         metadata=_clinical_metadata(noise_content),
     )
     noise_doc = service.index.get("faq:faq-breathing")
+    assert noise_doc is not None
+    noise_hit: RagDocument = noise_doc
 
     class BuriedVectorRag(RagService):
         """Search returns only the weak, below-threshold noise hit."""
@@ -1882,7 +1884,7 @@ def test_retrieve_pool_rescue_finds_document_buried_below_top_k() -> None:
             self._inner = inner
 
         def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
-            return [(noise_doc, 0.30)]
+            return [(noise_hit, 0.30)]
 
         def lexical_candidates(
             self, query_text: str, *, source_types: Any = None, limit: int = 800

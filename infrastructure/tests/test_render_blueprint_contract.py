@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 79fe8833 (IDOR + rate-limit fail-closed + PDF
-# sha256 + admin gating + bounded article locks).
+# release line, built from 25227993 (display-name sync hardening on top of
+# the 79fe8833 IDOR/rate-limit/PDF/admin-gating line).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:cad5ab83d9e31d2709f7837d0c73418ca204059d7f7e4bec43f27fd9d678fbd4"
+    "sha256:7662ae06ef07bf02bc372a68385682dcdbd5706213fe48e7b7bd59776879d944"
 )
 
 

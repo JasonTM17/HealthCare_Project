@@ -2131,7 +2131,9 @@ def _has_unnegated_forbidden_match(
                 prefix = sentence[: match.start()]
                 if _CONTRASTIVE_WORD_PATTERN.search(prefix):
                     return True
-                refusal_excused = _CLINICAL_REFUSAL_PREFIX_PATTERN.search(prefix)
+                refusal_excused = (
+                    _CLINICAL_REFUSAL_PREFIX_PATTERN.search(prefix) is not None
+                )
                 if (
                     not refusal_excused
                     and allow_approved_clinical
