@@ -153,6 +153,9 @@ jobs:
       - name: Type check
         working-directory: apps/frontend
         run: npm run typecheck
+      - name: Install Playwright Chromium
+        working-directory: apps/frontend
+        run: npx playwright install --with-deps chromium
       - name: Test
         working-directory: apps/frontend
         run: npm run test
@@ -163,9 +166,6 @@ jobs:
           # site URLs; CI builds the real production bundle.
           NEXT_PUBLIC_SITE_URL: https://healthcare.id.vn
         run: npm run build
-      - name: Install Playwright Chromium
-        working-directory: apps/frontend
-        run: npx playwright install --with-deps chromium
       - name: Browser test CMS realtime
         working-directory: apps/frontend
         run: npm run test:e2e
