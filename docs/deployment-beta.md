@@ -221,6 +221,20 @@ serves). One early remote generation was dropped by the sanitize gate
 nondeterminism, correct posture. Backend log chain shows
 retrieval→source-authorization→generation→persistence `completed`.
 
+**Browser evidence (agent-browser, real patient session on
+`https://www.healthcare.id.vn`):** login renders and authenticates; "Trợ lý AI"
+page shows all three mode buttons enabled (no "Tạm chưa khả dụng" state).
+SYMPTOM_TRIAGE conversation: user message, safe non-diagnostic grounded answer,
+"Phản hồi AI có kiểm soát" badge, "Nguồn tham khảo trong HealthCare" citation
+card, disclaimer, next-steps links and feedback controls all render.
+HEALTH_EDUCATION conversation ("trước khi xét nghiệm máu tôi cần nhịn ăn bao
+lâu?"): grounded ≥8h fasting answer citing the approved "chuẩn bị khám định kỳ"
+FAQ with the same governed-response chrome. Screenshots captured locally.
+Quality note: one triage run cited a mismatched specialty ("Nam khoa" for
+vertigo) while the answer text stayed safe — authorized-source selection is
+retrieval/provider-dependent; citation-relevance tuning is follow-up work, not
+a release blocker (the same flow cited "Thần kinh" in earlier API evidence).
+
 **Residual:** legacy `healthcare-backup-*` services on the dead-key workspace
 remain running but receive no traffic; they cannot be managed via API and
 should be retired from the dashboard when access is restored.
