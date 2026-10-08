@@ -25,7 +25,7 @@ class OpenApiConfigTest {
         List<String> serverUrls = openAPI.getServers().stream().map(io.swagger.v3.oas.models.servers.Server::getUrl).toList();
         assertThat(serverUrls).contains(
             "/",
-            "https://healthcare-beta-backend-4wb7.onrender.com",
+            "https://healthcare-backup-backend.onrender.com",
             "https://www.healthcare.id.vn/api/v1",
             "http://localhost:8080"
         );

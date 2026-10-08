@@ -54,7 +54,19 @@ public class PatientProfileService {
             patient.setBloodType(trimToNull(request.bloodType()));
         }
         patient.setUpdatedAt(OffsetDateTime.now());
-        return PatientProfileResponse.from(patientProfileRepository.saveAndFlush(patient));
+        PatientProfile saved = patientProfileRepository.saveAndFlush(patient);
+        // The account display name must follow the patient-owned name: the
+        // portal header, navbar chip, dashboard greeting and every other
+        // session surface read users.display_name, which would otherwise keep
+        // showing the stale pre-rename value.
+        userRepository.findById(patient.getUserId()).ifPresent(user -> {
+            if (!saved.getFullName().equals(user.getDisplayName())) {
+                user.setDisplayName(saved.getFullName());
+                user.setUpdatedAt(OffsetDateTime.now());
+                userRepository.save(user);
+            }
+        });
+        return PatientProfileResponse.from(saved);
     }
 
     private PatientProfile requireProfile(UserDetails principal) {

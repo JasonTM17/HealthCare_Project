@@ -604,6 +604,21 @@ public class AuthService {
             authOtpService.invalidateAll(user);
         }
         user.setGoogleSubject(identity.subject());
+        // Patients who bind a Google identity are greeted by their Google
+        // name everywhere users.display_name is read. Staff accounts keep
+        // their professional display name instead. The linked patient
+        // profile is synced too so the profile form and the header cannot
+        // diverge; an explicit profile rename later rewrites both fields.
+        if (!isStaff(user) && identity.displayName() != null && !identity.displayName().isBlank()) {
+            user.setDisplayName(identity.displayName());
+            patientProfileRepository.findByUserId(user.getId()).ifPresent(profile -> {
+                if (!identity.displayName().equals(profile.getFullName())) {
+                    profile.setFullName(identity.displayName());
+                    profile.setUpdatedAt(OffsetDateTime.now());
+                    patientProfileRepository.save(profile);
+                }
+            });
+        }
         user.setEmailVerified(true);
         if (user.getEmailVerifiedAt() == null) user.setEmailVerifiedAt(OffsetDateTime.now());
         user.setUpdatedAt(OffsetDateTime.now());

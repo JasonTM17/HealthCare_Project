@@ -25,8 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     env:
-      BACKEND_HEALTH_URL: https://healthcare-beta-backend-4wb7.onrender.com/actuator/health
-      AI_LIVEZ_URL: https://healthcare-beta-ai-9mip.onrender.com/livez
+      BACKEND_HEALTH_URL: https://healthcare-backup-backend.onrender.com/actuator/health
+      AI_LIVEZ_URL: https://healthcare-backup-ai.onrender.com/livez
     steps:
       - name: Warm backend
         run: |

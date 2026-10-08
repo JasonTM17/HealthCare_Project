@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Comprehensive Live Real-World Chatbot Verification Test Suite.
 
-Tests the LIVE deployed AI Service on Render (https://healthcare-beta-ai-9mip.onrender.com)
+Tests the LIVE deployed AI Service on Render (https://healthcare-backup-ai.onrender.com)
 against the enriched Supabase pgvector database (1,045 documents) and DeepSeek v4 Flash.
 
 Test Cases:
@@ -27,7 +27,7 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-BASE_URL = os.environ.get("AI_SERVICE_URL", "https://healthcare-beta-ai-9mip.onrender.com")
+BASE_URL = os.environ.get("AI_SERVICE_URL", "https://healthcare-backup-ai.onrender.com")
 AUTH_TOKEN = os.environ.get("AI_SERVICE_TOKEN") or os.environ.get("BACKEND_BFF_SERVICE_TOKEN") or ""
 
 if not AUTH_TOKEN:

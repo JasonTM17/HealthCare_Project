@@ -9,6 +9,7 @@ import {
   fetchPatientAiCreditStatus,
   fetchPatientProfile,
   hasRole,
+  hydrateAuthSession,
   mediaAssetIdFromUrl,
   updatePatientProfile,
   type AiCreditStatus,
@@ -231,6 +232,10 @@ export default function PatientProfilePage() {
         allergies: allergies.trim(),
       });
       setProfile(updated);
+      // The backend now keeps users.display_name equal to the profile name;
+      // force-refresh the session snapshot so the portal header, navbar chip
+      // and dashboard greeting show the new name without a manual reload.
+      void hydrateAuthSession(true);
       // The persisted avatar changed → the previous media asset is now
       // unreferenced. Best-effort cleanup after commit; a failed delete only
       // leaves an orphan, never blocks the saved profile.

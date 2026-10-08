@@ -38,8 +38,7 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     assert backend["plan"] == "free"
     assert backend["runtime"] == "image"
     env_vars = {item["key"]: item for item in backend["envVars"]}
-    assert env_vars["REDIS_URL"]["fromService"]["property"] == "connectionString"
-    assert env_vars["REDIS_URL"]["fromService"]["type"] == "keyvalue"
+    assert env_vars["REDIS_URL"]["sync"] is False
     assert "REDIS_HOST" not in env_vars
     assert "REDIS_PORT" not in env_vars
     assert env_vars["STORAGE_UPLOAD_ENABLED"]["value"] == "false"
@@ -48,13 +47,9 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     assert env_vars["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert env_vars["RAG_STORAGE_BACKEND"]["value"] == "memory"
     assert env_vars["AI_RAG_INGEST_ENABLED"]["value"] == "true"
-    assert env_vars["AI_SERVICE_URL"]["value"] == "https://healthcare-beta-ai-9mip.onrender.com"
-    assert env_vars["AI_SERVICE_TOKEN"]["fromService"] == {
-        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "AI_SERVICE_TOKEN"
-    }
-    assert env_vars["AI_RAG_INGEST_TOKEN"]["fromService"] == {
-        "type": "web", "name": "healthcare-beta-ai", "envVarKey": "RAG_INGEST_TOKEN"
-    }
+    assert env_vars["AI_SERVICE_URL"]["value"] == "https://healthcare-backup-ai.onrender.com"
+    assert env_vars["AI_SERVICE_TOKEN"]["sync"] is False
+    assert env_vars["AI_RAG_INGEST_TOKEN"]["sync"] is False
     ai = _service(blueprint, "healthcare-beta-ai")
     ai_env = {item["key"]: item for item in ai["envVars"]}
     assert ai["runtime"] == "python"
@@ -75,8 +70,8 @@ def test_render_free_blueprint_keeps_private_runtime_boundaries() -> None:
     assert ai_env["AI_CHAT_REMOTE_PROVIDER_ENABLED"]["value"] == "false"
     assert ai_env["REMOTE_AI_SYNTHETIC_ONLY"]["value"] == "false"
     assert ai_env["RAG_INGEST_ENABLED"]["value"] == "true"
-    assert ai_env["AI_SERVICE_TOKEN"]["generateValue"] is True
-    assert ai_env["RAG_INGEST_TOKEN"]["generateValue"] is True
+    assert ai_env["AI_SERVICE_TOKEN"]["sync"] is False
+    assert ai_env["RAG_INGEST_TOKEN"]["sync"] is False
     assert "STORAGE_AV_SERVICE_URL" not in env_vars
     assert "STORAGE_AV_SERVICE_TOKEN" not in env_vars
     assert "SUPABASE_DB_URL" not in env_vars
