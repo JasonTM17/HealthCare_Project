@@ -376,13 +376,13 @@ public class AiClinicalProjectionIndexService {
                 // from the live approval query, so it may only suppress a
                 // tombstone, never create one.
                 current.add(sourceType + ":" + sourceId);
-                Map<String, Object> indexed = indexedByKey.get(sourceType + ":" + sourceId);
-                if (indexed != null
-                        && number(indexed.get("content_revision")) == contentRevision
-                        && number(indexed.get("eligibility_revision")) == eligibilityRevision
-                        && contentHash.equalsIgnoreCase(text(indexed.get("content_hash")))
-                        && Long.toString(approvalRound).equals(text(indexed.get("approval_id")))
-                        && expiresAt.equals(text(indexed.get("approval_expires_at")))) {
+                if (matchesIndexedProjection(
+                        indexedByKey.get(sourceType + ":" + sourceId),
+                        contentRevision,
+                        eligibilityRevision,
+                        approvalRound,
+                        contentHash,
+                        expiresAt)) {
                     continue;
                 }
                 try {
@@ -503,6 +503,46 @@ public class AiClinicalProjectionIndexService {
         if (value == null) return null;
         String result = String.valueOf(value).strip();
         return result.isBlank() ? null : result;
+    }
+
+    /**
+     * The indexed row counts as current only when every governed identity
+     * field matches.  Timestamps need a tolerant compare: the SQL snapshot
+     * emits {@code expires_at::text} ("+00") while a stored projection may
+     * carry an ISO offset ("+00:00") — a string compare would re-push the
+     * entire corpus forever.
+     */
+    private boolean matchesIndexedProjection(
+            Map<String, Object> indexed,
+            long contentRevision,
+            long eligibilityRevision,
+            long approvalRound,
+            String contentHash,
+            String expiresAt) {
+        if (indexed == null) return false;
+        try {
+            if (number(indexed.get("content_revision")) != contentRevision) return false;
+            if (number(indexed.get("eligibility_revision")) != eligibilityRevision) return false;
+        } catch (IllegalStateException exception) {
+            return false;
+        }
+        if (!contentHash.equalsIgnoreCase(text(indexed.get("content_hash")))) return false;
+        if (!Long.toString(approvalRound).equals(text(indexed.get("approval_id")))) return false;
+        return sameExpiry(expiresAt, text(indexed.get("approval_expires_at")));
+    }
+
+    private boolean sameExpiry(String expected, String stored) {
+        if (expected == null || stored == null) return false;
+        if (expected.equals(stored)) return true;
+        try {
+            java.time.Instant expectedInstant =
+                java.time.OffsetDateTime.parse(expected.replace(' ', 'T')).toInstant();
+            java.time.Instant storedInstant =
+                java.time.OffsetDateTime.parse(stored.replace(' ', 'T')).toInstant();
+            return expectedInstant.equals(storedInstant);
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     private long number(Object value) {
