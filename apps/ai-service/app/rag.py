@@ -856,3 +856,30 @@ class RagService:
                 embedding_model=embedding_model,
                 embedding_provenance=embedding_provenance,
             )
+
+    def lexical_candidates(
+        self,
+        query_text: str,
+        *,
+        source_types: Collection[str] | None = None,
+        limit: int = 800,
+    ) -> list[RagDocument]:
+        """Return the searchable mode-eligible pool for lexical rescoring.
+
+        Bounded top-K search can bury a strongly matching row below vector
+        noise (the local hash embedding carries no semantics), so the caller
+        rescans this pool by folded token overlap before declaring a miss.
+        The pool must therefore not be pre-filtered by the vector score that
+        just failed; eligibility filtering happens here instead. Deterministic
+        ordering keeps the bounded tail stable across identical corpora.
+        """
+        allowed = set(source_types) if source_types else None
+        with self._revision_lock:
+            documents = [
+                document
+                for document in self.index.documents
+                if document.searchable
+                and (allowed is None or document.source_type in allowed)
+            ]
+        documents.sort(key=lambda item: (item.source_type, item.source_id, item.id))
+        return documents[: max(1, min(int(limit), 1_000))]

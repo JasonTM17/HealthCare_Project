@@ -802,6 +802,43 @@ class SupabaseRagStore:
             results.append((document, float(row[17])))
         return results[:bounded_top_k]
 
+    def lexical_candidates(
+        self,
+        query_text: str,
+        *,
+        source_types: Collection[str] | None = None,
+        limit: int | None = None,
+    ) -> list[RagDocument]:
+        """Return fresh mode-eligible rows for Python-side lexical rescoring.
+
+        The hybrid RPC returns at most twenty vector-ranked rows, so a
+        strongly matching document can be invisible to the lexical rescue
+        purely because a weak hash embedding ranked it twenty-first.  This
+        read reuses the ``list_documents`` eligibility predicate so the
+        rescue pool can never widen the authorized corpus, and orders
+        FTS-matching rows first only to prioritize content when the corpus
+        ever exceeds the bound — final scoring stays Python-side.
+        """
+        if len(query_text) > MAX_INPUT_CHARS:
+            raise SupabaseRagContractError("RAG query exceeds the maximum input size")
+        bounded_limit = max(1, min(int(limit or 800), 1_000))
+        filters = list(source_types) if source_types else None
+        sql = f"""
+            select {self._select_columns()}
+            from {self._table}
+            where active and published and deleted_at is null and embedding is not null
+              and (%s::text[] is null or source_type = any(%s::text[]))
+            order by (search_vector @@ websearch_to_tsquery('simple', %s)) desc,
+                     updated_at desc, id
+            limit %s
+        """
+        with self._connection() as connection:
+            self._read_active_profile(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(sql, (filters, filters, query_text, bounded_limit))
+                rows = cursor.fetchall()
+        return [self._document_from_row(row) for row in rows]
+
 
 class PersistentRagService(RagService):
     """RagService with durable writes/search and a bounded local fallback."""
@@ -1491,6 +1528,59 @@ class PersistentRagService(RagService):
             source_types=source_types,
             embedding_model=embedding_model,
             embedding_provenance=embedding_provenance,
+        )
+
+    def lexical_candidates(
+        self,
+        query_text: str,
+        *,
+        source_types: Collection[str] | None = None,
+        limit: int = 800,
+    ) -> list[RagDocument]:
+        """Read the rescue pool durable-fresh, or fail closed like ``search``."""
+        if not self.persistence_available:
+            # Hold the same guard as mutations across the safety check and
+            # local pool read: clinical projections are never served from a
+            # stale memory snapshot once the durable authority was observed.
+            with self._mutation_lock:
+                if not self._memory_fallback_is_safe(source_types):
+                    raise SupabaseRagUnavailable("Supabase RAG operation failed")
+                self._require_fallback()
+                return super().lexical_candidates(
+                    query_text,
+                    source_types=source_types,
+                    limit=limit,
+                )
+        if self.persistence_available:
+            try:
+                self._durable_authority_seen = True
+                return self.store.lexical_candidates(
+                    query_text,
+                    source_types=source_types,
+                    limit=limit,
+                )
+            except SupabaseRagContractError:
+                # Same fence as search: a profile contradiction is durable
+                # evidence, so a later request cannot fall back to stale
+                # memory content.
+                self._durable_profile_seen = True
+                self._durable_authority_seen = True
+                self.persistence_available = False
+                raise
+            except SupabaseRagUnavailable as error:
+                if not self._memory_fallback_is_safe(source_types):
+                    self.persistence_available = False
+                    raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
+                self._fallback_or_raise(error)
+                if not self.fallback_to_memory:
+                    raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
+            except Exception as error:
+                self.persistence_available = False
+                raise SupabaseRagUnavailable("Supabase RAG operation failed") from error
+        return super().lexical_candidates(
+            query_text,
+            source_types=source_types,
+            limit=limit,
         )
 
 
