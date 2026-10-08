@@ -153,7 +153,44 @@ function expectedColor(page, cssValue) {
 const FLAT_SHADOW = "none";
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
-const RAIL_HREFS = ["/specialties", "/doctors", "/dat-lich"];
+const RAIL_HREFS = ["/specialties", "/doctors", "/dat-lich", "/contact"];
+
+test("rail: tapping through all pages moves the solid green selection and clears every idle item", async () => {
+  for (const siteShell of [false, true]) {
+    for (const width of [320, 375, 390, 430]) {
+      const page = await mount({ siteShell }, width);
+      try {
+        // Simulate the router committing a link's destination while keeping
+        // the same mounted Footer, as Next's shared layout does on navigation.
+        await page.evaluate(() => {
+          document.querySelector(".mobile-care-rail").addEventListener("click", (event) => {
+            const link = event.target.closest("a");
+            if (!link) return;
+            event.preventDefault();
+            footerFixture.pathname = link.getAttribute("href");
+            footerFixture.render();
+          });
+        });
+        const green = await expectedColor(page, siteShell ? "var(--hospital-teal-dark)" : "var(--color-teal-700)");
+        for (const activeHref of [...RAIL_HREFS, "/specialties"]) {
+          await page.locator(`.mobile-care-rail a[href='${activeHref}']`).click();
+          await expectOnlyCurrent(page, activeHref);
+          // The real CSS transitions even in reduced-motion mode (1ms).
+          // Wait for its settled paint rather than sample the click's frame.
+          await page.waitForFunction(({ activeHref, green }) =>
+            getComputedStyle(document.querySelector(`.mobile-care-rail a[href='${activeHref}']`)).backgroundColor === green,
+          { activeHref, green });
+          for (const href of RAIL_HREFS) {
+            const style = await railStyles(page, href);
+            assert.equal(style.backgroundColor, href === activeHref ? green : TRANSPARENT,
+              `${width}px shell=${siteShell}: ${href} after selecting ${activeHref}`);
+            if (href === activeHref) assert.equal(style.color, "rgb(255, 255, 255)");
+          }
+        }
+      } finally { await page.close(); }
+    }
+  }
+});
 
 async function expectOnlyCurrent(page, activeHref) {
   const currents = await railCurrents(page);
@@ -203,20 +240,23 @@ test("rail: a telephone contact action is never marked as the current page", asy
 test("rail: the active item shows a persistent background and underline on the dark rail (375px)", async () => {
   const page = await mount({ pathname: "/doctors" });
   try {
-    const amber = await expectedColor(page, "var(--color-amber)");
+    const paper = await expectedColor(page, "var(--color-paper-bright)");
+    const green = await expectedColor(page, "var(--color-teal-700)");
     const active = await railStyles(page, "/doctors");
     assert.equal(active.display, "flex");
-    assert.match(active.backgroundColor, /rgba\(255, 255, 255, 0\.1\)/);
+    assert.equal(active.backgroundColor, green);
+    assert.equal(active.color, paper);
     // The flat-UI contract forces box-shadow:none !important — the underline
     // must be a bottom border, never a shadow.
     assert.equal(active.boxShadow, FLAT_SHADOW);
     assert.equal(active.borderBottomWidth, "3px");
     assert.equal(active.borderBottomStyle, "solid");
-    assert.equal(active.borderBottomColor, amber);
+    assert.equal(active.borderBottomColor, paper);
     const idle = await railStyles(page, "/specialties");
     assert.equal(idle.boxShadow, FLAT_SHADOW);
     assert.equal(idle.borderBottomColor, TRANSPARENT);
     const booking = await railStyles(page, "/dat-lich");
+    assert.equal(booking.backgroundColor, TRANSPARENT, "booking must not stay green on the doctors page");
     assert.equal(booking.boxShadow, FLAT_SHADOW);
     assert.equal(booking.borderBottomColor, TRANSPARENT);
   } finally { await page.close(); }
@@ -239,13 +279,15 @@ test("rail: site-shell white variant keeps teal selected styling at 375px and 39
   for (const width of [375, 390]) {
     const page = await mount({ pathname: "/doctors", siteShell: true }, width);
     try {
-      const hospitalTeal = await expectedColor(page, "var(--hospital-teal)");
+      const hospitalTeal = await expectedColor(page, "var(--hospital-teal-dark)");
       const active = await railStyles(page, "/doctors");
-      assert.match(active.backgroundColor, /rgba\(13, 148, 136, 0\.1\)/);
+      assert.equal(active.backgroundColor, hospitalTeal);
+      assert.equal(active.color, "rgb(255, 255, 255)");
       assert.equal(active.boxShadow, FLAT_SHADOW, "the flat-UI !important cascade must win over any shadow");
       assert.equal(active.borderBottomWidth, "3px");
       assert.equal(active.borderBottomStyle, "solid");
-      assert.equal(active.borderBottomColor, hospitalTeal);
+      assert.equal(active.borderBottomColor, "rgb(255, 255, 255)");
+      assert.equal((await railStyles(page, "/dat-lich")).backgroundColor, TRANSPARENT);
     } finally { await page.close(); }
   }
 });
@@ -300,7 +342,8 @@ test("rail: press feedback and keyboard focus stay visible under the real cascad
   const shellPage = await mount({ pathname: "/", siteShell: true });
   try {
     const cta = await railStyles(shellPage, "/dat-lich");
-    assert.equal(cta.color, "rgb(255, 255, 255)", "the site-shell primary CTA keeps white text");
+    assert.equal(cta.backgroundColor, TRANSPARENT, "homepage must not imply booking is the current page");
+    assert.equal(cta.color, await expectedColor(shellPage, "var(--hospital-teal-dark)"));
   } finally { await shellPage.close(); }
 });
 
