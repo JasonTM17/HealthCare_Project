@@ -400,7 +400,9 @@ test("responsive layout constraints, horizontal overflow containment, and touch 
 
   assert.match(styles, /\.mobile-care-rail\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?bottom:\s*0;[\s\S]*?z-index:\s*60;/);
   assert.match(styles, /\.mobile-care-rail a\s*\{[\s\S]*?min-height:\s*44px/);
-  assert.match(styles, /\.site-shell \.mobile-care-rail \.mobile-care-rail__primary/);
+  // Selection belongs to the current route, never an always-painted booking CTA.
+  assert.match(styles, /\.site-shell \.mobile-care-rail a\[aria-current="page"\]\s*\{[^}]*background:\s*var\(--hospital-teal-dark\)/);
+  assert.doesNotMatch(styles, /\.mobile-care-rail \.mobile-care-rail__primary\s*\{/);
   assert.match(styles, /body\.mobile-menu-open \.mobile-care-rail/);
 });
 
