@@ -625,11 +625,13 @@ public class AiCreditService {
                 "Đối tượng nhận credit AI không hợp lệ. Hiện hệ thống chỉ cấp credit AI cho bệnh nhân (PATIENT)."
             );
         }
-        PatientProfile profile = patientProfileRepository.findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found for user: " + userId));
-        int after = Math.max(0, (profile.getAiCredits() != null ? profile.getAiCredits() : 0) + amount);
-        profile.setAiCredits(after);
-        patientProfileRepository.save(profile);
+        // Atomic delta update — an entity read-modify-write here lost any
+        // deduct/refund that committed between load and save.
+        int applied = patientProfileRepository.applyAiCreditDeltaByUserId(userId, amount);
+        if (applied == 0) {
+            throw new ResourceNotFoundException("Patient profile not found for user: " + userId);
+        }
+        int after = patientProfileRepository.findAiCreditsByUserId(userId).orElse(0);
 
         AiCreditTransaction tx = new AiCreditTransaction(
                 userId, "PATIENT", amount, after, transactionType, description
@@ -646,13 +648,14 @@ public class AiCreditService {
         // never write a tier name that tierMaxCredits/getPatientTier can no
         // longer map back to its constant — "silver".toUpperCase(tr) is
         // "SİLVER", which silently falls back to the STANDARD allowance.
-        profile.setPatientTier(newTier.toUpperCase(Locale.ROOT));
+        String normalizedTier = newTier.toUpperCase(Locale.ROOT);
         // Single source of truth: the weekly refill resets to this same map.
         int credits = newCredits != null && newCredits >= 0
                 ? newCredits
                 : effectiveTierMaxCredits(newTier);
-        profile.setAiCredits(credits);
-        patientProfileRepository.save(profile);
+        // Atomic tier+credit write — the entity RMW this replaced lost a
+        // concurrent atomic deduct/refill between its load and save.
+        patientProfileRepository.applyTierAndCreditsById(patientProfileId, normalizedTier, credits);
 
         if (profile.getUserId() != null) {
             AiCreditTransaction tx = new AiCreditTransaction(

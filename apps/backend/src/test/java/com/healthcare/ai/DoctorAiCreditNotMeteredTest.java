@@ -103,20 +103,22 @@ class DoctorAiCreditNotMeteredTest {
 
         // Positive control plus the actual scope assertion: the only @Modifying
         // balance writers in this domain are the patient deduct/refund pair,
-        // the V108 weekly refill and the promotional floor top-up, and each of
-        // them updates PatientProfile — never Doctor. The refill is a
-        // conditional SET to the caller-supplied tier maximum keyed on the
-        // ISO-week stamp; the top-up is a conditional floor keyed on the promo
-        // marker. Both are patient-scoped like the spend pair, so the doctor
-        // invariant holds across all four.
+        // the V108 weekly refill, the promotional floor top-up, and the two
+        // atomic admin writes — each of them updates PatientProfile — never
+        // Doctor. The refill is a conditional SET to the caller-supplied tier
+        // maximum keyed on the ISO-week stamp; the top-up is a conditional
+        // floor keyed on the promo marker; the admin delta/tier writes are
+        // keyed on the patient user/profile id. All are patient-scoped like
+        // the spend pair, so the doctor invariant holds across all six.
         List<Method> patientMutations = Arrays.stream(PatientProfileRepository.class.getMethods())
             .filter(method -> method.isAnnotationPresent(Modifying.class))
             .toList();
-        assertThat(patientMutations).hasSize(4)
+        assertThat(patientMutations).hasSize(6)
             .extracting(Method::getName)
             .containsExactlyInAnyOrder(
                 "deductAiCreditByUserId", "refundAiCreditByUserId",
-                "refillAiCreditsByUserId", "topUpAiCreditsToFloor");
+                "refillAiCreditsByUserId", "topUpAiCreditsToFloor",
+                "applyAiCreditDeltaByUserId", "applyTierAndCreditsById");
         for (Method mutation : patientMutations) {
             Query jpql = AnnotatedElementUtils.findMergedAnnotation(mutation, Query.class);
             assertThat(jpql).isNotNull();
@@ -137,6 +139,7 @@ class DoctorAiCreditNotMeteredTest {
         when(patientProfileRepository.deductAiCreditByUserId(userId)).thenReturn(1);
         when(patientProfileRepository.refundAiCreditByUserId(userId)).thenReturn(1);
         when(patientProfileRepository.findAiCreditsByUserId(userId)).thenReturn(Optional.of(9));
+        when(patientProfileRepository.applyAiCreditDeltaByUserId(userId, 50)).thenReturn(1);
         when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.of(profile));
         when(patientProfileRepository.findById(profile.getId())).thenReturn(Optional.of(profile));
 

@@ -286,13 +286,18 @@ class AiCreditServiceTest {
         PatientProfile profile = new PatientProfile();
         profile.setUserId(userId);
         profile.setAiCredits(15);
-        when(patientProfileRepository.findByUserId(userId)).thenReturn(Optional.of(profile));
+        when(patientProfileRepository.applyAiCreditDeltaByUserId(userId, 50)).thenReturn(1);
+        when(patientProfileRepository.findAiCreditsByUserId(userId)).thenReturn(Optional.of(65));
 
         creditService.grantCredits(userId, "PATIENT", 50, "ADMIN_GRANT", "Bonus for loyalty");
 
-        assertEquals(65, profile.getAiCredits());
-        verify(patientProfileRepository).save(profile);
-        verify(transactionRepository).save(any(AiCreditTransaction.class));
+        // The write is an atomic delta update — no entity RMW — and the
+        // ledger records the freshly read balance.
+        verify(patientProfileRepository).applyAiCreditDeltaByUserId(userId, 50);
+        verify(patientProfileRepository, Mockito.never()).save(any(PatientProfile.class));
+        ArgumentCaptor<AiCreditTransaction> tx = ArgumentCaptor.forClass(AiCreditTransaction.class);
+        verify(transactionRepository).save(tx.capture());
+        assertEquals(65, tx.getValue().getBalanceAfter());
     }
 
     // ---- A4: doctor AI credit is decided out of the product ----
@@ -399,9 +404,8 @@ class AiCreditServiceTest {
 
         creditService.updatePatientTier(profileId, "VIP", null);
 
-        assertEquals("VIP", profile.getPatientTier());
-        assertEquals(300, profile.getAiCredits());
-        verify(patientProfileRepository).save(profile);
+        verify(patientProfileRepository).applyTierAndCreditsById(profileId, "VIP", 300);
+        verify(patientProfileRepository, Mockito.never()).save(any(PatientProfile.class));
         verify(transactionRepository).save(any(AiCreditTransaction.class));
     }
 
@@ -460,8 +464,7 @@ class AiCreditServiceTest {
             // Without Locale.ROOT this writes "SİLVER" (dotted capital),
             // which tierMaxCredits can no longer map back to SILVER — the
             // patient silently drops to the STANDARD weekly allowance.
-            assertEquals("SILVER", profile.getPatientTier());
-            assertEquals(50, profile.getAiCredits());
+            verify(patientProfileRepository).applyTierAndCreditsById(profileId, "SILVER", 50);
         } finally {
             java.util.Locale.setDefault(previous);
         }
