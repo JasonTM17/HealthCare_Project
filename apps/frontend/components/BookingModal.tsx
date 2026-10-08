@@ -671,9 +671,6 @@ function BookingExperience({
   const otpResendAttemptRef = useRef(0);
   const otpResendControllerRef = useRef<AbortController | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const closePresentation = useCallback(() => {
-    onClose?.();
-  }, [onClose]);
 
   /**
    * Releases a live hold when the patient abandons the flow before confirming:
@@ -711,14 +708,34 @@ function BookingExperience({
     setIsResendingOtp(false);
   }, [releaseHeldSlot]);
 
+  // Escape is an abandon path too: release a live hold and invalidate the
+  // session so a late hold response is released as an orphan instead of
+  // populating state on a closed dialog.
+  const closePresentation = useCallback(() => {
+    invalidateBookingSession();
+    onClose?.();
+  }, [invalidateBookingSession, onClose]);
+
   useDialogFocus(dialogRef, active && isModal, closePresentation);
 
   useEffect(() => () => {
+    bookingSessionRef.current += 1;
     releaseHeldSlot();
     otpResendAttemptRef.current += 1;
     otpResendControllerRef.current?.abort();
     otpResendControllerRef.current = null;
   }, [releaseHeldSlot]);
+
+  // A parent toggling `active` off without unmounting is still an abandon:
+  // release the hold so it cannot linger until expiry on a mounted-inactive
+  // dialog.
+  const wasActiveRef = useRef(false);
+  useEffect(() => {
+    if (!active && wasActiveRef.current) {
+      invalidateBookingSession();
+    }
+    wasActiveRef.current = active;
+  }, [active, invalidateBookingSession]);
 
   const resetBookingState = useCallback(() => {
     setStep(1);
@@ -1194,7 +1211,19 @@ function BookingExperience({
         hasInsurance,
         privacyConsent,
       });
-      if (bookingSession !== bookingSessionRef.current) return;
+      if (bookingSession !== bookingSessionRef.current) {
+        // The hold landed after this session was abandoned: no local state
+        // tracks the code, so release it directly instead of leaving the slot
+        // locked until expiry.
+        void cancelPatientAppointment(
+          result.bookingCode,
+          "Bệnh nhân rời luồng đặt lịch trước khi xác nhận",
+          { phone: phone.trim(), pendingOnly: true },
+        ).catch(() => {
+          // The hold-expiry sweeper is the backstop for an undelivered release.
+        });
+        return;
+      }
 
       setBookingCode(result.bookingCode);
       // Record the live hold so abandoning later (close, back, reset) releases
