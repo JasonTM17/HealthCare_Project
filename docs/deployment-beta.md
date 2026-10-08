@@ -235,6 +235,35 @@ vertigo) while the answer text stayed safe — authorized-source selection is
 retrieval/provider-dependent; citation-relevance tuning is follow-up work, not
 a release blocker (the same flow cited "Thần kinh" in earlier API evidence).
 
+**Clinical corpus expansion (2026-10-08, same day):** the governed corpus
+behind SYMPTOM_TRIAGE and HEALTH_EDUCATION was expanded through the real
+review workflow (admin catalog update → clinical submission → doctor APPROVE
+→ outbox projection — no direct-SQL approval bypass):
+
+| Source | Before (live CLINICAL docs) | After |
+| --- | --- | --- |
+| specialty | 30 | 30 (all re-enriched with symptoms/pathway content) |
+| faq | 30 | 175 (145 previously approved-but-hash-stale rows re-revised) |
+| article | 15 | 486 (469 missing review heads + 2 stale SUBMITTED heads) |
+| **total** | **75** | **691** |
+
+Post-seed verification on `healthcare.ai_chat_documents`: every live CLINICAL
+document joins an APPROVED, unexpired review head with a matching canonical
+content hash (0 orphans, 0 hash mismatches, 0 missing embeddings). Four
+specialties (Nhi khoa, Ngoại thần kinh, Nội mạch máu, Nội tiết) were initially
+tombstone-locked by an equal eligibility-revision race between the revoke and
+re-approve outbox events; they were recovered by a second full workflow pass
+(new revision → eligibility_revision 9 > tombstone watermark 6), not by index
+surgery.
+
+Post-expansion live checks: triage "chóng mặt xoay tròn" now cites the correct
+Tai mũi họng (0.80, previously miscited), "khát nước nhiều, đi tiểu nhiều,
+sụt cân" cites Nội tiết; education "tăng huyết áp nên ăn uống" cites the newly
+indexed hypertension article plus blood-pressure FAQs, and the "nhịn ăn"/"sỏi
+thận" answers keep their FAQ/article citations. Occasional
+INSUFFICIENT_EVIDENCE remains provider nondeterminism — fail-closed as
+designed, resolved on retry.
+
 **Residual:** legacy `healthcare-backup-*` services on the dead-key workspace
 remain running but receive no traffic; they cannot be managed via API and
 should be retired from the dashboard when access is restored.
