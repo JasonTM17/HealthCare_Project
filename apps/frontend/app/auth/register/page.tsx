@@ -20,6 +20,7 @@ function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
@@ -38,6 +39,7 @@ function RegisterForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting || googleBusy) return;
     const submitted = new FormData(event.currentTarget);
     const submittedDisplayName = String(submitted.get("displayName") ?? "");
     const submittedPhone = String(submitted.get("phone") ?? "");
@@ -158,11 +160,11 @@ function RegisterForm() {
               <input aria-describedby={fieldErrors.confirmPassword ? "register-confirm-error" : undefined} aria-invalid={Boolean(fieldErrors.confirmPassword)} autoComplete="new-password" id="register-confirm" name="confirmPassword" onChange={(event) => setConfirmPassword(event.target.value)} required type="password" value={confirmPassword} />
               {fieldErrors.confirmPassword ? <small className="auth-form__field-error" id="register-confirm-error">{fieldErrors.confirmPassword}</small> : null}
             </div>
-            <button className="button button--primary auth-form__submit" disabled={submitting} type="submit">{submitting ? "Đang tạo tài khoản..." : "Tạo tài khoản"}</button>
+            <button className="button button--primary auth-form__submit" disabled={submitting || googleBusy} type="submit">{googleBusy ? "Đang đăng nhập Google…" : submitting ? "Đang tạo tài khoản..." : "Tạo tài khoản"}</button>
             {isGoogleSignInEnabled() ? (
               <div style={{ marginTop: 20 }}>
                 <div className="auth-form__divider" role="separator" aria-hidden="true"><span>hoặc</span></div>
-                <GoogleSignInFlow onAuthenticated={(session) => {
+                <GoogleSignInFlow disabled={submitting} onBusyChange={setGoogleBusy} onAuthenticated={(session) => {
                   window.location.assign(authSessionDestination(session.user.roles));
                 }} />
               </div>
