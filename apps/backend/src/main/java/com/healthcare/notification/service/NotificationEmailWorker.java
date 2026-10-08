@@ -37,12 +37,22 @@ public class NotificationEmailWorker {
     private static final Logger log = LoggerFactory.getLogger(NotificationEmailWorker.class);
     private static final ZoneId DEFAULT_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final long EMAIL_TTL_SECONDS = 86_400;
+    /**
+     * A deterministic enqueue failure (payload crypto, template render, bad
+     * recipient data) used to retry forever — every poll, for the life of the
+     * row. This per-instance counter caps the loop: the row is suppressed
+     * after MAX_EMAIL_ATTEMPTS failures instead of spamming the poll forever.
+     * A restart simply restarts the count; the bound still applies.
+     */
+    private static final int MAX_EMAIL_ATTEMPTS = 5;
 
     private final NotificationRepository notificationRepository;
     private final NotificationPreferenceRepository preferenceRepository;
     private final AfterCommitEmailSender emailSender;
     private final Clock clock;
     private final int batchSize;
+    private final java.util.concurrent.ConcurrentMap<java.util.UUID, Integer> emailAttempts =
+        new java.util.concurrent.ConcurrentHashMap<>();
 
     @Autowired
     public NotificationEmailWorker(
@@ -122,13 +132,23 @@ public class NotificationEmailWorker {
             );
             notification.setEmailQueuedAt(now);
             notificationRepository.save(notification);
+            emailAttempts.remove(notification.getId());
             return true;
         } catch (EmailDeliverySuppressedException exception) {
             suppress(notification, now);
             return true;
         } catch (RuntimeException exception) {
-            log.warn("Notification email queueing failed for event {} ({})",
-                notification.getEventType(), exception.getClass().getSimpleName());
+            int attempts = emailAttempts.merge(notification.getId(), 1, Integer::sum);
+            if (attempts >= MAX_EMAIL_ATTEMPTS) {
+                log.error(
+                    "Notification email suppressed after {} failed queueing attempts for event {} ({})",
+                    attempts, notification.getEventType(), exception.getClass().getSimpleName());
+                suppress(notification, now);
+                return true;
+            }
+            log.warn("Notification email queueing failed for event {} ({}), attempt {}/{}",
+                notification.getEventType(), exception.getClass().getSimpleName(),
+                attempts, MAX_EMAIL_ATTEMPTS);
             return false;
         }
     }
@@ -147,6 +167,7 @@ public class NotificationEmailWorker {
     }
 
     private void suppress(Notification notification, OffsetDateTime now) {
+        emailAttempts.remove(notification.getId());
         notification.setEmailSuppressedAt(now);
         notificationRepository.save(notification);
     }
