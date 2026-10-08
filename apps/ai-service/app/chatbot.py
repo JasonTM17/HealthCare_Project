@@ -26,6 +26,7 @@ from app.llm import (
     public_chat_mode_for_query,
     public_education_topic_tokens,
     public_no_context_query_allowed,
+    remote_approved_source_is_safe,
     remote_text_output_is_safe,
     resolve_chat,
     rule_based_triage,
@@ -289,9 +290,11 @@ def _public_operational_context(meta: _SourceMetadata) -> bool:
 
 def _context_is_safe(meta: _SourceMetadata) -> bool:
     allow_public = _public_operational_context(meta)
+    approved_clinical = _clinical_source_is_eligible(meta)
     if context_contains_unsafe_data(
         [meta.document.title, meta.document.content],
         allow_public_operational=allow_public,
+        allow_approved_clinical=approved_clinical,
     ):
         return False
     content = _clean_patient_source_content(meta.document.content)
@@ -303,6 +306,14 @@ def _context_is_safe(meta: _SourceMetadata) -> bool:
         "chuan bi theo huong dan bac si",
         normalized,
     )
+    if approved_clinical:
+        # Reviewer-approved clinical prose legitimately discusses diagnosis,
+        # medication and conditions ("kháng sinh chỉ dùng khi bác sĩ chỉ
+        # định"); the strict forbidden-phrase gate owns model output, not
+        # the governed catalog.  PII/injection were checked above and the
+        # source hygiene gate still rejects markup, URLs, control chars and
+        # internal identifiers.
+        return remote_approved_source_is_safe(normalized)
     return remote_text_output_is_safe(normalized, allow_public_operational=allow_public)
 
 
@@ -643,7 +654,23 @@ def focus_public_retrieval_hits(
             match_score += len(topic_set.intersection(full_tokens))
             ranked_education.append((document, score, match_score))
         if not ranked_education:
-            return []
+            # Same recall repair as the patient-chat focus gate: after
+            # question-scaffold stripping a topical row can still miss the
+            # strict phrase/subset bar, so keep the best title+content
+            # coverage when at least two topic tokens match.
+            for document, score in hits:
+                if getattr(document, "source_type", "") not in {"article", "faq"}:
+                    continue
+                title = normalize_sensitive_text(getattr(document, "title", ""))
+                content = normalize_sensitive_text(getattr(document, "content", ""))
+                full_tokens = set(
+                    re.findall(r"\b[a-z0-9]{2,}\b", f"{title}: {content}")
+                )
+                coverage = len(topic_set.intersection(full_tokens))
+                if coverage >= 2:
+                    ranked_education.append((document, score, coverage))
+            if not ranked_education:
+                return []
         best_score = max(match_score for _, _, match_score in ranked_education)
         focused_ids = {
             (getattr(document, "source_type", ""), getattr(document, "source_id", ""))
@@ -733,7 +760,22 @@ def _focus_candidates_for_question(
                 match_score += 100
             ranked_education.append((candidate, match_score))
         if not ranked_education:
-            return []
+            # Natural questions rarely restate every subject token in the
+            # title even after question-scaffold stripping ("nhịn ăn trước
+            # xét nghiệm máu" covers the topic without "khi").  Keep only the
+            # candidate(s) with the best title coverage when at least two
+            # topic tokens match — one shared token proves nothing, so a
+            # tangential row still degrades to an honest insufficient answer.
+            for candidate in candidates:
+                if candidate.source_type not in {"article", "faq"}:
+                    continue
+                title = normalize_sensitive_text(candidate.title)
+                education_title_tokens = set(re.findall(r"\b[a-z0-9]{2,}\b", title))
+                coverage = len(topic_set.intersection(education_title_tokens))
+                if coverage >= 2:
+                    ranked_education.append((candidate, coverage))
+            if not ranked_education:
+                return []
         best_score = max(match_score for _, match_score in ranked_education)
         focused_ids = {
             (candidate.source_type, candidate.source_id)
@@ -1384,6 +1426,62 @@ def retrieve_chat_candidates(
             if len(candidates) >= min(request.top_k, 20):
                 break
 
+    # Pool rescue: the durable hybrid RPC returns at most twenty vector-ranked
+    # rows, so a strongly matching document can sit below that cut purely on
+    # hash noise — the rescue above never sees it. Ask the backend for the
+    # mode-eligible pool (same eligibility predicate as the index read) and
+    # rescore it lexically before declaring insufficient evidence. Backends
+    # without this contract simply skip the extra round trip; the mode,
+    # expiry, and safety gates below still gate every pooled row.
+    if not candidates:
+        pool_getter = getattr(rag_service, "lexical_candidates", None)
+        if callable(pool_getter):
+            try:
+                pool = pool_getter(
+                    request.message,
+                    source_types=mode_source_types(request.mode),
+                )
+            except (EmbeddingContractError, ProviderUnavailable):
+                pool = []
+            normalized_query = normalize_sensitive_text(request.message)
+            query_tokens = _lexical_tokens(normalized_query, expand=True)
+            # Triage expansion terms are specialty names in disguise: a
+            # specialty whose *title* carries two expansion tokens is a
+            # relevant citation even when the long symptom query dilutes the
+            # token fraction below the threshold ("chóng mặt xoay tròn" →
+            # tai/mui/hong in the "Tai mũi họng" title).  The title-level
+            # two-token bar keeps generic words such as "than" from
+            # qualifying a tangential specialty on their own.
+            expansion_only = (
+                query_tokens - _lexical_tokens(normalized_query)
+                if request.mode is ChatMode.SYMPTOM_TRIAGE
+                else frozenset()
+            )
+            scored_pool: list[tuple[_SourceMetadata, float]] = []
+            for document in pool:
+                meta = _source_metadata(document)
+                if not _mode_allows(meta, request.mode) or _expired(meta):
+                    continue
+                if not _context_is_safe(meta):
+                    continue
+                overlap = _lexical_overlap(
+                    query_tokens,
+                    f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}",
+                )
+                if overlap < threshold and expansion_only:
+                    title_tokens = _lexical_tokens(
+                        normalize_sensitive_text(getattr(document, "title", ""))
+                    )
+                    if len(title_tokens & expansion_only) >= 2:
+                        overlap = threshold
+                if overlap >= threshold:
+                    scored_pool.append((meta, overlap))
+            scored_pool.sort(key=lambda item: item[1], reverse=True)
+            for meta, overlap in scored_pool:
+                candidates.append(_candidate(meta, overlap))
+                if len(candidates) >= min(request.top_k, 20):
+                    break
+
     candidates = _focus_candidates_for_question(request.message, request.mode, candidates)
 
     return ChatRetrieveResponse(
@@ -1499,6 +1597,14 @@ def generate_chat_response(
                 allow_public_operational=allow_public_operational,
                 allow_public_generic_guidance=(
                     request.mode is ChatMode.HOSPITAL_SUPPORT
+                ),
+                # Clinical modes only admit governed, unexpired APPROVED
+                # projections (proven above); the public lane's same narrow
+                # exemption applies to their context and output gates so an
+                # approved excerpt about record delivery or preparation
+                # cannot trip the PII-descriptive detectors.
+                allow_approved_clinical=all(
+                    _clinical_source_is_eligible(meta) for meta in metas
                 ),
                 tone=request.tone,
             )

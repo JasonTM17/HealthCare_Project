@@ -16,6 +16,7 @@ from app.chatbot import (
     ChatContractError,
     _unsafe_claim,
     grounded_source_excerpt,
+    grounded_source_is_echo_safe,
     generate_chat_response,
     retrieve_chat_candidates,
     validate_exhaustive_used_sources,
@@ -1813,3 +1814,261 @@ def test_marked_public_branch_body_url_stripped_but_contact_grounded() -> None:
     assert "maps.example" not in generated.answer
     assert "https://" not in generated.answer
     provider.complete_json.assert_not_called()
+
+
+def _clinical_metadata(content: str) -> dict[str, str]:
+    return {
+        "projection_kind": "CLINICAL",
+        "content_revision": "1",
+        "eligibility_revision": "1",
+        "approval_id": "round-1",
+        "approval_state": "APPROVED",
+        "approval_expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "content_hash": "c" * 64,
+        "visible_content_hash": hashlib.sha256(
+            normalize_content(content).encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def _threshold_settings() -> Settings:
+    return Settings(
+        ai_provider="local",
+        embedding_provider="local",
+        ai_service_runtime="test",
+        ai_service_allow_unauthenticated_local=True,
+        ai_chat_relevance_threshold=0.35,
+        remote_ai_synthetic_only=False,
+        remote_ai_kill_switch=False,
+    )
+
+
+def test_retrieve_pool_rescue_finds_document_buried_below_top_k() -> None:
+    """The durable RPC caps at twenty vector-ranked rows; a strongly matching
+    FAQ that never reaches those rows must still be rescued via the lexical
+    pool instead of declaring insufficient evidence."""
+
+    faq_content = (
+        "Tùy loại xét nghiệm, thường cần nhịn ăn 8 đến 12 giờ trước khi lấy máu. "
+        "Uống nước lọc bình thường được phép."
+    )
+    service = RagService()
+    service.ingest(
+        "faq",
+        "faq-fasting",
+        "Có cần nhịn ăn trước khi xét nghiệm máu không?",
+        faq_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(faq_content),
+    )
+    noise_content = "Bài tập thở giúp thư giãn cơ thể."
+    service.ingest(
+        "faq",
+        "faq-breathing",
+        "Bài tập thở thư giãn",
+        noise_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(noise_content),
+    )
+    noise_doc = service.index.get("faq:faq-breathing")
+
+    class BuriedVectorRag(RagService):
+        """Search returns only the weak, below-threshold noise hit."""
+
+        def __init__(self, inner: RagService) -> None:
+            super().__init__(index=inner.index)
+            self._inner = inner
+
+        def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return [(noise_doc, 0.30)]
+
+        def lexical_candidates(
+            self, query_text: str, *, source_types: Any = None, limit: int = 800
+        ) -> list[RagDocument]:
+            return self._inner.lexical_candidates(
+                query_text, source_types=source_types, limit=limit
+            )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Trước khi xét nghiệm máu tôi cần nhịn ăn bao lâu?",
+            mode=ChatMode.HEALTH_EDUCATION,
+        ),
+        _threshold_settings(),
+        BuriedVectorRag(service),
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert [candidate.source_id for candidate in response.candidates] == ["faq-fasting"]
+    assert response.candidates[0].score >= 0.35
+
+
+def test_retrieve_pool_rescue_never_promotes_ineligible_rows() -> None:
+    """The pool widens recall, not authorization: operational rows and
+    unapproved clinical rows stay fenced out of clinical modes."""
+
+    service = RagService()
+    service.ingest(
+        "faq",
+        "ops-faq",
+        "Câu hỏi nhịn ăn xét nghiệm máu thường gặp",
+        "Nhịn ăn xét nghiệm máu theo quy định nội bộ.",
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    unapproved_content = "Nhịn ăn trước xét nghiệm máu theo kinh nghiệm."
+    metadata = _clinical_metadata(unapproved_content)
+    metadata["approval_state"] = "SUBMITTED"
+    service.ingest(
+        "faq",
+        "pending-faq",
+        "Nhịn ăn xét nghiệm máu thế nào",
+        unapproved_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=metadata,
+    )
+
+    class EmptyVectorRag(RagService):
+        def __init__(self, inner: RagService) -> None:
+            super().__init__(index=inner.index)
+            self._inner = inner
+
+        def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return []
+
+        def lexical_candidates(
+            self, query_text: str, *, source_types: Any = None, limit: int = 800
+        ) -> list[RagDocument]:
+            return self._inner.lexical_candidates(
+                query_text, source_types=source_types, limit=limit
+            )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Trước khi xét nghiệm máu tôi cần nhịn ăn bao lâu?",
+            mode=ChatMode.HEALTH_EDUCATION,
+        ),
+        _threshold_settings(),
+        EmptyVectorRag(service),
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert response.candidates == []
+
+
+def test_lexical_candidates_filters_source_types_and_searchable() -> None:
+    service = RagService()
+    vector = [1.0] + [0.0] * 383
+    service.ingest("faq", "one", "Một", "Nội dung một.", vector, embedding_model="local-hash")
+    service.ingest("article", "two", "Hai", "Nội dung hai.", vector, embedding_model="local-hash")
+    hidden = service.ingest(
+        "faq", "hidden", "Ẩn", "Nội dung ẩn.", vector,
+        embedding_model="local-hash",
+    )
+    hidden.published = False
+
+    pool = service.lexical_candidates("bất kỳ", source_types={"faq"})
+    assert [doc.source_id for doc in pool] == ["one"]
+
+    pool_all = service.lexical_candidates("bất kỳ")
+    assert {doc.source_id for doc in pool_all} == {"one", "two"}
+
+
+def test_pool_rescue_triage_qualifies_specialty_on_expansion_title_match() -> None:
+    """A long symptom query dilutes the token fraction below the threshold,
+    but a specialty title carrying two symptom-expansion tokens is still a
+    valid triage citation."""
+
+    service = RagService()
+    vector = [1.0] + [0.0] * 383
+    ent_content = "Chuyên khoa khám và điều trị các bệnh lý vùng đầu cổ."
+    service.ingest(
+        "specialty",
+        "ent",
+        "Tai mũi họng",
+        ent_content,
+        vector,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(ent_content),
+    )
+    cardio_content = "Chuyên khoa tim mạch và mạch máu."
+    service.ingest(
+        "specialty",
+        "cardio",
+        "Tim mạch",
+        cardio_content,
+        vector,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(cardio_content),
+    )
+
+    class EmptyVectorRag(RagService):
+        def __init__(self, inner: RagService) -> None:
+            super().__init__(index=inner.index)
+            self._inner = inner
+
+        def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return []
+
+        def lexical_candidates(
+            self, query_text: str, *, source_types: Any = None, limit: int = 800
+        ) -> list[RagDocument]:
+            return self._inner.lexical_candidates(
+                query_text, source_types=source_types, limit=limit
+            )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="chóng mặt xoay tròn khi nằm nghiêng",
+            mode=ChatMode.SYMPTOM_TRIAGE,
+        ),
+        _threshold_settings(),
+        EmptyVectorRag(service),
+        embedder=lambda *_: (vector, "local-hash"),
+    )
+
+    assert [candidate.source_id for candidate in response.candidates] == ["ent"]
+    assert response.candidates[0].score >= 0.35
+
+
+def test_approved_clinical_source_survives_clinical_prose_but_operational_does_not() -> None:
+    """Approved clinical articles legitimately discuss diagnosis and
+    medication; the strict forbidden-phrase gate owns model output and
+    non-approved content, not the governed catalog."""
+
+    clinical_content = (
+        "Nguyên nhân và chẩn đoán: các yếu tố thuận lợi gồm uống ít nước. "
+        "Kháng sinh chỉ dùng khi bác sĩ xác định hoặc nghi ngờ cao nhiễm khuẩn; "
+        "tự ý dùng kháng sinh khi không cần gây kháng thuốc."
+    )
+    clinical = RagService()
+    clinical.ingest(
+        "article",
+        "clinical-prose",
+        "Bài viết sức khỏe đã duyệt",
+        clinical_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(clinical_content),
+    )
+    approved_doc = clinical.index.get("article:clinical-prose")
+    assert approved_doc is not None
+    assert grounded_source_is_echo_safe(approved_doc, ChatMode.HEALTH_EDUCATION) is True
+
+    operational = RagService()
+    operational.ingest(
+        "service",
+        "ops-prose",
+        "Nội quy khám bệnh",
+        clinical_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata={"projection_kind": "OPERATIONAL"},
+    )
+    ops_doc = operational.index.get("service:ops-prose")
+    assert ops_doc is not None
+    assert grounded_source_is_echo_safe(ops_doc, ChatMode.HOSPITAL_SUPPORT) is False

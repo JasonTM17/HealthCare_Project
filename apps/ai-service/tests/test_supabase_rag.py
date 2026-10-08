@@ -2139,3 +2139,73 @@ def test_supabase_rag_config_statement_timeout_bounds() -> None:
         SupabaseRagConfig(dsn="postgresql://service.test/healthcare", statement_timeout_ms=499)
     with pytest.raises(SupabaseRagContractError):
         SupabaseRagConfig(dsn="postgresql://service.test/healthcare", statement_timeout_ms=30_001)
+
+
+def test_lexical_candidates_filters_types_bounds_limit_and_maps_rows() -> None:
+    profile_cursor = FakeCursor(many=[("local-hash-v2", "local_provider")])
+    row = (
+        "row-1",
+        "CLINICAL",
+        "faq",
+        "faq-fasting",
+        2,
+        2,
+        "a" * 64,
+        1,
+        "2027-01-01 00:00:00+00",
+        "Nhịn ăn trước xét nghiệm máu",
+        "Nội dung hướng dẫn nhịn ăn.",
+        {"approval_state": "APPROVED"},
+        "[0.1,0.2]",
+        "local-hash-v2",
+        "local_provider",
+        True,
+        True,
+    )
+    select_cursor = FakeCursor(many=[row])
+    connection = FakeConnection(profile_cursor, select_cursor)
+    store = SupabaseRagStore(_config(), connection_factory=lambda _dsn, _timeout: connection)
+
+    documents = store.lexical_candidates(
+        "nhịn ăn bao lâu",
+        source_types={"article", "faq"},
+        limit=10_000,
+    )
+
+    assert [document.source_id for document in documents] == ["faq-fasting"]
+    document = documents[0]
+    assert document.metadata["projection_kind"] == "CLINICAL"
+    assert document.metadata["approval_expires_at"] == "2027-01-01 00:00:00+00"
+    sql, params = select_cursor.executed[0]
+    assert "websearch_to_tsquery('simple', %s)" in sql
+    assert "source_type = any(%s::text[])" in sql
+    assert params is not None
+    assert sorted(params[0]) == ["article", "faq"]
+    assert params[2] == "nhịn ăn bao lâu"
+    assert params[3] == 1_000
+
+
+def test_lexical_candidates_rejects_unbounded_query_text() -> None:
+    store = SupabaseRagStore(
+        _config(),
+        connection_factory=lambda _dsn, _timeout: FakeConnection(FakeCursor()),
+    )
+    with pytest.raises(SupabaseRagContractError):
+        store.lexical_candidates("x" * 10_001)
+
+
+def test_persistent_lexical_candidates_fail_closed_after_durable_authority() -> None:
+    """Once the durable backend answered hydration, a failed pool read may not
+    silently serve the stale in-memory snapshot — same fence as search."""
+
+    class FlipStore:
+        def list_documents(self, *_: object, **__: object) -> list[RagDocument]:
+            return []
+
+        def lexical_candidates(self, *_: object, **__: object) -> list[RagDocument]:
+            raise SupabaseRagUnavailable("offline")
+
+    service = PersistentRagService(FlipStore(), fallback_to_memory=False)  # type: ignore[arg-type]
+    assert service.persistence_available is True
+    with pytest.raises(SupabaseRagUnavailable):
+        service.lexical_candidates("nhịn ăn", source_types={"faq"})

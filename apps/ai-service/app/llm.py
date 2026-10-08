@@ -438,6 +438,39 @@ r"\byou\s+should\s+(?:take|use)\b|"
     r"\d+(?:[.,]\d+)?\s*(?:mg|ml|vien)\b)",
     re.IGNORECASE,
 )
+# Hygiene-only subset of the output gate for reviewer-approved clinical
+# sources.  Approved education prose legitimately discusses diagnosis,
+# medication and condition phrasing, so the clinical-claim alternations are
+# relaxed for that closed catalog — but markup, URLs, and internal
+# identifiers are egress problems in any text the service might echo.
+_REMOTE_SOURCE_HYGIENE_PATTERN = re.compile(
+    r"(?:https?://|www\.|javascript:|data:|href\s*=|source[_ -]?id|doctor[_ -]?id|\bcitation\b)",
+    re.IGNORECASE,
+)
+
+
+def remote_approved_source_is_safe(value: str) -> bool:
+    """Hygiene + relaxed-claim gate for approved clinical source prose.
+
+    PII/injection remain caller-enforced through
+    ``context_contains_unsafe_data``; markup, control characters, URLs and
+    internal identifiers still fail closed.  The forbidden-phrase check runs
+    in its approved-clinical mode: directive prescriptions and dose claims
+    stay unsafe, while educational discussion ("tự ý dùng kháng sinh",
+    "…và chẩn đoán:") is judged as prose rather than a model instruction.
+    """
+
+    if any(ord(character) < 0x20 and character not in {"\n", "\r", "\t"} for character in value):
+        return False
+    if re.search(r"<[^>]*>", value):
+        return False
+    if _REMOTE_SOURCE_HYGIENE_PATTERN.search(value):
+        return False
+    return not _has_unnegated_forbidden_match(
+        value, allow_approved_clinical=True
+    )
+
+
 _GROUNDING_TOKEN_PATTERN = re.compile(r"\b[a-z0-9]{3,}\b", re.IGNORECASE)
 _GROUNDING_NUMBER_PATTERN = re.compile(r"(?<!\w)\d+(?:[.:/-]\d+)*(?!\w)")
 _GROUNDING_STOPWORDS = frozenset(
@@ -968,6 +1001,46 @@ _PUBLIC_EDUCATION_QUERY_MARKERS = (
     "cam nang",
     "faq",
 )
+# Vietnamese interrogative scaffolding carries no topic signal.  Without
+# stripping it, "Trước khi xét nghiệm máu tôi cần nhịn ăn bao lâu?" yields a
+# topic set containing "bao"/"lau"/"can" that no article title can cover, so
+# the education focus gate drops even the correctly retrieved document.
+_PUBLIC_EDUCATION_QUESTION_MARKERS = (
+    "bao nhieu",
+    "bao lau",
+    "bao gio",
+    "bao xa",
+    "nhu the nao",
+    "lam the nao",
+    "the nao",
+    "lam sao",
+    "ra sao",
+    "co can khong",
+    "co nen khong",
+    "co the khong",
+    "co duoc khong",
+    "co phai khong",
+    "co sao khong",
+    "co can",
+    "co nen",
+    "co duoc",
+    "co phai",
+    "co sao",
+    "co dung",
+    "duoc khong",
+    "phai khong",
+    "dung khong",
+    "sao khong",
+    "la gi",
+    "o dau",
+    "khi nao",
+    "cho toi",
+    "cho minh",
+    "giup toi",
+    "giup minh",
+    "xin hoi",
+    "vui long",
+)
 _PUBLIC_EDUCATION_TOPIC_STOPWORDS = frozenset(
     {
         "bai",
@@ -1461,7 +1534,11 @@ def public_education_topic_tokens(query: str) -> tuple[str, ...]:
     """Extract the user topic after removing education-request wording."""
 
     normalized = _normalize_sensitive_text(query)
-    for marker in sorted(_PUBLIC_EDUCATION_QUERY_MARKERS, key=len, reverse=True):
+    for marker in sorted(
+        _PUBLIC_EDUCATION_QUERY_MARKERS + _PUBLIC_EDUCATION_QUESTION_MARKERS,
+        key=len,
+        reverse=True,
+    ):
         normalized = re.sub(
             rf"(?<!\w){re.escape(marker)}(?!\w)",
             " ",
@@ -1935,9 +2012,60 @@ _DIAGNOSIS_LABEL_PATTERN = re.compile(
     r"\b(?:chan\s+doan|diagnosis)(?:\s+(?:nghi\s+ngo|xac\s+dinh|suspected|confirmed))?\s*:",
     re.IGNORECASE,
 )
+# Approved-source form of the diagnosis label: only a sentence-initial
+# "Chẩn đoán:" reads as a claim.  Mid-sentence occurrences are section
+# headings in approved education prose ("Nguyên nhân và chẩn đoán:"),
+# which a literal match quarantined in production.
+_APPROVED_DIAGNOSIS_CLAIM_PATTERN = re.compile(
+    r"(?:^|(?<=[.!?;\n]))\s*[#*_>\s]{0,4}"
+    r"(?:chan\s+doan|diagnosis)(?:\s+(?:nghi\s+ngo|xac\s+dinh|suspected|confirmed))?\s*:",
+    re.IGNORECASE,
+)
+# Caution framing that turns a bare drug verb into education rather than a
+# directive: "tự ý dùng kháng sinh", "tránh lạm dụng kháng sinh",
+# "không nên uống thuốc".  Directive forms ("bạn nên uống", "hãy dùng",
+# "you should take") are never excused, and neither is a named-drug dose.
+_APPROVED_MEDICATION_DIRECTIVE_PATTERN = re.compile(
+    r"^\s*(?:hay|ban\s+nen|nen|you\s+should)\b",
+    re.IGNORECASE,
+)
+_APPROVED_CAUTION_PREFIX_PATTERN = re.compile(
+    r"\b(?:khong|khong\s+nen|khong\s+duoc|khong\s+tu\s+y|tranh|"
+    r"lam\s+dung|tu\s+y|ngung|han\s+che|can\s+than|luu\s+y|chi\s+khi|"
+    r"thay\s+vi|khi\s+bac\s+si|theo\s+chi\s+dinh|theo\s+huong\s+dan|"
+    r"theo\s+bac\s+si|trao\s+doi\s+bac\s+si|tham\s+khao\s+bac\s+si|"
+    r"tham\s+van\s+bac\s+si|xin\s+y\s+kien\s+bac\s+si|"
+    r"neu\s+bac\s+si|duoc\s+bac\s+si|sau\s+khi\s+bac\s+si)\b",
+    re.IGNORECASE,
+)
+# Only a bare verb plus a drug *class* can be excused as education inside
+# approved prose ("tự ý dùng kháng sinh gây kháng thuốc").  Named drugs,
+# doses and directive prefixes ("bạn nên uống", "hãy dùng") never qualify.
+_APPROVED_GENERIC_MEDICATION_PHRASE_PATTERN = re.compile(
+    r"^(?:uong|dung|su\s+dung|take|use)\s+"
+    r"(?:thuoc|medicine|medication|drug|drugs|antibiotic|antibiotics|khang\s+sinh)$",
+    re.IGNORECASE,
+)
 
 
-def _has_unnegated_forbidden_match(normalized: str) -> bool:
+def _approved_medication_match_is_unsafe(sentence: str) -> bool:
+    """Judge a medication phrase inside approved prose by its framing."""
+
+    for match in _DIRECT_MEDICATION_ACTION_PATTERN.finditer(sentence):
+        phrase = match.group(0)
+        if _APPROVED_MEDICATION_DIRECTIVE_PATTERN.match(phrase):
+            return True
+        prefix = sentence[: match.start()]
+        if _CONTRASTIVE_WORD_PATTERN.search(prefix):
+            return True
+        if not _APPROVED_CAUTION_PREFIX_PATTERN.search(prefix):
+            return True
+    return False
+
+
+def _has_unnegated_forbidden_match(
+    normalized: str, *, allow_approved_clinical: bool = False
+) -> bool:
     """Report a forbidden phrase that is not part of a refusal.
 
     Splitting on sentence boundaries only, because a refusal legitimately lists
@@ -1946,21 +2074,50 @@ def _has_unnegated_forbidden_match(normalized: str) -> bool:
     contrastive word separates it from the negation frame that precedes it —
     that is what separates "tôi không thể kê đơn" from "tôi không thể kê đơn,
     nhưng hãy uống thuốc này".
+
+    ``allow_approved_clinical`` is the source-content mode used after the
+    caller has proven a governed APPROVED projection: diagnosis labels must
+    sit in claim position (sentence start) and bare drug verbs need a
+    caution-free prefix, while dose patterns, directives, and every other
+    forbidden alternation stay fail-closed exactly as for model output.
     """
 
     for variant in _policy_variants(normalized):
-        if _DIAGNOSIS_LABEL_PATTERN.search(variant) or _DIRECT_MEDICATION_ACTION_PATTERN.search(variant):
+        if allow_approved_clinical:
+            if _APPROVED_DIAGNOSIS_CLAIM_PATTERN.search(variant):
+                return True
+            for sentence in _SENTENCE_BOUNDARY_PATTERN.split(variant):
+                if _approved_medication_match_is_unsafe(sentence):
+                    return True
+        elif _DIAGNOSIS_LABEL_PATTERN.search(variant) or _DIRECT_MEDICATION_ACTION_PATTERN.search(variant):
             return True
         for sentence in _SENTENCE_BOUNDARY_PATTERN.split(variant):
             matches = list(_REMOTE_OUTPUT_FORBIDDEN_PATTERN.finditer(sentence))
             for index, match in enumerate(matches):
                 phrase = " ".join(match.group(0).split())
+                if (
+                    allow_approved_clinical
+                    and _APPROVED_GENERIC_MEDICATION_PHRASE_PATTERN.match(phrase)
+                ):
+                    prefix = sentence[: match.start()]
+                    if not _CONTRASTIVE_WORD_PATTERN.search(
+                        prefix
+                    ) and _APPROVED_CAUTION_PREFIX_PATTERN.search(prefix):
+                        continue
+                    return True
                 if phrase not in _REFUSABLE_CLINICAL_ACTIONS:
                     return True
                 prefix = sentence[: match.start()]
                 if _CONTRASTIVE_WORD_PATTERN.search(prefix):
                     return True
-                if not _CLINICAL_REFUSAL_PREFIX_PATTERN.search(prefix):
+                refusal_excused = _CLINICAL_REFUSAL_PREFIX_PATTERN.search(prefix)
+                if (
+                    not refusal_excused
+                    and allow_approved_clinical
+                    and _APPROVED_CAUTION_PREFIX_PATTERN.search(prefix)
+                ):
+                    refusal_excused = True
+                if not refusal_excused:
                     return True
                 tail_end = (
                     matches[index + 1].start() if index + 1 < len(matches) else len(sentence)
