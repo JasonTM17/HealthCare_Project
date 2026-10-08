@@ -14,12 +14,13 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Final, Sequence
 
 from app.cancellation import ChatCancellation
 from app.embeddings import EmbeddingResult, LocalEmbeddingClient, embed
 from app.llm import (
     chat_safety_response,
+    clinical_uncited_query_allowed,
     context_contains_unsafe_data,
     normalize_sensitive_text,
     patient_chat_remote_enabled,
@@ -79,6 +80,14 @@ MODE_SOURCE_TYPES: dict[ChatMode, frozenset[str]] = {
     ChatMode.SYMPTOM_TRIAGE: frozenset({"specialty"}),
     ChatMode.HEALTH_EDUCATION: frozenset({"article", "faq"}),
 }
+
+# Clinical modes whose source-less turns may fall back to bounded uncited
+# remote guidance — the floor inside _uncited_general_guidance_response still
+# denies treatment/diagnosis/medication asks, and Spring keeps re-running the
+# same sanitize/reject gates on whatever answer comes back.
+_UNCITED_CLINICAL_MODES: Final = frozenset(
+    {ChatMode.SYMPTOM_TRIAGE, ChatMode.HEALTH_EDUCATION}
+)
 
 _REVISION_KEYS = (
     "content_revision",
@@ -1079,10 +1088,11 @@ def _uncited_general_guidance_response(
     This helper mirrors the public condition for patient chat and never
     widens it:
 
-    * hospital-support mode only (clinical modes stay source-bound),
     * the remote-provider opt-in and the synthetic gate must hold,
-    * the shared content floor must allow the question — treatment,
-      diagnosis, medication, and article/FAQ asks stay denied,
+    * a content floor must allow the question: hospital-support keeps the
+      public floor (article/FAQ asks stay denied); clinical modes get the
+      clinical floor, which denies treatment, diagnosis and medication asks
+      but lets general education and triage-direction questions through,
     * only a ``remote_provider`` / ``ANSWER`` answer that also passes the
       unsafe-claim check is ever returned.
 
@@ -1093,7 +1103,13 @@ def _uncited_general_guidance_response(
     none by design; ``used_sources`` and ``citations`` are emptied instead.
     """
 
-    if request.mode is not ChatMode.HOSPITAL_SUPPORT:
+    if request.mode is ChatMode.HOSPITAL_SUPPORT:
+        if not public_no_context_query_allowed(request.message):
+            return None
+    elif request.mode in _UNCITED_CLINICAL_MODES:
+        if not clinical_uncited_query_allowed(request.message):
+            return None
+    else:
         return None
     if not remote_provider_requested(settings, "ai_provider", LOCAL_CHAT_PROVIDERS):
         return None
@@ -1105,8 +1121,6 @@ def _uncited_general_guidance_response(
         in {"synthetic-beta", "synthetic_beta"}
         and request.synthetic_beta is not True
     ):
-        return None
-    if not public_no_context_query_allowed(request.message):
         return None
     if cancellation is not None:
         cancellation.raise_if_cancelled()
@@ -1429,61 +1443,70 @@ def retrieve_chat_candidates(
 
     # Pool rescue: the durable hybrid RPC returns at most twenty vector-ranked
     # rows, so a strongly matching document can sit below that cut purely on
-    # hash noise — the rescue above never sees it. Ask the backend for the
-    # mode-eligible pool (same eligibility predicate as the index read) and
-    # rescore it lexically before declaring insufficient evidence. Backends
-    # without this contract simply skip the extra round trip; the mode,
-    # expiry, and safety gates below still gate every pooled row.
-    if not candidates:
-        pool_getter = getattr(rag_service, "lexical_candidates", None)
-        if callable(pool_getter):
-            try:
-                pool = pool_getter(
-                    request.message,
-                    source_types=mode_source_types(request.mode),
-                )
-            except (EmbeddingContractError, ProviderUnavailable):
-                pool = []
-            if cancellation is not None:
-                cancellation.raise_if_cancelled()
-            normalized_query = normalize_sensitive_text(request.message)
-            query_tokens = _lexical_tokens(normalized_query, expand=True)
-            # Triage expansion terms are specialty names in disguise: a
-            # specialty whose *title* carries two expansion tokens is a
-            # relevant citation even when the long symptom query dilutes the
-            # token fraction below the threshold ("chóng mặt xoay tròn" →
-            # tai/mui/hong in the "Tai mũi họng" title).  The title-level
-            # two-token bar keeps generic words such as "than" from
-            # qualifying a tangential specialty on their own.
-            expansion_only = (
-                query_tokens - _lexical_tokens(normalized_query)
-                if request.mode is ChatMode.SYMPTOM_TRIAGE
-                else frozenset()
+    # hash noise — the rescue above never sees it. It also runs when vector
+    # hits *did* qualify: one wrong-but-above-threshold row (e.g. "Tai mũi
+    # họng" scoring on the "mat"/"dau" tokens inside "chóng mặt"/"đau tai")
+    # must not shield the correct document from the rescore. Ask the backend
+    # for the mode-eligible pool (same eligibility predicate as the index
+    # read) and merge lexically rescored rows into the candidate list.
+    # Backends without this contract simply skip the extra round trip; the
+    # mode, expiry, and safety gates below still gate every pooled row.
+    pool_getter = getattr(rag_service, "lexical_candidates", None)
+    if callable(pool_getter) and len(candidates) < min(request.top_k, 20):
+        try:
+            pool = pool_getter(
+                request.message,
+                source_types=mode_source_types(request.mode),
             )
-            scored_pool: list[tuple[_SourceMetadata, float]] = []
-            for document in pool:
-                meta = _source_metadata(document)
-                if not _mode_allows(meta, request.mode) or _expired(meta):
-                    continue
-                if not _context_is_safe(meta):
-                    continue
-                overlap = _lexical_overlap(
-                    query_tokens,
-                    f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}",
+        except (EmbeddingContractError, ProviderUnavailable):
+            pool = []
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
+        normalized_query = normalize_sensitive_text(request.message)
+        query_tokens = _lexical_tokens(normalized_query, expand=True)
+        # Triage expansion terms are specialty names in disguise: a
+        # specialty whose *title* carries two expansion tokens is a
+        # relevant citation even when the long symptom query dilutes the
+        # token fraction below the threshold ("chóng mặt xoay tròn" →
+        # tai/mui/hong in the "Tai mũi họng" title).  The title-level
+        # two-token bar keeps generic words such as "than" from
+        # qualifying a tangential specialty on their own.
+        expansion_only = (
+            query_tokens - _lexical_tokens(normalized_query)
+            if request.mode is ChatMode.SYMPTOM_TRIAGE
+            else frozenset()
+        )
+        scored_pool: list[tuple[_SourceMetadata, float]] = []
+        for document in pool:
+            meta = _source_metadata(document)
+            if not _mode_allows(meta, request.mode) or _expired(meta):
+                continue
+            if not _context_is_safe(meta):
+                continue
+            overlap = _lexical_overlap(
+                query_tokens,
+                f"{getattr(document, 'title', '')}\n{getattr(document, 'content', '')}",
+            )
+            if overlap < threshold and expansion_only:
+                title_tokens = _lexical_tokens(
+                    normalize_sensitive_text(getattr(document, "title", ""))
                 )
-                if overlap < threshold and expansion_only:
-                    title_tokens = _lexical_tokens(
-                        normalize_sensitive_text(getattr(document, "title", ""))
-                    )
-                    if len(title_tokens & expansion_only) >= 2:
-                        overlap = threshold
-                if overlap >= threshold:
-                    scored_pool.append((meta, overlap))
-            scored_pool.sort(key=lambda item: item[1], reverse=True)
+                if len(title_tokens & expansion_only) >= 2:
+                    overlap = threshold
+            if overlap >= threshold:
+                scored_pool.append((meta, overlap))
+        scored_pool.sort(key=lambda item: item[1], reverse=True)
+        if scored_pool:
+            seen = {
+                (candidate.source_type, candidate.source_id)
+                for candidate in candidates
+            }
             for meta, overlap in scored_pool:
+                if (meta.document.source_type, meta.document.source_id) in seen:
+                    continue
                 candidates.append(_candidate(meta, overlap))
-                if len(candidates) >= min(request.top_k, 20):
-                    break
+            candidates.sort(key=lambda candidate: candidate.score, reverse=True)
+            del candidates[min(request.top_k, 20):]
 
     candidates = _focus_candidates_for_question(request.message, request.mode, candidates)
 
