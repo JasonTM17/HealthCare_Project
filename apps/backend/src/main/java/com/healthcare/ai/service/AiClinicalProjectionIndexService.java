@@ -310,6 +310,30 @@ public class AiClinicalProjectionIndexService {
             List<Map<String, Object>> rows = jdbc.queryForList(CURRENT_APPROVED_SOURCES);
             boolean completeSnapshot = true;
 
+            // One index listing serves both the push loop (skip unchanged
+            // rows) and the tombstone sweep.  Re-pushing ~750 approved
+            // documents every cycle re-embeds each one and starves the chat
+            // worker for minutes; a row whose governed identity (revisions,
+            // content hash, approval round and expiry) is already indexed
+            // byte-for-byte gains nothing from another upsert.  A failed or
+            // partial listing simply pushes everything, as before.
+            List<Map<String, Object>> indexedDocuments;
+            try {
+                indexedDocuments = aiService.listIndexedDocuments();
+            } catch (RuntimeException exception) {
+                log.warn("AI clinical projection index listing unavailable; pushing the full snapshot");
+                indexedDocuments = List.of();
+            }
+            Map<String, Map<String, Object>> indexedByKey = new java.util.HashMap<>();
+            for (Map<String, Object> indexed : indexedDocuments) {
+                String indexedType = text(indexed.get("source_type"));
+                String indexedId = text(indexed.get("source_id"));
+                if (indexedType != null && indexedId != null
+                        && "CLINICAL".equalsIgnoreCase(text(indexed.get("projection_kind")))) {
+                    indexedByKey.put(indexedType + ":" + indexedId, indexed);
+                }
+            }
+
             Set<String> current = new HashSet<>();
             int processed = 0;
             for (Map<String, Object> row : rows) {
@@ -352,6 +376,15 @@ public class AiClinicalProjectionIndexService {
                 // from the live approval query, so it may only suppress a
                 // tombstone, never create one.
                 current.add(sourceType + ":" + sourceId);
+                Map<String, Object> indexed = indexedByKey.get(sourceType + ":" + sourceId);
+                if (indexed != null
+                        && number(indexed.get("content_revision")) == contentRevision
+                        && number(indexed.get("eligibility_revision")) == eligibilityRevision
+                        && contentHash.equalsIgnoreCase(text(indexed.get("content_hash")))
+                        && Long.toString(approvalRound).equals(text(indexed.get("approval_id")))
+                        && expiresAt.equals(text(indexed.get("approval_expires_at")))) {
+                    continue;
+                }
                 try {
                     aiService.indexDocument(payload);
                 } catch (RuntimeException exception) {
@@ -371,7 +404,7 @@ public class AiClinicalProjectionIndexService {
             // receives the projection discriminator so an operational specialty
             // row cannot be removed by a clinical expiry.
             if (!completeSnapshot) return processed;
-            for (Map<String, Object> indexed : aiService.listIndexedDocuments()) {
+            for (Map<String, Object> indexed : indexedDocuments) {
                 String type = text(indexed.get("source_type"));
                 String id = text(indexed.get("source_id"));
                 Object projection = indexed.get("projection_kind");
