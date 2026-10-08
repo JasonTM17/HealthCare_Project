@@ -390,6 +390,13 @@ test("responsive layout constraints, horizontal overflow containment, and touch 
   assert.match(footer, /href="\/doctors"/);
   assert.match(footer, /href="\/dat-lich"/);
   assert.match(footer, /className="mobile-care-rail__primary"/);
+  assert.match(footer, /aria-current=\{railCurrent\("\/specialties",\s*"\/chuyen-khoa\/"\)\}/);
+  assert.match(footer, /aria-current=\{railCurrent\("\/doctors",\s*"\/bac-si\/"\)\}/);
+  assert.match(footer, /aria-current=\{railCurrent\("\/dat-lich"\)\}/);
+  assert.match(footer, /aria-current=\{railCurrent\("\/contact"\)\}/);
+
+  assert.match(styles, /\.mobile-care-rail a\[aria-current="page"\]/);
+  assert.match(styles, /\.site-shell \.mobile-care-rail a\[aria-current="page"\]/);
 
   assert.match(styles, /\.mobile-care-rail\s*\{[\s\S]*?position:\s*fixed;[\s\S]*?bottom:\s*0;[\s\S]*?z-index:\s*60;/);
   assert.match(styles, /\.mobile-care-rail a\s*\{[\s\S]*?min-height:\s*44px/);

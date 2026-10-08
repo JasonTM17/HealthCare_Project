@@ -4059,6 +4059,7 @@ main {
     justify-content: center;
     gap: 2px;
     border-radius: var(--radius-sm);
+    border-bottom: 3px solid transparent;
     color: oklch(78% 0.04 182);
     font-size: 0.75rem;
     font-weight: 700;
@@ -4070,6 +4071,18 @@ main {
 
   .mobile-care-rail a:first-child {
     color: var(--color-amber);
+  }
+
+  .mobile-care-rail a[aria-current="page"] {
+    color: var(--color-paper-bright);
+    background: rgba(255, 255, 255, 0.1);
+    border-bottom-color: var(--color-amber);
+  }
+
+  .mobile-care-rail .mobile-care-rail__primary[aria-current="page"] {
+    color: var(--color-paper-bright);
+    background: var(--color-teal-900, #134e4a);
+    border-bottom-color: var(--color-paper-bright);
   }
 
   /* Touch feedback: without :active the rail looked frozen on tap. The press
@@ -8092,6 +8105,18 @@ main {
   .site-shell .mobile-care-rail a,
   .site-shell .mobile-care-rail a:first-child {
     color: var(--hospital-teal-dark);
+  }
+
+  .site-shell .mobile-care-rail a[aria-current="page"] {
+    color: var(--hospital-teal-dark);
+    background: rgba(13, 148, 136, 0.1);
+    border-bottom-color: var(--hospital-teal);
+  }
+
+  .site-shell .mobile-care-rail .mobile-care-rail__primary[aria-current="page"] {
+    color: #fff;
+    background: var(--hospital-teal-dark);
+    border-bottom-color: #fff;
   }
 
   /* The white rail needs a dark press tint — the translucent-white :active
