@@ -182,6 +182,49 @@ coordinate is `dep-db3ha8mi0phs73a6fulg`/`dep-db3ha8mi0phs73a6g0gg` on
 `sha256:cad5ab83...`; V115 only rewrites `display_name`, so an image rollback
 is schema-safe (the divergent names simply stop auto-healing).
 
+### Current hosted overlay (2026-10-08, release 210d35c0 — clinical chat modes live on the new Render cluster)
+
+**Traffic re-pointed to the managed workspace.** The Vercel BFF previously
+sent production traffic to the legacy `healthcare-backup-*` services on the
+unmanaged `tea-d7ev54q8qa3s7382ljcg` workspace (dead API key, stale env where
+the clinical-mode flags were absent). `BACKEND_INTERNAL_URL` now points to
+`https://healthcare-beta-backend-4wb7.onrender.com` and `BACKEND_BACKUP_URL`
+to `https://healthcare-backup-backend-oqv4.onrender.com`; both backends carry
+`AI_CHAT_SYMPTOM_TRIAGE_ENABLED`/`AI_CHAT_HEALTH_EDUCATION_ENABLED=true` and
+reach `healthcare-beta-ai-9mip` (`AI_SERVICE_URL`). Vercel redeploy
+`dpl_HkcJFMJDnhAhyVc1v7XG5uSadSMV` is READY.
+
+**Release content:** `cf1392ba` lexical pool-rescue retrieval +
+approved-clinical source-gate refinement, `307da223` clause-bound caution
+excusal + eligibility-gated `/chat` citations, `210d35c0` CI/digest fixes.
+Wukong adversarial rounds closed the citation-bypass and conjunction-laundering
+counterexamples; verdict SHIP with a bounded same-segment residual (requires an
+APPROVED doc + non-governing caution frame; doses/named drugs/diagnosis claims
+remain airtight). `/recommendations/specialty` citation-governance gap flagged
+for a later wave. Image publication run `37731879532` built `210d35c0`:
+
+    ghcr.io/jasontm17/healthcare-project-ai-service@sha256:0569331f1e9b1437778a32264ab2d6f0637c5b959ec6cbcc4b408c1e6e0af54e
+
+Render deploy `dep-db3iik2j9qps73fq68ng` on `healthcare-beta-ai` is `live` on
+that digest (`/livez` 200). The blueprint now records the real managed
+hostnames (`AI_SERVICE_URL`, `BACKEND_WARM_URL`), matching live env.
+
+**Live evidence:** `GET /api/v1/ai/chat-policy` returns
+`enabledModes=[HOSPITAL_SUPPORT, SYMPTOM_TRIAGE, HEALTH_EDUCATION]`.
+Authenticated patient chat on `www.healthcare.id.vn`:
+SYMPTOM_TRIAGE "đau đầu và sốt nhẹ 2 ngày" → grounded Thần kinh answer +
+specialty citations; HEALTH_EDUCATION "nhịn ăn trước xét nghiệm" → grounded
+≥8h fasting answer + FAQ citation, "sỏi thận uống nước" → grounded answer +
+article citation (the previously false-positive-quarantined article now
+serves). One early remote generation was dropped by the sanitize gate
+(fail-closed INSUFFICIENT_EVIDENCE) and succeeded on retry — provider
+nondeterminism, correct posture. Backend log chain shows
+retrieval→source-authorization→generation→persistence `completed`.
+
+**Residual:** legacy `healthcare-backup-*` services on the dead-key workspace
+remain running but receive no traffic; they cannot be managed via API and
+should be retired from the dashboard when access is restored.
+
 ### Historical hosted overlay (2026-10-08, release f5ef9189 — superseded by the 25227993 overlay)
 
 **Infrastructure identity changed (provider recreation detected this session):**
