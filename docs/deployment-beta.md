@@ -142,7 +142,48 @@ master-code fallback is therefore no longer live. The original re-pin procedure 
 in git history; auth-OTP password reset still stays non-functional until real SMTP is
 configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
 
-### Current hosted overlay (2026-10-08, release 25227993)
+### Current hosted overlay (2026-10-08, release 88fea368)
+
+**Release content:** `5770cc1d` + `88fea368` (pin) on `main` — the reliability wave:
+BFF chat lease-open timeout `3s→8s` (survives Render cold starts below the 10 s
+permit-freshness window), renewal accepts the immediately previous permit digest
+inside the freshness window (one lost renewal response no longer kills a live
+turn), Valkey flaps only cancel requests whose tracked lease deadline actually
+expired, `MailDeliveryStartupInvariant` fails startup when the outbox key is
+invalid and warns loudly when mail would silently fall back to loopback SMTP,
+`remoteProviderEnabled` constructor default aligned to `false`, expired-hold
+cancel commits via `noRollbackFor`, admin credit grants/tier updates are atomic
+conditional writes, and the notification email worker is bounded to 5 attempts.
+Also carries `861b04b2` (self-harm admin alerts), the simplified password policy
+(`8–128 chars, ≥1 letter, ≥1 digit, ≤72 UTF-8 bytes`), and the promo-credit env
+pair validation in `scripts/validate-production-env.ps1`.
+
+**Images:** backend `sha256:99499d48fae7c80f839c62471891d986813225928396433350e415bfefc79c73`
+(publish run 37767467985 on `5770cc1d`, CI 6/6 green). All three Render backends
+live on that digest: `srv-db3gpdl9fdbs73dnstb0` (oqv4), `srv-daigprh5efls73dfau00`
+(4wb7), `srv-db3492om7kps73cvsv7g` (3rd-backup). Both AI services carry
+`AI_TIMEOUT_SECONDS=16` (< backend `chat-generate-timeout-ms:18000`).
+
+**V116 ownership incident (resolved):** the first rollout of this image failed on
+all three backends with `nonZeroExit:1` — Flyway `V116__ai_safety_alert_event_type`
+could not `ALTER TABLE notifications` because the table is owned by `postgres`
+while the app now migrates as `healthcare_app` (V94 rebuilt the same constraint as
+`postgres`; V112–V115 only created app-owned objects). V116 was applied manually
+via the Supabase Management API (`database/query`, runs as `postgres`) and a
+matching `flyway_schema_history` row was inserted (rank 119, checksum
+`-1429341660`, `installed_by=postgres`); the redeployed services then booted
+cleanly. **Operator note:** any future migration that ALTERs a `postgres`-owned
+table (`notifications`, `media_assets`, …) must be applied the same way before
+rolling the image, or `DATABASE_URL` must temporarily use an owner role. Flyway
+11.7.2 checksum = CRC32 over each `readLine()` result's UTF-8 bytes with **no**
+line-separator bytes appended (BOM stripped from the first line).
+
+**E2E evidence (production):** patient login 200 → `/ai/chat-policy` returns all
+three modes → `SYMPTOM_TRIAGE` 200 (8.8 s), `HEALTH_EDUCATION` 200 (7.3 s),
+`HOSPITAL_SUPPORT` 200 (2.3 s) through Vercel → backend → AI chain. The chk
+constraint now accepts `AI_SAFETY_ALERT`.
+
+### Previous hosted overlay (2026-10-08, release 25227993)
 
 **Release content:** `25227993` (fix) + `4ab73e5a` (pin) on `main` — the
 display-name identity sync: `PatientProfileService.updateProfile` now updates
