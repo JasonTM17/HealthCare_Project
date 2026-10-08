@@ -80,6 +80,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [slowWakeup, setSlowWakeup] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<AuthFieldErrors>({});
@@ -114,6 +115,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submitting || googleBusy) return;
     // Read the actual inputs: password managers may fill DOM values without
     // dispatching React change events before the user submits.
     const submitted = new FormData(event.currentTarget);
@@ -278,8 +280,8 @@ export default function LoginPage() {
             </div>
             {fieldErrors.password ? <small className="auth-form__field-error" id="login-password-error">{fieldErrors.password}</small> : null}
           </div>
-          <button className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting} type="submit">
-            {submitting
+          <button className={`${styles.submit} button button--primary auth-form__submit`} disabled={submitting || googleBusy} type="submit">
+            {googleBusy ? "Đang đăng nhập Google…" : submitting
               ? (slowWakeup
                   ? "Đang kết nối (máy chủ đang khởi động lại)..."
                   : "Đang xác thực bảo mật...")
@@ -292,7 +294,7 @@ export default function LoginPage() {
             <div className={styles.divider} role="separator" aria-hidden="true">
               <span>hoặc</span>
             </div>
-            <GoogleSignInFlow onAuthenticated={(session) => window.location.assign(routeAfterLogin(session))} />
+            <GoogleSignInFlow disabled={submitting} onBusyChange={setGoogleBusy} onAuthenticated={(session) => window.location.assign(routeAfterLogin(session))} />
           </div>
         ) : null}
 

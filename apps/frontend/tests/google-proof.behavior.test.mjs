@@ -51,6 +51,7 @@ globalThis.process = { env: { NODE_ENV: "development" } };
 const sources = ${JSON.stringify(sources)};
 const cache = {};
 const stubs = {};
+stubs["fixture-css"] = { __esModule: true, default: new Proxy({}, { get: (_, property) => property }) };
 function require(name) {
   if (stubs[name]) return stubs[name];
   if (cache[name]) return cache[name].exports;
@@ -64,7 +65,7 @@ const ReactDOM = require("react-dom");
 const root = require("react-dom/client").createRoot(document.getElementById("root"));
 const control = window.googleFixture = {
   logins: [], proofRequests: [], sessions: [], outerSubmits: 0,
-  initialError: "GOOGLE_REAUTH_REQUIRED", loginImpl: null,
+  initialError: "GOOGLE_REAUTH_REQUIRED", loginImpl: null, disabled: false, busyChanges: [],
 };
 class ApiError extends Error {
   constructor(message, status, endpoint, payload) {
@@ -95,7 +96,7 @@ control.render = () => {
   const Flow = require("components/google-sign-in-flow.tsx").default;
   ReactDOM.flushSync(() => root.render(React.createElement("form", {
     onSubmit: (event) => { event.preventDefault(); control.outerSubmits += 1; },
-  }, React.createElement(Flow, { onAuthenticated: (session) => control.sessions.push(session) }))));
+  }, React.createElement(Flow, { disabled: control.disabled, onBusyChange: (busy) => control.busyChanges.push(busy), onAuthenticated: (session) => control.sessions.push(session) }))));
 };
 `;
 
@@ -122,6 +123,7 @@ async function mount(setup = {}) {
   await page.route("**/*", (route) => route.abort());
   await page.setContent('<!doctype html><html lang="vi"><body><div id="root"></div></body></html>');
   await page.addScriptTag({ content: fixture });
+  if (setup.clock) await page.clock.install();
   await page.evaluate((setup) => { Object.assign(googleFixture, setup); googleFixture.render(); }, setup);
   await page.locator("#google-credential-btn").waitFor();
   return { page, errors };
@@ -208,5 +210,40 @@ test("google proof: a duplicate confirm click during an in-flight attempt produc
     await page.evaluate(() => googleFixture.releaseLogin());
     await page.waitForFunction(() => googleFixture.sessions.length === 1);
     assert.equal(await page.evaluate(() => googleFixture.logins.length), 2);
+  } finally { await page.close(); }
+});
+
+test("google proof: focuses proof input and associates validation errors", async () => {
+  const { page } = await mount({ initialError: "GOOGLE_EMAIL_PROOF_REQUIRED" });
+  try {
+    await issueCredential(page);
+    assert.equal(await page.locator(PROOF_INPUT).evaluate(input => input === document.activeElement), true);
+    await page.locator(CONFIRM_BUTTON).click();
+    assert.equal(await page.locator(PROOF_INPUT).getAttribute("aria-invalid"), "true");
+    const errorId = await page.locator("[role='alert']").getAttribute("id");
+    assert.ok((await page.locator(PROOF_INPUT).getAttribute("aria-describedby")).split(" ").includes(errorId));
+    await page.locator(PROOF_INPUT).fill("654321");
+    assert.equal(await page.locator("[role='alert']").count(), 0);
+  } finally { await page.close(); }
+});
+
+test("google proof: another authentication method disables Google API calls", async () => {
+  const { page } = await mount({ disabled: true });
+  try {
+    await page.evaluate(() => googleFixture.onCredential("disabled-credential"));
+    assert.equal(await page.evaluate(() => googleFixture.logins.length), 0);
+    await page.getByRole("status").filter({ hasText: "Đang xử lý" }).waitFor();
+  } finally { await page.close(); }
+});
+
+test("google proof: successful verification cancels its expiry timer", async () => {
+  const { page } = await mount({ clock: true });
+  try {
+    await issueCredential(page);
+    await page.locator(PROOF_INPUT).fill("Password1!");
+    await page.locator(CONFIRM_BUTTON).click();
+    await page.waitForFunction(() => googleFixture.sessions.length === 1);
+    await page.clock.fastForward(300_001);
+    assert.equal(await page.locator("[role='alert']").count(), 0);
   } finally { await page.close(); }
 });
