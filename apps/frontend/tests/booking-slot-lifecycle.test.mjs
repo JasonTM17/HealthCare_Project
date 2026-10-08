@@ -482,10 +482,13 @@ test("abandoned holds release the slot, confirmed bookings never get cancelled",
     return source.slice(start, end);
   };
 
-  // releaseHeldSlot must exist and call the patient cancel with the hold's phone.
+  // releaseHeldSlot must exist and call the patient cancel with the hold's
+  // phone, flagged pendingOnly so a confirmation that committed behind a lost
+  // response can never be auto-cancelled by the abandon path.
   const releaseSlice = sliceBetween("const releaseHeldSlot = useCallback", "const invalidateBookingSession =");
   assert.match(releaseSlice, /cancelPatientAppointment\(/);
   assert.match(releaseSlice, /phone:\s*held\.phone/);
+  assert.match(releaseSlice, /pendingOnly:\s*true/);
   assert.match(releaseSlice, /heldSlotRef\.current = null/);
 
   // Every abandon path routes through the release via invalidateBookingSession.
@@ -520,7 +523,7 @@ test("cancelPatientAppointment releases holds by phone when no session exists", 
   // The wizard holds appointments without signing in, so the release must be
   // sendable anonymously and must present the hold's own phone to the backend
   // (BookingService.authorizeAppointment accepts the phone match for guests).
-  assert.match(slice, /options\?:\s*\{\s*phone\?:\s*string\s*\}/);
+  assert.match(slice, /options\?:\s*\{\s*phone\?:\s*string;?\s*pendingOnly\?:\s*boolean;?\s*\}/);
   assert.match(slice, /phone:\s*normalizedPhone/);
   assert.match(slice, /readAuthSession\(\)/);
   assert.doesNotMatch(slice, /getAuthenticatedJson/);

@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # sha256 + admin gating + bounded article locks).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:631c90298149bbf558e1bf170924d81d155703bd402c087fd0d34583f943d594"
+    "sha256:6775ddd62c1296ef0a50068a1bbfd330bc795077a5406125072c86e538c01dde"
 )
 
 

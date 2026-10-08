@@ -330,14 +330,23 @@ INSERT INTO job_positions (
 )
 ON CONFLICT (slug) DO NOTHING;
 
--- ── Doctor schedules (Mon-Fri, morning + afternoon shifts) ────────────────────
+-- ── Doctor schedules (Mon-Sun, morning + afternoon + evening shifts) ───────────
 INSERT INTO doctor_schedules (id, doctor_id, branch_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_to, active)
 SELECT md5(format('schedule:%s:%s:%s:%s:%s', d.id, b.id, shifts.dow, shifts.start_time, shifts.end_time))::uuid,
        d.id, b.id, shifts.dow, shifts.start_time::time, shifts.end_time::time, 30, '2026-08-01', NULL, true
 FROM doctors d
 JOIN doctor_branches db ON db.doctor_id = d.id
 JOIN branches b ON b.id = db.branch_id
-CROSS JOIN (VALUES (1, '08:00:00', '11:30:00'), (2, '08:00:00', '11:30:00'), (3, '08:00:00', '11:30:00'), (4, '08:00:00', '11:30:00'), (5, '08:00:00', '11:30:00')) AS shifts(dow, start_time, end_time)
+CROSS JOIN (
+    VALUES
+        (1, '08:00:00', '11:30:00'), (1, '13:30:00', '17:00:00'), (1, '17:30:00', '21:00:00'),
+        (2, '08:00:00', '11:30:00'), (2, '13:30:00', '17:00:00'), (2, '17:30:00', '21:00:00'),
+        (3, '08:00:00', '11:30:00'), (3, '13:30:00', '17:00:00'), (3, '17:30:00', '21:00:00'),
+        (4, '08:00:00', '11:30:00'), (4, '13:30:00', '17:00:00'), (4, '17:30:00', '21:00:00'),
+        (5, '08:00:00', '11:30:00'), (5, '13:30:00', '17:00:00'), (5, '17:30:00', '21:00:00'),
+        (6, '08:00:00', '11:30:00'), (6, '13:30:00', '17:00:00'), (6, '17:30:00', '21:00:00'),
+        (7, '08:00:00', '11:30:00'), (7, '13:30:00', '17:00:00')
+) AS shifts(dow, start_time, end_time)
     WHERE NOT EXISTS (
     SELECT 1
     FROM doctor_schedules s

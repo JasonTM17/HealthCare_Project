@@ -13,6 +13,7 @@ import {
 import { confirmAppointment, fetchDoctorSlots, holdAppointmentSlot } from "../lib/api";
 import {
   ApiError,
+  cancelPatientAppointment,
   fetchBranches,
   fetchDoctors,
   getAuthSessionSnapshot,
@@ -25,6 +26,15 @@ import Icon from "./UiIcon";
 import useDialogFocus from "./useDialogFocus";
 
 export type PackageItem = HealthPackage;
+
+/** Reason stored on holds the wizard releases when the patient abandons. */
+const HELD_SLOT_RELEASE_REASON = "Bệnh nhân rời luồng đặt lịch trước khi xác nhận";
+
+/** A live hold the wizard must release on abandon, tracked outside React state. */
+interface HeldSlotIntent {
+  bookingCode: string;
+  phone: string;
+}
 
 export interface PackageBookingModalProps {
   isOpen: boolean;
@@ -135,10 +145,123 @@ export default function PackageBookingModal({
   const bookingSessionRef = useRef(0);
   const otpResendAttemptRef = useRef(0);
   const otpResendControllerRef = useRef<AbortController | null>(null);
+  const heldSlotRef = useRef<HeldSlotIntent | null>(null);
+  const releaseInFlightRef = useRef<Set<string>>(new Set());
+  const pendingConfirmRef = useRef<(HeldSlotIntent & { abandoned: boolean }) | null>(null);
 
   const minimumAppointmentDate = useMemo(() => businessDate(1), []);
 
-  useDialogFocus(dialogRef, isOpen, onClose);
+  /**
+   * Fire-and-forget release of a live hold. Deduped per booking code so a
+   * close followed by an unmount sends exactly one cancel; the intent stays in
+   * heldSlotRef until the backend confirms the release, so a failed release is
+   * retried on the next abandon and the hold expiry remains the last backstop.
+   * `pendingOnly` lets the backend refuse the cancel when a confirmation
+   * committed behind a lost response (the booking is real by then).
+   */
+  const releaseHoldIntent = useCallback((held: HeldSlotIntent) => {
+    if (releaseInFlightRef.current.has(held.bookingCode)) return;
+    releaseInFlightRef.current.add(held.bookingCode);
+    void cancelPatientAppointment(held.bookingCode, HELD_SLOT_RELEASE_REASON, {
+      phone: held.phone,
+      pendingOnly: true,
+    })
+      .then(() => {
+        if (heldSlotRef.current?.bookingCode === held.bookingCode) {
+          heldSlotRef.current = null;
+        }
+      })
+      .catch(() => {
+        // Nothing to surface on an abandon path; the hold expires on its own.
+      })
+      .finally(() => {
+        releaseInFlightRef.current.delete(held.bookingCode);
+      });
+  }, []);
+
+  const releaseHeldSlot = useCallback(() => {
+    const held = heldSlotRef.current;
+    if (held) releaseHoldIntent(held);
+  }, [releaseHoldIntent]);
+
+  /**
+   * Abandon the flow: release the pending hold — unless an OTP confirmation is
+   * still in flight, in which case the confirm's own settle path decides so a
+   * booking that committed behind a lost response is never auto-cancelled.
+   */
+  const abandonBooking = useCallback(() => {
+    if (pendingConfirmRef.current) {
+      pendingConfirmRef.current.abandoned = true;
+    } else {
+      releaseHeldSlot();
+    }
+    bookingSessionRef.current += 1;
+    otpResendAttemptRef.current += 1;
+    otpResendControllerRef.current?.abort();
+    otpResendControllerRef.current = null;
+    setIsResendingOtp(false);
+  }, [releaseHeldSlot]);
+
+  const resetFlow = useCallback(() => {
+    setStep(1);
+    setSelectedBranchId(initialBranchId || "");
+    setSelectedDate(businessDate(1));
+    setAvailableSlots([]);
+    setSelectedSlotTime("");
+    setSlotsError("");
+    setFullName("");
+    setPhone("");
+    setEmail("");
+    setDateOfBirth("");
+    setGender("MALE");
+    setNotes("");
+    setHasInsurance(false);
+    setPrivacyConsent(false);
+    setBookingCode("");
+    setOtpCode("");
+    setHoldExpiresAt("");
+    setOtpExpiresAt("");
+    setOtpDeliveryStatus(undefined);
+    setSecondsRemaining(600);
+    setOtpSecondsRemaining(0);
+    setResendCooldownSeconds(0);
+    setIsSubmitting(false);
+    setErrorMessage("");
+    setConfirmedAppointment(null);
+  }, [initialBranchId]);
+
+  const handleClose = useCallback(() => {
+    abandonBooking();
+    resetFlow();
+    onClose();
+  }, [abandonBooking, resetFlow, onClose]);
+
+  useDialogFocus(dialogRef, isOpen, handleClose);
+
+  // The parent can also close the modal without going through handleClose
+  // (isOpen flips to false), and the component can unmount outright — both
+  // must still release a pending hold. resetFlow keeps a retained instance
+  // clean so a reopened modal starts at step 1 instead of a stale OTP screen.
+  useEffect(() => {
+    if (isOpen) return;
+    // setState inside abandonBooking/resetFlow must not run synchronously in an
+    // effect body — defer to a microtask so React can batch it after the render.
+    queueMicrotask(() => {
+      abandonBooking();
+      resetFlow();
+    });
+  }, [isOpen, abandonBooking, resetFlow]);
+
+  useEffect(() => () => {
+    if (pendingConfirmRef.current) {
+      pendingConfirmRef.current.abandoned = true;
+    } else {
+      releaseHeldSlot();
+    }
+    otpResendAttemptRef.current += 1;
+    otpResendControllerRef.current?.abort();
+    otpResendControllerRef.current = null;
+  }, [releaseHeldSlot]);
 
   useEffect(() => {
     if (!isOpen || lastFocusedStepRef.current === step) return;
@@ -332,12 +455,6 @@ export default function PackageBookingModal({
     return () => clearInterval(timer);
   }, [resendCooldownSeconds]);
 
-  const handleClose = useCallback(() => {
-    otpResendControllerRef.current?.abort();
-    otpResendControllerRef.current = null;
-    onClose();
-  }, [onClose]);
-
   if (!isOpen) return null;
 
   const holdExpired = secondsRemaining <= 0;
@@ -426,8 +543,17 @@ export default function PackageBookingModal({
         privacyConsent: true,
       });
 
-      if (currentSession !== bookingSessionRef.current) return;
+      if (currentSession !== bookingSessionRef.current) {
+        // Abandoned while the hold request was still in flight: the backend
+        // already created the hold, so release the orphan instead of leaking
+        // it — and never resurrect the OTP step on a closed modal.
+        releaseHoldIntent({ bookingCode: result.bookingCode, phone: trimmedPhone });
+        return;
+      }
 
+      // Record the live hold so every abandon path (close, back, unmount,
+      // isOpen=false) releases it instead of leaking the slot until expiry.
+      heldSlotRef.current = { bookingCode: result.bookingCode, phone: trimmedPhone };
       setBookingCode(result.bookingCode);
       setHoldExpiresAt(result.holdExpiresAt);
       setOtpExpiresAt(result.otpExpiresAt);
@@ -521,6 +647,12 @@ export default function PackageBookingModal({
     setIsSubmitting(true);
     bookingSessionRef.current += 1;
     const currentSession = bookingSessionRef.current;
+    const confirmIntent: HeldSlotIntent & { abandoned: boolean } = {
+      bookingCode,
+      phone: phone.trim(),
+      abandoned: false,
+    };
+    pendingConfirmRef.current = confirmIntent;
 
     try {
       const details = await confirmAppointment({
@@ -528,9 +660,22 @@ export default function PackageBookingModal({
         otpCode: trimmedOtp,
       });
 
-      if (currentSession !== bookingSessionRef.current) return;
+      pendingConfirmRef.current = null;
+      // The hold became a real appointment on the server: drop the release
+      // intent so no abandon path can ever cancel this booking — even when
+      // the modal was already closed behind a lost response.
+      if (heldSlotRef.current?.bookingCode === confirmIntent.bookingCode) {
+        heldSlotRef.current = null;
+      }
+      if (confirmIntent.abandoned || currentSession !== bookingSessionRef.current) return;
       setConfirmedAppointment(details);
     } catch (err: unknown) {
+      pendingConfirmRef.current = null;
+      if (confirmIntent.abandoned) {
+        // Abandoned while confirming and the confirmation failed: the hold is
+        // still pending on the server — release this specific booking code.
+        releaseHoldIntent(confirmIntent);
+      }
       if (currentSession === bookingSessionRef.current) {
         setErrorMessage(
           err instanceof Error && err.message
@@ -1209,7 +1354,19 @@ export default function PackageBookingModal({
                   <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
                     <button
                       type="button"
-                      onClick={() => setStep(3)}
+                      onClick={() => {
+                        // Going back to edit abandons this hold: release it so
+                        // the slot frees immediately and a re-submit can hold
+                        // a different slot without hitting the live-hold cap.
+                        abandonBooking();
+                        setBookingCode("");
+                        setOtpCode("");
+                        setHoldExpiresAt("");
+                        setOtpExpiresAt("");
+                        setOtpDeliveryStatus(undefined);
+                        setErrorMessage("");
+                        setStep(3);
+                      }}
                       disabled={isSubmitting || isResendingOtp}
                       className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-sm"
                     >
