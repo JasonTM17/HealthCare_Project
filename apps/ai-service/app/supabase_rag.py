@@ -823,8 +823,14 @@ class SupabaseRagStore:
             raise SupabaseRagContractError("RAG query exceeds the maximum input size")
         bounded_limit = max(1, min(int(limit or 800), 1_000))
         filters = list(source_types) if source_types else None
+        # Lexical rescoring never reads the vector: project null like
+        # ``search`` does instead of shipping ~384 floats per pooled row.
         sql = f"""
-            select {self._select_columns()}
+            select id, projection_kind, source_type, source_id, content_revision,
+                   eligibility_revision, content_hash, approval_round,
+                   approval_expires_at, title, content, metadata,
+                   null::text as embedding, embedding_model, embedding_provenance,
+                   active, published
             from {self._table}
             where active and published and deleted_at is null and embedding is not null
               and (%s::text[] is null or source_type = any(%s::text[]))

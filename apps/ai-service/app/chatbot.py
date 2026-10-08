@@ -1443,6 +1443,8 @@ def retrieve_chat_candidates(
                 )
             except (EmbeddingContractError, ProviderUnavailable):
                 pool = []
+            if cancellation is not None:
+                cancellation.raise_if_cancelled()
             normalized_query = normalize_sensitive_text(request.message)
             query_tokens = _lexical_tokens(normalized_query, expand=True)
             # Triage expansion terms are specialty names in disguise: a
