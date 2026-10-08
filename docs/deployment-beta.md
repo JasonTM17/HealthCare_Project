@@ -141,7 +141,71 @@ master-code fallback is therefore no longer live. The original re-pin procedure 
 in git history; auth-OTP password reset still stays non-functional until real SMTP is
 configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
 
-### Current backend overlay (2026-10-06, wave-13)
+### Current hosted overlay (2026-10-08, release f5ef9189)
+
+**Infrastructure identity changed (provider recreation detected this session):**
+the documented Supabase project `awaknzhadjglbfkhigck` no longer exists (Management
+API 404) and the documented Render service IDs `srv-daa41a9f2nfc7395eg1g` /
+`srv-daal7kgn74is73bafjqg` return `not found`. The live replacements observed and
+verified on 2026-10-08:
+
+- Supabase `axkhbtpwllbdixzlgorz` ("HealthCare_Project", ap-southeast-1,
+  `ACTIVE_HEALTHY`, created 2026-10-06). The additive `healthcare` schema was
+  re-applied outside `supabase_migrations` tracking: read-only verification found
+  all 15 tables with RLS enabled, all 7 functions invoker-mode
+  (`match_chat_documents`, `match_chat_documents_page`, `list_chat_documents_page`,
+  `match_documents`, `ai_chat_documents_tombstone_guard`, `synthetic_embedding`,
+  `touch_updated_at`), the `tombstone_revision`/`deleted_at` columns, and
+  browser-role grants limited to SELECT on the 10 public catalog tables
+  (projection/customer/synthetic tables deny-by-default). Counts match the
+  documented baseline: 30 specialties, 20 branches, 500 doctors, 100 packages,
+  100,000 customers, 75,000 profiles, ~10,215 `ai_documents`, 916 chat-projection
+  rows, 37 seed chunks. No migration, reset, or DDL was issued this session.
+- Render services now live under a different account/key than the recorded
+  workspace: backend `srv-daigprh5efls73dfau00` at
+  `https://healthcare-beta-backend-4wb7.onrender.com`, AI
+  `srv-daigq6vqj5pc73a284l0` at `https://healthcare-beta-ai-9mip.onrender.com`.
+  Both are `runtime: image` services; `render.yaml` still declares the AI service
+  as `runtime: python`, so a blueprint apply cannot reproduce live — reconcile
+  the AI section (rewrite as `runtime: image` or drop it) in a follow-up commit.
+
+**Release content:** `f5ef9189` on `main` — pendingOnly cancel guard (automatic
+abandon releases can never cancel a `CONFIRMED` appointment: backend answers 409
+unless status is `PENDING_CONFIRMATION`), `PackageBookingModal` held-slot
+lifecycle (release on close/Escape/unmount/back-from-OTP, exactly-once in flight,
+orphan release for late hold responses), mobile care-rail `aria-current` +
+visible border indicator, and registration autofill/bcrypt-byte handling from the
+earlier auth wave. Follow-up `a5f27fd1` (frontend only) ports the same orphan
+release to `BookingModal` (Escape invalidation, unmount session bump,
+`active→false` release, late-hold orphan cancel).
+
+**Evidence:** CI run
+[37720169724](https://github.com/JasonTM17/HealthCare_Project/actions/runs/37720169724)
+green on `f5ef9189` (all jobs incl. Chromium-backed behavior suites). Image
+publication run
+[37720751750](https://github.com/JasonTM17/HealthCare_Project/actions/runs/37720751750)
+built and attested exact-SHA artifacts; pin commit `7c926ade` recorded:
+
+    ghcr.io/jasontm17/healthcare-project-backend@sha256:cad5ab83d9e31d2709f7837d0c73418ca204059d7f7e4bec43f27fd9d678fbd4
+    ghcr.io/jasontm17/healthcare-project-ai-service@sha256:3430a30c5f5531f8361d1b0a93c904163d2e44fc8aca6d0d245161a57ecdf03c
+
+Render deploys `dep-db3gp78m7kps73ekfmu0` (backend) and `dep-db3gp85g1s2s73ad63sg`
+(AI) are `live` on those digests via `imageUrl` override deploys. Post-deploy
+verification on the new hostnames: `/actuator/health` `UP`, `/livez` 200,
+`/api/v1/health` 200 via the Vercel BFF, catalog 200 (23 branches), evil-Origin
+403, no-Origin POST 403, and the public-chat canary returned `ANSWER` with 6
+catalog citations (`HOSPITAL_SUPPORT`, `local_fallback`). Vercel production
+`dpl_9PWz85S45pQiHV25jWvYHmhChfGd` (f5ef9189) then `dpl_CiJRh1bKrAXRWpqNb82ahMFHuXeU`
+(a5f27fd1) are `READY` on `www.healthcare.id.vn`; the shipped HTML serves
+`aria-current="page"` and the rail CSS rules on `/specialties`.
+
+**Rollback coordinates (previous live):** backend `dep-db3fhfl9fdbs73dini80` on
+`sha256:6775ddd62c12...` (built from `f78215e3`), AI `dep-db3fjpbtqb8s73dq1s90` on
+`sha256:c080a7c8820c...` (same source). The f78215e3→f5ef9189 delta carries no new
+Flyway versioned migrations (only `seed-local-data.sql`), so rolling the backend
+image back is schema-compatible.
+
+### Historical backend overlay (2026-10-06, wave-13; superseded by the 2026-10-08 overlay)
 
 Source `11afbcf` (wave-13 chain: `1094ff4` ngat/cogiat disambiguation + laundry amenity
 lane, `4ff93a6` image pin, `11afbcf` contract-test digest sync). CI
