@@ -258,6 +258,20 @@ end-to-end suite run against `www.healthcare.id.vn` → `healthcare-backup-backe
   receiver-side — use a fresh mailbox per run; this is a receiver limitation,
   not an app defect.
 
+**Test-data cleanup + consultation seed (2026-10-08, ~14:30 ICT):** removed 17
+probe/test users (e2e-*, easypw-*, devin.*, guerrillamail/maildrop/mailinator,
+test.healthcare.local, healthcare-e2e.invalid) together with their
+patient_profiles, 9 test appointments, 5 test payments + invoices/audit logs,
+22 AI conversations, 40 sessions, 15 notifications, and 17 OTP challenges —
+all via one atomic `DO` block in FK order. Deleted the `QA-261001-ROLE` test
+consultation thread through the sanctioned `healthcare.retention_cleanup` GUC
+path (V37/V40): audit events survive append-only with `thread_id` nulled, the
+same path `PatientConsultationRetentionService` uses. Replaced it with three
+realistic consultation threads for `patient@healthcare.com` bound to real PAID
+appointments (1 OPEN until 2026-10-22, 2 CLOSED history) with proper
+participants, TEXT messages, and read states — participant `assigned_by` /
+`left_at IS NULL` rules honored so the list query surfaces them.
+
 ### Previous hosted overlay (2026-10-08, release 25227993)
 
 **Release content:** `25227993` (fix) + `4ab73e5a` (pin) on `main` — the
