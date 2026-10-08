@@ -142,6 +142,38 @@ master-code fallback is therefore no longer live. The original re-pin procedure 
 in git history; auth-OTP password reset still stays non-functional until real SMTP is
 configured (`APP_MAIL_ENABLED=true` + provider credentials), by fail-closed design.
 
+### Traffic ownership flip (2026-10-08) — `healthcare-backup-*` account is now PRIMARY
+
+Per owner decision, the **`tea-db345…` ("backup") Render account is the main
+account going forward**. Production routing now is:
+
+```
+User → Vercel BFF (deploy healthcare-ec7g6d4y0, aliased www.healthcare.id.vn)
+         ├─ BACKEND_INTERNAL_URL → healthcare-backup-backend.onrender.com   (PRIMARY, srv-db3492om7kps73cvsv7g)
+         ├─ BACKEND_BACKUP_URL   → healthcare-beta-backend-4wb7.onrender.com (fallback, managed account)
+         └─ backend AI_SERVICE_URL → healthcare-backup-ai.onrender.com       (srv-db348qrbc2fs73cifnsg)
+```
+
+Changes applied for the promotion: env parity was synced onto
+`healthcare-backup-backend` first — `RESEND_API_KEY` (was missing → mail would
+have silently failed), `APP_PAYMENT_BANK_TRANSFER_ENABLED=true` + the four
+`PAYMENT_BANK_*` demo-bank vars, and `APP_SELF_WARMER_ENABLED=true` (per-key PUT,
+snapshot in `env-backup-3rd-backend-20261008-191454.json`, 69→75 vars), then a
+redeploy. `BFF_ALLOWED_ORIGINS`, `JWT_SECRET`, `BACKEND_BFF_SERVICE_TOKEN`,
+`AI_RAG_INGEST_TOKEN`, `DATABASE_URL` were already pair-equal. Verified post-flip:
+login 200, conversation create 201, `HOSPITAL_SUPPORT` message 200 (6 s), and
+Render logs show `AiConversationService` exec-thread hits on
+`healthcare-backup-backend` while `4wb7` went idle — the new primary genuinely
+serves traffic.
+
+**Second fix found during verification:** `healthcare-backup-ai` was running a
+deploy from 08:08 UTC — predating the `AI_TIMEOUT_SECONDS=16` and token env
+updates — so `/rag/index` pushes returned `403 Invalid RAG ingestion token`
+(clinical projection sync WARN loop on the backend). **Render env changes do not
+redeploy the running instance; always trigger a deploy after env writes.** Both
+AI services were redeployed; post-redeploy `/rag/index` with the live tokens
+answers 422 (validation) instead of 403 (auth) — ingest auth confirmed working.
+
 ### Current hosted overlay (2026-10-08, release 88fea368)
 
 **Release content:** `5770cc1d` + `88fea368` (pin) on `main` — the reliability wave:
