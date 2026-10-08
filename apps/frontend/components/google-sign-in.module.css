@@ -1,0 +1,25 @@
+.flow { display: grid; gap: 12px; min-width: 0; }
+.provider { min-width: 0; }
+.buttonSlot { position: relative; display: grid; place-items: center; min-height: 44px; }
+.buttonSlot[data-state="failed"] { display: none; }
+.googleButton { display: flex; justify-content: center; width: 100%; min-width: 0; min-height: 44px; }
+.googleButton[inert] { opacity: .6; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--login-muted, #475569); font-size: .875rem; }
+.unavailable { display: grid; justify-items: start; gap: 8px; padding: 12px 16px; border: 1px solid #d5e2df; border-radius: var(--radius-sm, 8px); background: #f8fafc; }
+.unavailable p, .hint, .status { margin: 0; color: var(--login-muted, #475569); font-size: .875rem; line-height: 1.6; }
+.hint, .status { text-align: center; }
+.hint { margin-top: 12px; }
+.retry, .cancel { min-height: 44px; padding: 8px 12px; border: 1px solid #bfd0d1; border-radius: var(--radius-sm, 8px); color: #075f5e; background: #fff; font: inherit; font-size: .875rem; font-weight: 650; cursor: pointer; }
+.retry:hover, .cancel:hover { background: #edf8f6; }
+.retry:focus-visible, .cancel:focus-visible { outline: 3px solid #075f5e; outline-offset: 3px; }
+.retry:disabled, .cancel:disabled { opacity: .6; cursor: wait; }
+.proof { display: grid; gap: 16px; padding: 20px; border: 1px solid #cfe5e2; border-radius: var(--radius-sm, 8px); background: #f8fbfa; }
+.proof h2 { margin: 0; color: #0f172a; font-size: 1rem; line-height: 1.5; }
+.proof p { margin: 0; color: #475569; font-size: .875rem; line-height: 1.6; overflow-wrap: anywhere; }
+.proof label { color: #0f172a; font-size: .875rem; font-weight: 700; }
+.proof input { width: 100%; min-height: 48px; padding: 12px; border: 1px solid #bfd0d1; border-radius: var(--radius-sm, 8px); color: #0f172a; background: #fff; font: inherit; font-size: 16px; }
+.proof input:focus { outline: 3px solid rgba(8,127,123,.2); outline-offset: 2px; border-color: #075f5e; }
+.proof input[aria-invalid="true"] { border-color: #b42318; }
+.proof :global(.button) { width: 100%; min-height: 48px; white-space: normal; }
+.error { margin: 0; padding: 12px 16px; border-radius: var(--radius-sm, 8px); color: #8a1c13; background: #fff1f0; font-size: .875rem; line-height: 1.6; }
+@media (max-width: 400px) { .proof { padding: 16px; } }
