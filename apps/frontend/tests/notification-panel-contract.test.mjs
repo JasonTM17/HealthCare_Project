@@ -1,11 +1,35 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8");
 
 const BACKEND_NOTIFICATION = "../../backend/src/main/java/com/healthcare/notification/entity/Notification.java";
-const V94_WHITELIST = "../../backend/src/main/resources/db/migration/V94__notification_role_matrix_event_types.sql";
+const MIGRATION_DIRECTORY = "../../backend/src/main/resources/db/migration";
+const EVENT_TYPE_CONSTRAINT = "chk_notifications_event_type";
+
+// The whitelist is rebuilt by the highest-numbered migration that (re)defines
+// the constraint (V73, then V94, then V116) — the same discovery rule the
+// backend NotificationEventTypeWhitelistDriftTest applies, so extending the
+// enum with a new migration does not read as drift here.
+async function newestEventTypeWhitelist() {
+  const files = await readdir(new URL(MIGRATION_DIRECTORY, import.meta.url));
+  let newest = null;
+  let newestVersion = -1;
+  for (const file of files) {
+    const match = file.match(/^V(\d+)__.*\.sql$/);
+    if (!match) continue;
+    const sql = await readFile(new URL(`${MIGRATION_DIRECTORY}/${file}`, import.meta.url), "utf8");
+    if (!sql.includes("ADD CONSTRAINT " + EVENT_TYPE_CONSTRAINT)) continue;
+    const version = Number.parseInt(match[1], 10);
+    if (version > newestVersion) {
+      newestVersion = version;
+      newest = sql;
+    }
+  }
+  assert.ok(newest, `expected a migration defining ${EVENT_TYPE_CONSTRAINT}`);
+  return newest;
+}
 
 function rule(styles, selector) {
   const match = styles.match(new RegExp(`^${selector}\\s*\\{([^}]*)\\}`, "m"));
@@ -110,7 +134,7 @@ test("notification labels match the backend whitelist with no invented event typ
   const [chrome, entity, whitelist] = await Promise.all([
     read("../components/PortalChrome.tsx"),
     read(BACKEND_NOTIFICATION),
-    read(V94_WHITELIST),
+    newestEventTypeWhitelist(),
   ]);
 
   const labels = chrome.match(/const labels: Record<string, string> = \{([\s\S]*?)\n {2}\};/);
@@ -128,12 +152,12 @@ test("notification labels match the backend whitelist with no invented event typ
   );
 
   const check = whitelist.match(/CHECK \(event_type IN \(([\s\S]*?)\)\)/);
-  assert.ok(check, "the V94 whitelist CHECK must stay parseable");
+  assert.ok(check, "the event_type whitelist CHECK must stay parseable");
   const allowed = [...check[1].matchAll(/'([A-Z0-9_]+)'/g)].map((match) => match[1]);
   assert.deepEqual(
     [...allowed].sort(),
     [...enumValues].sort(),
-    "the enum and the V94 whitelist must not drift apart",
+    "the enum and the database whitelist must not drift apart",
   );
 
   // The two branches this contract removed must stay removed.
