@@ -757,6 +757,93 @@ class AiConversationIntegrationTest extends AbstractRedisIntegrationTest {
     }
 
     @Test
+    @WithMockUser(username = "patient.self-harm-crisis@example.com", roles = "PATIENT")
+    void selfHarmMessageGetsTheCrisisCardAndMarker() throws Exception {
+        // A self-harm message must not read like a physical emergency: the
+        // canned answer is the dedicated crisis wording and the
+        // routingReason marker tells clients to render the crisis card —
+        // and it must survive a history reload (toMessage re-derives it
+        // from the stored request message).
+        User patient = createUser("patient.self-harm-crisis@example.com");
+        createPatientProfile(patient, "0901002115", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversation.getId() + "/messages")
+                .header("Idempotency-Key", "self-harm-crisis-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Tôi muốn chết\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.routingReason").value("self_harm_crisis"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("tin tưởng")));
+
+        verify(aiService, never()).retrieveChat(any());
+        verify(aiService, never()).generateChat(any());
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+
+        mockMvc.perform(get("/api/v1/ai/conversations/" + conversation.getId() + "/messages"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[1].safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.content[1].routingReason").value("self_harm_crisis"));
+
+        // A physical emergency keeps the generic card — no crisis marker.
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversation.getId() + "/messages")
+                .header("Idempotency-Key", "physical-emergency-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"Tôi đang đau ngực dữ dội và khó thở\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.routingReason").value("safety_response"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")));
+    }
+
+    @Test
+    @WithMockUser(username = "patient.self-harm-upstream@example.com", roles = "PATIENT")
+    void upstreamSelfHarmMarkerGetsTheCrisisCard() throws Exception {
+        // The AI lexicon catches obfuscated self-harm phrasings the local cue
+        // has not catalogued (leet "t0i mu0n ch3t" misses every local
+        // pattern). When retrieve escalates with the self_harm_crisis marker
+        // the reply must still get the dedicated crisis wording — never the
+        // physical-emergency script.
+        User patient = createUser("patient.self-harm-upstream@example.com");
+        createPatientProfile(patient, "0901002116", 3);
+        AiConversation conversation = createConversation(
+            patient, false, OffsetDateTime.now(ZoneOffset.UTC).plusDays(90));
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "safety_action", "EMERGENCY",
+            "routing_reason", "self_harm_crisis"));
+
+        mockMvc.perform(post("/api/v1/ai/conversations/" + conversation.getId() + "/messages")
+                .header("Idempotency-Key", "self-harm-upstream-0001")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"content\":\"t0i mu0n ch3t\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.assistantMessage.safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.assistantMessage.routingReason").value("self_harm_crisis"))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("115")))
+            .andExpect(jsonPath("$.assistantMessage.content").value(
+                org.hamcrest.Matchers.containsString("tin tưởng")));
+
+        // The upstream marker is not persisted, but the canned crisis body
+        // is — reload must re-derive the same card from the stored answer,
+        // not collapse it into the generic emergency card over crisis text.
+        mockMvc.perform(get("/api/v1/ai/conversations/" + conversation.getId() + "/messages"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[1].safetyAction").value("EMERGENCY"))
+            .andExpect(jsonPath("$.content[1].routingReason").value("self_harm_crisis"));
+
+        verify(aiService, never()).generateChat(any());
+        verify(aiService, never()).generateChatStream(any(), any(), any());
+        assertThat(creditTransactionCount(patient.getId(), "AI_CHAT_USAGE")).isZero();
+    }
+
+    @Test
     @WithMockUser(username = "patient.crisis-stale-consent@example.com", roles = "PATIENT")
     void emergencyMessageStillAnswersOnStaleConsent() throws Exception {
         // Same ordering for the consent gate: a stale consent version must not

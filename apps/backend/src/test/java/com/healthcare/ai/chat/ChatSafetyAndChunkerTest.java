@@ -430,4 +430,63 @@ class ChatSafetyAndChunkerTest {
                 .isFalse();
         }
     }
+
+    @Test
+    void selfHarmCueSelectsTheCrisisWording() {
+        // The cue chooses the dedicated crisis card — every positive is also
+        // an emergency, and every "từ từ"/"tư vấn" lookalike must stay out
+        // of the self-harm lane even though detection is unaffected either
+        // way (this selects wording, it never downgrades).
+        for (String crisis : List.of(
+            "Tôi muốn chết",
+            "tôi đang muốn chết",
+            "tôi không muốn sống nữa",
+            "tôi muốn tự tử",
+            "tôi đang nghĩ đến việc tự tử",
+            "có ý định tự tử",
+            "tôi muốn tự sát",
+            "want to die",
+            "tôi mệt muốn chết quá",
+            // Joined/evasive typings the squashed pass covers.
+            "toimuontutu",
+            "dangtutu",
+            "muonchet",
+            "khongmuonsongnua")) {
+            assertThat(ChatMedicalSafety.containsSelfHarmCue(crisis))
+                .as("self-harm phrasing selects crisis wording: %s", crisis)
+                .isTrue();
+            assertThat(ChatMedicalSafety.containsEmergencyInputCue(crisis))
+                .as("self-harm is still an emergency: %s", crisis)
+                .isTrue();
+        }
+        // Physical emergencies are EMERGENCY but not self-harm — they keep
+        // the generic acute card.
+        for (String physical : List.of(
+            "đau ngực dữ dội",
+            "bé co giật do sốt cao",
+            "khó thở",
+            "tôi bị ngất",
+            "tử vong",
+            "từ vong")) {
+            assertThat(ChatMedicalSafety.containsEmergencyInputCue(physical))
+                .as("physical cue stays emergency: %s", physical)
+                .isTrue();
+            assertThat(ChatMedicalSafety.containsSelfHarmCue(physical))
+                .as("physical cue stays out of the crisis lane: %s", physical)
+                .isFalse();
+        }
+        // Folded-lookalike benign phrases stay out of both lanes.
+        for (String benign : List.of(
+            "tôi sẽ đi từ từ đến bệnh viện",
+            "nghỉ ngơi từ từ",
+            "muốn tư vấn",
+            "khách sạn có giặt ủi không",
+            "wifi bị ngắt")) {
+            assertThat(ChatMedicalSafety.containsSelfHarmCue(benign))
+                .as("benign phrasing stays non-crisis: %s", benign)
+                .isFalse();
+        }
+        assertThat(ChatMedicalSafety.containsSelfHarmCue(null)).isFalse();
+        assertThat(ChatMedicalSafety.containsSelfHarmCue("   ")).isFalse();
+    }
 }

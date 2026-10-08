@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from app import emergency_terms
 from app.emergency_terms import consult_frame_present, emergency_hit
 from app.llm import (
     SAFETY_REFUSAL_ANSWERS,
@@ -95,14 +96,10 @@ UNDER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("burn-extensive", "bỏng rộng"),
     ("burn-full-thickness", "bỏng toàn thân"),
     ("burn-face", "bỏng ở mặt"),
-    # Joined-syllable self-harm typing, which only squashed matching reaches.
-    ("self-harm-joined", "chetdi"),
-    ("self-harm-spaced-joined", "c h e t d i"),
     # Wukong wave-14 parity merge — terms the Java/BFF cues already fired
     # while this engine stayed quiet (two-way lexicon-membership gap).
     ("english-not-breathing", "not breathing"),
     ("english-loc", "loss of consciousness"),
-    ("self-harm-tusat-joined", "tusat"),
     ("emergency-room", "bà tôi cần cấp cứu"),
     ("stroke-weakness-half", "ông tôi bị yếu nửa người"),
     # Acid-attack compounds carry the "axit" recall after bare "axit" was
@@ -112,6 +109,20 @@ UNDER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("acid-ingest", "trẻ nuốt axit"),
     ("acid-burn", "bỏng axit trên tay"),
     ("acid-eye", "axit vào mắt rồi"),
+)
+
+# Self-harm statements escalate like every other crisis, but they also carry
+# the dedicated routing marker so the reply and the client card speak to the
+# crisis the visitor actually named — the generic "triệu chứng" script answers
+# a different message.
+SELF_HARM_PRESENTATIONS: tuple[tuple[str, str], ...] = (
+    ("direct-intent", "tôi muốn chết"),
+    ("suicide-verb", "tôi muốn tự tử"),
+    # Joined-syllable typing only squashed matching reaches.
+    ("self-harm-joined", "chetdi"),
+    ("self-harm-spaced-joined", "c h e t d i"),
+    ("self-harm-tusat-joined", "tusat"),
+    ("english-want-to-die", "I want to die"),
 )
 
 # Presentations that must stay silent. The first block is the audited
@@ -184,6 +195,35 @@ def test_audited_emergency_presentation_escalates(label: str, message: str) -> N
     assert response.cost_tier == "local_free"
     assert response.routing_reason == "safety_guardrail_shortcircuit"
     assert "115" in response.answer
+
+
+@pytest.mark.parametrize(
+    ("label", "message"),
+    SELF_HARM_PRESENTATIONS,
+    ids=[label for label, _ in SELF_HARM_PRESENTATIONS],
+)
+def test_self_harm_presentation_gets_dedicated_crisis_reply(label: str, message: str) -> None:
+    """Self-harm still escalates, and carries the marker the client keys on."""
+
+    assert _crisis_detected(_normalize_sensitive_text(message)) is True
+    variants = _policy_variants(_normalize_sensitive_text(message))
+    assert emergency_terms.self_harm_hit(variants) is True
+
+    response = chat_safety_response(message)
+    assert response is not None
+    assert response.safety_action == ChatSafetyAction.EMERGENCY
+    assert response.cost_tier == "local_free"
+    assert response.routing_reason == "self_harm_crisis"
+    assert "115" in response.answer
+
+
+def test_physical_crisis_does_not_look_like_self_harm() -> None:
+    """The dedicated marker must not bleed into ordinary emergencies."""
+
+    for message in ("đau ngực", "không thở được", "chảy máu không ngừng", "đột quỵ"):
+        variants = _policy_variants(_normalize_sensitive_text(message))
+        assert _crisis_detected(_normalize_sensitive_text(message)) is True
+        assert emergency_terms.self_harm_hit(variants) is False
 
 
 @pytest.mark.parametrize(

@@ -779,7 +779,7 @@ public class AiConversationService {
 
         String safety = stringValue(retrieved.get("safety_action"));
         if (safety != null && !"ANSWER".equals(safety)) {
-            return safetyResponse(mode, safety, content);
+            return safetyResponse(mode, safety, content, stringValue(retrieved.get("routing_reason")));
         }
         long authorizationStartedAt = System.nanoTime();
         List<AiChatSourceResolver.ResolvedSource> authorized;
@@ -1877,12 +1877,42 @@ public class AiConversationService {
         return new TriageSummary(urgency, specialty);
     }
 
+    /**
+     * The dedicated self-harm crisis reply. Persisted verbatim on the
+     * assistant message, so {@code toMessage} can re-derive the
+     * {@code self_harm_crisis} marker on history reload even for phrasings
+     * only the upstream AI lexicon caught (its routing_reason is not
+     * persisted). Byte-identical to the ai-service and BFF canned copies.
+     */
+    private static final String SELF_HARM_CRISIS_ANSWER =
+        "Nghe bạn nói vậy tôi rất lo cho bạn. Nếu bạn đang có ý nghĩ tự làm tổn thương mình, "
+            + "hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất — đừng ở một mình, hãy nói với "
+            + "một người bạn tin tưởng. Tôi không tự động gọi thay bạn.";
+
     private SanitizedAiResponse safetyResponse(ChatMode mode, String rawSafety, String userContent) {
+        return safetyResponse(mode, rawSafety, userContent, null);
+    }
+
+    private SanitizedAiResponse safetyResponse(
+            ChatMode mode, String rawSafety, String userContent, String upstreamRoutingReason) {
         ChatSafetyAction action;
         try { action = ChatSafetyAction.valueOf(rawSafety); }
         catch (IllegalArgumentException ex) { throw invalidAiResponse(); }
+        // A self-harm message gets its own wording: the generic "dangerous
+        // signs" copy reads as a physical-emergency script and missed what
+        // the patient actually said. The routingReason marker lets clients
+        // render the dedicated crisis card (and survives history reload via
+        // the toMessage re-derivation on the stored request message). The
+        // upstream marker is also honoured — the AI lexicon catches obfuscated
+        // phrasings this cue has not catalogued, and an EMERGENCY the model
+        // labelled self-harm is never downgraded to the generic script.
+        boolean selfHarm = action == ChatSafetyAction.EMERGENCY
+            && (ChatMedicalSafety.containsSelfHarmCue(userContent)
+                || "self_harm_crisis".equals(upstreamRoutingReason));
         String answer = switch (action) {
-            case EMERGENCY -> "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. Tôi không tự động gọi thay bạn.";
+            case EMERGENCY -> selfHarm
+                ? SELF_HARM_CRISIS_ANSWER
+                : "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. Tôi không tự động gọi thay bạn.";
             case REFUSE -> isIdentityOrDataRequest(userContent)
                 ? "Tôi không thể tìm kiếm hoặc chia sẻ thông tin nhận dạng, hồ sơ bệnh án hay dữ liệu cá nhân của bất kỳ ai. Nếu bạn cần trích sao hồ sơ của chính mình, hãy liên hệ bộ phận Quản lý hồ sơ của bệnh viện qua mục Liên hệ."
                 : "Tôi không thể chẩn đoán hoặc kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.";
@@ -1900,7 +1930,7 @@ public class AiConversationService {
             "CURRENT",
             List.of(),
             "local_free",
-            "safety_response"
+            selfHarm ? "self_harm_crisis" : "safety_response"
         );
     }
 
@@ -2702,6 +2732,17 @@ public class AiConversationService {
         List<UsedSourceSummary> usedSources = stale
             ? List.of()
             : usedSourceSummaries(displaySources);
+        // The persisted message does not store routingReason, so the crisis
+        // marker is re-derived two ways: the local cue on the stored request
+        // (covers the deterministic gate) and the canned crisis body itself
+        // (covers phrasings only the upstream AI lexicon caught — its marker
+        // is honoured live but not persisted, so the stored answer is the
+        // only surviving evidence). A history reload renders the same card
+        // the live exchange did.
+        String routingReason = value.getSafetyAction() == ChatSafetyAction.EMERGENCY
+            && (ChatMedicalSafety.containsSelfHarmCue(requestContent)
+                || SELF_HARM_CRISIS_ANSWER.equals(value.getContent()))
+            ? "self_harm_crisis" : null;
         return new MessageResponse(
             value.getId(),
             value.getRole().name(),
@@ -2719,7 +2760,7 @@ public class AiConversationService {
             sourceStatus,
             usedSources,
             null,
-            null,
+            routingReason,
             value.getCreatedAt(),
             value.getCompletedAt()
         );

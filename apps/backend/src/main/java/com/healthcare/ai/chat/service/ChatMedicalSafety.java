@@ -192,6 +192,25 @@ public final class ChatMedicalSafety {
         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
     );
     /**
+     * Self-harm subset of {@link #EMERGENCY_INPUT_CUE}: the unambiguous crisis
+     * phrases plus the volition-anchored "tu tu" alternation — without the
+     * physical tier-1 terms, and without "tu vong"/"tuu vong" (tử vong is a
+     * death report, not self-harm intent). Detection keeps mapping every one
+     * of these to EMERGENCY; this cue only selects the dedicated crisis
+     * wording and card, so over-inclusion stays safe-side.
+     */
+    private static final Pattern SELF_HARM_INPUT_CUE = Pattern.compile(
+        "(?<![a-z0-9])(?:suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
+            + "want\\s+to\\s+die|self\\s+harm|"
+            + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+            + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+            + "|co\\s+y\\s+(?:dinh\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
+            + "khong\\s+muon\\s+song|"
+            + "tutu(?![conjuy]|th)[a-z0-9]*|tusat|muonchet|khongmuonsong)"
+            + "(?![a-z0-9])",
+        Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE
+    );
+    /**
      * Squashed-stream emergency nets mirroring ai-service
      * emergency_terms._squashed_tier1_hit/_squashed_self_harm_hit: the
      * normalized message is fully squashed (separators removed) and each
@@ -394,6 +413,22 @@ public final class ChatMedicalSafety {
         // token-start lookbehind cannot see (Wukong wave-12 F2/F3).
         String squashed = normalized.replace(" ", "");
         return squashedTier1Hit(squashed) || squashedSelfHarmHit(squashed);
+    }
+
+    /**
+     * True when the message is specifically a self-harm crisis. Same bounded
+     * window and normalization as {@link #containsEmergencyInputCue}; the
+     * caller uses it to choose the dedicated crisis wording — every input
+     * this accepts is also an emergency, never a downgrade.
+     */
+    public static boolean containsSelfHarmCue(String input) {
+        String window = input != null && input.length() > EMERGENCY_SCAN_LIMIT
+            ? input.substring(0, EMERGENCY_SCAN_LIMIT)
+            : input;
+        String normalized = normalizeInput(window);
+        if (normalized == null) return false;
+        if (SELF_HARM_INPUT_CUE.matcher(normalized).find()) return true;
+        return squashedSelfHarmHit(normalized.replace(" ", ""));
     }
 
     /**

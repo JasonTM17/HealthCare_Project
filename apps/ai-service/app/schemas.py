@@ -224,6 +224,10 @@ class ChatRetrieveResponse(BaseModel):
     relevance_threshold: float = Field(..., ge=0, le=1)
     safety_action: ChatSafetyAction = ChatSafetyAction.ANSWER
     provenance: ProviderProvenance = "local_provider"
+    # Additive: carries the safety marker (e.g. self_harm_crisis) so the
+    # backend can pick the dedicated crisis wording even for phrasings its
+    # own lexicon has not catalogued.
+    routing_reason: str | None = None
 
 
 class ChatGenerateRequest(BaseModel):

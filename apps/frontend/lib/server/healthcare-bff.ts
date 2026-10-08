@@ -397,6 +397,22 @@ function squashedSelfHarmHit(squashed: string): boolean {
     && !squashed.startsWith("th", 4);
 }
 
+// Self-harm subset of EMERGENCY_FALLBACK_PATTERN — mirrors the backend
+// SELF_HARM_INPUT_CUE: same volition-anchored "tu tu" alternation and
+// unambiguous crisis phrases, minus physical tier-1 terms and
+// "tu vong"/"tuu vong" (tử vong is a death report, not self-harm intent).
+// Only selects the crisis wording; detection stays EMERGENCY either way.
+const SELF_HARM_FALLBACK_PATTERN = new RegExp(
+  "(?<![a-z0-9])(?:suicide|suicidal|kill\\s+myself|end\\s+my\\s+life|"
+    + "want\\s+to\\s+die|self\\s+harm|"
+    + "(?:(?:muon|dinh|tinh|quyet|se|sap|dang)\\s+(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+    + "|nghi\\s+(?!ngoi\\b)(?:den\\s+(?:viec\\s+)?|ve\\s+|toi\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu"
+    + "|co\\s+y\\s+(?:dinh\\s+)?(?:(?:tuu|roi)\\s+)*tu\\s+tu)|tu\\s+sat|muon\\s+chet|"
+    + "khong\\s+muon\\s+song|tutu(?![conjuy]|th)[a-z0-9]*|"
+    + "tusat|muonchet|khongmuonsong)(?![a-z0-9])",
+  "iu"
+);
+
 function likelyEmergencyFallback(message: string): boolean {
   // Mirrors ChatMedicalSafety.normalizeInput + the bounded scan: NFD-fold,
   // strip combining marks, đ→d, lowercase, punctuation→space — and only the
@@ -420,18 +436,39 @@ function likelyEmergencyFallback(message: string): boolean {
   return squashedTier1Hit(squashed) || squashedSelfHarmHit(squashed);
 }
 
+function likelySelfHarmFallback(message: string): boolean {
+  // Mirrors ChatMedicalSafety.containsSelfHarmCue — the same bounded window
+  // and NFD-fold normalization the emergency lane already applies.
+  const normalized = message.slice(0, 4096).normalize("NFD")
+    .toLowerCase()
+    .replace(/tu\u031B\u0300/gu, "tuu")
+    .replace(/\p{M}+/gu, "")
+    .replace(/[đĐðÐ]/gu, "d")
+    .replace(/[^a-z0-9]+/gu, " ")
+    .trim();
+  if (SELF_HARM_FALLBACK_PATTERN.test(normalized)) return true;
+  return squashedSelfHarmHit(normalized.replace(/[^a-z0-9]+/gu, ""));
+}
+
 function publicAiChatFallbackResponse(message = ""): Response {
   const emergency = likelyEmergencyFallback(message);
+  // Self-harm gets the dedicated crisis wording the Spring lane uses —
+  // the generic "triệu chứng" script reads as a physical emergency and
+  // missed what the visitor actually said.
+  const selfHarm = emergency && likelySelfHarmFallback(message);
   return Response.json(
     {
       answer: emergency
-        ? "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI."
+        ? (selfHarm
+          ? "Nghe bạn nói vậy tôi rất lo cho bạn. Nếu bạn đang có ý nghĩ tự làm tổn thương mình, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất — đừng ở một mình, hãy nói với một người bạn tin tưởng. Tôi không tự động gọi thay bạn."
+          : "Triệu chứng bạn mô tả có thể cần được đánh giá khẩn cấp. Hãy gọi 115 hoặc đến cơ sở cấp cứu gần nhất ngay; không chờ trợ lý AI.")
         : `Tôi chưa có đủ thông tin đã xác thực để trả lời chính xác câu này. Bạn có thể thử: • Xem Chuyên khoa để chọn hướng khám • Đặt lịch khám trực tiếp • Gọi tổng đài ${PUBLIC_HOTLINE_DISPLAY} nếu cần hỗ trợ ngay.`,
       disclaimer: "Thông tin từ trợ lý AI chỉ mang tính tham khảo và không thay thế tư vấn, chẩn đoán hoặc điều trị của bác sĩ.",
       citations: [],
       provenance: "local_fallback",
       mode: "HOSPITAL_SUPPORT",
       safety_action: emergency ? "EMERGENCY" : "INSUFFICIENT_EVIDENCE",
+      routingReason: selfHarm ? "self_harm_crisis" : "public_bff_fallback",
       suggested_actions: emergency
         ? [{ kind: "CALL_EMERGENCY", label: "Gọi 115", href: "tel:115" }]
         : [

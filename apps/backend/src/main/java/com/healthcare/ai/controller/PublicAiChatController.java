@@ -338,7 +338,12 @@ public class PublicAiChatController {
         boundedProvenance(retrieved);
         String safetyAction = boundedSafetyAction(retrieved);
         if (!"ANSWER".equals(safetyAction)) {
-            return publicSafetyFallback(userMessage, safetyAction);
+            // Honor the upstream routing marker: a self-harm phrasing only
+            // the AI lexicon catches must not collapse back to the generic
+            // emergency card on this lane either.
+            return publicSafetyFallback(
+                userMessage, safetyAction, ChatMode.HEALTH_EDUCATION,
+                publicRoutingReason(retrieved));
         }
 
         List<AiChatSourceResolver.ResolvedSource> authorized;
@@ -874,9 +879,27 @@ public class PublicAiChatController {
             String userMessage,
             String safetyAction,
             ChatMode publicMode) {
+        return publicSafetyFallback(userMessage, safetyAction, publicMode, null);
+    }
+
+    private Map<String, Object> publicSafetyFallback(
+            String userMessage,
+            String safetyAction,
+            ChatMode publicMode,
+            String upstreamRoutingReason) {
+        // Same split as the authenticated lane: a self-harm message gets the
+        // dedicated crisis wording, not the physical-emergency script. The
+        // upstream marker is honoured too — a self-harm phrasing only the AI
+        // lexicon catches must not collapse back to the generic card.
+        boolean selfHarm = "EMERGENCY".equals(safetyAction)
+            && (ChatMedicalSafety.containsSelfHarmCue(userMessage)
+                || "self_harm_crisis".equals(upstreamRoutingReason));
         String answer = switch (safetyAction) {
-            case "EMERGENCY" ->
-                "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. "
+            case "EMERGENCY" -> selfHarm
+                ? "Nghe bạn nói vậy tôi rất lo cho bạn. Nếu bạn đang có ý nghĩ tự làm tổn thương mình, "
+                    + "hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất — đừng ở một mình, hãy nói với "
+                    + "một người bạn tin tưởng. Tôi không tự động gọi thay bạn."
+                : "Nếu bạn đang có dấu hiệu nguy hiểm, hãy gọi 115 ngay hoặc đến cơ sở y tế gần nhất. "
                     + "Tôi không tự động gọi thay bạn.";
             case "REFUSE" ->
                 "Tôi không thể chẩn đoán hoặc kê đơn. Bạn nên trao đổi trực tiếp với bác sĩ.";
@@ -911,7 +934,7 @@ public class PublicAiChatController {
             result.put("suggested_actions", List.of());
         }
         result.put("costTier", "local_free");
-        result.put("routingReason", "public_safety_guardrail");
+        result.put("routingReason", selfHarm ? "self_harm_crisis" : "public_safety_guardrail");
         return result;
     }
 

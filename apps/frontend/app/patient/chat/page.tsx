@@ -242,12 +242,28 @@ function MessageItem({
         </p>
       ) : null}
       {assistant && message.safetyAction === "EMERGENCY" ? (
+        // Self-harm carries its own card: the generic "dangerous signs"
+        // script answers a different message than the one the patient sent.
+        // The marker is the server-owned routingReason, re-derived on
+        // history reload so the card survives a refresh.
         <div aria-live="assertive" className={styles.emergencyMessage} role="alert">
-          <div className={styles.emergencyHeader}>
-            <UiIcon name="alert-triangle" size={17} />
-            <strong>Đây có thể là tình huống khẩn cấp.</strong>
-          </div>
-          <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
+          {message.routingReason === "self_harm_crisis" ? (
+            <>
+              <div className={styles.emergencyHeader}>
+                <UiIcon name="alert-triangle" size={17} />
+                <strong>Bạn không đơn độc trong lúc này.</strong>
+              </div>
+              <span>Nếu bạn đang nghĩ đến việc làm tổn thương bản thân, hãy gọi 115 hoặc đến cơ sở y tế gần nhất ngay — đừng ở một mình, hãy nói với một người bạn tin tưởng.</span>
+            </>
+          ) : (
+            <>
+              <div className={styles.emergencyHeader}>
+                <UiIcon name="alert-triangle" size={17} />
+                <strong>Đây có thể là tình huống khẩn cấp.</strong>
+              </div>
+              <span>Không chờ trợ lý phản hồi; gọi 115 hoặc đến khoa cấp cứu gần nhất.</span>
+            </>
+          )}
           <div className={styles.emergencyActions}>
             <a href="tel:115">Gọi 115</a>
             <Link className={styles.emergencyBranchLink} href="/branches">Cơ sở cấp cứu gần nhất</Link>
@@ -935,6 +951,18 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
       });
       if (!isCurrentSendRequest()) return;
       if (options.clearDraftOnSuccess) setDraft("");
+      // The completed exchange can append a tall assistant card in one shot
+      // (safety short-circuits have no streamed deltas to keep the viewport
+      // pinned), so scrollHeight grows past the isNearBottom threshold while
+      // the reply is still the thing the patient is waiting for. Re-arm the
+      // force-scroll flag here — it was already consumed by the pending user
+      // bubble — or an EMERGENCY card's "Gọi 115" lands below the fold. Only
+      // re-arm while the patient is still pinned to the bottom, so a
+      // deliberate scroll-up during the in-flight wait keeps its position.
+      const completedViewport = messageViewportRef.current;
+      if (completedViewport && isNearBottom(completedViewport)) {
+        shouldScrollToLatestRef.current = true;
+      }
       setMessages((current) => mergeMessages(
         current.filter((message) => message.id !== pendingMessageId),
         [exchange.userMessage, exchange.assistantMessage],
