@@ -120,8 +120,9 @@ public class AppointmentController {
             HttpServletRequest httpRequest) {
         String reason = request != null ? request.reason() : null;
         String phone = request != null ? request.phone() : null;
+        boolean pendingOnly = request != null && Boolean.TRUE.equals(request.pendingOnly());
         bookingRateLimiter.check("cancel", httpRequest, bookingCode);
-        return ResponseEntity.ok(bookingService.cancelAppointment(bookingCode, reason, phone, userDetails));
+        return ResponseEntity.ok(bookingService.cancelAppointment(bookingCode, reason, phone, userDetails, pendingOnly));
     }
 
     @Operation(summary = "Dời lịch khám sang khung giờ khả dụng khác", description = "Thay đổi ngày giờ hoặc bác sĩ khám cho lịch hẹn đã xác nhận")
