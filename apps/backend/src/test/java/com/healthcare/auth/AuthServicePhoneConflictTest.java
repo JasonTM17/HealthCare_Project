@@ -120,7 +120,7 @@ class AuthServicePhoneConflictTest {
     void phoneBoundToAnotherAccountThrowsOwnedByAccountCode() {
         PatientProfile bound = unboundProfile(OWNER_PHONE, "owner@example.com");
         bound.setUserId(UUID.randomUUID());
-        when(userRepository.existsByEmail("newcomer@example.com")).thenReturn(false);
+        when(userRepository.findByEmail("newcomer@example.com")).thenReturn(Optional.empty());
         when(patientProfileRepository.findByPhone(OWNER_PHONE)).thenReturn(Optional.of(bound));
 
         assertThatThrownBy(() -> service().register(request("newcomer@example.com", OWNER_PHONE)))
@@ -138,7 +138,7 @@ class AuthServicePhoneConflictTest {
 
     @Test
     void guestBookingPhoneWithMismatchedEmailThrowsBookingEmailCode() {
-        when(userRepository.existsByEmail("wrong@example.com")).thenReturn(false);
+        when(userRepository.findByEmail("wrong@example.com")).thenReturn(Optional.empty());
         when(patientProfileRepository.findByPhone(GUEST_PHONE))
             .thenReturn(Optional.of(unboundProfile(GUEST_PHONE, "guest.booking@example.com")));
 
@@ -160,7 +160,7 @@ class AuthServicePhoneConflictTest {
      */
     @Test
     void matchingBookingEmailStillReusesAndBindsProfile() {
-        when(userRepository.existsByEmail("guest.booking@example.com")).thenReturn(false);
+        when(userRepository.findByEmail("guest.booking@example.com")).thenReturn(Optional.empty());
         when(patientProfileRepository.findByPhone(GUEST_PHONE))
             .thenReturn(Optional.of(unboundProfile(GUEST_PHONE, "guest.booking@example.com")));
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
@@ -182,5 +182,68 @@ class AuthServicePhoneConflictTest {
             saved.getUserId() != null
                 && GUEST_PHONE.equals(saved.getPhone())
                 && "guest.booking@example.com".equals(saved.getEmail())));
+    }
+
+    private User existingAccount(String email, boolean verified, String status) {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail(email);
+        user.setEmailVerified(verified);
+        user.setStatus(status);
+        return user;
+    }
+
+    /**
+     * Regression: a pending account used to dead-end its owner — re-register
+     * returned 409 and login required verification, so a lost code locked the
+     * email forever. Re-register now re-issues the code and returns the same
+     * pending response instead of mutating or replacing the account.
+     */
+    @Test
+    void pendingAccountReRegisterResendsCodeWithoutTouchingAccount() {
+        User pending = existingAccount("pending@example.com", false, "ACTIVE");
+        when(userRepository.findByEmail("pending@example.com")).thenReturn(Optional.of(pending));
+        when(authOtpService.ttlSeconds()).thenReturn(600L);
+        when(authOtpService.resendCooldownSeconds()).thenReturn(60L);
+
+        RegistrationPendingResponse response =
+            service().register(request("pending@example.com", OWNER_PHONE));
+
+        assertThat(response.verificationRequired()).isTrue();
+        assertThat(response.email()).isEqualTo("pending@example.com");
+        // Shares the resend endpoint's rate bucket rather than opening a
+        // second verification-issue channel per email.
+        verify(authOtpService).resendVerification("pending@example.com", null);
+        verify(userRepository, never()).save(any(User.class));
+        verify(patientProfileRepository, never()).save(any(PatientProfile.class));
+        verify(patientProfileRepository, never()).findByPhone(anyString());
+    }
+
+    @Test
+    void verifiedAccountStillThrowsAlreadyRegistered() {
+        User verified = existingAccount("taken@example.com", true, "ACTIVE");
+        when(userRepository.findByEmail("taken@example.com")).thenReturn(Optional.of(verified));
+
+        assertThatThrownBy(() -> service().register(request("taken@example.com", GUEST_PHONE)))
+            .isInstanceOfSatisfying(BusinessException.class, ex -> {
+                assertThat(ex.getStatus()).isEqualTo(409);
+                assertThat(ex.getCode()).isEqualTo(ErrorCodes.EMAIL_ALREADY_REGISTERED);
+            });
+
+        verify(authOtpService, never()).resendVerification(any(), any());
+    }
+
+    @Test
+    void suspendedUnverifiedAccountDoesNotReceiveResend() {
+        User suspended = existingAccount("suspended@example.com", false, "SUSPENDED");
+        when(userRepository.findByEmail("suspended@example.com")).thenReturn(Optional.of(suspended));
+
+        assertThatThrownBy(() -> service().register(request("suspended@example.com", GUEST_PHONE)))
+            .isInstanceOfSatisfying(BusinessException.class, ex -> {
+                assertThat(ex.getStatus()).isEqualTo(409);
+                assertThat(ex.getCode()).isEqualTo(ErrorCodes.EMAIL_ALREADY_REGISTERED);
+            });
+
+        verify(authOtpService, never()).resendVerification(any(), any());
     }
 }

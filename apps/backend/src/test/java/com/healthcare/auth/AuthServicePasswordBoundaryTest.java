@@ -141,7 +141,7 @@ class AuthServicePasswordBoundaryTest {
 
     @Test
     void registerAccepts72ByteAsciiPasswordAtTheBoundary() {
-        when(userRepository.existsByEmail("boundary@example.test")).thenReturn(false);
+        when(userRepository.findByEmail("boundary@example.test")).thenReturn(Optional.empty());
         when(roleRepository.findByCode("PATIENT")).thenReturn(Optional.of(new Role()));
         when(passwordEncoder.encode(PASSWORD_72_ASCII)).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {
@@ -160,7 +160,7 @@ class AuthServicePasswordBoundaryTest {
 
     @Test
     void registerAccepts72ByteUtf8PasswordAtTheBoundary() {
-        when(userRepository.existsByEmail("boundary@example.test")).thenReturn(false);
+        when(userRepository.findByEmail("boundary@example.test")).thenReturn(Optional.empty());
         when(roleRepository.findByCode("PATIENT")).thenReturn(Optional.of(new Role()));
         when(passwordEncoder.encode(PASSWORD_72_UTF8)).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> {

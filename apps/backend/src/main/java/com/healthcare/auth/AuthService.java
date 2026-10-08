@@ -125,7 +125,26 @@ public class AuthService {
         }
         String normalizedEmail = request.email().toLowerCase().trim();
 
-        if (userRepository.existsByEmail(normalizedEmail)) {
+        User existingUser = userRepository.findByEmail(normalizedEmail).orElse(null);
+        if (existingUser != null) {
+            // A still-unverified account must not dead-end its owner: the
+            // mailbox receives a fresh code and the caller gets the same
+            // pending response a first-time registration returns. Account
+            // fields are never touched on re-register, so knowing the email
+            // only lets an outsider make the mailbox receive a code.
+            if (!existingUser.isEmailVerified() && "ACTIVE".equals(existingUser.getStatus())) {
+                // Shares the verification-resend rate bucket with the resend
+                // endpoint so this path does not double the per-email send
+                // ceiling; it re-checks eligibility under the user lock.
+                authOtpService.resendVerification(normalizedEmail, httpRequest);
+                return new RegistrationPendingResponse(
+                    existingUser.getEmail(),
+                    true,
+                    "If the account can receive email, a verification code has been sent.",
+                    authOtpService.ttlSeconds(),
+                    authOtpService.resendCooldownSeconds()
+                );
+            }
             throw new DuplicateResourceException(
                 ErrorCodes.EMAIL_ALREADY_REGISTERED,
                 "Email already registered"
