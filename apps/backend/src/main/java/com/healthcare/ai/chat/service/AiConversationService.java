@@ -838,17 +838,23 @@ public class AiConversationService {
     }
 
     /**
-     * Answer a source-less general hospital-support question with a bounded
-     * remote answer. Patient chat normally requires at least one authorized
-     * source so Spring can revalidate every citation, but a general wellness
-     * question ("Uống bao nhiêu nước mỗi ngày?") has no catalog row to cite,
-     * and the public surface already answers that lane under the same output
-     * gates. This path mirrors the public condition and never widens it:
+     * Answer a source-less question with a bounded remote answer when the
+     * retrieved candidates authorized nothing. Patient chat normally requires
+     * at least one authorized source so Spring can revalidate every citation,
+     * but a general wellness question ("Uống bao nhiêu nước mỗi ngày?") or a
+     * clinical-education/triage question without an approved catalog row has
+     * nothing to cite, and the public surface already answers that lane under
+     * the same output gates. This path mirrors the public condition and never
+     * widens it:
      *
      * <ul>
-     *   <li>only {@code HOSPITAL_SUPPORT} — clinical modes stay source-bound;</li>
-     *   <li>only intent {@code GENERAL} — catalog, booking, education and
-     *       navigation questions keep their deterministic fallback;</li>
+     *   <li>{@code HOSPITAL_SUPPORT} only for intent {@code GENERAL} —
+     *       catalog, booking, education and navigation questions keep their
+     *       deterministic fallback;</li>
+     *   <li>{@code HEALTH_EDUCATION} and {@code SYMPTOM_TRIAGE} when no
+     *       approved source authorized — the ai-service still applies the
+     *       shared clinical floor, so diagnosis, prescription and treatment
+     *       asks continue to fail closed;</li>
      *   <li>only when remote providers are enabled for this deployment, and
      *       only a {@code remote_provider} answer is ever displayed. A local
      *       fallback or an insufficient upstream answer returns {@code null},
@@ -869,10 +875,19 @@ public class AiConversationService {
             List<Map<String, String>> turns,
             boolean chunkedDeliveryGeneration,
             ChatRequestCancellation cancellation) {
-        if (mode != ChatMode.HOSPITAL_SUPPORT
-                || !remoteProviderEnabled
-                || ChatSuggestedActionResolver.classify(content)
-                    != ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL) {
+        // Hospital-support keeps its GENERAL-intent gate so catalog, booking,
+        // education and navigation questions retain their deterministic
+        // fallback. Clinical modes carry no intent classifier; the ai-service
+        // re-applies the shared clinical floor (treatment/diagnosis/
+        // medication asks stay denied) before any remote call is made, and
+        // the answer still passes through sanitize below with an empty
+        // authorized list.
+        boolean supportLane = mode == ChatMode.HOSPITAL_SUPPORT
+                && ChatSuggestedActionResolver.classify(content)
+                    == ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL;
+        boolean clinicalLane = mode == ChatMode.HEALTH_EDUCATION
+                || mode == ChatMode.SYMPTOM_TRIAGE;
+        if (!(supportLane || clinicalLane) || !remoteProviderEnabled) {
             return null;
         }
         Map<String, Object> generation = new LinkedHashMap<>();
@@ -2368,28 +2383,6 @@ public class AiConversationService {
      * complete deterministic answer — nothing a provider round-trip could
      * improve — so it reports ANSWER with the free local tier.
      */
-    private SanitizedAiResponse preparationDeterministicResponse(String content) {
-        String answer =
-            "Trước khi đi khám, bạn nên mang theo giấy tờ tùy thân (CCCD/CMND), "
-                + "thẻ BHYT nếu có, các kết quả xét nghiệm hoặc chẩn đoán hình ảnh gần nhất "
-                + "và danh sách thuốc đang sử dụng. Nên đến sớm khoảng 15–30 phút để làm thủ tục. "
-                + "Một số xét nghiệm hoặc dịch vụ có yêu cầu riêng (ví dụ nhịn ăn) — "
-                + "bạn nên xác nhận trước khi đặt lịch hoặc gọi cho cơ sở.";
-        return new SanitizedAiResponse(
-            answer,
-            SAFE_DISCLAIMER,
-            "local_fallback",
-            List.of(),
-            ChatSafetyAction.ANSWER,
-            null,
-            ChatSuggestedActionResolver.hospitalSupportFallback(content),
-            "CURRENT",
-            List.of(),
-            "local_free",
-            "preparation_guidance"
-        );
-    }
-
     /**
      * Resolve explicit branch identities before the semantic index is asked
      * to generate.  Numeric branch labels are especially prone to nearby-row
@@ -2402,18 +2395,18 @@ public class AiConversationService {
 
         ChatSuggestedActionResolver.HospitalSupportIntent supportIntent =
             ChatSuggestedActionResolver.classify(content);
-        if ((supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY
-                    || supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION)
+        // Preparation questions ("nhịn ăn trước xét nghiệm") deliberately
+        // reach retrieval now: the governed article/FAQ corpus answers them
+        // with citations, and when nothing authorizes the canned checklist
+        // still lands via supportAwareFallback — the deterministic copy is
+        // the floor, not the ceiling.
+        if (supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY
                 && !ChatMedicalSafety.containsProtectedInputCue(content)) {
             // Amenity questions resolve against the live amenities JSON —
             // the RAG copy strips serialized JSON from excerpts, so retrieval
-            // cannot answer them faithfully anyway.  Preparation questions
-            // get the server-owned checklist: a complete deterministic
-            // answer that cannot hallucinate.
+            // cannot answer them faithfully anyway.
             try {
-                return supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY
-                    ? amenityDeterministicResponse(content)
-                    : preparationDeterministicResponse(content);
+                return amenityDeterministicResponse(content);
             } catch (RuntimeException ex) {
                 return null;
             }

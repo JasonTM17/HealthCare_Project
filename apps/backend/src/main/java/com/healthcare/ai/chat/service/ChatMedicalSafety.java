@@ -155,6 +155,13 @@ public final class ChatMedicalSafety {
             // replaced over-firing bare "axit" ("axit uric/folic" stays
             // quiet). "do axit" is deliberately absent — it folds "độ axit".
             + "mat\\s+y\\s+thuc|vo\\s+oi|hon\\s+me|de\\s+non|coma|bo\\s+bu|"
+            // Stroke speech signs moved out of the squashed net:
+            // squashed "noikho"/"noikhongro" sit inside every "...nội
+            // không..." question ("ở Hà Nội không"). Spaced boundary forms
+            // keep the recall — "nói khó" still escalates while "nói không"
+            // fails the trailing (?!...) boundary. "noi khong ro" stays out:
+            // even spaced it collides with "…nội không rõ".
+            + "noi\\s+kho|noi\\s+ngong|khong\\s+noi\\s+duoc|"
             + "tat\\s+axit|tung\\s+axit|chem\\s+axit|phun\\s+axit|bong\\s+axit|"
             + "axit\\s+bong|nuot\\s+axit|axit\\s+vao\\s+mat|dotquy|taibien|capcuu|heartattack|cardiacarrest|chestpain|"
             + "shortnessofbreath|difficultybreathing|cantbreathe|cannotbreathe|notbreathing|"
@@ -238,7 +245,7 @@ public final class ChatMedicalSafety {
             + "matythuc|meomieng|miengbimeo|mohoilanh|moimeo|momatdotngot|"
             + "nangnguc|ngattho|ngatxiu|nghetho|nghettho|ngodoc|ngungtho|"
             + "ngungtim|nguyhiemtinhmang|nguykich|nhaubongnon|nhoimaucotim|"
-            + "nhoimautim|noikho|noikhongro|noingong|nonramau|"
+            + "nhoimautim|noingong|nonramau|"
             + "numbnessononeside|nuotaxit|overdose|overdosed|paraquat|pesticide|phanve|"
             + "phumoi|phunaxit|poisoned|poisoning|qualieu|qualieuthuoc|retrosternal|"
             + "sangiat|sapchet|sauxuonguc|saythai|seizure|severebleeding|"
