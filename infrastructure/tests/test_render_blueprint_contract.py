@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 115798dc (pending-registration resend +
-# self-harm crisis routing on top of the f35a54c9 backup-AI line).
+# release line, built from 3c86a730 (promotional credit floor on top of the
+# f35a54c9 backup-AI line).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:da612421e76c6f165ad13434ec97e7de84da540d9824e7f92cfac4cf4160085a"
+    "sha256:b0c1eae842d48ab14e1f4d80526fde1ce4630b583c710a4539d2ab0514c7fc34"
 )
 
 
