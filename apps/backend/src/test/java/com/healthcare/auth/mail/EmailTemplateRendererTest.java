@@ -17,7 +17,7 @@ class EmailTemplateRendererTest {
     void rendersEveryCodeOwnedTemplateWithSafeSubjectAndAccessibleMarkup() {
         for (EmailTemplateKey key : EmailTemplateKey.values()) {
             Map<String, String> variables = switch (key) {
-                case EMAIL_VERIFICATION, PASSWORD_RESET, BOOKING_OTP, BOOKING_VERIFICATION_OTP -> Map.of(
+                case EMAIL_VERIFICATION, GOOGLE_LINK, PASSWORD_RESET, BOOKING_OTP, BOOKING_VERIFICATION_OTP -> Map.of(
                     "code", "<123456>", "minutes", "10", "portalUrl", "https://portal.example.test/patient");
                 default -> Map.of("message", "<script>alert(1)</script>",
                     "portalUrl", "https://portal.example.test/patient");
