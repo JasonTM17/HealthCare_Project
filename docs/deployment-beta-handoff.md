@@ -215,3 +215,38 @@ Application source: `f78215e38ce34bac8cbb3fd5c7b68c1c62a5b16e` (includes Google 
 - Google client ID is configured consistently on Render/Vercel; GIS button and SDK load on production login/register. Real interactive Google authentication remains NOT_RUN. Verify Authorized JavaScript origins for both production hostnames and complete a real consent/sign-in journey before claiming end-to-end Google provider success. Client Secret is not required for this GIS ID-token flow and was not added to source or frontend.
 - Demo/test persona login remains enabled on the beta backend. Do not call this a fully locked-down non-demo production deployment; disabling demo access needs a separate coordinated configuration decision.
 - Security scanner self-match was repaired without changing accepted detection patterns or excluding files; regression fixtures confirm private-key/token/JWT detection. Hygiene CI PASS does not prove historical Git secret eradication.
+
+## Post-deploy verification — 2026-10-08 (backup backend + release wave f5ef9189)
+
+Application source: `f5ef918965d1b71f6eb5489eba773774d683ac85` (pendingOnly
+cancel guard, consistent Google sign-in button, care-rail `aria-current`,
+expanded Mon–Sun local seed schedules).
+
+- CI run `37720169724` on `f5ef9189` and run `37721475966` on pin commit
+  `7c926ade`: all six required jobs PASS. Image publication run `37720751750`:
+  PASS; backend digest `sha256:cad5ab83…`, AI digest `sha256:3430a30c…`.
+- Primary backend `srv-daigprh5efls73dfau00`: deploy
+  `dep-db3gh42j9qps73fi5ul0` LIVE on `sha256:cad5ab83…`, `/actuator/health` UP.
+- AI `srv-daigq6vqj5pc73a284l0`: deploy `dep-db3gh4lg1s2s73ac7gr0` LIVE on
+  `sha256:3430a30c…`, `/livez` 200.
+- **Backup backend `srv-db3gpdl9fdbs73dnstb0`** (`healthcare-backup-backend`,
+  `https://healthcare-backup-backend-oqv4.onrender.com`): created via Render
+  API on the same workspace as a clone of the primary — same pinned image
+  `sha256:cad5ab83…`, same 71 env vars (verbatim copy incl. BFF token), plan
+  free, region singapore, `autoDeploy=no`, deploy `dep-db3gpj5chlcc73ec1ob0`
+  LIVE, `/actuator/health` UP. Probes: anonymous patient API 401; public chat
+  without trusted BFF credential 401 (fail-closed, identical to primary).
+- Vercel Production now sets `BACKEND_BACKUP_URL` to the backup origin; the BFF
+  `resolveActiveBackendOrigin` failover engages when the primary returns
+  502/504/timeout. Workers (email outbox, reminders, hold sweeper) claim rows
+  with `FOR UPDATE SKIP LOCKED` + leases, so dual instances do not
+  double-process scheduled work.
+- Live evidence: primary+backup health UP; BFF login 200 on the new image;
+  public chat grounded answer with citations; cancel endpoint accepts
+  `pendingOnly` (404 unknown booking, no parse error); anonymous patient API
+  401; Google client ID present in the deployed login bundle.
+- NOT_RUN: real failover traffic switch (requires the primary to actually
+  fail), real interactive Google consent journey, backup under sustained load.
+- Note: `render*.yaml` blueprints do not yet declare the backup service; it is
+  managed via the Render API. Add it to a blueprint before relying on
+  blueprint syncs for reconciliation.
