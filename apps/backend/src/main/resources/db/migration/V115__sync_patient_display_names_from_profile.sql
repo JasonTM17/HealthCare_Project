@@ -24,7 +24,10 @@ BEGIN
      WHERE pp.user_id = u.id
        AND pp.full_name IS NOT NULL
        AND btrim(pp.full_name) <> ''
-       AND u.display_name IS DISTINCT FROM pp.full_name;
+       AND u.display_name IS DISTINCT FROM pp.full_name
+       -- Doctor-linked accounts are owned by doctors.full_name (V103);
+       -- a patient profile must never overwrite their professional name.
+       AND NOT EXISTS (SELECT 1 FROM doctors d WHERE d.user_id = u.id);
 
     GET DIAGNOSTICS aligned_count = ROW_COUNT;
 

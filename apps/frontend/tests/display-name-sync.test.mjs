@@ -21,6 +21,19 @@ test("saving the patient profile force-refreshes the auth session", async () => 
   assert.ok(refresh - saveCall < 1200, "session refresh must live inside the same save handler");
 });
 
+test("profile loader is guarded so a post-save session refresh cannot clobber the form", async () => {
+  const page = await readFile(profilePagePath, "utf8");
+
+  // The forced hydrate replaces the session object — the loader must key on
+  // the user id, not the session reference, or it would refetch and overwrite
+  // in-progress edits with a spinner flash.
+  assert.match(page, /loadedProfileForRef/);
+  assert.ok(
+    page.indexOf("loadedProfileForRef.current === session.user.id") > -1,
+    "loader must skip when the profile for this user is already loaded",
+  );
+});
+
 test("portal chrome and navbar render the session display name as the single identity source", async () => {
   const [portalChrome, navbar] = await Promise.all([
     readFile(portalChromePath, "utf8"),

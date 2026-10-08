@@ -123,8 +123,18 @@ export default function PatientProfilePage() {
     };
   }, []);
 
+  // Load the profile once per signed-in user. A forced session rehydrate after
+  // saving replaces the session object — without this guard the loader would
+  // refire, flash the page loader and overwrite in-progress form edits.
+  const loadedProfileForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!session?.user || !hasRole(session.user, "PATIENT")) return;
+    if (!session?.user) {
+      loadedProfileForRef.current = null;
+      return;
+    }
+    if (!hasRole(session.user, "PATIENT")) return;
+    if (loadedProfileForRef.current === session.user.id) return;
+    loadedProfileForRef.current = session.user.id;
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
       setLoading(true);

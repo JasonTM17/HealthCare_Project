@@ -17,6 +17,7 @@ import {
   fetchBranches,
   fetchDoctors,
   getAuthSessionSnapshot,
+  hydrateAuthSession,
   resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
@@ -668,6 +669,10 @@ export default function PackageBookingModal({
         heldSlotRef.current = null;
       }
       if (confirmIntent.abandoned || currentSession !== bookingSessionRef.current) return;
+      // A first booking may materialize the patient profile and adopt the
+      // typed name as users.display_name — refresh the session so the header
+      // shows it immediately instead of the stale/Google name.
+      if (getAuthSessionSnapshot()) void hydrateAuthSession(true);
       setConfirmedAppointment(details);
     } catch (err: unknown) {
       pendingConfirmRef.current = null;
