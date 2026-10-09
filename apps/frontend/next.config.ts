@@ -157,7 +157,9 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: "/admin/content",
+        // Client navigation keeps the entry document's CSP. Every admin entry
+        // can host the CMS preview; its own framing protections stay DENY.
+        source: "/admin/:path*",
         headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy.replace("frame-src https://", "frame-src 'self' https://") }],
       },
       ...CMS_PAGE_MANIFESTS.flatMap((page) => [page.path, ...(page.supportsDetail ? [`${page.path}/:slug`] : [])].map((source) => ({
