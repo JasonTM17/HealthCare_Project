@@ -90,7 +90,7 @@ test("canonical booking CTA appears at the sites the terminology pass fixed", as
   // all read "Đặt lịch khám"; the PublicBookingButton default remains the
   // canonical source for every other booking button.
   assert.match(footer, /mobile-care-rail__primary[\s\S]*?<span>Đặt lịch khám<\/span>/);
-  assert.match(home, /<strong>Đặt lịch khám<\/strong>/);
+  assert.match(home, /<CmsNativeText as="strong" fieldId="care\.bookingTitle" value="Đặt lịch khám" \/>/);
   assert.match(booking, /Đặt lịch khám\r?\n\s*<\/PublicBookingButton>/);
   assert.match(shell, /children = "Đặt lịch khám"/);
 });

@@ -595,6 +595,19 @@ SEVERITY_BOUND_RULES: Final[tuple[tuple[tuple[str, ...], tuple[str, ...], int], 
 # correctly because collapsing a one-word term leaves it a word.
 _SQUASH_MIN_LENGTH: Final[int] = 6
 
+# Terms excluded from the squashed net even though they clear the length
+# floor. "noi kho"/"noi khong ro" squash to "noikho"/"noikhongro", which sit
+# inside every "…nội không…" / "…nói không…" question ("ở Hà Nội không",
+# "khoa nội không trực") — the squash stream has no word boundary to tell
+# "kho" apart from "khong". The boundary matcher still fires on the spaced
+# forms because `\bkho\b` never matches "khong"; only the letter-spaced
+# evasion ("n o i k h o") loses squashed coverage, an accepted trade against
+# blocking real location questions.
+_SQUASH_EXCLUDED_TERMS: Final[frozenset[str]] = frozenset({
+    "noi kho",
+    "noi khong ro",
+})
+
 
 def _normalize(term: str) -> str:
     """Fold a term the same way the gate folds visitor text."""
@@ -628,7 +641,9 @@ def _squash(term: str) -> str:
 def _compile_squash_matcher(terms: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(
         squashed
-        for squashed in (_squash(term) for term in terms)
+        for term in terms
+        if term not in _SQUASH_EXCLUDED_TERMS
+        for squashed in (_squash(term),)
         if len(squashed) >= _SQUASH_MIN_LENGTH
     )
 

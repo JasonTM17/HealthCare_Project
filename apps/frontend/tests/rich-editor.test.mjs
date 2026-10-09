@@ -512,10 +512,10 @@ test("TinyMCE toolbar commands all map to registered self-hosted plugins (no dea
   // hold it to the same guarantee the menubar used to carry. A toolbar token
   // naming a plugin that is not registered is silently dropped by TinyMCE, so
   // the button simply never appears and the author has no way to notice.
-  const toolbarMatch = editor.match(/toolbar:\s*`([\s\S]*?)`/);
-  assert.ok(toolbarMatch, "toolbar template literal must be present");
+  const toolbarMatch = editor.match(/toolbar:\s*contentMode === "cms"\s*\?\s*`([\s\S]*?)`\s*:\s*`([\s\S]*?)`/);
+  assert.ok(toolbarMatch, "both CMS and article toolbar template literals must be present");
   const toolbarTokens = new Set(
-    toolbarMatch[1]
+    toolbarMatch.slice(1).join(" ")
       .replace(/\$\{[^}]*\}/g, " ")
       .split(/[\s|]+/)
       .filter(Boolean),

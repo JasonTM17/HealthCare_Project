@@ -6,8 +6,11 @@ import com.healthcare.hospital.dto.DoctorRequest;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
+import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.hospital.service.AdminDoctorService;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -47,9 +50,13 @@ class AdminDoctorListBranchIdsTest {
 
     private final DoctorRepository doctorRepository = mock(DoctorRepository.class);
     private final DoctorBranchRepository doctorBranchRepository = mock(DoctorBranchRepository.class);
+    private final DoctorSpecialtyRepository doctorSpecialtyRepository = mock(DoctorSpecialtyRepository.class);
+    private final BranchRepository branchRepository = mock(BranchRepository.class);
+    private final SpecialtyRepository specialtyRepository = mock(SpecialtyRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final AdminDoctorService service =
-        new AdminDoctorService(doctorRepository, userRepository, doctorBranchRepository);
+        new AdminDoctorService(doctorRepository, userRepository, doctorBranchRepository,
+            doctorSpecialtyRepository, branchRepository, specialtyRepository);
 
     private static Doctor doctor(String fullName, String slug, UUID id) {
         Doctor doctor = new Doctor();
@@ -97,6 +104,7 @@ class AdminDoctorListBranchIdsTest {
             link(d1, branchA),
             link(d1, branchB),
             link(d2, branchC)));
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         Page<AdminDoctorResponse> result = service.list(pageable);
 
@@ -120,6 +128,7 @@ class AdminDoctorListBranchIdsTest {
         Pageable pageable = PageRequest.of(0, 20, Sort.by("fullName"));
         when(doctorRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(d), pageable, 1));
         when(doctorBranchRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of(link(d, branch)));
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         AdminDoctorResponse dto = service.list(pageable).getContent().get(0);
 
@@ -135,6 +144,7 @@ class AdminDoctorListBranchIdsTest {
         Pageable pageable = PageRequest.of(0, 20, Sort.by("fullName"));
         when(doctorRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(d), pageable, 1));
         when(doctorBranchRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         AdminDoctorResponse dto = service.list(pageable).getContent().get(0);
 
@@ -166,6 +176,7 @@ class AdminDoctorListBranchIdsTest {
         Page<Doctor> raw = new PageImpl<>(List.of(d1, d2), pageable, 12);
         when(doctorRepository.findAll(pageable)).thenReturn(raw);
         when(doctorBranchRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         Page<AdminDoctorResponse> result = service.list(pageable);
 
@@ -214,7 +225,7 @@ class AdminDoctorListBranchIdsTest {
         when(userRepository.findById(linkedUserId)).thenReturn(java.util.Optional.of(account));
 
         service.update("bs-cu", new DoctorRequest(
-            "BS Mới Tên", "bs-cu", "bio", null, true, null));
+            "BS Mới Tên", "bs-cu", "bio", null, true, null, false, null, null));
 
         verify(userRepository).save(org.mockito.ArgumentMatchers.argThat(
             user -> "BS Mới Tên".equals(user.getDisplayName())));
@@ -229,10 +240,49 @@ class AdminDoctorListBranchIdsTest {
         when(doctorRepository.save(any(Doctor.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.update("bs-khong-link", new DoctorRequest(
-            "BS Đổi Tên", "bs-khong-link", "bio", null, true, null));
+            "BS Đổi Tên", "bs-khong-link", "bio", null, true, null, false, null, null));
 
         verify(userRepository, never()).findById(any());
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRejectsAccountRebindingForDemoPrincipal() {
+        // Demo boundary parity with /api/v1/admin/users/**: a demo admin may
+        // edit resettable doctor content but must not rebind which login owns
+        // a doctor profile (identity-adjacent mutation).
+        com.healthcare.user.entity.User demoAccount = new com.healthcare.user.entity.User();
+        demoAccount.setId(UUID.fromString("10000000-0000-0000-0000-0000000000d0"));
+        demoAccount.setEmail("demo-admin@example.com");
+        demoAccount.setStatus("ACTIVE");
+        demoAccount.setDemo(true);
+        com.healthcare.security.HealthcareUserPrincipal principal =
+            com.healthcare.security.HealthcareUserPrincipal.from(demoAccount);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+            .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal, null, principal.getAuthorities()));
+        try {
+            UUID doctorId = UUID.fromString("30000000-0000-0000-0000-00000000000c");
+            Doctor existing = doctor("BS Demo", "bs-demo", doctorId);
+            when(doctorRepository.findBySlug("bs-demo")).thenReturn(java.util.Optional.of(existing));
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.update("bs-demo",
+                    new DoctorRequest("BS Demo", "bs-demo", "bio", null, true,
+                        UUID.fromString("10000000-0000-0000-0000-0000000000d1"),
+                        false, null, null)))
+                .isInstanceOf(com.healthcare.exception.BusinessException.class)
+                .hasMessageContaining("Demo accounts cannot perform this action");
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.update("bs-demo",
+                    new DoctorRequest("BS Demo", "bs-demo", "bio", null, true,
+                        null, true, null, null)))
+                .isInstanceOf(com.healthcare.exception.BusinessException.class)
+                .hasMessageContaining("Demo accounts cannot perform this action");
+
+            verify(doctorRepository, never()).save(any());
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
     }
 
     @SuppressWarnings("unchecked")

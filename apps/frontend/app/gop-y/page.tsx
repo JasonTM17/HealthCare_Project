@@ -14,8 +14,10 @@ import {
   type UserFeedbackItem,
 } from "../../lib/api-client";
 import { formatDateTime } from "../../lib/datetime";
+import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
+import { CmsNativeSection, CmsNativeText } from "../../components/cms/cms-page-layout-provider";
 
-const CATEGORY_OPTIONS: { value: UserFeedbackCategory; label: string }[] = [
+const CATEGORY_OPTIONS: { value: UserFeedbackCategory; label: string; }[] = [
   { value: "GENERAL", label: "Góp ý chung" },
   { value: "UI_UX", label: "Giao diện & trải nghiệm" },
   { value: "BUG_REPORT", label: "Báo lỗi hệ thống" },
@@ -62,7 +64,7 @@ function FeedbackLoginGate() {
   );
 }
 
-function FeedbackForm({ onSubmitted }: { onSubmitted: (item: UserFeedbackItem) => void }) {
+function FeedbackForm({ onSubmitted }: { onSubmitted: (item: UserFeedbackItem) => void; }) {
   const [category, setCategory] = useState<UserFeedbackCategory>("GENERAL");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -80,6 +82,7 @@ function FeedbackForm({ onSubmitted }: { onSubmitted: (item: UserFeedbackItem) =
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isCmsPreviewRequested()) return;
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
@@ -192,7 +195,7 @@ function FeedbackForm({ onSubmitted }: { onSubmitted: (item: UserFeedbackItem) =
   );
 }
 
-function MyFeedbackList({ items, loading }: { items: UserFeedbackItem[]; loading: boolean }) {
+function MyFeedbackList({ items, loading }: { items: UserFeedbackItem[]; loading: boolean; }) {
   if (loading) return <LoadingState label="Đang tải góp ý của bạn…" />;
   if (items.length === 0) return null;
   return (
@@ -230,6 +233,7 @@ export default function FeedbackPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const refreshList = useCallback(async () => {
+    if (isCmsPreviewRequested()) return;
     setListLoading(true);
     try {
       setItems(await listMyFeedback());
@@ -260,59 +264,65 @@ export default function FeedbackPage() {
   return (
     <PublicPageShell>
       <div className="resource-page section-inner">
-        <header className="resource-page__header">
-          <p className="section-note">Lắng nghe từ bạn</p>
-          <h1>Góp ý với HealthCare</h1>
-          <p>
-            Chia sẻ trải nghiệm, báo lỗi hoặc đề xuất cải tiến. Mỗi góp ý được gắn với tài khoản để
-            đội ngũ có thể theo dõi và phản hồi.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Lắng nghe từ bạn"} className="section-note">Lắng nghe từ bạn</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Góp ý với HealthCare"}>Góp ý với HealthCare</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Chia sẻ trải nghiệm, báo lỗi hoặc đề xuất cải tiến. Mỗi góp ý được gắn với tài khoản để đội ngũ có thể theo dõi và phản hồi."}>
+              Chia sẻ trải nghiệm, báo lỗi hoặc đề xuất cải tiến. Mỗi góp ý được gắn với tài khoản để
+              đội ngũ có thể theo dõi và phản hồi.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        {hydrationStatus === "indeterminate" ? (
-          <section className="resource-panel portal-state portal-state--error" role="alert">
-            <span aria-hidden="true" className="portal-state__mark">!</span>
-            <div>
-              <h2>Không thể xác minh phiên đăng nhập</h2>
-              <p>Kết nối đến máy chủ xác thực đang gián đoạn. Vui lòng thử lại.</p>
-              <button
-                className="button button--primary min-h-11"
-                type="button"
-                onClick={() => void hydrateAuthSession(true)}
-              >
-                Thử xác minh lại
-              </button>
-            </div>
-          </section>
-        ) : hydrationStatus !== "settled" ? (
-          <LoadingState label="Đang xác minh phiên đăng nhập…" />
-        ) : !session ? (
-          <FeedbackLoginGate />
-        ) : (
-          <>
-            {submitted ? (
-              <p className="mb-4 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
-                Cảm ơn bạn! Góp ý đã được ghi nhận và sẽ được đội ngũ HealthCare xem xét sớm.
-              </p>
-            ) : null}
-            <div className="resource-grid resource-grid--two">
-              <FeedbackForm onSubmitted={handleSubmitted} />
-              <section className="resource-panel resource-panel--accent">
-                <p className="section-note">Cam kết</p>
-                <h2>Góp ý của bạn đi đến đâu?</h2>
-                <ul className="resource-list">
-                  <li><strong>Báo lỗi hệ thống</strong><span>Chuyển thẳng tới đội kỹ thuật để tái hiện và xử lý.</span></li>
-                  <li><strong>Đề xuất tính năng</strong><span>Được cân nhắc trong lộ trình phát triển sản phẩm.</span></li>
-                  <li><strong>Chất lượng dịch vụ</strong><span>Chuyển tới ban quản lý cơ sở liên quan.</span></li>
-                </ul>
-                <p className="resource-muted mt-4">
-                  Cần hỗ trợ y tế hoặc lịch hẹn? Hãy dùng <Link className="text-button" href="/contact">kênh liên hệ</Link> hoặc <Link className="text-button" href="/dat-lich">đặt lịch khám</Link> để được phục vụ nhanh hơn.
+        <CmsNativeSection sectionId="feedback">
+          {hydrationStatus === "indeterminate" ? (
+            <section className="resource-panel portal-state portal-state--error" role="alert">
+              <span aria-hidden="true" className="portal-state__mark">!</span>
+              <div>
+                <h2>Không thể xác minh phiên đăng nhập</h2>
+                <p>Kết nối đến máy chủ xác thực đang gián đoạn. Vui lòng thử lại.</p>
+                <button
+                  className="button button--primary min-h-11"
+                  type="button"
+                  onClick={() => void hydrateAuthSession(true)}
+                >
+                  Thử xác minh lại
+                </button>
+              </div>
+            </section>
+          ) : hydrationStatus !== "settled" ? (
+            <LoadingState label="Đang xác minh phiên đăng nhập…" />
+          ) : !session ? (
+            <FeedbackLoginGate />
+          ) : (
+            <>
+              {submitted ? (
+                <p className="mb-4 rounded-sm border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">
+                  Cảm ơn bạn! Góp ý đã được ghi nhận và sẽ được đội ngũ HealthCare xem xét sớm.
                 </p>
-              </section>
-            </div>
-            <MyFeedbackList items={items} loading={listLoading} />
-          </>
-        )}
+              ) : null}
+              <div className="resource-grid resource-grid--two">
+                <FeedbackForm onSubmitted={handleSubmitted} />
+                <CmsNativeSection sectionId="guidance">
+                  <section className="resource-panel resource-panel--accent">
+                    <CmsNativeText fieldId="guidance.eyebrow" as="p" className="section-note" value="Cam kết" />
+                    <CmsNativeText fieldId="guidance.title" as="h2" value="Góp ý của bạn đi đến đâu?" />
+                    <ul className="resource-list">
+                      <li><CmsNativeText fieldId="guidance.item1.title" as="strong" value="Báo lỗi hệ thống" /><CmsNativeText fieldId="guidance.item1.body" value="Chuyển thẳng tới đội kỹ thuật để tái hiện và xử lý." /></li>
+                      <li><CmsNativeText fieldId="guidance.item2.title" as="strong" value="Đề xuất tính năng" /><CmsNativeText fieldId="guidance.item2.body" value="Được cân nhắc trong lộ trình phát triển sản phẩm." /></li>
+                      <li><CmsNativeText fieldId="guidance.item3.title" as="strong" value="Chất lượng dịch vụ" /><CmsNativeText fieldId="guidance.item3.body" value="Chuyển tới ban quản lý cơ sở liên quan." /></li>
+                    </ul>
+                    <p className="resource-muted mt-4">
+                      Cần hỗ trợ y tế hoặc lịch hẹn? Hãy dùng <Link className="text-button" href="/contact">kênh liên hệ</Link> hoặc <Link className="text-button" href="/dat-lich">đặt lịch khám</Link> để được phục vụ nhanh hơn.
+                    </p>
+                  </section>
+                </CmsNativeSection>
+              </div>
+              <MyFeedbackList items={items} loading={listLoading} />
+            </>
+          )}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

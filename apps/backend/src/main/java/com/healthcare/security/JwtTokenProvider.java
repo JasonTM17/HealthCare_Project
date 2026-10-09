@@ -19,6 +19,7 @@ public class JwtTokenProvider {
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
     public static final String CLAIM_TYPE = "type";
+    public static final String CLAIM_SECURITY_VERSION = "securityVersion";
 
     private static final long MAX_ACCESS_TOKEN_TTL_SECONDS = 3_600;
     private static final long MAX_REFRESH_TOKEN_TTL_SECONDS = 2_592_000;
@@ -66,12 +67,18 @@ public class JwtTokenProvider {
     }
 
     public String generateAccessToken(UUID userId, String email) {
+        return generateAccessToken(userId, email, 0L);
+    }
+
+    public String generateAccessToken(UUID userId, String email, long securityVersion) {
+        if (securityVersion < 0L) throw new IllegalArgumentException("securityVersion cannot be negative");
         Instant now = Instant.now();
         Instant expiry = now.plus(properties.accessTokenTtl(), ChronoUnit.SECONDS);
 
         return Jwts.builder()
             .subject(userId.toString())
             .claim("email", email)
+            .claim(CLAIM_SECURITY_VERSION, securityVersion)
             .claim(CLAIM_TYPE, TOKEN_TYPE_ACCESS)
             .id(UUID.randomUUID().toString())
             .issuedAt(Date.from(now))
@@ -81,12 +88,18 @@ public class JwtTokenProvider {
     }
 
     public String generateRefreshToken(UUID userId) {
+        return generateRefreshToken(userId, 0L);
+    }
+
+    public String generateRefreshToken(UUID userId, long securityVersion) {
+        if (securityVersion < 0L) throw new IllegalArgumentException("securityVersion cannot be negative");
         Instant now = Instant.now();
         Instant expiry = now.plus(properties.refreshTokenTtl(), ChronoUnit.SECONDS);
 
         return Jwts.builder()
             .subject(userId.toString())
             .claim(CLAIM_TYPE, TOKEN_TYPE_REFRESH)
+            .claim(CLAIM_SECURITY_VERSION, securityVersion)
             .id(UUID.randomUUID().toString())
             .issuedAt(Date.from(now))
             .expiration(Date.from(expiry))
@@ -140,6 +153,7 @@ public class JwtTokenProvider {
         String email = null;
 
         try {
+            securityVersionFromClaims(claims);
             subject = claims.getSubject();
             tokenId = claims.getId();
             tokenType = claims.get(CLAIM_TYPE, String.class);
@@ -225,5 +239,20 @@ public class JwtTokenProvider {
 
     public Instant extractExpiry(String token) {
         return parseClaims(token).getExpiration().toInstant();
+    }
+
+    public long extractSecurityVersion(String token) {
+        return securityVersionFromClaims(parseClaims(token));
+    }
+
+    private long securityVersionFromClaims(Claims claims) {
+        Object raw = claims.get(CLAIM_SECURITY_VERSION);
+        if (raw == null) return 0L;
+        if (!(raw instanceof Integer) && !(raw instanceof Long)) {
+            throw new IllegalArgumentException("Invalid security version claim");
+        }
+        long value = ((Number) raw).longValue();
+        if (value < 0L) throw new IllegalArgumentException("Invalid security version claim");
+        return value;
     }
 }

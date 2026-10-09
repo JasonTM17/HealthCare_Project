@@ -20,6 +20,8 @@ import { presentApiError } from "../../lib/present-api-error";
 import { dedupePublicDoctors } from "../../lib/public-catalog";
 import { useAuthSession } from "../../components/useAuthSession";
 import type { AiTriageCitation, Article, Doctor, HealthPackage, MedicalService, SemanticSearchResponse, Specialty } from "../../types/hospital";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
+import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
 
 interface SearchPageClientProps {
   initialQuery: string;
@@ -306,6 +308,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
   useEffect(() => {
     let cancelled = false;
     const capturedAuthorityKey = semanticAuthorityKey;
+    if (isCmsPreviewRequested()) return;
     const isCurrentAuthority = (): boolean => (
       !cancelled && semanticAuthorityKeyRef.current === capturedAuthorityKey
     );
@@ -398,6 +401,7 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
 
   const submitSearch = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (isCmsPreviewRequested()) return;
     const nextQuery = query.trim();
     setSubmittedQuery(nextQuery);
     setActiveCategory("ALL");
@@ -415,265 +419,274 @@ export default function SearchPageClient({ initialQuery }: SearchPageClientProps
       <div className="catalog-page section-inner search-page">
         {/* Breadcrumb above already links home; a duplicate back-link here
             stacked two home paths within one screen. */}
-        <header className="resource-page__header">
-          <p className="section-note">Tìm bác sĩ và dịch vụ</p>
-          <h1>Tìm đúng điểm bắt đầu cho nhu cầu chăm sóc</h1>
-          <p>Tìm trong danh sách chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang sức khỏe.</p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Tìm bác sĩ và dịch vụ"} className="section-note">Tìm bác sĩ và dịch vụ</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Tìm đúng điểm bắt đầu cho nhu cầu chăm sóc"}>Tìm đúng điểm bắt đầu cho nhu cầu chăm sóc</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Tìm trong danh sách chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang sức khỏe."}>Tìm trong danh sách chuyên khoa, bác sĩ, dịch vụ, gói khám và cẩm nang sức khỏe.</CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className="resource-hero-card resource-hero-card--teal search-page__hero">
-          <div className="resource-icon" aria-hidden="true">
-            <Icon name="search" size={42} />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Cổng tìm kiếm thống nhất</p>
-            <h2>Một ô tìm kiếm cho toàn bệnh viện.</h2>
-            <p className="resource-lead">
-              Danh mục bệnh viện đưa bạn tới đúng trang có thể đặt lịch; gợi ý thông minh chỉ mở rộng
-              hướng tìm hiểu khi bạn đã đăng nhập và luôn nêu rõ nguồn tham khảo.
-            </p>
-            <div className="resource-actions">
-              <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/huong-dan">
-                Xem hướng dẫn
-              </Link>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal search-page__hero">
+              <div className="resource-icon" aria-hidden="true">
+                <Icon name="search" size={42} />
+              </div>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Cổng tìm kiếm thống nhất"} className="resource-chip">Cổng tìm kiếm thống nhất</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Một ô tìm kiếm cho toàn bệnh viện."}>Một ô tìm kiếm cho toàn bệnh viện.</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Danh mục bệnh viện đưa bạn tới đúng trang có thể đặt lịch; gợi ý thông minh chỉ mở rộng hướng tìm hiểu khi bạn đã đăng nhập và luôn nêu rõ nguồn tham khảo."} className="resource-lead">
+                  Danh mục bệnh viện đưa bạn tới đúng trang có thể đặt lịch; gợi ý thông minh chỉ mở rộng
+                  hướng tìm hiểu khi bạn đã đăng nhập và luôn nêu rõ nguồn tham khảo.
+                </CmsNativeText>
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <Link className="outline-button outline-button--light" href="/huong-dan">
+                    Xem hướng dẫn
+                  </Link>
+                </div>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Danh mục tìm kiếm</dt>
+                    <dd>{loadedGroupCount}/5 nhóm đã phản hồi</dd>
+                  </div>
+                  <div>
+                    <dt>Gợi ý thông minh</dt>
+                    <dd>{hasAuthSession ? "Có phiên đăng nhập" : "Cần đăng nhập"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          </CmsNativeSection>
+
+          <CmsNativeSection sectionId="guide">
+            <section className="resource-panel resource-panel--wide search-page__guide">
+              <div className="section-heading">
+                <div>
+                  <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Lộ trình tìm kiếm"} className="section-note">Lộ trình tìm kiếm</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title" as="h2" value={"Từ từ khóa tới hành động an toàn"}>Từ từ khóa tới hành động an toàn</CmsNativeText>
+                </div>
+              </div>
+              <div className="resource-steps resource-steps--grid">
+                {SEARCH_GUIDE_STEPS.map(([number, title, description]) => (
+                  <div className="resource-step-card" key={number}>
+                    <span>{number}</span>
+                    <CmsNativeText fieldId={`guide.step${number}.title`} as="strong" value={title}>{title}</CmsNativeText>
+                    <p>{description}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </CmsNativeSection>
+        </CmsNativeSections>
+
+        <CmsNativeSection sectionId="results">
+          <form className="search-page__form" onSubmit={submitSearch}>
+            <label htmlFor="search-page-input">Từ khóa</label>
+            <div className="search-page__control">
+              <Icon name="search" size={19} />
+              <input id="search-page-input" onChange={(event) => setQuery(event.target.value)} placeholder="Ví dụ: tim mạch, khám tổng quát…" type="search" value={query} />
+              <button className="button button--primary" type="submit">Tìm kiếm</button>
             </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Danh mục tìm kiếm</dt>
-                <dd>{loadedGroupCount}/5 nhóm đã phản hồi</dd>
-              </div>
-              <div>
-                <dt>Gợi ý thông minh</dt>
-                <dd>{hasAuthSession ? "Có phiên đăng nhập" : "Cần đăng nhập"}</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
+            <p>Bạn có thể nhập tên bác sĩ, chuyên khoa, dịch vụ hoặc chủ đề sức khỏe cần tìm hiểu.</p>
+          </form>
 
-        <section className="resource-panel resource-panel--wide search-page__guide">
-          <div className="section-heading">
-            <div>
-              <p className="section-note">Lộ trình tìm kiếm</p>
-              <h2>Từ từ khóa tới hành động an toàn</h2>
-            </div>
-          </div>
-          <div className="resource-steps resource-steps--grid">
-            {SEARCH_GUIDE_STEPS.map(([number, title, description]) => (
-              <div className="resource-step-card" key={number}>
-                <span>{number}</span>
-                <strong>{title}</strong>
-                <p>{description}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <form className="search-page__form" onSubmit={submitSearch}>
-          <label htmlFor="search-page-input">Từ khóa</label>
-          <div className="search-page__control">
-            <Icon name="search" size={19} />
-            <input id="search-page-input" onChange={(event) => setQuery(event.target.value)} placeholder="Ví dụ: tim mạch, khám tổng quát…" type="search" value={query} />
-            <button className="button button--primary" type="submit">Tìm kiếm</button>
-          </div>
-          <p>Bạn có thể nhập tên bác sĩ, chuyên khoa, dịch vụ hoặc chủ đề sức khỏe cần tìm hiểu.</p>
-        </form>
-
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải {loadingGroupLabels.join(", ")}… Các nhóm đã sẵn sàng vẫn đang hiển thị.</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Bạn vẫn có thể thử lại sau.</p> : null}
-        {/* Per-group recovery: the aggregate line above states the gap, this
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải {loadingGroupLabels.join(", ")}… Các nhóm đã sẵn sàng vẫn đang hiển thị.</p> : null}
+          {error ? <p className="catalog-status catalog-status--error" role="alert">{error} Bạn vẫn có thể thử lại sau.</p> : null}
+          {/* Per-group recovery: the aggregate line above states the gap, this
             offers a retry for each failed group without discarding the groups
             that already loaded. */}
-        {failedGroupKeys.length > 0 ? (
-          <p className="catalog-status" role="status">
-            <span>Chưa tải được: {failedGroupKeys.map((group) => SEARCH_GROUP_LABELS[group]).join(", ")}.</span>{" "}
-            {failedGroupKeys.map((group) => (
-              <button
-                aria-label={`Thử tải lại nhóm ${SEARCH_GROUP_LABELS[group]}`}
-                className="text-button"
-                key={group}
-                onClick={() => loadGroup(group)}
-                type="button"
-              >
-                Thử lại {SEARCH_GROUP_LABELS[group]}
-              </button>
-            ))}
-          </p>
-        ) : null}
-        {truncatedGroupLabels.length > 0 ? (
-          <p className="catalog-status" role="status">
-            Tìm kiếm hiện chỉ quét {SEARCH_PAGE_CAP} trang đầu của {truncatedGroupLabels.join(", ")}. Các nhóm này còn dữ liệu phía sau; hãy mở danh mục tương ứng để xem đầy đủ.
-          </p>
-        ) : null}
-        {!hasAuthSession && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
-        {semanticStateVisible && semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
-        {semanticStateVisible && resultCount === 0 && semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
-        {semanticVisible && semantic?.results.length ? (
-          <section className="search-results__section" aria-labelledby="semantic-results">
-            <div className="section-heading search-results__heading">
-              <div>
-                <p className="section-note">Gợi ý thông minh có nguồn tham khảo</p>
-                <h2 id="semantic-results">Có thể bạn cũng quan tâm</h2>
-                <p className="search-results__assistive">
-                  Đây là gợi ý tự động dựa trên nội dung đã được chọn lọc. Hãy mở thông tin bệnh viện hoặc đặt lịch để được xác nhận y khoa.
-                </p>
-              </div>
-            </div>
-            <div className="search-result-list">
-              {semantic.results.map((item) => (
-                <article className="search-result search-result--semantic" key={`${item.source_type}-${item.source_id}`}>
-                  <span className="resource-chip">{semanticSourceLabel(item.source_type)}</span>
-                  <strong>{item.title}</strong>
-                  <p>{item.content}</p>
-                  <dl className="semantic-result-meta">
-                    <div>
-                      <dt>Độ phù hợp</dt>
-                      <dd>{semanticScoreLabel(item.score)}</dd>
-                    </div>
-                    <div>
-                      <dt>Nguồn</dt>
-                      <dd>{citationLabel(item.citation)}</dd>
-                    </div>
-                  </dl>
-                </article>
+          {failedGroupKeys.length > 0 ? (
+            <p className="catalog-status" role="status">
+              <span>Chưa tải được: {failedGroupKeys.map((group) => SEARCH_GROUP_LABELS[group]).join(", ")}.</span>{" "}
+              {failedGroupKeys.map((group) => (
+                <button
+                  aria-label={`Thử tải lại nhóm ${SEARCH_GROUP_LABELS[group]}`}
+                  className="text-button"
+                  key={group}
+                  onClick={() => loadGroup(group)}
+                  type="button"
+                >
+                  Thử lại {SEARCH_GROUP_LABELS[group]}
+                </button>
               ))}
-            </div>
-            <p className="search-results__provenance">
-              Nguồn gợi ý: {semantic.provenance || "HealthCare"}
-              {semantic.specialty ? ` · Gợi ý chuyên khoa: ${semantic.specialty}` : ""}
             </p>
-          </section>
-        ) : null}
-        {catalogSettled && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Ví dụ: tên chuyên khoa, bác sĩ, dịch vụ hoặc bài viết bạn quan tâm — kết quả sẽ dẫn thẳng đến trang phù hợp.</p></section> : null}
-        {catalogSettled && result && resultCount === 0 ? <p className="catalog-status" role="status">{loadedCatalogGroupCount === 0 ? "Chưa có nhóm thông tin nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
+          ) : null}
+          {truncatedGroupLabels.length > 0 ? (
+            <p className="catalog-status" role="status">
+              Tìm kiếm hiện chỉ quét {SEARCH_PAGE_CAP} trang đầu của {truncatedGroupLabels.join(", ")}. Các nhóm này còn dữ liệu phía sau; hãy mở danh mục tương ứng để xem đầy đủ.
+            </p>
+          ) : null}
+          {!hasAuthSession && normalize(query) ? <p className="catalog-status">Đăng nhập để nhận thêm gợi ý nội dung liên quan đến nhu cầu của bạn.</p> : null}
+          {semanticStateVisible && semanticLoading ? <p className="catalog-status catalog-status--loading" role="status">Đang tìm thêm nội dung liên quan…</p> : null}
+          {semanticStateVisible && resultCount === 0 && semanticError ? <p className="catalog-status catalog-status--error" role="alert">{semanticError}</p> : null}
+          {semanticVisible && semantic?.results.length ? (
+            <section className="search-results__section" aria-labelledby="semantic-results">
+              <div className="section-heading search-results__heading">
+                <div>
+                  <p className="section-note">Gợi ý thông minh có nguồn tham khảo</p>
+                  <h2 id="semantic-results">Có thể bạn cũng quan tâm</h2>
+                  <p className="search-results__assistive">
+                    Đây là gợi ý tự động dựa trên nội dung đã được chọn lọc. Hãy mở thông tin bệnh viện hoặc đặt lịch để được xác nhận y khoa.
+                  </p>
+                </div>
+              </div>
+              <div className="search-result-list">
+                {semantic.results.map((item) => (
+                  <article className="search-result search-result--semantic" key={`${item.source_type}-${item.source_id}`}>
+                    <span className="resource-chip">{semanticSourceLabel(item.source_type)}</span>
+                    <strong>{item.title}</strong>
+                    <p>{item.content}</p>
+                    <dl className="semantic-result-meta">
+                      <div>
+                        <dt>Độ phù hợp</dt>
+                        <dd>{semanticScoreLabel(item.score)}</dd>
+                      </div>
+                      <div>
+                        <dt>Nguồn</dt>
+                        <dd>{citationLabel(item.citation)}</dd>
+                      </div>
+                    </dl>
+                  </article>
+                ))}
+              </div>
+              <p className="search-results__provenance">
+                Nguồn gợi ý: {semantic.provenance || "HealthCare"}
+                {semantic.specialty ? ` · Gợi ý chuyên khoa: ${semantic.specialty}` : ""}
+              </p>
+            </section>
+          ) : null}
+          {catalogSettled && !normalize(query) ? <section className="resource-panel resource-panel--accent"><h2>Nhập một từ khóa để bắt đầu</h2><p>Ví dụ: tên chuyên khoa, bác sĩ, dịch vụ hoặc bài viết bạn quan tâm — kết quả sẽ dẫn thẳng đến trang phù hợp.</p></section> : null}
+          {catalogSettled && result && resultCount === 0 ? <p className="catalog-status" role="status">{loadedCatalogGroupCount === 0 ? "Chưa có nhóm thông tin nào sẵn sàng để tìm kiếm." : `Không tìm thấy kết quả khớp với “${query.trim()}”.`}</p> : null}
 
-        {result && resultCount > 0 ? (
-          <div className="search-results" aria-live="polite">
-            <div className="search-category-tabs flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200" role="tablist" aria-label="Bộ lọc danh mục tìm kiếm">
-              {CATEGORY_TABS.map((tab) => {
-                const isActive = activeCategory === tab.key;
-                const count = categoryCounts[tab.key];
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => setActiveCategory(tab.key)}
-                    className={`min-h-11 px-3 py-1.5 text-xs font-semibold rounded-sm border transition-colors cursor-pointer ${
-                      isActive
-                        ? "border-[#003336] bg-[#003336] text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                    }`}
-                  >
-                    {tab.label} <span className={isActive ? "text-teal-200" : "text-slate-600"}>({count})</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="search-results__count">{resultCount} kết quả phù hợp</p>
-            {(activeCategory === "ALL" || activeCategory === "SPECIALTY") && result.specialties.length > 0 ? (
-              <ResultSection eyebrow="Chăm sóc chuyên sâu" title="Chuyên khoa">
-                <div className="search-result-list">
-                  {result.specialties.map((item) => (
-                    <Link className="search-result" href={`/specialties/${item.slug}`} key={item.id}>
-                      <span className="resource-chip">Chuyên khoa</span>
-                      <strong>{item.name}</strong>
-                      <p>{item.description}</p>
-                    </Link>
-                  ))}
-                </div>
-              </ResultSection>
-            ) : null}
-            {(activeCategory === "ALL" || activeCategory === "DOCTOR") && result.doctors.length > 0 ? (
-              <ResultSection eyebrow="Đội ngũ" title="Bác sĩ">
-                <div className="search-result-list">
-                  {result.doctors.map((item) => (
-                    <article className="search-result" key={item.id}>
-                      <Link href={`/doctors/${item.slug}`}>
-                        <span className="resource-chip">Bác sĩ</span>
-                        <strong>{item.fullName}</strong>
-                        <p>{doctorResultMeta(item)}</p>
-                      </Link>
-                      <PublicBookingButton
-                        ariaLabel={`Đặt lịch với bác sĩ ${item.fullName}`}
-                        className="outline-button outline-button--small"
-                        selection={{
-                          doctorId: item.id,
-                          specialtyId: specialtyIdForDoctor(item, catalog.specialties) || undefined,
-                          branchId: item.branchId || item.branchIds?.[0],
-                        }}
-                      >
-                        Đặt lịch
-                      </PublicBookingButton>
-                    </article>
-                  ))}
-                </div>
-              </ResultSection>
-            ) : null}
-            {(activeCategory === "ALL" || activeCategory === "PACKAGE") && result.packages.length > 0 ? (
-              <ResultSection eyebrow="Kiểm tra chủ động" title="Gói khám">
-                <div className="search-result-list">
-                  {result.packages.map((item) => (
-                    <article className="search-result" key={item.id}>
-                      <Link href={`/packages/${item.slug}`}>
-                        <span className="resource-chip resource-chip--warm">Gói khám</span>
+          {result && resultCount > 0 ? (
+            <div className="search-results" aria-live="polite">
+              <div className="search-category-tabs flex flex-wrap items-center gap-2 pb-3 border-b border-slate-200" role="tablist" aria-label="Bộ lọc danh mục tìm kiếm">
+                {CATEGORY_TABS.map((tab) => {
+                  const isActive = activeCategory === tab.key;
+                  const count = categoryCounts[tab.key];
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      onClick={() => setActiveCategory(tab.key)}
+                      className={`min-h-11 px-3 py-1.5 text-xs font-semibold rounded-sm border transition-colors cursor-pointer ${isActive
+                          ? "border-[#003336] bg-[#003336] text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                        }`}
+                    >
+                      {tab.label} <span className={isActive ? "text-teal-200" : "text-slate-600"}>({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="search-results__count">{resultCount} kết quả phù hợp</p>
+              {(activeCategory === "ALL" || activeCategory === "SPECIALTY") && result.specialties.length > 0 ? (
+                <ResultSection eyebrow="Chăm sóc chuyên sâu" title="Chuyên khoa">
+                  <div className="search-result-list">
+                    {result.specialties.map((item) => (
+                      <Link className="search-result" href={`/specialties/${item.slug}`} key={item.id}>
+                        <span className="resource-chip">Chuyên khoa</span>
                         <strong>{item.name}</strong>
                         <p>{item.description}</p>
                       </Link>
-                      <button
-                        type="button"
-                        className="outline-button outline-button--small"
-                        onClick={() => setSelectedPackageForModal(item)}
-                      >
-                        Đặt lịch với gói này
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </ResultSection>
-            ) : null}
-            {(activeCategory === "ALL" || activeCategory === "SERVICE") && result.services.length > 0 ? (
-              <ResultSection eyebrow="Dịch vụ" title="Dịch vụ y tế">
-                <div className="search-result-list">
-                  {result.services.map((item) => (
-                    <Link className="search-result" href={`/services/${item.slug}`} key={item.id}>
-                      <span className="resource-chip">Dịch vụ</span>
-                      <strong>{item.name}</strong>
-                      <p>{item.description}</p>
-                    </Link>
-                  ))}
-                </div>
-              </ResultSection>
-            ) : null}
-            {(activeCategory === "ALL" || activeCategory === "ARTICLE") && result.articles.length > 0 ? (
-              <ResultSection eyebrow="Cẩm nang" title="Bài viết">
-                <div className="search-result-list">
-                  {result.articles.map((item) => (
-                    <Link className="search-result" href={`/articles/${item.slug}`} key={item.id}>
-                      <span className="resource-chip">Cẩm nang</span>
-                      <strong>{item.title}</strong>
-                      <p>{item.summary}</p>
-                    </Link>
-                  ))}
-                </div>
-              </ResultSection>
-            ) : null}
-            {activeCategory !== "ALL" && categoryCounts[activeCategory] === 0 ? (
-              <p className="catalog-status" role="status">
-                Không tìm thấy kết quả nào trong danh mục “{CATEGORY_TABS.find((t) => t.key === activeCategory)?.label}”.
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {selectedPackageForModal ? (
-          <PackageBookingModal
-            isOpen={Boolean(selectedPackageForModal)}
-            onClose={() => setSelectedPackageForModal(null)}
-            packageItem={selectedPackageForModal}
-          />
-        ) : null}
+                    ))}
+                  </div>
+                </ResultSection>
+              ) : null}
+              {(activeCategory === "ALL" || activeCategory === "DOCTOR") && result.doctors.length > 0 ? (
+                <ResultSection eyebrow="Đội ngũ" title="Bác sĩ">
+                  <div className="search-result-list">
+                    {result.doctors.map((item) => (
+                      <article className="search-result" key={item.id}>
+                        <Link href={`/doctors/${item.slug}`}>
+                          <span className="resource-chip">Bác sĩ</span>
+                          <strong>{item.fullName}</strong>
+                          <p>{doctorResultMeta(item)}</p>
+                        </Link>
+                        <PublicBookingButton
+                          ariaLabel={`Đặt lịch với bác sĩ ${item.fullName}`}
+                          className="outline-button outline-button--small"
+                          selection={{
+                            doctorId: item.id,
+                            specialtyId: specialtyIdForDoctor(item, catalog.specialties) || undefined,
+                            branchId: item.branchId || item.branchIds?.[0],
+                          }}
+                        >
+                          Đặt lịch
+                        </PublicBookingButton>
+                      </article>
+                    ))}
+                  </div>
+                </ResultSection>
+              ) : null}
+              {(activeCategory === "ALL" || activeCategory === "PACKAGE") && result.packages.length > 0 ? (
+                <ResultSection eyebrow="Kiểm tra chủ động" title="Gói khám">
+                  <div className="search-result-list">
+                    {result.packages.map((item) => (
+                      <article className="search-result" key={item.id}>
+                        <Link href={`/packages/${item.slug}`}>
+                          <span className="resource-chip resource-chip--warm">Gói khám</span>
+                          <strong>{item.name}</strong>
+                          <p>{item.description}</p>
+                        </Link>
+                        <button
+                          type="button"
+                          className="outline-button outline-button--small"
+                          onClick={() => { if (!isCmsPreviewRequested()) setSelectedPackageForModal(item); }}
+                        >
+                          Đặt lịch với gói này
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                </ResultSection>
+              ) : null}
+              {(activeCategory === "ALL" || activeCategory === "SERVICE") && result.services.length > 0 ? (
+                <ResultSection eyebrow="Dịch vụ" title="Dịch vụ y tế">
+                  <div className="search-result-list">
+                    {result.services.map((item) => (
+                      <Link className="search-result" href={`/services/${item.slug}`} key={item.id}>
+                        <span className="resource-chip">Dịch vụ</span>
+                        <strong>{item.name}</strong>
+                        <p>{item.description}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </ResultSection>
+              ) : null}
+              {(activeCategory === "ALL" || activeCategory === "ARTICLE") && result.articles.length > 0 ? (
+                <ResultSection eyebrow="Cẩm nang" title="Bài viết">
+                  <div className="search-result-list">
+                    {result.articles.map((item) => (
+                      <Link className="search-result" href={`/articles/${item.slug}`} key={item.id}>
+                        <span className="resource-chip">Cẩm nang</span>
+                        <strong>{item.title}</strong>
+                        <p>{item.summary}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </ResultSection>
+              ) : null}
+              {activeCategory !== "ALL" && categoryCounts[activeCategory] === 0 ? (
+                <p className="catalog-status" role="status">
+                  Không tìm thấy kết quả nào trong danh mục “{CATEGORY_TABS.find((t) => t.key === activeCategory)?.label}”.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {selectedPackageForModal ? (
+            <PackageBookingModal
+              isOpen={Boolean(selectedPackageForModal)}
+              onClose={() => setSelectedPackageForModal(null)}
+              packageItem={selectedPackageForModal}
+            />
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

@@ -34,7 +34,8 @@ const NAV = [
   { href: "/admin/services", label: "Dịch vụ" },
   { href: "/admin/catalog", label: "Gói & bài viết" },
   { href: "/admin/schedules", label: "Lịch bác sĩ" },
-  { href: "/admin/content", label: "CMS live" },
+  { href: "/admin/content", label: "Nội dung website" },
+  { href: "/admin/users", label: "Tài khoản" },
   { href: "/admin/ai-content-reviews", label: "AI review" },
   { href: "/admin/ai-credits", label: "AI credits" },
   { href: "/admin/health-questions", label: "Hỏi đáp sức khỏe" },
@@ -50,10 +51,18 @@ type GateState =
 
 function AdminAccessGate({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const session = useAuthSession();
   const hydrationStatus = useAuthSessionStatus();
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const [switchAccountError, setSwitchAccountError] = useState<string | null>(null);
+
+  const loginNext = (): string => {
+    const current = typeof window === "undefined"
+      ? pathname
+      : `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    return encodeURIComponent(current ?? "/admin");
+  };
   const gate: GateState = hydrationStatus !== "settled"
     ? { status: "checking" }
     : !session
@@ -69,7 +78,7 @@ function AdminAccessGate({ children }: { children: ReactNode }) {
     try {
       const outcome = await logoutCurrentUser();
       if (outcome.status === "LOGGED_OUT") {
-        router.replace("/auth/login?next=%2Fadmin");
+        router.replace("/auth/login?next=" + loginNext());
       } else {
         setSwitchAccountError(SAFE_LOGOUT_ERROR_MESSAGE);
       }
@@ -118,7 +127,7 @@ function AdminAccessGate({ children }: { children: ReactNode }) {
             tone="forbidden"
             title="Cần đăng nhập để mở khu vực quản trị"
             description="Hãy đăng nhập bằng tài khoản quản trị để tiếp tục. Dữ liệu bệnh viện không được tải khi chưa xác thực."
-            action={<div className="flex flex-wrap gap-3"><Link className="inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 text-sm font-bold text-white" href="/auth/login?next=%2Fadmin">Đăng nhập</Link><Link className="inline-flex min-h-11 items-center px-2 text-sm font-bold text-teal-800 underline underline-offset-4" href="/">Về trang chính</Link></div>}
+            action={<div className="flex flex-wrap gap-3"><Link className="inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 text-sm font-bold text-white" href={"/auth/login?next=" + loginNext()}>Đăng nhập</Link><Link className="inline-flex min-h-11 items-center px-2 text-sm font-bold text-teal-800 underline underline-offset-4" href="/">Về trang chính</Link></div>}
           />
         </div>
       </main>
@@ -280,7 +289,7 @@ function AdminNotificationBell() {
       {open ? (
         <div
           aria-label="Thông báo hệ thống"
-          className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+          className="absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
           role="dialog"
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -291,7 +300,7 @@ function AdminNotificationBell() {
               </button>
             ) : null}
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-[min(20rem,calc(100dvh-6rem))] overflow-y-auto">
             {loading && items.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-slate-500">Đang tải thông báo…</p>
             ) : items.length === 0 ? (
@@ -326,9 +335,29 @@ function AdminNotificationBell() {
 
 function AdminShell({ children, displayName }: { children: ReactNode; displayName?: string }) {
   const pathname = usePathname();
+  const cmsEditing = pathname === "/admin/content";
+  const focusedWorkspace = cmsEditing || pathname === "/admin/users";
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [openForPath, setOpenForPath] = useState<string | null>(null);
+  const navOpen = openForPath === pathname;
+  const navToggleRef = useRef<HTMLButtonElement>(null);
+  const workspaceToggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenForPath(null);
+        (focusedWorkspace ? workspaceToggleRef : navToggleRef).current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [navOpen, focusedWorkspace]);
 
   const handleLogout = async (): Promise<void> => {
     if (loggingOut) return;
@@ -353,49 +382,66 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   return (
     <div className="admin-shell min-h-screen bg-slate-50 text-slate-900 lg:flex">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside className="border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden">
+      <aside id="admin-navigation" className={`${focusedWorkspace && !navOpen ? "hidden" : ""} border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden`}>
         <div className="flex h-full flex-col p-5 overflow-hidden">
-          <div className="shrink-0">
-            <div className="flex items-center gap-3 text-teal-100"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></div>
-            <p className="mt-2 text-base font-bold">Điều hành bệnh viện</p>
-            <p className="mt-2 text-xs leading-5 text-teal-100/75">
-              {displayName ? `Xin chào, ${displayName}.` : "Tài khoản quản trị đã được xác thực."}
-            </p>
+          <div className="flex shrink-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Link aria-label="HealthCare — về trang chủ" className="flex items-center gap-3 text-teal-100 hover:text-white" href="/"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></Link>
+              <p className="mt-2 text-base font-bold">Điều hành bệnh viện</p>
+              <p className="mt-2 text-xs leading-5 text-teal-100/75">
+                {displayName ? `Xin chào, ${displayName}.` : "Tài khoản quản trị đã được xác thực."}
+              </p>
+            </div>
+            <button
+              aria-controls="admin-nav-panel"
+              aria-expanded={navOpen}
+              aria-label={navOpen ? "Đóng menu quản trị" : "Mở menu quản trị"}
+              className={`${focusedWorkspace ? "hidden" : "inline-flex"} min-h-11 w-11 shrink-0 items-center justify-center rounded-lg text-teal-100 hover:bg-teal-900 hover:text-white lg:hidden`}
+              onClick={() => setOpenForPath(navOpen ? null : pathname)}
+              ref={navToggleRef}
+              type="button"
+            >
+              <UiIcon name={navOpen ? "x" : "menu"} size={20} />
+            </button>
           </div>
 
-          <nav aria-label="Điều hướng quản trị" className="admin-nav mt-6 min-h-0 flex-1 overflow-y-auto">
-            {NAV.map((item) => {
-              const active = item.href === "/admin"
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  aria-current={active ? "page" : undefined}
-                  className={`admin-nav__link ${
-                    active ? "bg-teal-700 font-bold text-white" : "bg-teal-950 text-teal-100/80 hover:bg-teal-900 hover:text-white"
-                  }`}
-                  href={item.href}
-                  key={item.href}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className={`min-h-0 flex-1 flex-col ${navOpen ? "flex" : "hidden"} lg:flex`} id="admin-nav-panel">
+            <nav aria-label="Điều hướng quản trị" className="admin-nav mt-6 min-h-0 flex-1 overflow-y-auto">
+              {NAV.map((item) => {
+                const active = item.href === "/admin"
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    aria-current={active ? "page" : undefined}
+                    className={`admin-nav__link ${
+                      active ? "bg-teal-700 font-bold text-white" : "bg-teal-950 text-teal-100/80 hover:bg-teal-900 hover:text-white"
+                    }`}
+                    href={item.href}
+                    key={item.href}
+                    onClick={() => setOpenForPath(null)}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
 
-          <div className="mt-6 grid gap-2 border-t border-teal-900 pt-5 lg:mt-auto shrink-0">
-            <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-teal-100/75 hover:text-white" href="/">Về trang chính</Link>
-            <button className="min-h-11 w-fit text-left text-sm font-semibold text-amber-200 hover:text-amber-100 disabled:opacity-50" disabled={loggingOut} onClick={() => void handleLogout()} type="button">
-              {loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
-            </button>
-            {logoutError ? <p aria-live="polite" className="text-xs font-semibold leading-5 text-amber-100" role="status">{logoutError}</p> : null}
+            <div className="mt-6 grid gap-2 border-t border-teal-900 pt-5 lg:mt-auto shrink-0">
+              <Link className="inline-flex min-h-11 items-center text-sm font-semibold text-teal-100/75 hover:text-white" href="/">Về trang chính</Link>
+              <button data-leaves-admin-session className="min-h-11 w-fit text-left text-sm font-semibold text-amber-200 hover:text-amber-100 disabled:opacity-50" disabled={loggingOut} onClick={() => void handleLogout()} type="button">
+                {loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
+              </button>
+              {logoutError ? <p aria-live="polite" className="text-xs font-semibold leading-5 text-amber-100" role="status">{logoutError}</p> : null}
+            </div>
           </div>
         </div>
       </aside>
 
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8" id="main-content" tabIndex={-1}>
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-6 flex items-start justify-end gap-4">
+        <div className={cmsEditing ? "w-full" : "mx-auto max-w-7xl"}>
+          <div className="mb-6 flex items-start justify-between gap-4">
+            {focusedWorkspace ? <button className="min-h-11 rounded-lg border border-teal-800 px-4 text-sm font-bold text-teal-900" aria-expanded={navOpen} aria-controls="admin-navigation" type="button" onClick={() => setOpenForPath(navOpen ? null : pathname)} ref={workspaceToggleRef}>{navOpen ? "Thu gọn điều hướng" : "Mở điều hướng quản trị"}</button> : <span />}
             <div className="shrink-0">
               <AdminNotificationBell />
             </div>

@@ -48,6 +48,8 @@ const TinyEditor = dynamic<IAllProps>(
 );
 
 export interface RichTextEditorProps {
+  contentMode?: "article" | "cms";
+  onBusyChange?: (busy: boolean) => void;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -258,6 +260,8 @@ Không cho người bệnh uống nước hoặc dùng bất kỳ loại thuốc
 ];
 
 export function RichTextEditor({
+  contentMode = "article",
+  onBusyChange,
   value = "",
   onChange,
   placeholder = "Nhập nội dung bài viết... Bạn có thể dùng Markdown hoặc các công cụ định dạng phía trên.",
@@ -307,6 +311,9 @@ export function RichTextEditor({
   const uploadInFlightRef = useRef(false);
   const [isDraggingImageModal, setIsDraggingImageModal] = useState(false);
   const [isDirectUploading, setIsDirectUploading] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(isUploadingImage || isDirectUploading);
+  }, [isUploadingImage, isDirectUploading, onBusyChange]);
   const [directUploadError, setDirectUploadError] = useState<string | null>(null);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
 
@@ -494,7 +501,9 @@ export function RichTextEditor({
       // The table insert/row/column commands stay: those tables do survive as
       // GFM. tests/editor-toolbar-honesty.test.mjs pins the removals, and
       // tests/editor-round-trip.test.mjs pins what the pipeline keeps.
-      toolbar: `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table tableinsertrowbefore tableinsertrowafter tabledeleterow tableinsertcolbefore tableinsertcolafter tabledeletecol link ${
+      toolbar: contentMode === "cms"
+        ? `undo redo | blocks | bold italic underline strikethrough | bullist numlist | link ${MEDIA_UPLOADS_ENABLED ? "image" : ""} | blockquote removeformat | preview fullscreen`
+        : `undo redo | blocks | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | table tableinsertrowbefore tableinsertrowafter tabledeleterow tableinsertcolbefore tableinsertcolafter tabledeletecol link ${
         MEDIA_UPLOADS_ENABLED ? "image " : ""
       }| clinical_warning doctor_note dosage_guide emergency_box | searchreplace charmap insertdatetime | hr nonbreaking selectall visualblocks | removeformat code preview fullscreen`,
       plugins: [
@@ -518,7 +527,7 @@ export function RichTextEditor({
       ],
       quickbars_selection_toolbar:
         "bold italic underline strikethrough | quicklink h2 h3 blockquote",
-      quickbars_insert_toolbar: `${MEDIA_UPLOADS_ENABLED ? "quickimage " : ""}quicktable | hr`,
+      quickbars_insert_toolbar: contentMode === "cms" ? false : `${MEDIA_UPLOADS_ENABLED ? "quickimage " : ""}quicktable | hr`,
       // font_family_formats and font_size_formats used to sit here naming nine
       // typefaces and eleven sizes. Nothing could reach them: the menubar is
       // off and no toolbar token exposed the `fontfamily`/`fontsize` lists, so
@@ -778,7 +787,7 @@ export function RichTextEditor({
         }
       },
     }),
-    [purpose]
+    [purpose, contentMode]
   );
 
   // Handle escape key in fullscreen or modal
@@ -1888,6 +1897,7 @@ export function RichTextEditor({
         </button>
         <button
           aria-label="Chèn bảng y khoa"
+          hidden={contentMode === "cms"}
           className="rounded-[3px] px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-teal-900 cursor-pointer"
           disabled={disabled || viewMode === "preview"}
           onClick={handleInsertTable}
@@ -1939,7 +1949,7 @@ export function RichTextEditor({
         <span className="mx-1 h-4 w-px bg-slate-200" />
 
         {/* Healthcare Callouts Dropdown */}
-        <div className="relative">
+        <div className="relative" hidden={contentMode === "cms"}>
           <button
             aria-expanded={showCalloutMenu}
             aria-haspopup="true"
@@ -2014,7 +2024,7 @@ export function RichTextEditor({
         </div>
 
         {/* Medical Templates Dropdown */}
-        <div className="relative">
+        <div className="relative" hidden={contentMode === "cms"}>
           <button
             aria-expanded={showTemplateMenu}
             aria-haspopup="true"

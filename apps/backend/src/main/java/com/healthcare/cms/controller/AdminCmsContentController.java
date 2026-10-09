@@ -4,7 +4,11 @@ import com.healthcare.cms.dto.CmsContentRequest;
 import com.healthcare.cms.dto.CmsContentResponse;
 import com.healthcare.cms.dto.CmsContentHistoryResponse;
 import com.healthcare.cms.dto.CmsRollbackRequest;
+import com.healthcare.cms.dto.CmsDraftRequest;
+import com.healthcare.cms.dto.CmsDraftResponse;
+import com.healthcare.cms.dto.CmsPublishRequest;
 import com.healthcare.cms.service.CmsContentService;
+import com.healthcare.cms.service.CmsDraftService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,9 +37,11 @@ import java.util.List;
 public class AdminCmsContentController {
 
     private final CmsContentService contentService;
+    private final CmsDraftService draftService;
 
-    public AdminCmsContentController(CmsContentService contentService) {
+    public AdminCmsContentController(CmsContentService contentService, CmsDraftService draftService) {
         this.contentService = contentService;
+        this.draftService = draftService;
     }
 
     @Operation(summary = "Admin lấy danh sách tất cả các slot nội dung CMS", description = "Truy xuất danh sách slot nội dung động, banner, trang tĩnh kèm thông tin phân trang qua HTTP headers")
@@ -50,6 +56,7 @@ public class AdminCmsContentController {
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Total-Count", Long.toString(result.getTotalElements()));
         headers.set("X-Page", Integer.toString(result.getNumber()));
+        headers.set("X-Page-Size", Integer.toString(result.getSize()));
         headers.set("X-Total-Pages", Integer.toString(result.getTotalPages()));
         return ResponseEntity.ok()
             .headers(headers)
@@ -61,6 +68,29 @@ public class AdminCmsContentController {
     @GetMapping("/{slotKey}")
     public ResponseEntity<CmsContentResponse> get(@PathVariable String slotKey) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(contentService.getForAdmin(slotKey));
+    }
+
+    @GetMapping("/{slotKey}/draft")
+    public ResponseEntity<CmsDraftResponse> draft(@PathVariable String slotKey) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(draftService.get(slotKey));
+    }
+
+    @PutMapping("/{slotKey}/draft")
+    public ResponseEntity<CmsDraftResponse> saveDraft(@PathVariable String slotKey,
+            @Valid @RequestBody CmsDraftRequest request, @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(draftService.save(slotKey, request, actor));
+    }
+
+    @PostMapping("/{slotKey}/publish")
+    public ResponseEntity<CmsDraftResponse> publish(@PathVariable String slotKey,
+            @Valid @RequestBody CmsPublishRequest request, @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(draftService.publish(slotKey, request, actor));
+    }
+
+    @PostMapping("/{slotKey}/restore-draft")
+    public ResponseEntity<CmsDraftResponse> restoreDraft(@PathVariable String slotKey,
+            @Valid @RequestBody CmsRollbackRequest request, @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(draftService.restore(slotKey, request, actor));
     }
 
     @Operation(summary = "Admin cập nhật hoặc tạo mới slot nội dung CMS", description = "Tạo mới hoặc cập nhật nội dung giao diện, tự động ghi nhận phiên bản lịch sử")

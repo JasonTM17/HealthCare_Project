@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent, type ReactElement } from "react";
 import { ApiError, uploadMediaAsset } from "../lib/api-client";
 import { presentApiError } from "../lib/present-api-error";
 import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../lib/media-uploads";
@@ -13,6 +13,41 @@ import styles from "./ImageUpload.module.css";
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_UPLOAD_LABEL = "5 MB";
 
+function UploadImagePreview({
+  value,
+  aspectRatio,
+}: {
+  value: string;
+  aspectRatio: "banner" | "square";
+}): ReactElement {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <>
+        {aspectRatio === "square" ? (
+          <div className={styles.previewSquareFallback}>
+            <UiIcon name="user" size={48} />
+          </div>
+        ) : (
+          <div className={styles.previewBannerFallback}>
+            <UiIcon name="layers" size={40} />
+          </div>
+        )}
+        <p className={styles.errorText} role="alert">Không thể tải bản xem trước hình ảnh.</p>
+      </>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt="Xem trước hình ảnh"
+      className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
+      onError={() => setFailed(true)}
+      src={value}
+    />
+  );
+}
+
 interface ImageUploadProps {
   value?: string;
   onChange: (url: string) => void;
@@ -20,6 +55,8 @@ interface ImageUploadProps {
   purpose?: "ARTICLE_COVER" | "DOCTOR_PORTRAIT" | "PATIENT_AVATAR" | "GENERAL";
   aspectRatio?: "banner" | "square";
   helperText?: string;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export default function ImageUpload({
@@ -29,6 +66,8 @@ export default function ImageUpload({
   purpose = "GENERAL",
   aspectRatio = "banner",
   helperText = `Hỗ trợ định dạng PNG, JPG, WEBP (Tối đa ${MAX_UPLOAD_LABEL})`,
+  disabled = false,
+  onBusyChange,
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // In-flight guard: drop/file-input handlers can fire while a previous
@@ -38,10 +77,9 @@ export default function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
   const handleProcessFile = async (file: File) => {
-    if (inFlightRef.current) return;
+    if (disabled || inFlightRef.current) return;
     if (!MEDIA_UPLOADS_ENABLED) {
       setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
       return;
@@ -57,9 +95,9 @@ export default function ImageUpload({
     }
 
     setError(null);
-    setImageError(false);
     inFlightRef.current = true;
     setUploading(true);
+    onBusyChange?.(true);
 
     try {
       const response = await uploadMediaAsset(file, purpose);
@@ -75,10 +113,12 @@ export default function ImageUpload({
     } finally {
       inFlightRef.current = false;
       setUploading(false);
+      onBusyChange?.(false);
     }
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const file = e.target.files?.[0];
     if (file) {
       void handleProcessFile(file);
@@ -89,7 +129,7 @@ export default function ImageUpload({
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!disabled && !uploading) setIsDragging(true);
   };
 
   const handleDragLeave = () => {
@@ -99,6 +139,7 @@ export default function ImageUpload({
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
+    if (disabled || uploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       void handleProcessFile(file);
@@ -106,14 +147,9 @@ export default function ImageUpload({
   };
 
   const handleRemove = () => {
+    if (disabled || uploading) return;
     onChange("");
     setError(null);
-    setImageError(false);
-  };
-
-  const handleImageError = () => {
-    setImageError(true);
-    setError("Không thể tải bản xem trước hình ảnh.");
   };
 
   return (
@@ -123,28 +159,12 @@ export default function ImageUpload({
       <div className={styles.uploadHost}>
         {value ? (
           <div className={styles.previewWrapper}>
-            {!imageError ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt="Xem trước hình ảnh"
-                className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
-                onError={handleImageError}
-                src={value}
-              />
-            ) : aspectRatio === "square" ? (
-              <div className={styles.previewSquareFallback}>
-                <UiIcon name="user" size={48} />
-              </div>
-            ) : (
-              <div className={styles.previewBannerFallback}>
-                <UiIcon name="layers" size={40} />
-              </div>
-            )}
+            <UploadImagePreview key={value} value={value} aspectRatio={aspectRatio} />
             <div className={styles.previewActions}>
               <div className={styles.actionButtons}>
                 <button
                   className={styles.changeBtn}
-                  disabled={uploading}
+                  disabled={disabled || uploading}
                   onClick={() => {
                     if (!MEDIA_UPLOADS_ENABLED) {
                       setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
@@ -159,7 +179,7 @@ export default function ImageUpload({
                 </button>
                 <button
                   className={styles.removeBtn}
-                  disabled={uploading}
+                  disabled={disabled || uploading}
                   onClick={handleRemove}
                   type="button"
                 >
@@ -180,21 +200,22 @@ export default function ImageUpload({
         ) : (
           <div
             aria-busy={uploading}
+            aria-disabled={disabled || uploading}
             className={`${styles.dropzone} ${isDragging ? styles.dropzoneDragging : ""} ${uploading ? styles.dropzoneBusy : ""}`}
             onClick={() => {
-              if (!uploading) fileInputRef.current?.click();
+              if (!disabled && !uploading) fileInputRef.current?.click();
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                if (!uploading) fileInputRef.current?.click();
+                if (!disabled && !uploading) fileInputRef.current?.click();
               }
             }}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             role="button"
-            tabIndex={0}
+            tabIndex={disabled ? -1 : 0}
           >
             <div className={styles.dropzoneIcon}>
               <UiIcon name="plus" size={20} />
@@ -217,6 +238,7 @@ export default function ImageUpload({
       <input
         accept="image/png,image/jpeg,image/webp,image/gif"
         className={styles.hiddenInput}
+        disabled={disabled || uploading}
         onChange={handleFileChange}
         ref={fileInputRef}
         type="file"

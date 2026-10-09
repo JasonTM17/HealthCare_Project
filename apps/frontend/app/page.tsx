@@ -10,6 +10,8 @@ import BookingModal, { specialtyIdForDoctor } from "../components/BookingModal";
 import CareExperience from "../components/CareExperience";
 import DailyHealthTip from "../components/DailyHealthTip";
 import { CmsLiveSlot } from "../components/cms";
+import { CmsPageLayoutProvider, CmsNativeImage, CmsNativeRich, CmsNativeSection, CmsNativeSections, CmsNativeText } from "../components/cms/cms-page-layout-provider";
+import { isCmsPreviewRequested } from "../lib/cms-preview-bridge";
 import { CmsContentRenderer } from "../components/cms/CmsRenderer";
 import Footer from "../components/Footer";
 import Icon, { type IconName } from "../components/UiIcon";
@@ -27,13 +29,13 @@ import {
   type Page,
 } from "../lib/api-client";
 import { formatBusinessDate } from "../lib/business-time";
-import { isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
+import { CMS_SLOT_DEFAULT_IMAGES, isSafeCmsLinkUrl, isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import { safeTelephoneHref } from "../lib/phone";
 import { presentApiError } from "../lib/present-api-error";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../lib/article-visuals";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
-const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
+const HERO_IMAGE = CMS_SLOT_DEFAULT_IMAGES["homepage.hero"];
 const DEFAULT_QUICK_CHIPS = ["Tim mạch", "Nhi khoa", "Tiêu hóa", "Khám tổng quát"];
 // Retain fallback reference for test compatibility: /media/about-care-poster.jpg
 
@@ -124,6 +126,7 @@ const JOURNEY_STEPS: Array<{ icon: IconName; title: string; description: string 
 ];
 
 interface SectionHeadingProps {
+  cmsSection?: string;
   headingId?: string;
   title: string;
   description: string;
@@ -132,6 +135,7 @@ interface SectionHeadingProps {
 }
 
 const SectionHeading: React.FC<SectionHeadingProps> = ({
+  cmsSection,
   headingId,
   title,
   description,
@@ -141,8 +145,8 @@ const SectionHeading: React.FC<SectionHeadingProps> = ({
   <div className="section-heading">
     <div>
       {note ? <p className="section-note">{note}</p> : null}
-      <h2 id={headingId}>{title}</h2>
-      <p className="section-description">{description}</p>
+      {cmsSection ? <CmsNativeText as="h2" fieldId={`${cmsSection}.title`} id={headingId} value={title} /> : <h2 id={headingId}>{title}</h2>}
+      {cmsSection ? <CmsNativeRich className="section-description" fieldId={`${cmsSection}.body`} value={description}>{description}</CmsNativeRich> : <p className="section-description">{description}</p>}
     </div>
     {action ? <div className="section-heading__action">{action}</div> : null}
   </div>
@@ -367,7 +371,7 @@ function HomeHeroCopy({
   quickChips,
 }: HomeHeroCopyProps): React.ReactElement {
   const activeCmsHero = cmsHero && !isPlaceholderCmsHeroPayload(cmsHero) ? cmsHero : null;
-  const cmsCta = activeCmsHero?.ctaLabel && activeCmsHero.ctaHref && isSafeCmsUrl(activeCmsHero.ctaHref)
+  const cmsCta = activeCmsHero?.ctaLabel && activeCmsHero.ctaHref && isSafeCmsLinkUrl(activeCmsHero.ctaHref)
     ? { label: activeCmsHero.ctaLabel, href: activeCmsHero.ctaHref }
     : null;
   const chips = quickChips?.length ? quickChips : DEFAULT_QUICK_CHIPS;
@@ -376,9 +380,9 @@ function HomeHeroCopy({
     <div className="hero-copy" data-cms-managed={activeCmsHero ? "hero-copy" : undefined}>
       <p className="hero-kicker">
         <span className="hero-kicker__line" aria-hidden="true" />
-        {activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"}
+        <CmsNativeText fieldId="hero.eyebrow" value={activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"} />
       </p>
-      <h1 id="hero-title">
+      <CmsNativeText as="h1" fieldId="hero.title" id="hero-title" value={activeCmsHero?.title ?? "Đồng hành cùng sức khỏe gia đình"}>
         {activeCmsHero?.title ?? (
           <>
             Đồng hành<br />
@@ -386,10 +390,10 @@ function HomeHeroCopy({
             <span className="hero-teal-accent">gia đình</span>
           </>
         )}
-      </h1>
-      <p className="hero-description !text-slate-700 !opacity-100" style={{ color: "#334155" }}>
+      </CmsNativeText>
+      <CmsNativeRich className="hero-description !text-slate-700 !opacity-100" fieldId="hero.body" style={{ color: "#334155" }} value={activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}>
         {activeCmsHero?.body ?? "Chọn chuyên khoa, bác sĩ, gói khám hoặc cơ sở và giữ khung giờ phù hợp ngay trên hệ thống."}
-      </p>
+      </CmsNativeRich>
       <form className="hero-search" onSubmit={(event) => { event.preventDefault(); onSearchSubmit(); }}>
         <label className="sr-only" htmlFor="hero-search-input">
           Tìm chuyên khoa hoặc bác sĩ
@@ -458,11 +462,11 @@ function HomeAssuranceStrip({
       <div className="hero-assurance__inner">
         <Link className="hero-assurance__item hero-assurance__item--action" href="/doctors">
           <span className="hero-assurance__icon"><Icon name="user" size={17} /></span>
-          <span><strong>Tìm bác sĩ phù hợp</strong><small>Xem chuyên môn, kinh nghiệm và lịch nhận khám.</small></span>
+          <span><CmsNativeText as="strong" fieldId="assurance.doctorTitle" value="Tìm bác sĩ phù hợp" /><CmsNativeText as="small" fieldId="assurance.doctorBody" value="Xem chuyên môn, kinh nghiệm và lịch nhận khám." /></span>
         </Link>
           <Link className="hero-assurance__item hero-assurance__item--action" href="/packages">
             <span className="hero-assurance__icon"><Icon name="heart" size={17} /></span>
-            <span><strong>Lựa chọn gói khám</strong><small>So sánh các gói chăm sóc định kỳ mở rộng.</small></span>
+            <span><CmsNativeText as="strong" fieldId="assurance.packageTitle" value="Lựa chọn gói khám" /><CmsNativeText as="small" fieldId="assurance.packageBody" value="So sánh các gói chăm sóc định kỳ mở rộng." /></span>
           </Link>
         {contactHref ? (
           <a className="hero-assurance__item hero-assurance__item--action" href={contactHref}>
@@ -488,9 +492,11 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
     <figure className="hero-visual">
       <div className="hero-visual__image-wrap">
         {safeCmsImage ? (
-          // CMS image URLs are validated before rendering; using img keeps the admin-configured HTTPS asset compatible with any CDN.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          // Legacy and structured CMS assets share the same source validation.
+          <CmsNativeImage
+            fieldId="hero.image"
+            fill
+            unoptimized
             alt="Hình ảnh hoạt động tại bệnh viện"
             className="hero-visual__image"
             decoding="async"
@@ -505,7 +511,8 @@ function HomeHeroVisual({ imageUrl }: { imageUrl?: string }): React.ReactElement
             src={safeCmsImage}
           />
         ) : (
-          <Image
+          <CmsNativeImage
+            fieldId="hero.image"
             alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
             className="hero-visual__image"
             fill
@@ -634,6 +641,7 @@ export default function Home(): React.ReactElement {
     packageId?: string,
     branchId?: string,
   ): void => {
+    if (isCmsPreviewRequested()) return;
     let resolvedSpecialtyId = specialtyId;
     let resolvedBranchId = branchId;
     if (doctorId && catalog?.doctors) {
@@ -658,6 +666,7 @@ export default function Home(): React.ReactElement {
   };
 
   const handleHeroSearchSubmit = (): void => {
+    if (isCmsPreviewRequested()) return;
     const nextQuery = searchQuery.trim();
     router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
   };
@@ -702,7 +711,7 @@ export default function Home(): React.ReactElement {
     setSearchQuery,
     onSearchSubmit: handleHeroSearchSubmit,
     onBooking: () => handleOpenBooking(),
-    onTriage: () => setIsAiTriageOpen(true),
+    onTriage: () => { if (!isCmsPreviewRequested()) setIsAiTriageOpen(true); },
     quickChips: heroQuickChips,
   };
 
@@ -717,6 +726,7 @@ export default function Home(): React.ReactElement {
       : "Chưa có cơ sở công khai";
 
     return (
+      <CmsPageLayoutProvider pathname="/">
       <div className="site-shell">
       <PublicMotion />
       <Navbar
@@ -725,6 +735,8 @@ export default function Home(): React.ReactElement {
       />
 
       <main id="main-content" tabIndex={-1}>
+        <CmsNativeSections>
+        <CmsNativeSection key="hero" sectionId="hero">
         <section className="hero-section" aria-labelledby="hero-title">
           <CmsLiveSlot
             className="hero-inner"
@@ -748,15 +760,18 @@ export default function Home(): React.ReactElement {
             slug="home"
           />
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="assurance" sectionId="assurance">
         <HomeAssuranceStrip
           contactHref={contactHref}
           contactPhone={contactPhone}
           hasEmergencyBranch={Boolean(emergencyBranch)}
         />
-
+        </CmsNativeSection>
+        <CmsNativeSection key="daily-tip" sectionId="daily-tip">
         <DailyHealthTip />
-
+        </CmsNativeSection>
+        <CmsNativeSection key="notices" sectionId="notices">
         <section className="cms-live-region" id="cms-live" aria-labelledby="cms-live-title">
           <div className="section-inner">
             <h2 className="sr-only" id="cms-live-title">Thông báo từ bệnh viện</h2>
@@ -799,30 +814,31 @@ export default function Home(): React.ReactElement {
             </div>
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="care" sectionId="care">
         <section className="care-section" aria-labelledby="care-title">
           <div className="care-inner">
-            <h2 className="sr-only" id="care-title">Lối tắt chăm sóc</h2>
+            <CmsNativeText as="h2" className="sr-only" fieldId="care.title" id="care-title" value="Lối tắt chăm sóc" />
             <div className="care-links" aria-label="Lối tắt chăm sóc">
               <button className="care-link hm-quick-card" onClick={() => handleOpenBooking()} type="button">
                 <span className="care-link__icon hm-quick-card__icon"><Icon name="calendar" size={22} /></span>
                 <span className="hm-quick-card__body">
-                  <strong>Đặt lịch khám</strong>
-                  <small>Chọn bác sĩ và khung giờ</small>
+                  <CmsNativeText as="strong" fieldId="care.bookingTitle" value="Đặt lịch khám" />
+                  <CmsNativeText as="small" fieldId="care.bookingBody" value="Chọn bác sĩ và khung giờ" />
                 </span>
               </button>
               <Link className="care-link hm-quick-card" href="#packages">
                 <span className="care-link__icon hm-quick-card__icon"><Icon name="layers" size={22} /></span>
                 <span className="hm-quick-card__body">
-                  <strong>Gói khám</strong>
-                  <small>So sánh lựa chọn theo nhu cầu</small>
+                  <CmsNativeText as="strong" fieldId="care.packageTitle" value="Gói khám" />
+                  <CmsNativeText as="small" fieldId="care.packageBody" value="So sánh lựa chọn theo nhu cầu" />
                 </span>
               </Link>
               <Link className="care-link hm-quick-card" href="/specialties">
                 <span className="care-link__icon hm-quick-card__icon"><Icon name="stethoscope" size={22} /></span>
                 <span className="hm-quick-card__body">
-                  <strong>Chuyên khoa</strong>
-                  <small>Chọn theo nhu cầu thăm khám</small>
+                  <CmsNativeText as="strong" fieldId="care.specialtyTitle" value="Chuyên khoa" />
+                  <CmsNativeText as="small" fieldId="care.specialtyBody" value="Chọn theo nhu cầu thăm khám" />
                 </span>
               </Link>
               {contactHref ? (
@@ -845,10 +861,12 @@ export default function Home(): React.ReactElement {
             </div>
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="packages" sectionId="packages">
         <section className={`section section--packages${catalogError ? " section--unavailable" : ""}`} id="packages" aria-labelledby="packages-title">
           <div className="section-inner">
             <SectionHeading
+              cmsSection="packages"
               action={<Link className="section-link" href="/packages">Xem danh mục gói khám <Icon name="arrow-right" size={17} /></Link>}
               description="Xem chi phí và các hạng mục khám để chọn gói phù hợp."
               headingId="packages-title"
@@ -888,10 +906,12 @@ export default function Home(): React.ReactElement {
             ) : null}
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="specialties" sectionId="specialties">
         <section className={`section section--specialties${catalogError ? " section--unavailable" : ""}`} id="specialties" aria-labelledby="specialties-title">
           <div className="section-inner">
             <SectionHeading
+              cmsSection="specialties"
               action={<Link className="section-link" href="/specialties">Xem tất cả chuyên khoa <Icon name="arrow-right" size={17} /></Link>}
               description="Tìm hiểu phạm vi thăm khám và chọn chuyên khoa phù hợp với nhu cầu của bạn."
               headingId="specialties-title"
@@ -940,10 +960,12 @@ export default function Home(): React.ReactElement {
             ) : null}
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="doctors" sectionId="doctors">
         <section className={`section section--doctors${catalogError ? " section--unavailable" : ""}`} id="doctors" aria-labelledby="doctors-title">
           <div className="section-inner">
             <SectionHeading
+              cmsSection="doctors"
               action={<Link className="section-link" href="/doctors">Xem tất cả bác sĩ <Icon name="arrow-right" size={17} /></Link>}
               description="Tìm hiểu chuyên môn, kinh nghiệm và đặt lịch với bác sĩ."
               headingId="doctors-title"
@@ -981,14 +1003,17 @@ export default function Home(): React.ReactElement {
             ) : null}
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="experience" sectionId="experience">
         <CareExperience />
-
+        </CmsNativeSection>
+        <CmsNativeSection key="journey" sectionId="journey">
         <section className="section section--journey" id="guide" aria-labelledby="journey-title">
           <div className="section-inner">
             <div className="journey-layout">
               <div>
                 <SectionHeading
+                  cmsSection="journey"
                   description="Quy trình 4 bước tinh gọn giúp bạn chủ động thời gian và giảm thiểu thời gian chờ đợi tại viện."
                   headingId="journey-title"
                   title="4 bước đặt lịch thăm khám"
@@ -1016,10 +1041,12 @@ export default function Home(): React.ReactElement {
             </div>
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="branches" sectionId="branches">
         <section className={`section section--branches${catalogError ? " section--unavailable" : ""}`} id="branches" aria-labelledby="branches-title">
           <div className="section-inner">
             <SectionHeading
+              cmsSection="branches"
               action={<Link className="section-link" href="/branches">Xem tất cả cơ sở <Icon name="arrow-right" size={17} /></Link>}
               description="Chọn cơ sở theo vị trí, giờ làm việc và nhu cầu đặt hẹn của bạn."
               headingId="branches-title"
@@ -1073,10 +1100,12 @@ export default function Home(): React.ReactElement {
             </div>
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="articles" sectionId="articles">
         <section className={`section section--content${catalogError ? " section--unavailable" : ""}`} id="articles" aria-labelledby="content-title">
           <div className="section-inner">
             <SectionHeading
+              cmsSection="articles"
               action={<Link className="section-link" href="/articles">Xem cẩm nang <Icon name="arrow-right" size={17} /></Link>}
               description="Nội dung ngắn, dễ đọc để bạn chuẩn bị câu hỏi và theo dõi hướng dẫn sau buổi khám."
               headingId="content-title"
@@ -1139,13 +1168,14 @@ export default function Home(): React.ReactElement {
             </div>
           </div>
         </section>
-
+        </CmsNativeSection>
+        <CmsNativeSection key="closing" sectionId="closing">
         <section className="appointment-cta" aria-labelledby="appointment-cta-title">
           <div className="appointment-cta__inner">
             <div>
-              <p className="section-note">Bước tiếp theo của bạn</p>
-              <h2 id="appointment-cta-title">Sẵn sàng cho cuộc hẹn của bạn?</h2>
-              <p>Chọn bác sĩ, cơ sở hoặc gói khám phù hợp và chủ động khung giờ thuận tiện.</p>
+              <CmsNativeText as="p" className="section-note" fieldId="closing.eyebrow" value="Bước tiếp theo của bạn" />
+              <CmsNativeText as="h2" fieldId="closing.title" id="appointment-cta-title" value="Sẵn sàng cho cuộc hẹn của bạn?" />
+              <CmsNativeRich fieldId="closing.body" value="Chọn bác sĩ, cơ sở hoặc gói khám phù hợp và chủ động khung giờ thuận tiện.">Chọn bác sĩ, cơ sở hoặc gói khám phù hợp và chủ động khung giờ thuận tiện.</CmsNativeRich>
             </div>
             <div className="appointment-cta__actions">
               <button className="button button--amber" onClick={() => handleOpenBooking()} type="button">Đặt lịch khám <Icon name="arrow-up-right" size={18} /></button>
@@ -1153,6 +1183,8 @@ export default function Home(): React.ReactElement {
             </div>
           </div>
         </section>
+        </CmsNativeSection>
+        </CmsNativeSections>
       </main>
 
       <Footer branches={branches} cmsSlug="home" />
@@ -1180,5 +1212,6 @@ export default function Home(): React.ReactElement {
         />
       ) : null}
     </div>
+    </CmsPageLayoutProvider>
   );
 }

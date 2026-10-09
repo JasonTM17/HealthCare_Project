@@ -42,6 +42,24 @@ test("image upload client gate mirrors the 5 MB backend default", async () => {
   assert.ok(!source.includes("10 MB"));
 });
 
+test("cms editor preview renders the page default image when imageUrl is empty", async () => {
+  const [source, client, page] = await Promise.all([
+    readFile(cmsEditorPath, "utf8"),
+    readFile(new URL("../lib/cms-client.ts", import.meta.url), "utf8"),
+    readFile(pagePath, "utf8"),
+  ]);
+
+  // The default asset must live in one shared place so the admin preview and
+  // the public homepage never drift apart.
+  assert.match(client, /CMS_SLOT_DEFAULT_IMAGES[^}]*"homepage\.hero": "\/media\/hospital-team-landscape\.jpg"/s);
+  assert.match(page, /HERO_IMAGE = CMS_SLOT_DEFAULT_IMAGES\["homepage\.hero"\]/);
+  assert.match(source, /defaultSlotImage = CMS_SLOT_DEFAULT_IMAGES\[loadedSlotKey\]/);
+  assert.match(source, /previewUsesDefaultImage/);
+  // The preview must label the fallback so it is not mistaken for authored
+  // CMS content.
+  assert.match(source, /ảnh mặc định của trang/);
+});
+
 test("health-questions form uses a localized topic select and a live alias check", async () => {
   const source = await readFile(healthQuestionsPath, "utf8");
 

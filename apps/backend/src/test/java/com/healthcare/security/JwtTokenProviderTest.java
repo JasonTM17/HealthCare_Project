@@ -238,6 +238,43 @@ class JwtTokenProviderTest {
         return new JwtTokenProvider(new JwtProperties(VALID_SECRET, 900, 604800));
     }
 
+    @Test
+    void carriesPersistedSecurityVersionAndKeepsLegacyMissingClaimAtZero() {
+        JwtTokenProvider provider = provider();
+        UUID id = UUID.randomUUID();
+        String access = provider.generateAccessToken(id, "epoch@example.com", 7L);
+        String refresh = provider.generateRefreshToken(id, 7L);
+        assertThat(provider.isValid(access)).isTrue();
+        assertThat(provider.isValid(refresh)).isTrue();
+        assertThat(provider.extractSecurityVersion(access)).isEqualTo(7L);
+        assertThat(provider.extractSecurityVersion(refresh)).isEqualTo(7L);
+        String legacy = signedToken(signingKey(VALID_SECRET), JwtTokenProvider.TOKEN_TYPE_ACCESS, id,
+            Instant.now().minusSeconds(1), Instant.now().plusSeconds(300), "epoch@example.com");
+        assertThat(provider.isValid(legacy)).isTrue();
+        assertThat(provider.extractSecurityVersion(legacy)).isZero();
+    }
+
+    @Test
+    void rejectsMalformedEpochClaimsForAccessAndRefresh() {
+        JwtTokenProvider provider = provider();
+        for (Object value : java.util.List.of(-1L, "0", 0.5, true, java.util.List.of(0), java.util.Map.of("value", 0))) {
+            for (String type : java.util.List.of(JwtTokenProvider.TOKEN_TYPE_ACCESS, JwtTokenProvider.TOKEN_TYPE_REFRESH)) {
+                String token = Jwts.builder().subject(UUID.randomUUID().toString()).id(UUID.randomUUID().toString())
+                    .claim(JwtTokenProvider.CLAIM_TYPE, type).claim("email", "epoch@example.com")
+                    .claim(JwtTokenProvider.CLAIM_SECURITY_VERSION, value)
+                    .issuedAt(Date.from(Instant.now().minusSeconds(1))).expiration(Date.from(Instant.now().plusSeconds(300)))
+                    .signWith(signingKey(VALID_SECRET)).compact();
+                assertThat(provider.isValid(token)).as("invalid epoch %s for %s", value, type).isFalse();
+                assertThat(provider.isAccessToken(token)).isFalse();
+                assertThat(provider.isRefreshToken(token)).isFalse();
+            }
+        }
+        assertThatThrownBy(() -> provider.generateAccessToken(UUID.randomUUID(), "epoch@example.com", -1L))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> provider.generateRefreshToken(UUID.randomUUID(), -1L))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
     private SecretKey signingKey(String secret) {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }

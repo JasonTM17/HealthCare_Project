@@ -162,6 +162,14 @@ OVER_TRIGGER_PRESENTATIONS: tuple[tuple[str, str], ...] = (
     ("hyaluronic", "axit hyaluronic có tác dụng gì"),
     ("acid-density", "nồng độ axit uric bao nhiêu là cao"),
     ("fatty-acid", "axit béo omega 3 nên uống không"),
+    # Squashed "noikho"/"noikhongro" must not fire inside "…nội không…" and
+    # "…nói không…" question frames — the squash stream loses the word
+    # boundary that separates "kho" from "khong", so these stay boundary-only.
+    ("hanoi-branch", "Bệnh viện có cơ sở nào ở Hà Nội không?"),
+    ("hanoi-branch-plain", "benh vien co co so nao o ha noi khong"),
+    ("inner-district", "phòng khám có mở ở nội thành không"),
+    ("no-service", "khoa nội không trực chủ nhật đúng không"),
+    ("says-no", "con tôi nói không muốn đi khám"),
 )
 
 # Stated self-harm intentions that the ambiguous "tu van" homophone must still

@@ -102,6 +102,16 @@ export type CmsPayload =
   | CmsNoticePayload
   | CmsImageCardPayload;
 
+export interface CmsInventoryRowError {
+  slotKey: string;
+  message: string;
+}
+export interface CmsValidatedInventory {
+  content: CmsContent[];
+  errors: CmsInventoryRowError[];
+  totalCount: number;
+}
+
 interface CmsContentBase {
   slotKey: string;
   status: CmsPublicationStatus;
@@ -116,6 +126,12 @@ export type CmsContent = CmsContentBase & (
   | { componentType: "NOTICE"; payload: CmsNoticePayload }
   | { componentType: "IMAGE_CARD"; payload: CmsImageCardPayload }
 );
+
+export interface CmsAdminInventory {
+  items: CmsContent[];
+  /** Slots the typed contract rejected — surfaced so admins can repair them. */
+  rejectedSlotKeys: string[];
+}
 
 export interface CmsContentHistoryEntry {
   eventId: number;
@@ -232,7 +248,7 @@ const DEFAULT_BASE_URL = "/api/v1";
 
 const SLOT_KEY_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
 const MAX_TEXT_LENGTH = 4_000;
-const LINK_FIELDS = new Set(["ctaHref", "href", "imageUrl"]);
+const LINK_FIELDS = new Set(["ctaHref", "href"]);
 const IMAGE_FIELDS = new Set(["imageUrl", "src"]);
 // Mirrors the CSP img-src host sources in next.config.ts — an imageUrl that
 // only satisfies the generic HTTPS link rule still renders broken in public.
@@ -332,8 +348,24 @@ export function isSafeCmsUrl(value: string): boolean {
 
 export function assertSafeCmsUrl(value: string, field: string): void {
   if (!isSafeCmsUrl(value)) {
-    throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS URL.`, {
+      throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS URL.`, {
       [`payload.${field}`]: "URL không an toàn hoặc không được hỗ trợ.",
+    });
+  }
+}
+
+/** Telephone actions are link-only; keep image/public URL validation separate. */
+export function isSafeCmsLinkUrl(value: string): boolean {
+  if (isSafeCmsUrl(value) || value === "tel:115") return true;
+  // Preserve upstream display-formatted telephone actions, confined to links.
+  return value === value.trim() && /^tel:\+?[0-9][0-9(). -]{1,40}$/.test(value)
+    && /^tel:\+?[0-9]{6,15}$/.test(value.replace(/[(). -]/g, ""));
+}
+
+export function assertSafeCmsLinkUrl(value: string, field: string): void {
+  if (!isSafeCmsLinkUrl(value)) {
+    throw new CmsValidationError(`${field} phải là đường dẫn nội bộ, HTTPS hoặc số điện thoại hợp lệ.`, {
+      [`payload.${field}`]: "Liên kết không an toàn hoặc số điện thoại không hợp lệ.",
     });
   }
 }
@@ -390,7 +422,8 @@ function readPayload(raw: unknown, componentType: CmsComponentType, forWrite = f
       throw new CmsValidationError(`payload.${key} phải là chuỗi.`);
     }
     const text = normalizeText(payload[key] as string, `payload.${key}`);
-    if (LINK_FIELDS.has(key)) assertSafeCmsUrl(text, key);
+    if (LINK_FIELDS.has(key)) assertSafeCmsLinkUrl(payload[key] as string, key);
+    if (IMAGE_FIELDS.has(key)) assertSafeCmsUrl(text, key);
     if (forWrite && IMAGE_FIELDS.has(key)) assertSafeCmsImageUrl(text, key);
   }
   for (const required of schema.required) {
@@ -453,6 +486,16 @@ export function resolveCmsSlotKey(slug: string, slotKey: CmsSlotKey): string {
   if (normalizedSlug === "home") return `homepage.${slotKey}`;
   return validateSlotKey(`${normalizedSlug}.${slotKey}`);
 }
+
+/**
+ * Default imagery the public page renders when a CMS slot leaves imageUrl
+ * empty. The homepage hero falls back to this asset (see HomeHeroVisual in
+ * app/page.tsx); the admin preview must show the same effective image so it
+ * matches what visitors see instead of rendering a bare text block.
+ */
+export const CMS_SLOT_DEFAULT_IMAGES: Readonly<Record<string, string>> = {
+  "homepage.hero": "/media/hospital-team-landscape.jpg",
+};
 
 function readCmsSlotKeyFromResolvedSlotKey(slotKey: string): CmsSlotKey {
   const normalized = validateSlotKey(slotKey);
@@ -708,7 +751,7 @@ export class CmsClient {
     return `${this.adminContentPath(slotKey)}/history`;
   }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private async requestWithMetadata<T>(path: string, init: RequestInit = {}): Promise<{ body: T; headers: Headers }> {
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
     if (init.body !== undefined) headers.set("Content-Type", "application/json");
@@ -735,7 +778,11 @@ export class CmsClient {
         responseFieldErrors(body),
       );
     }
-    return body as T;
+    return { body: body as T, headers: response.headers };
+  }
+
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    return (await this.requestWithMetadata<T>(path, init)).body;
   }
 
   private async requestContent(path: string, init?: RequestInit): Promise<CmsContent> {
@@ -758,17 +805,90 @@ export class CmsClient {
     return this.requestContent(this.adminContentPath(slotKey));
   }
 
-  async listAdminContent(): Promise<CmsContent[]> {
+  async listAdminContent(): Promise<CmsAdminInventory> {
     const raw = await this.request<unknown>("/admin/cms/content");
     if (!Array.isArray(raw)) {
       throw new CmsApiError("validation", 0, "CMS API không trả về danh sách slot hợp lệ.");
     }
-    try {
-      return raw.map((item) => parseCmsContent(item));
-    } catch (error) {
-      if (error instanceof CmsApiError) throw error;
-      throw new CmsApiError("validation", 0, "CMS API trả về slot sai schema.");
+    const items: CmsContent[] = [];
+    const rejectedSlotKeys: string[] = [];
+    for (const item of raw) {
+      try {
+        items.push(parseCmsContent(item));
+      } catch {
+        // One malformed row must not blank the whole directory: keep every
+        // valid slot editable and surface the rejected key so the admin can
+        // repair the offending payload instead of seeing a total failure.
+        rejectedSlotKeys.push(
+          isRecord(item) && typeof item.slotKey === "string"
+            ? item.slotKey
+            : "(hàng không đọc được)",
+        );
+      }
     }
+    return { items, rejectedSlotKeys };
+  }
+
+  /** Read all bounded pages; report corrupt rows without concealing valid rows. */
+  async listAdminInventory(): Promise<CmsValidatedInventory> {
+    const content: CmsContent[] = [];
+    const errors: CmsInventoryRowError[] = [];
+    const seen = new Set<string>();
+    let totalCount: number | undefined;
+    let totalPages: number | undefined;
+    let pageSize: number | undefined;
+    let received = 0;
+    for (let page = 0; page < 100; page += 1) {
+      const result = await this.requestWithMetadata<unknown>(`/admin/cms/content?page=${page}&size=100`);
+      const readHeader = (name: string, max: number): number => {
+        const raw = result.headers.get(name);
+        if (raw === null || !/^(0|[1-9][0-9]*)$/.test(raw)) {
+          throw new CmsApiError("validation", 0, "Danh mục CMS thiếu thông tin phân trang hợp lệ.");
+        }
+        const value = Number(raw);
+        if (!Number.isSafeInteger(value) || value > max) {
+          throw new CmsApiError("validation", 0, "Thông tin phân trang CMS vượt giới hạn.");
+        }
+        return value;
+      };
+      const currentCount = readHeader("X-Total-Count", 10_000);
+      const currentPages = readHeader("X-Total-Pages", 100);
+      const currentPage = readHeader("X-Page", 99);
+      const currentSize = readHeader("X-Page-Size", 1_000);
+      if (currentPage !== page || currentSize < 1 || Math.ceil(currentCount / currentSize) !== currentPages
+        || (currentPages === 0 && (page !== 0 || currentCount !== 0))
+        || (currentPages > 0 && page >= currentPages)
+        || (totalCount !== undefined && (totalCount !== currentCount || totalPages !== currentPages || pageSize !== currentSize))) {
+        throw new CmsApiError("validation", 0, "Danh mục CMS đã thay đổi hoặc phân trang không nhất quán. Hãy tải lại.");
+      }
+      if (!Array.isArray(result.body) || result.body.length > currentSize) {
+        throw new CmsApiError("validation", 0, "CMS API không trả về danh sách slot hợp lệ.");
+      }
+      totalCount = currentCount;
+      totalPages = currentPages;
+      pageSize = currentSize;
+      received += result.body.length;
+      for (const [index, raw] of result.body.entries()) {
+        const slotKey = isRecord(raw) && typeof raw.slotKey === "string" && SLOT_KEY_PATTERN.test(raw.slotKey) && raw.slotKey.length <= 120
+          ? raw.slotKey : `Trang ${page + 1}, dòng ${index + 1}`;
+        if (seen.has(slotKey)) {
+          throw new CmsApiError("validation", 0, "Danh mục CMS có slot trùng lặp. Hãy tải lại.");
+        }
+        seen.add(slotKey);
+        try { content.push(parseCmsContent(raw)); }
+        catch { errors.push({ slotKey, message: "Nội dung không đúng định dạng hoặc chứa trường không an toàn. Mở vùng này để kiểm tra." }); }
+      }
+      if (page + 1 >= totalPages) {
+        if (received !== totalCount) {
+          throw new CmsApiError("validation", 0, "Danh mục CMS chưa được tải đầy đủ. Hãy tải lại.");
+        }
+        return { content, errors, totalCount };
+      }
+      if (result.body.length !== currentSize) {
+        throw new CmsApiError("validation", 0, "Danh mục CMS thiếu dòng trong trang. Hãy tải lại.");
+      }
+    }
+    throw new CmsApiError("validation", 0, "Danh mục CMS vượt giới hạn tải. Hãy thu hẹp danh mục.");
   }
 
   async upsertContent(slotKey: string, input: CmsContentInput): Promise<CmsContent> {

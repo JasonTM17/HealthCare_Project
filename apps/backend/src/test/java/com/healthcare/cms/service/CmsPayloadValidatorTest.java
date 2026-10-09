@@ -21,6 +21,36 @@ class CmsPayloadValidatorTest {
     }
 
     @Test
+    void acceptsTelephoneActionsWithoutAllowingTelephoneImages() {
+        for (String href : new String[] { "tel:115", "tel:19001234", "tel:+842812345678", "tel:12 3456", "tel:1900 1234", "tel:+84(28)3978-1234" }) {
+            ObjectNode banner = JsonNodeFactory.instance.objectNode()
+                .put("title", "Liên hệ").put("body", "Gọi để được hỗ trợ")
+                .put("ctaLabel", "Gọi ngay").put("ctaHref", href);
+            assertThat(validator.validateAndSanitize(CmsComponentType.CTA_BANNER, banner)
+                .get("ctaHref").asText()).isEqualTo(href);
+            assertThatThrownBy(() -> validator.validateAndSanitize(
+                CmsComponentType.IMAGE_CARD, imageCardPayload(href)))
+                .isInstanceOf(CmsPayloadValidationException.class);
+        }
+    }
+
+    @Test
+    void rejectsUnsafeTelephoneSyntax() {
+        for (String href : new String[] {
+            "tel:123", "tel:+1234567890123456", "tel:123456;ext=1",
+            "tel:%2b123456", "tel:12 345", "tel:123456\n", "tel:123456\r",
+            "tel:112", "tel:+115", "tel:115 ", " tel:115", "tel:115\n",
+            "tel:115\t", "tel:%31%31%35", "tel:115;ext=1",
+        }) {
+            ObjectNode banner = JsonNodeFactory.instance.objectNode()
+                .put("title", "Liên hệ").put("body", "Gọi để được hỗ trợ")
+                .put("ctaLabel", "Gọi ngay").put("ctaHref", href);
+            assertThatThrownBy(() -> validator.validateAndSanitize(CmsComponentType.CTA_BANNER, banner))
+                .isInstanceOf(CmsPayloadValidationException.class);
+        }
+    }
+
+    @Test
     void acceptsRootRelativeAndAllowlistedImageUrls() {
         for (String imageUrl : new String[] {
             "/media/x.jpg",
@@ -78,5 +108,34 @@ class CmsPayloadValidatorTest {
         JsonNode sanitizedCard = validator.validateAndSanitize(CmsComponentType.IMAGE_CARD, card);
         assertThat(sanitizedCard.get("href").asText())
             .isEqualTo("https://any-host.example/chi-tiet");
+    }
+
+    @Test
+    void acceptsTelUriHotlineCtas() {
+        // Production content carries real hotline CTAs (branches.sidebar →
+        // tel:115, contact.sidebar → tel:19001234); the write boundary must
+        // accept the strict tel: shape the frontend read path already renders.
+        for (String ctaHref : new String[] { "tel:115", "tel:19001234", "tel:+842839781234", "tel:1900 1234" }) {
+            ObjectNode banner = JsonNodeFactory.instance.objectNode()
+                .put("title", "Tổng đài hỗ trợ")
+                .put("body", "Gọi ngay khi cần cấp cứu.")
+                .put("ctaLabel", "Gọi ngay")
+                .put("ctaHref", ctaHref);
+            JsonNode sanitized = validator.validateAndSanitize(CmsComponentType.CTA_BANNER, banner);
+            assertThat(sanitized.get("ctaHref").asText()).isEqualTo(ctaHref);
+        }
+    }
+
+    @Test
+    void rejectsMalformedTelUriLinks() {
+        for (String ctaHref : new String[] { "tel:", "tel:abc", "tel:javascript:alert(1)", "tel:115;drop" }) {
+            ObjectNode banner = JsonNodeFactory.instance.objectNode()
+                .put("title", "Tổng đài hỗ trợ")
+                .put("body", "Nội dung CTA")
+                .put("ctaLabel", "Gọi ngay")
+                .put("ctaHref", ctaHref);
+            assertThatThrownBy(() -> validator.validateAndSanitize(CmsComponentType.CTA_BANNER, banner))
+                .isInstanceOf(CmsPayloadValidationException.class);
+        }
     }
 }

@@ -71,12 +71,18 @@ test("consultation queues keep status and SLA cues safe across responsive states
   assert.match(doctor, /min-h-11/);
 });
 
-test("admin doctor content edits do not clear account links from the browser payload", async () => {
+test("admin doctor content edits keep links untouched unless the operator explicitly unlinks", async () => {
   const adminDoctors = await read("app/admin/doctors/page.tsx");
 
-  assert.match(adminDoctors, /function toPayload\(form: DoctorForm\): AdminDoctorPayload/);
+  assert.match(adminDoctors, /function toPayload\(form: DoctorForm, editingDoctor: Doctor \| null\): AdminDoctorPayload/);
   assert.match(adminDoctors, /adminUpdateDoctor\(editingSlug, payload\)/);
+  // unlinkUser is emitted only when the row had a link AND the picker was
+  // emptied — a plain content edit never severs the account binding.
+  assert.match(adminDoctors, /editingDoctor\?\.linkedUser && !userId \? \{ unlinkUser: true \}/);
   assert.doesNotMatch(adminDoctors, /userId:\s*null/);
+  // The form seeds the picker from linkedUser so the current binding is
+  // visible instead of always falling back to "Không liên kết".
+  assert.match(adminDoctors, /userId: doctor\.linkedUser\?\.id \?\? ""/);
 });
 
 test("admin catalog and selector surfaces walk backend pages beyond the first 100 records", async () => {
