@@ -214,8 +214,16 @@
 }
 
 .consentPanel .primaryButton {
-  width: fit-content;
+  /* Pinned to the panel's visible bottom edge so the consent CTA is always
+     on screen — on a short viewport the policy text scrolls while the
+     button never leaves view. The solid background covers the copy that
+     passes behind it. */
+  position: sticky;
+  bottom: 0;
+  width: 100%;
   min-height: 2.75rem;
+  margin-top: 0.15rem;
+  box-shadow: 0 -0.5rem 0.75rem -0.35rem rgb(0 0 0 / 8%);
 }
 
 .consentError {
