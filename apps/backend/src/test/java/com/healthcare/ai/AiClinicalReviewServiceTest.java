@@ -128,6 +128,21 @@ class AiClinicalReviewServiceTest {
     }
 
     @Test
+    void invalidStateIsRejectedBeforeEitherQueueReadsRowsOrCounts() {
+        for (String state : List.of("UNKNOWN", " draft; drop table users ")) {
+            JdbcTemplate jdbc = mock(JdbcTemplate.class);
+            AiClinicalReviewService service = new AiClinicalReviewService(jdbc, mock(UserRepository.class));
+            assertThatThrownBy(() -> service.queuePage(state, 0, 20))
+                .extracting(error -> ((com.healthcare.exception.BusinessException) error).getCode())
+                .isEqualTo("AI_CONTENT_STATE_INVALID");
+            assertThatThrownBy(() -> service.adminQueuePage("ARTICLE", state, 0, 20))
+                .extracting(error -> ((com.healthcare.exception.BusinessException) error).getCode())
+                .isEqualTo("AI_CONTENT_STATE_INVALID");
+            org.mockito.Mockito.verifyNoInteractions(jdbc);
+        }
+    }
+
+    @Test
     void revisionNormalizesJdbcJsonbAndOpaqueApprovalRound() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         UserRepository users = mock(UserRepository.class);
