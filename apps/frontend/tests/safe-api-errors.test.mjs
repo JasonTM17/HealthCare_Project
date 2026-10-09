@@ -100,7 +100,7 @@ test("CMS public and admin surfaces present only stable error kind and status co
 
   assert.match(liveSlot, /switch \(error\.kind\)/);
   assert.doesNotMatch(liveSlot, /\b(?:error|nextError)\.message\b/);
-  assert.match(editor, /case "validation":[\s\S]*Dữ liệu CMS chưa hợp lệ/);
+  assert.match(editor, /case "validation":[\s\S]*Dữ liệu chưa hợp lệ\. Hãy kiểm tra các trường được đánh dấu và thử lại\./);
   assert.match(editor, /error\.status === 429/);
   assert.doesNotMatch(editor, /\b(?:error|apiError|cmsError|historyLoadError)\.message\b/);
   assert.doesNotMatch(editor, /apiError\.fieldErrors/);

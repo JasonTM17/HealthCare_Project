@@ -33,13 +33,13 @@ test("media upload surfaces mirror the backend upload-enabled posture", async ()
   // reads the toolbar literal with its interpolations removed, so an ungated
   // `image` (or `quickimage`) is what fails rather than a word appearing
   // somewhere after one.
-  const toolbarLiteral = editor.match(/^\s*toolbar:\s*`([\s\S]*?)`/m);
-  assert.ok(toolbarLiteral, "the toolbar template literal must be present");
-  const ungatedToolbar = toolbarLiteral[1].replace(/\$\{[^}]*\}/g, " ");
-  assert.ok(
-    !/\b(?:quick)?image\b/.test(ungatedToolbar),
-    "image tokens must sit behind the upload posture",
-  );
+  const toolbarLiteral = editor.match(/^\s*toolbar:\s*contentMode === "cms"\s*\?\s*`([\s\S]*?)`\s*:\s*`([\s\S]*?)`/m);
+  assert.ok(toolbarLiteral, "both CMS and article toolbar template literals must be present");
+  for (const toolbar of toolbarLiteral.slice(1)) {
+    const ungatedToolbar = toolbar.replace(/\$\{[^}]*\}/g, " ");
+    assert.ok(!/\b(?:quick)?image\b/.test(ungatedToolbar), "image tokens in each mode must sit behind the upload posture");
+    assert.match(toolbar, /MEDIA_UPLOADS_ENABLED \? "image ?" : ""/);
+  }
   assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "image " : ""/);
   assert.match(editor, /MEDIA_UPLOADS_ENABLED \? "quickimage " : ""/);
   assert.match(editor, /automatic_uploads: MEDIA_UPLOADS_ENABLED/);

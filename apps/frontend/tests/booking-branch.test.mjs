@@ -66,7 +66,7 @@ test("step 1 shows the preselected doctor and lets the patient switch away", asy
 test("doctor detail page hands its doctor to the booking shell", async () => {
   const source = await readFile(new URL("../app/doctors/[slug]/page.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /<PublicPageShell\s+doctors=\{doctor \? \[doctor\] : \[\]\}/);
+  assert.match(source, /<PublicPageShell\s+cmsEntityId=\{doctor\?\.id\}\s+doctors=\{doctor \? \[doctor\] : \[\]\}/);
 });
 
 test("doctor booking identity is highlighted on header and steps 1, 4, and 5", async () => {
