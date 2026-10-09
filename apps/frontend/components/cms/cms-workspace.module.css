@@ -1,0 +1,42 @@
+.workspace { color: #1a1c1e; font-size: 16px; line-height: 1.5; }
+.workspace button, .workspace select, .workspace input, .workspace textarea { font: inherit; }
+.workspace button, .workspace select, .workspace a { min-height: 44px; }
+.workspace button { padding: 8px 12px; border: 1px solid #bac8c9; background: white; border-radius: 3px; cursor: pointer; }
+.workspace button:disabled { cursor: not-allowed; opacity: .55; }
+.workspace :is(button,a,input,textarea,select):focus-visible { outline: 3px solid #2a676c; outline-offset: 3px; }
+.workspace .primary { background: #003336; color: white; border-color: #003336; }
+.header { position: sticky; top: 0; z-index: 10; background: #f9f9fc; padding: 16px 0; border-bottom: 1px solid #d6dfe0; }
+.header h1 { font-size: 26px; font-weight: 700; margin: 0; }
+.status { color: #404849; font-size: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.grid { display: grid; grid-template-columns: 224px minmax(0,1fr) 320px; gap: 16px; margin-top: 16px; }
+.grid > div { min-width: 0; }
+.panel { padding: 16px; border: 1px solid #d6dfe0; background: white; min-width: 0; }
+.panel h2 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+.panel label { display: grid; gap: 6px; margin-bottom: 14px; }
+.panel :is(input,textarea,select) { min-width: 0; width: 100%; padding: 10px; border: 1px solid #bac8c9; border-radius: 3px; background: white; }
+.outlineRow { padding: 8px 0; border-bottom: 1px solid #d6dfe0; }
+.outlineRow strong { display: block; }
+.outlineRow small { color: #404849; }
+.outlineRow .selected { background: #e0f2f1; color: #003336; }
+.fieldList { display: grid; gap: 4px; margin: 8px 0; }
+.fieldList button { text-align: left; }
+.move { display: flex; gap: 4px; margin: 8px 0; }
+.move button { padding: 6px 8px; font-size: 14px; }
+.preview { border: 1px solid #d6dfe0; background: white; min-width: 0; align-self: start; }
+.previewToolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px; border-bottom: 1px solid #d6dfe0; font-size: 14px; }
+.previewToolbar select { padding: 8px; border: 1px solid #bac8c9; max-width: 100%; }
+.previewToolbar a { display: inline-flex; align-items: center; color: #003336; text-decoration: underline; }
+.previewNotice { padding: 8px 12px; font-size: 14px; color: #404849; }
+.previewCanvas { overflow: hidden; background: #edf2f2; }
+.error { padding: 12px; color: #8d1515; background: #fff0ef; border: 1px solid #dca5a0; margin: 12px 0; }
+.notice { padding: 12px; color: #5e4700; background: #fff9e5; border: 1px solid #e6d79f; margin: 12px 0; }
+.history { margin-top: 16px; border: 1px solid #d6dfe0; background: white; padding: 16px; }
+.historyRow { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #d6dfe0; }
+.tabs { display: none; gap: 8px; margin-top: 12px; }
+.focusPreview .grid { grid-template-columns: minmax(0,1fr); }
+.focusPreview .outline, .focusPreview .inspector { display: none; }
+@media (max-width: 1199px) { .grid { grid-template-columns: 224px minmax(0,1fr); } .inspector { grid-column: 1 / -1; } }
+@media (max-width: 800px) { .grid { grid-template-columns: minmax(0,1fr); } .preview { grid-row: 1; } .outline { grid-row: 2; } .inspector { grid-row: 3; } .header { position: static; } }
+@media (max-width: 520px) { .tabs { display: flex; flex-wrap: wrap; } .grid > .mobileHidden { display: none; } .header h1 { font-size: 22px; } .actions { gap: 8px; } .previewToolbar label { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .workspace * { scroll-behavior: auto !important; } }

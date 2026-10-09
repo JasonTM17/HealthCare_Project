@@ -169,7 +169,9 @@ function apiErrorMessage(error: CmsApiError): string {
     case "forbidden":
       return "Tài khoản hiện tại không có quyền ADMIN (403). Nội dung chưa được thay đổi.";
     case "validation":
-      return "Dữ liệu CMS chưa hợp lệ (400/422). Hãy kiểm tra các trường và thử lại.";
+      return error.status > 0
+        ? "Dữ liệu chưa hợp lệ. Hãy kiểm tra các trường được đánh dấu và thử lại."
+        : "Danh mục nội dung trả về chưa đầy đủ hoặc không đúng định dạng. Hãy tải lại.";
     case "conflict":
       return "Nội dung đã thay đổi ở nơi khác (409). Tải lại slot trước khi ghi đè.";
     case "not-found":
@@ -396,9 +398,12 @@ export function CmsEditor({
     setInventoryLoading(true);
     setInventoryError(null);
     try {
-      const slots = await client.listAdminContent();
+      const inventory = await client.listAdminInventory();
       if (!isCurrentInventoryRequest()) return;
-      setAvailableContent(slots.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      setAvailableContent(inventory.content.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      if (inventory.errors.length) {
+        setInventoryError(`${inventory.errors.length} vùng cần kiểm tra: ${inventory.errors.map((row) => row.slotKey).join(", ")}. Các vùng hợp lệ vẫn có thể chỉnh sửa.`);
+      }
     } catch (error) {
       if (!isCurrentInventoryRequest()) return;
       setInventoryError(apiErrorMessage(asCmsError(error)));

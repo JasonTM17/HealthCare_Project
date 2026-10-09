@@ -10,6 +10,7 @@ interface CmsImageFieldProps {
   disabled?: boolean;
   required?: boolean;
   id: string;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 // Advisory mirror of the write-time rule in lib/cms-client (the backend
@@ -31,6 +32,7 @@ export default function CmsImageField({
   disabled = false,
   required = false,
   id,
+  onBusyChange,
 }: CmsImageFieldProps): ReactElement {
   const [manualDraft, setManualDraft] = useState<string | null>(null);
   const [previewBroken, setPreviewBroken] = useState(false);
@@ -52,6 +54,8 @@ export default function CmsImageField({
   return (
     <div className="grid gap-2" id={id}>
       <ImageUpload
+        disabled={disabled}
+        onBusyChange={onBusyChange}
         value={value}
         onChange={(url) => {
           setManualDraft(null);

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -90,6 +91,7 @@ function isPayloadField(value: string): boolean {
 
 /** Fixed toolbar: the single writer of the edit-mode store. */
 export function CmsEditModeToolbar(): ReactElement | null {
+  const pathname = usePathname();
   const session = useAuthSession();
   const editMode = useSyncExternalStore(subscribeCmsEditMode, isCmsEditModeEnabled, isCmsEditModeEnabled);
   const saveFlashSlot = useSyncExternalStore(subscribeCmsSaveFlash, cmsSaveFlashSlot, cmsSaveFlashSlot);
@@ -98,7 +100,7 @@ export function CmsEditModeToolbar(): ReactElement | null {
     hydrateCmsEditMode();
   }, []);
 
-  if (!session || !hasRole(session.user, "ADMIN")) return null;
+  if (pathname === "/admin" || pathname?.startsWith("/admin/") || !session || !hasRole(session.user, "ADMIN")) return null;
 
   return (
     <>

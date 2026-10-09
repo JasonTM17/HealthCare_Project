@@ -12,6 +12,7 @@ import { formatBusinessDate } from "../../lib/business-time";
 import { presentApiError } from "../../lib/present-api-error";
 import type { Article } from "../../types/hospital";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../lib/article-visuals";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 const READING_STEPS = [
   ["01", "Đọc theo nhu cầu", "Ưu tiên bài viết liên quan triệu chứng, chuyên khoa hoặc gói khám bạn đang cân nhắc."],
@@ -61,12 +62,12 @@ export default function ArticlesPage() {
   useEffect(() => {
     let cancelled = false;
     const task = Promise.resolve().then(() => {
-        if (cancelled) return undefined;
-        setLoading(true);
-        setError(null);
-        if (loadedPageRef.current !== currentPage) setPage(null);
-        loadedPageRef.current = currentPage;
-        return fetchArticles(currentPage, 12);
+      if (cancelled) return undefined;
+      setLoading(true);
+      setError(null);
+      if (loadedPageRef.current !== currentPage) setPage(null);
+      loadedPageRef.current = currentPage;
+      return fetchArticles(currentPage, 12);
     })
       .then((data) => {
         if (data !== undefined && !cancelled) {
@@ -114,285 +115,295 @@ export default function ArticlesPage() {
   return (
     <PublicPageShell>
       <div aria-busy={loading} className="catalog-page section-inner">
-        <header className="resource-page__header">
-          <p className="section-note">Cẩm nang sức khỏe</p>
-          <h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1>
-          <p>
-            Những nội dung tham khảo giúp bạn chủ động tìm hiểu và chuẩn bị câu hỏi trước khi gặp bác sĩ.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Cẩm nang sức khỏe"} className="section-note">Cẩm nang sức khỏe</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Kiến thức y khoa trong nhịp sống hằng ngày"}>Kiến thức y khoa trong nhịp sống hằng ngày</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Những nội dung tham khảo giúp bạn chủ động tìm hiểu và chuẩn bị câu hỏi trước khi gặp bác sĩ."}>
+              Những nội dung tham khảo giúp bạn chủ động tìm hiểu và chuẩn bị câu hỏi trước khi gặp bác sĩ.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className="resource-hero-card resource-hero-card--teal articles-hero">
-          <div className="resource-icon articles-hero__seal" aria-hidden="true">
-            <ClinicalIcon name="article" />
-            <span className="articles-hero__seal-label">Y KHOA</span>
-          </div>
-          <div className="resource-hero-card__body">
-            <div className="articles-hero__eyebrow-row">
-              <p className="resource-chip">
-                <span className="articles-hero__dot" aria-hidden="true">●</span>
-                <span>Chuyên trang Y khoa chính thống · Nội dung chỉ để tham khảo</span>
-              </p>
-              <span className="articles-hero__trust-badge">
-                <Icon name="shield-check" size={14} />
-                <span>Hội đồng chuyên môn thẩm định</span>
-              </span>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal articles-hero">
+              <div className="resource-icon articles-hero__seal" aria-hidden="true">
+                <ClinicalIcon name="article" />
+                <span className="articles-hero__seal-label">Y KHOA</span>
+              </div>
+              <div className="resource-hero-card__body">
+                <div className="articles-hero__eyebrow-row">
+                  <p className="resource-chip">
+                    <CmsNativeText fieldId="overview.label" as="span" value={"●"} className="articles-hero__dot" aria-hidden="true">●</CmsNativeText>
+                    <CmsNativeText fieldId="overview.label2" as="span" value={"Chuyên trang Y khoa chính thống · Nội dung chỉ để tham khảo"}>Chuyên trang Y khoa chính thống · Nội dung chỉ để tham khảo</CmsNativeText>
+                  </p>
+                  <span className="articles-hero__trust-badge">
+                    <Icon name="shield-check" size={14} />
+                    <span>Hội đồng chuyên môn thẩm định</span>
+                  </span>
+                </div>
+
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Cẩm nang Y khoa & Hướng dẫn Chăm sóc Chủ động cho Gia đình"}>Cẩm nang Y khoa &amp; Hướng dẫn Chăm sóc Chủ động cho Gia đình</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Đọc bài viết để chuẩn bị câu hỏi tốt hơn, sau đó dùng trợ lý hoặc đặt lịch nếu triệu chứng cần được bác sĩ đánh giá."} className="resource-lead">
+                  Đọc bài viết để chuẩn bị câu hỏi tốt hơn, sau đó dùng trợ lý hoặc đặt lịch nếu triệu chứng cần
+                  được bác sĩ đánh giá.
+                </CmsNativeText>
+
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch trao đổi với bác sĩ</PublicBookingButton>
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <Link className="outline-button outline-button--light" href="/specialties">
+                    Xem chuyên khoa
+                  </Link>
+                </div>
+
+                <dl className="resource-meta-grid articles-hero__stats">
+                  <div className="articles-hero__stat-card">
+                    <dt>
+                      <Icon name="book-open" size={15} />
+                      <span>Kho dữ liệu bài viết</span>
+                    </dt>
+                    <dd>
+                      {loading && !articleCount ? (
+                        <span className="inline-block w-20 h-6 bg-teal-800/40 rounded-sm animate-pulse" aria-hidden="true" />
+                      ) : articleCount ? (
+                        `${articleCount} chuyên đề`
+                      ) : (
+                        "Đang cập nhật"
+                      )}
+                      <span className="articles-hero__stat-note">Biên soạn theo danh mục chuyên khoa của bệnh viện</span></dd>
+                  </div>
+                  <div className="articles-hero__stat-card">
+                    <dt>
+                      <Icon name="award" size={15} />
+                      <span>Tiêu chuẩn chuyên môn</span>
+                    </dt>
+                    <dd>Bác sĩ chuyên khoa<span className="articles-hero__stat-note">Nội dung được bác sĩ chuyên khoa thẩm định</span></dd>
+                  </div>
+                  <div className="articles-hero__stat-card">
+                    <dt>
+                      <Icon name="clock" size={15} />
+                      <span>Cập nhật phác đồ</span>
+                    </dt>
+                    <dd>
+                      {loading && !featuredArticle ? (
+                        <span className="inline-block w-24 h-6 bg-teal-800/40 rounded-sm animate-pulse" aria-hidden="true" />
+                      ) : featuredArticle ? (
+                        formatBusinessDate(featuredArticle.publishedAt)
+                      ) : (
+                        "Đang cập nhật"
+                      )}
+                      <span className="articles-hero__stat-note">Tham chiếu hướng dẫn điều trị đang áp dụng</span></dd>
+                  </div>
+                </dl>
+
+                <div className="articles-hero__quick-nav">
+                  <span className="articles-hero__quick-label">
+                    <Icon name="activity" size={14} /> Chủ đề phổ biến:
+                  </span>
+                  <div className="articles-hero__quick-pills">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTopic(null)}
+                      className={`articles-hero__topic-pill ${!selectedTopic ? "articles-hero__topic-pill--active bg-teal-800 text-white font-bold" : ""}`}
+                    >
+                      Tất cả chủ đề
+                    </button>
+                    {TOPIC_PILLS.map((topic) => (
+                      <button
+                        key={topic}
+                        type="button"
+                        onClick={() => setSelectedTopic(selectedTopic === topic ? null : topic)}
+                        className={`articles-hero__topic-pill ${selectedTopic === topic ? "articles-hero__topic-pill--active bg-teal-800 text-white font-bold" : ""}`}
+                      >
+                        {topic}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          </CmsNativeSection>
+
+          <CmsNativeSection sectionId="guidance">
+            <div className="resource-grid resource-grid--two">
+              <section className="resource-panel resource-panel--accent">
+                <CmsNativeText fieldId="guidance.eyebrow" as="p" value={"Đọc cẩm nang an toàn"} className="section-note">Đọc cẩm nang an toàn</CmsNativeText>
+                <CmsNativeText fieldId="guidance.title" as="h2" value={"Lưu ý quan trọng khi tham khảo kiến thức y khoa"}>Lưu ý quan trọng khi tham khảo kiến thức y khoa</CmsNativeText>
+                <div className="resource-steps resource-steps--grid">
+                  {READING_STEPS.map(([number, title, description]) => (
+                    <div className="resource-step-card" key={number}>
+                      <span>{number}</span>
+                      <strong>{title}</strong>
+                      <p>{description}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="resource-panel">
+                <CmsNativeText fieldId="guidance.eyebrow2" as="p" value={"Nội dung nổi bật"} className="section-note">Nội dung nổi bật</CmsNativeText>
+                <CmsNativeText fieldId="guidance.title2" as="h2" value={"Chuyên đề y khoa nổi bật"}>Chuyên đề y khoa nổi bật</CmsNativeText>
+                {featuredArticle ? (
+                  <>
+                    <Link
+                      className="group block no-underline text-inherit mb-2"
+                      href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}
+                    >
+                      <strong className="text-lg font-bold text-teal-950 group-hover:text-teal-700 transition-colors block mb-1">
+                        {featuredArticle.title}
+                      </strong>
+                      <p className="text-slate-600">{featuredArticle.summary}</p>
+                    </Link>
+                    <div className="resource-actions">
+                      <Link className="text-button" href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}>
+                        Đọc bài viết →
+                      </Link>
+                      {featuredArticle.relatedSpecialtySlug ? (
+                        <Link
+                          className="outline-button outline-button--small"
+                          href={`/specialties/${encodeURIComponent(featuredArticle.relatedSpecialtySlug)}`}
+                        >
+                          Chuyên khoa liên quan
+                        </Link>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <p className="resource-muted">
+                    Ban biên tập chưa chọn bài viết nổi bật. Bạn vẫn có thể mở danh mục bên dưới hoặc xem chuyên khoa phù hợp.
+                  </p>
+                )}
+              </section>
             </div>
+          </CmsNativeSection>
+        </CmsNativeSections>
 
-            <h2>Cẩm nang Y khoa &amp; Hướng dẫn Chăm sóc Chủ động cho Gia đình</h2>
-            <p className="resource-lead">
-              Đọc bài viết để chuẩn bị câu hỏi tốt hơn, sau đó dùng trợ lý hoặc đặt lịch nếu triệu chứng cần
-              được bác sĩ đánh giá.
-            </p>
-
-            <div className="resource-actions">
-              <PublicBookingButton>Đặt lịch trao đổi với bác sĩ</PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/specialties">
-                Xem chuyên khoa
-              </Link>
+        {/* Filter and Search Bar */}
+        <CmsNativeSection sectionId="directory">
+          <div className="articles-filter-bar flex items-center justify-between flex-wrap gap-4 py-3 border-y border-slate-200 my-6">
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+              <span className="text-slate-400 text-sm">🔍</span>
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm kiếm bài viết theo từ khóa triệu chứng, bệnh lý..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal-700 focus:bg-white"
+                aria-label="Tìm kiếm cẩm nang y khoa"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="text-xs text-slate-500 hover:text-slate-700 px-1"
+                >
+                  Xóa
+                </button>
+              )}
             </div>
-
-            <dl className="resource-meta-grid articles-hero__stats">
-              <div className="articles-hero__stat-card">
-                <dt>
-                  <Icon name="book-open" size={15} />
-                  <span>Kho dữ liệu bài viết</span>
-                </dt>
-                <dd>
-                  {loading && !articleCount ? (
-                    <span className="inline-block w-20 h-6 bg-teal-800/40 rounded-sm animate-pulse" aria-hidden="true" />
-                  ) : articleCount ? (
-                    `${articleCount} chuyên đề`
-                  ) : (
-                    "Đang cập nhật"
-                  )}
-                <span className="articles-hero__stat-note">Biên soạn theo danh mục chuyên khoa của bệnh viện</span></dd>
-              </div>
-              <div className="articles-hero__stat-card">
-                <dt>
-                  <Icon name="award" size={15} />
-                  <span>Tiêu chuẩn chuyên môn</span>
-                </dt>
-                <dd>Bác sĩ chuyên khoa<span className="articles-hero__stat-note">Nội dung được bác sĩ chuyên khoa thẩm định</span></dd>
-              </div>
-              <div className="articles-hero__stat-card">
-                <dt>
-                  <Icon name="clock" size={15} />
-                  <span>Cập nhật phác đồ</span>
-                </dt>
-                <dd>
-                  {loading && !featuredArticle ? (
-                    <span className="inline-block w-24 h-6 bg-teal-800/40 rounded-sm animate-pulse" aria-hidden="true" />
-                  ) : featuredArticle ? (
-                    formatBusinessDate(featuredArticle.publishedAt)
-                  ) : (
-                    "Đang cập nhật"
-                  )}
-                <span className="articles-hero__stat-note">Tham chiếu hướng dẫn điều trị đang áp dụng</span></dd>
-              </div>
-            </dl>
-
-            <div className="articles-hero__quick-nav">
-              <span className="articles-hero__quick-label">
-                <Icon name="activity" size={14} /> Chủ đề phổ biến:
-              </span>
-              <div className="articles-hero__quick-pills">
+            {selectedTopic && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-slate-500">Đang lọc theo:</span>
+                <span className="bg-teal-100 text-teal-900 font-semibold px-2 py-0.5 rounded-sm">
+                  {selectedTopic}
+                </span>
                 <button
                   type="button"
                   onClick={() => setSelectedTopic(null)}
-                  className={`articles-hero__topic-pill ${!selectedTopic ? "articles-hero__topic-pill--active bg-teal-800 text-white font-bold" : ""}`}
+                  className="text-teal-700 hover:underline"
                 >
-                  Tất cả chủ đề
+                  (Xóa lọc)
                 </button>
-                {TOPIC_PILLS.map((topic) => (
-                  <button
-                    key={topic}
-                    type="button"
-                    onClick={() => setSelectedTopic(selectedTopic === topic ? null : topic)}
-                    className={`articles-hero__topic-pill ${selectedTopic === topic ? "articles-hero__topic-pill--active bg-teal-800 text-white font-bold" : ""}`}
-                  >
-                    {topic}
-                  </button>
-                ))}
+              </div>
+            )}
+          </div>
+
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật cẩm nang…" : "Đang tải cẩm nang…"}</p> : null}
+          {error ? (
+            <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+              <span>{page ? `Chưa thể cập nhật trang này. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
+              <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
+                Thử tải lại
+              </button>
+            </div>
+          ) : null}
+          {!loading && !error && page?.empty ? (
+            <div className="catalog-status" role="status">
+              <p>Chưa có bài viết đã xuất bản trong cẩm nang. Bạn có thể xem chuyên khoa hoặc đặt lịch để được hướng dẫn theo tình huống cụ thể.</p>
+              <div className="resource-actions">
+                <Link className="outline-button outline-button--small" href="/specialties">Xem chuyên khoa</Link>
+                <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
               </div>
             </div>
-          </div>
-        </section>
-
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Đọc cẩm nang an toàn</p>
-            <h2>Lưu ý quan trọng khi tham khảo kiến thức y khoa</h2>
-            <div className="resource-steps resource-steps--grid">
-              {READING_STEPS.map(([number, title, description]) => (
-                <div className="resource-step-card" key={number}>
-                  <span>{number}</span>
-                  <strong>{title}</strong>
-                  <p>{description}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="resource-panel">
-            <p className="section-note">Nội dung nổi bật</p>
-            <h2>Chuyên đề y khoa nổi bật</h2>
-            {featuredArticle ? (
-              <>
-                <Link
-                  className="group block no-underline text-inherit mb-2"
-                  href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}
-                >
-                  <strong className="text-lg font-bold text-teal-950 group-hover:text-teal-700 transition-colors block mb-1">
-                    {featuredArticle.title}
-                  </strong>
-                  <p className="text-slate-600">{featuredArticle.summary}</p>
-                </Link>
-                <div className="resource-actions">
-                  <Link className="text-button" href={`/articles/${encodeURIComponent(featuredArticle.slug)}`}>
-                    Đọc bài viết →
-                  </Link>
-                  {featuredArticle.relatedSpecialtySlug ? (
-                    <Link
-                      className="outline-button outline-button--small"
-                      href={`/specialties/${encodeURIComponent(featuredArticle.relatedSpecialtySlug)}`}
-                    >
-                      Chuyên khoa liên quan
-                    </Link>
-                  ) : null}
-                </div>
-              </>
-            ) : (
-              <p className="resource-muted">
-                Ban biên tập chưa chọn bài viết nổi bật. Bạn vẫn có thể mở danh mục bên dưới hoặc xem chuyên khoa phù hợp.
+          ) : null}
+          {page && !page.empty ? (
+            <>
+              <p aria-live="polite" className="catalog-meta">
+                {displayedArticles.length !== page.content.length
+                  ? `Hiển thị ${displayedArticles.length}/${page.content.length} bài viết trên trang này`
+                  : `${page.totalElements} bài viết · Trang ${page.number + 1}/${page.totalPages}`}
               </p>
-            )}
-          </section>
-        </div>
-
-        {/* Filter and Search Bar */}
-        <div className="articles-filter-bar flex items-center justify-between flex-wrap gap-4 py-3 border-y border-slate-200 my-6">
-          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-            <span className="text-slate-400 text-sm">🔍</span>
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm kiếm bài viết theo từ khóa triệu chứng, bệnh lý..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-sm px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:border-teal-700 focus:bg-white"
-              aria-label="Tìm kiếm cẩm nang y khoa"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="text-xs text-slate-500 hover:text-slate-700 px-1"
-              >
-                Xóa
-              </button>
-            )}
-          </div>
-          {selectedTopic && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-500">Đang lọc theo:</span>
-              <span className="bg-teal-100 text-teal-900 font-semibold px-2 py-0.5 rounded-sm">
-                {selectedTopic}
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedTopic(null)}
-                className="text-teal-700 hover:underline"
-              >
-                (Xóa lọc)
-              </button>
-            </div>
-          )}
-        </div>
-
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật cẩm nang…" : "Đang tải cẩm nang…"}</p> : null}
-        {error ? (
-          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-            <span>{page ? `Chưa thể cập nhật trang này. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
-            <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
-              Thử tải lại
-            </button>
-          </div>
-        ) : null}
-        {!loading && !error && page?.empty ? (
-          <div className="catalog-status" role="status">
-            <p>Chưa có bài viết đã xuất bản trong cẩm nang. Bạn có thể xem chuyên khoa hoặc đặt lịch để được hướng dẫn theo tình huống cụ thể.</p>
-            <div className="resource-actions">
-              <Link className="outline-button outline-button--small" href="/specialties">Xem chuyên khoa</Link>
-              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
-            </div>
-          </div>
-        ) : null}
-        {page && !page.empty ? (
-          <>
-            <p aria-live="polite" className="catalog-meta">
-              {displayedArticles.length !== page.content.length
-                ? `Hiển thị ${displayedArticles.length}/${page.content.length} bài viết trên trang này`
-                : `${page.totalElements} bài viết · Trang ${page.number + 1}/${page.totalPages}`}
-            </p>
-            {displayedArticles.length === 0 ? (
-              <div className="catalog-status text-center py-8">
-                <p className="text-slate-600 mb-3">Không có bài viết nào khớp trong trang này. Chủ đề khác có thể nằm ở trang kế tiếp.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedTopic(null);
-                    setSearchQuery("");
-                  }}
-                  className="outline-button outline-button--small"
-                >
-                  Xóa toàn bộ bộ lọc
-                </button>
-              </div>
-            ) : (
-              <div className="catalog-grid catalog-grid--articles" id="articles-list">
-                {displayedArticles.map((article) => (
-                  <article className="catalog-card relative group flex flex-col justify-between hover:border-teal-500 hover:shadow-md transition-all cursor-pointer" key={article.id}>
-                    <Link
-                      className="absolute inset-0 z-10"
-                      href={`/articles/${encodeURIComponent(article.slug)}`}
-                      aria-label={`Đọc bài viết: ${article.title}`}
-                    />
-                    <div>
-                      <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          alt={resolveArticleAlt(article)}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          src={resolveArticleCoverImage(article)}
-                          onError={(e) => {
-                            const target = e.currentTarget;
-                            if (!target.src.endsWith("/media/articles/cham-soc-suc-khoe-tong-quat.jpg")) {
-                              target.src = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
-                            }
-                          }}
-                        />
-                        <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
-                          {resolveArticleCategoryLabel(article.category)}
-                        </span>
+              {displayedArticles.length === 0 ? (
+                <div className="catalog-status text-center py-8">
+                  <p className="text-slate-600 mb-3">Không có bài viết nào khớp trong trang này. Chủ đề khác có thể nằm ở trang kế tiếp.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTopic(null);
+                      setSearchQuery("");
+                    }}
+                    className="outline-button outline-button--small"
+                  >
+                    Xóa toàn bộ bộ lọc
+                  </button>
+                </div>
+              ) : (
+                <div className="catalog-grid catalog-grid--articles" id="articles-list">
+                  {displayedArticles.map((article) => (
+                    <article className="catalog-card relative group flex flex-col justify-between hover:border-teal-500 hover:shadow-md transition-all cursor-pointer" key={article.id}>
+                      <Link
+                        className="absolute inset-0 z-10"
+                        href={`/articles/${encodeURIComponent(article.slug)}`}
+                        aria-label={`Đọc bài viết: ${article.title}`}
+                      />
+                      <div>
+                        <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            alt={resolveArticleAlt(article)}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            src={resolveArticleCoverImage(article)}
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.src.endsWith("/media/articles/cham-soc-suc-khoe-tong-quat.jpg")) {
+                                target.src = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
+                              }
+                            }}
+                          />
+                          <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                            {resolveArticleCategoryLabel(article.category)}
+                          </span>
+                        </div>
+                        <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
+                        <h3>{article.title}</h3>
+                        <p className="text-slate-600 line-clamp-3">{article.summary}</p>
                       </div>
-                      <p className="section-note">{formatBusinessDate(article.publishedAt)}</p>
-                      <h3>{article.title}</h3>
-                      <p className="text-slate-600 line-clamp-3">{article.summary}</p>
-                    </div>
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <Link className="text-button pointer-events-none" href={`/articles/${encodeURIComponent(article.slug)}`}>
-                        Đọc toàn bộ bài báo →
-                      </Link>
-                      <span className="text-xs font-bold text-teal-700 group-hover:translate-x-0.5 transition-transform" aria-hidden="true">→</span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-            <CatalogPagination label="Phân trang cẩm nang" onPageChange={setCurrentPage} page={page} />
-          </>
-        ) : null}
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <Link className="text-button pointer-events-none" href={`/articles/${encodeURIComponent(article.slug)}`}>
+                          Đọc toàn bộ bài báo →
+                        </Link>
+                        <span className="text-xs font-bold text-teal-700 group-hover:translate-x-0.5 transition-transform" aria-hidden="true">→</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+              <CatalogPagination label="Phân trang cẩm nang" onPageChange={setCurrentPage} page={page} />
+            </>
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

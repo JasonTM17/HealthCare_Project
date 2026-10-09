@@ -1,8 +1,7 @@
 "use client";
 
-import CmsEditor from "../../../components/cms/CmsEditor";
-import { authenticatedCmsClient } from "../../../lib/cms-client";
+import CmsEditorWorkspace from "../../../components/cms/cms-editor-workspace";
 
 export default function AdminContentPage(): React.ReactElement {
-  return <CmsEditor client={authenticatedCmsClient} />;
+  return <CmsEditorWorkspace />;
 }

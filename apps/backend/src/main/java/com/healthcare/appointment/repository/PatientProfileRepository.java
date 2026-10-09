@@ -16,6 +16,8 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfile, 
 
     Optional<PatientProfile> findByUserId(UUID userId);
 
+    java.util.List<PatientProfile> findByUserIdIn(java.util.Collection<UUID> userIds);
+
     /**
      * Atomically consumes one AI credit. The conditional bulk update
      * serializes concurrent chat sends: it returns 1 when the balance was

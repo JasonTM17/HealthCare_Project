@@ -11,10 +11,13 @@ import Footer from "./Footer";
 import Navbar from "./Navbar";
 import PublicRouteBreadcrumb from "./PublicRouteBreadcrumb";
 import { routeCmsSlug, RouteCmsSlots } from "./cms";
+import { CmsPageLayoutProvider } from "./cms/cms-page-layout-provider";
+import { isCmsPreviewRequested } from "../lib/cms-preview-bridge";
 import type { Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
 interface PublicPageShellProps {
   children: ReactNode;
+  cmsEntityId?: string;
   doctors?: Doctor[];
   specialties?: Specialty[];
   branches?: Branch[];
@@ -71,6 +74,7 @@ export function PublicBackLink({ href = "/", children = "← Về trang chính" 
 
 export function PublicPageShell({
   children,
+  cmsEntityId,
   doctors = [],
   specialties = [],
   branches = EMPTY_BRANCHES,
@@ -112,6 +116,7 @@ export function PublicPageShell({
 
   const actions: PublicPageActions = {
     openBooking: (nextSelection) => {
+      if (isCmsPreviewRequested()) return;
       if (onBookingRequest) {
         onBookingRequest(nextSelection);
         return;
@@ -119,10 +124,11 @@ export function PublicPageShell({
       setSelection(nextSelection);
       setBookingOpen(true);
     },
-    openAi: () => setTriageOpen(true),
+    openAi: () => { if (!isCmsPreviewRequested()) setTriageOpen(true); },
   };
 
   return (
+    <CmsPageLayoutProvider pathname={pathname} entityId={cmsEntityId}>
     <PublicPageActionsContext.Provider value={actions}>
       <div className="site-shell site-shell--public-route">
         <Navbar branches={effectiveBranches} onOpenBooking={() => actions.openBooking()} />
@@ -155,6 +161,7 @@ export function PublicPageShell({
         ) : null}
       </div>
     </PublicPageActionsContext.Provider>
+    </CmsPageLayoutProvider>
   );
 }
 

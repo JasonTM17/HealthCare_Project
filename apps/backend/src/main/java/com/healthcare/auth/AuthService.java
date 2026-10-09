@@ -368,6 +368,7 @@ public class AuthService {
         }
         User user = authOtpService.confirmPasswordReset(request.email(), request.token(), httpRequest);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setSecurityVersion(Math.addExact(user.getSecurityVersion(), 1));
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
         revokeAllUserTokensLocked(user);
@@ -388,8 +389,14 @@ public class AuthService {
     @Transactional
     public void changePassword(String email, String currentPassword, String newPassword,
                                UUID currentBrowserSessionId) {
-        User user = userRepository.findByEmail(email)
+        User user = userSecurityLock.findByEmailForUpdate(email)
             .orElseThrow(() -> new BadCredentialsException("Tài khoản không tồn tại"));
+        var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (!"ACTIVE".equals(user.getStatus()) || !user.isEmailVerified()
+            || authentication != null && authentication.getPrincipal() instanceof com.healthcare.security.HealthcareUserPrincipal principal
+                && (!principal.getUserId().equals(user.getId()) || principal.getSecurityVersion() != user.getSecurityVersion())) {
+            throw new BadCredentialsException("Account access changed; sign in again");
+        }
         if (!PasswordInputPolicy.fitsBcrypt(currentPassword)
                 || !passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new BadCredentialsException("Mật khẩu hiện tại không chính xác");
@@ -404,6 +411,7 @@ public class AuthService {
             );
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setSecurityVersion(Math.addExact(user.getSecurityVersion(), 1));
         user.setUpdatedAt(OffsetDateTime.now());
         userRepository.save(user);
         revokeOtherSessionsLocked(user, currentBrowserSessionId);
@@ -431,6 +439,10 @@ public class AuthService {
 
         User user = userSecurityLock.findByIdForUpdate(userId)
             .orElseThrow(() -> new BadCredentialsException("Invalid refresh token"));
+
+        if (tokenProvider.extractSecurityVersion(token) != user.getSecurityVersion()) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
 
         RefreshToken storedToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
             .orElseThrow(() -> new BadCredentialsException("Refresh token not found"));
@@ -469,8 +481,8 @@ public class AuthService {
             );
         }
 
-        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
-        String newRefreshToken = tokenProvider.generateRefreshToken(user.getId());
+        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail(), user.getSecurityVersion());
+        String newRefreshToken = tokenProvider.generateRefreshToken(user.getId(), user.getSecurityVersion());
 
         storedToken.setRevokedAt(OffsetDateTime.now());
         refreshTokenRepository.save(storedToken);
@@ -548,8 +560,8 @@ public class AuthService {
     }
 
     private AuthResponse issueTokens(User user) {
-        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail());
-        String refreshToken = tokenProvider.generateRefreshToken(user.getId());
+        String accessToken = tokenProvider.generateAccessToken(user.getId(), user.getEmail(), user.getSecurityVersion());
+        String refreshToken = tokenProvider.generateRefreshToken(user.getId(), user.getSecurityVersion());
         saveRefreshToken(user, refreshToken);
         return buildAuthResponse(user, accessToken, refreshToken);
     }
@@ -623,6 +635,8 @@ public class AuthService {
             authOtpService.invalidateAll(user);
         }
         user.setGoogleSubject(identity.subject());
+        user.setSecurityVersion(Math.addExact(user.getSecurityVersion(), 1));
+        revokeAllUserTokensLocked(user);
         // Patients who bind a Google identity are greeted by their Google
         // name everywhere users.display_name is read. Staff accounts keep
         // their professional display name instead. The linked patient
