@@ -13,6 +13,7 @@ import PackageBookingModal from "../../../components/PackageBookingModal";
 import { JsonLd } from "../../../components/JsonLd";
 import { isCmsPreviewRequested } from "../../../lib/cms-preview-bridge";
 import { CmsNativeSection, CmsNativeText } from "../../../components/cms/cms-page-layout-provider";
+import { ILLUSTRATIVE_BOOKING_NOTICE, isIllustrativeCatalogue } from "../../../lib/catalogue-illustration";
 
 const currency = (price: number) => new Intl.NumberFormat("vi-VN").format(price);
 const PACKAGE_DETAIL_STEPS = [
@@ -47,7 +48,7 @@ export default function PackageDetailPage() {
   }, [slug]);
 
   const visual = item ? getPackageVisual(item) : null;
-  const packageJsonLd = item
+  const packageJsonLd = item && !isIllustrativeCatalogue(item)
     ? {
       "@context": "https://schema.org",
       "@type": "MedicalProcedure",
@@ -70,7 +71,7 @@ export default function PackageDetailPage() {
     : null;
 
   return (
-    <PublicPageShell cmsEntityId={item?.id} onBookingRequest={() => { if (!isCmsPreviewRequested()) setPackageBookingOpen(true); }} packages={item ? [item] : []}>
+    <PublicPageShell cmsEntityId={item?.id} onBookingRequest={() => { if (item && !isIllustrativeCatalogue(item) && !isCmsPreviewRequested()) setPackageBookingOpen(true); }} packages={item ? [item] : []}>
       {packageJsonLd ? <JsonLd data={packageJsonLd} id="package-jsonld" /> : null}
       <div className="resource-page section-inner">
         <CmsNativeSection sectionId="states">
@@ -103,7 +104,7 @@ export default function PackageDetailPage() {
                   <h1>{item.name}</h1>
                   <p className={packageVisualStyles.detailDescription}>{item.description || "Gói khám chưa có mô tả chi tiết."}</p>
                   <p className={packageVisualStyles.detailPrice}>
-                    <small>Chi phí gói</small>
+                    <small>{isIllustrativeCatalogue(item) ? "Giá minh họa" : "Chi phí gói"}</small>
                     <strong>{currency(item.price)} <span>VNĐ</span></strong>
                   </p>
 
@@ -170,19 +171,24 @@ export default function PackageDetailPage() {
 
             <CmsNativeSection sectionId="support">
               <section className="resource-panel resource-panel--accent text-center mt-6">
-                <CmsNativeText fieldId="support.eyebrow" as="p" value={"Đăng ký dễ dàng"} className="section-note">Đăng ký dễ dàng</CmsNativeText>
-                <CmsNativeText fieldId="support.title" as="h2" value={"Đặt lịch khám ngay hôm nay"}>Đặt lịch khám ngay hôm nay</CmsNativeText>
-                <CmsNativeText fieldId="support.body" as="p" value={"Chủ động chọn cơ sở y tế và khung giờ tiếp nhận phù hợp. Nhận ngay mã phiếu khám điện tử và hướng dẫn chuẩn bị chi tiết."} className="max-w-xl mx-auto text-sm text-slate-600 mb-4">
-                  Chủ động chọn cơ sở y tế và khung giờ tiếp nhận phù hợp. Nhận ngay mã phiếu khám điện tử và hướng dẫn chuẩn bị chi tiết.
-                </CmsNativeText>
+                {isIllustrativeCatalogue(item) ? <>
+                  <p className="section-note">Thông tin minh họa</p>
+                  <h2>Gói minh họa chỉ để tham khảo</h2>
+                  <p className="max-w-xl mx-auto text-sm text-slate-600 mb-4">{ILLUSTRATIVE_BOOKING_NOTICE}</p>
+                </> : <>
+                  <CmsNativeText fieldId="support.eyebrow" as="p" value={"Đăng ký dễ dàng"} className="section-note">Đăng ký dễ dàng</CmsNativeText>
+                  <CmsNativeText fieldId="support.title" as="h2" value={"Đặt lịch khám ngay hôm nay"}>Đặt lịch khám ngay hôm nay</CmsNativeText>
+                  <CmsNativeText fieldId="support.body" as="p" value={"Chủ động chọn cơ sở y tế và khung giờ tiếp nhận phù hợp. Nhận ngay mã phiếu khám điện tử và hướng dẫn chuẩn bị chi tiết."} className="max-w-xl mx-auto text-sm text-slate-600 mb-4">
+                    Chủ động chọn cơ sở y tế và khung giờ tiếp nhận phù hợp. Nhận ngay mã phiếu khám điện tử và hướng dẫn chuẩn bị chi tiết.
+                  </CmsNativeText>
+                </>}
                 <div className="resource-actions justify-center">
-                  <button
-                    type="button"
+                  <PublicBookingButton
                     className="button button--amber"
-                    onClick={() => { if (!isCmsPreviewRequested()) setPackageBookingOpen(true); }}
+                    selection={{ packageId: item.id }}
                   >
                     Đặt lịch với gói này
-                  </button>
+                  </PublicBookingButton>
                 </div>
               </section>
             </CmsNativeSection>
@@ -190,7 +196,7 @@ export default function PackageDetailPage() {
         ) : null}
 
         <CmsNativeSection sectionId="booking">
-          {item && packageBookingOpen ? (
+          {item && !isIllustrativeCatalogue(item) && packageBookingOpen ? (
             <PackageBookingModal
               isOpen={packageBookingOpen}
               onClose={() => setPackageBookingOpen(false)}

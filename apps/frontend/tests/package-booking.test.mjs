@@ -90,10 +90,14 @@ test("package detail (/packages/[slug]) synchronizes hero and bottom CTA buttons
 
   assert.match(source, /PackageBookingModal/);
   assert.match(source, /packageBookingOpen/);
-  assert.match(source, /onBookingRequest=\{\(\) => \{ if \(!isCmsPreviewRequested\(\)\) setPackageBookingOpen\(true\); \}\}/);
+  assert.match(source, /onBookingRequest=\{\(\) => \{ if \(item && !isIllustrativeCatalogue\(item\) && !isCmsPreviewRequested\(\)\) setPackageBookingOpen\(true\); \}\}/);
   assert.match(source, /Đặt lịch với gói này/);
-  assert.match(source, /onClick=\{\(\) => \{ if \(!isCmsPreviewRequested\(\)\) setPackageBookingOpen\(true\); \}\}/);
-  assert.match(source, /<PackageBookingModal/);
+  // Hero and support use the same context callback and package selection, so
+  // both inherit the immutable illustration and CMS-preview transaction guard.
+  assert.equal((source.match(/<PublicBookingButton\b/g) ?? []).length, 2);
+  assert.equal((source.match(/selection=\{\{ packageId: item\.id \}\}/g) ?? []).length, 2);
+  assert.doesNotMatch(source, /onClick=\{[^\n]*setPackageBookingOpen/);
+  assert.match(source, /item && !isIllustrativeCatalogue\(item\) && packageBookingOpen \? \(\s*<PackageBookingModal/);
 });
 
 test("search results (/search) includes 'Đặt lịch với gói này' for every package result", async () => {

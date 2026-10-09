@@ -155,7 +155,7 @@ export default function ServicesPage() {
                         <Link className="text-button" href={`/services/${featuredService.slug}`}>
                           Xem chi tiết →
                         </Link>
-                        <PublicBookingButton className="outline-button outline-button--small">
+                        <PublicBookingButton catalogueItem={featuredService} className="outline-button outline-button--small">
                           Đặt lịch tư vấn
                         </PublicBookingButton>
                       </div>
@@ -203,7 +203,7 @@ export default function ServicesPage() {
                       <Link className="text-button" href={`/services/${service.slug}`}>
                         Xem chi tiết →
                       </Link>
-                      <PublicBookingButton className="outline-button outline-button--small">
+                      <PublicBookingButton catalogueItem={service} className="outline-button outline-button--small">
                         Đặt lịch tư vấn
                       </PublicBookingButton>
                     </div>

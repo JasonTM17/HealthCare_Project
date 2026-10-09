@@ -128,6 +128,32 @@ class AppointmentBookingIntegrationTest extends TestcontainersIntegrationTest {
     }
 
     @Test
+    void illustrativePackageRejectsRealBookableSlotWithoutDatabaseSideEffects() throws Exception {
+        UUID sampleId = UUID.fromString("43122ce2-e3c6-5421-a416-d7de4ea003d3");
+        // Deliberately renamed: immutable identity, rather than display copy, owns this boundary.
+        jdbcTemplate.update("INSERT INTO packages(id,name,slug,price,active) VALUES (?,?,?,?,true)",
+            sampleId, "Gói đổi tên", "renamed-package", BigDecimal.ONE);
+        List<String> tables = List.of("patient_profiles", "appointments", "bank_transfer_payments", "notifications", "email_outbox");
+        List<String> before = tables.stream().map(table -> jdbcTemplate.queryForObject(
+            "SELECT md5(COALESCE(string_agg(to_jsonb(t)::text, ',' ORDER BY id), 'empty')) FROM " + table + " t", String.class)).toList();
+        HoldSlotRequest sample = new HoldSlotRequest(doctor.getId(), LocalDate.now(BUSINESS_ZONE).plusDays(2),
+            LocalTime.of(9, 0), "Minh họa local", "0907000199", BOOKING_EMAIL, null,
+            specialty.getId(), defaultBranch.getId(), sampleId);
+        mockMvc.perform(post("/api/v1/appointments/hold").contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "sample-package-real-slot")
+                .content(objectMapper.writeValueAsString(sample)))
+            .andExpect(status().isBadRequest());
+        List<String> after = tables.stream().map(table -> jdbcTemplate.queryForObject(
+            "SELECT md5(COALESCE(string_agg(to_jsonb(t)::text, ',' ORDER BY id), 'empty')) FROM " + table + " t", String.class)).toList();
+        assertEquals(before, after, "No patient/appointment/payment/notification/outbox mutation is permitted");
+        verify(emailSender, never()).send(anyString(), anyString(), anyString());
+        // Same real doctor, branch and slot remain operational without the illustrative package.
+        HoldSlotRequest real = new HoldSlotRequest(doctor.getId(), sample.appointmentDate(), sample.startTime(),
+            sample.fullName(), sample.phone(), sample.email(), null, specialty.getId(), defaultBranch.getId(), null);
+        assertTrue(holdSlot(real).startsWith("APT-"));
+    }
+
+    @Test
     void holdRejectsSpecialtyThatIsNotAssignedToDoctor() throws Exception {
         Specialty unrelated = new Specialty();
         unrelated.setName("Chuyên khoa không thuộc bác sĩ");
