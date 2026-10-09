@@ -4040,7 +4040,7 @@ main {
     left: 0;
     z-index: 60;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     min-height: 64px;
     padding: var(--sp-2) 1rem;
     /* viewport-fit: cover lets the iPhone home indicator overlay bottom: 0;
@@ -4067,6 +4067,21 @@ main {
     transition: color var(--duration-fast) var(--ease-out),
       background-color var(--duration-fast) var(--ease-out),
       transform var(--duration-fast) var(--ease-out);
+  }
+
+  .mobile-care-rail a span {
+    /* Reserve two lines for every label so wrapping never lifts its icon. */
+    display: grid;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.5em;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .mobile-care-rail a svg {
+    flex-shrink: 0;
   }
 
   /* Route selection is shared by every item, including booking. */

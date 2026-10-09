@@ -8,6 +8,87 @@ import { fulfillNotificationBell } from "./helpers/notification-bell";
 
 test.describe.configure({ timeout: 60_000 });
 
+test("admin notification opens immediately despite a failed mark-read, retries once and offers the payment queue", async ({ context, page }, testInfo) => {
+  await installMockBrowserSession(context, browserSessionFixture("ADMIN", "notification-admin", "Notification Admin"));
+  let reads = 0;
+  let releaseRead: (() => void) | undefined;
+  const heldRead = new Promise<void>((resolve) => { releaseRead = resolve; });
+  const item = { id: "payment-notice", eventType: "PAYMENT_SUBMITTED", title: "Có giao dịch chờ đối soát", message: "Dữ liệu kiểm thử: giao dịch cần kiểm tra.", read: false, referenceId: "test-payment", createdAt: "2026-10-09T10:00:00Z" };
+  await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/v1/notifications" && route.request().method() === "GET") {
+      await route.fulfill({ json: { content: [{ ...item, read: reads > 1 }], totalElements: 1, totalPages: 1, number: 0, size: 20 } });
+    } else if (pathname === "/api/v1/notifications/payment-notice/read") {
+      reads++;
+      if (reads === 1) { await heldRead; await route.fulfill({ status: 503, json: { code: "SERVICE_UNAVAILABLE" } }); }
+      else await route.fulfill({ status: 204 });
+    } else await fallbackOr503(route, pathname);
+  });
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/admin");
+  const bell = page.getByRole("button", { name: /Thông báo hệ thống/ });
+  await bell.click();
+  await page.getByRole("button", { name: /Có giao dịch chờ đối soát/ }).click();
+  const detail = page.getByRole("dialog", { name: "Có giao dịch chờ đối soát", exact: true });
+  await expect(detail).toBeVisible();
+  await expect(detail.getByText(item.message)).toBeVisible();
+  await expect(detail.getByRole("button", { name: "Đang đánh dấu…" })).toBeDisabled();
+  releaseRead?.();
+  await expect(detail.getByRole("alert")).toContainText("Chưa thể đánh dấu đã đọc");
+  await expect(bell).toHaveAttribute("aria-label", "Thông báo hệ thống (1 tin mới)");
+  await detail.getByRole("button", { name: "Thử đánh dấu đã đọc lại" }).click();
+  await expect(detail.getByRole("status")).toContainText("Đã đọc");
+  expect(reads).toBe(2);
+  await expect(bell).toHaveAttribute("aria-label", "Thông báo hệ thống");
+  await expect(detail.getByRole("link", { name: "Mở thanh toán chờ đối soát" })).toHaveAttribute("href", "/admin/payments?status=PENDING_VERIFICATION");
+  const bounds = await detail.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(375);
+  await page.screenshot({ path: testInfo.outputPath("admin-notification-detail-375.png") });
+  await page.keyboard.press("Escape");
+  await expect(detail).toBeHidden();
+  await expect(bell).toBeFocused();
+  await bell.click();
+  await page.getByRole("button", { name: /Có giao dịch chờ đối soát/ }).click();
+  await detail.getByRole("link", { name: "Mở thanh toán chờ đối soát" }).click();
+  await expect(page).toHaveURL(/\/admin\/payments\?status=PENDING_VERIFICATION$/);
+  await expect(page.getByRole("dialog", { name: item.title, exact: true })).toBeHidden();
+  expect(reads).toBe(2);
+});
+
+test("already-read and unknown admin notifications still show complete details without a read request or guessed destination", async ({ context, page }) => {
+  await installMockBrowserSession(context, browserSessionFixture("ADMIN", "notification-admin-read", "Notification Admin"));
+  const items = [
+    { id: "safety-read", eventType: "AI_SAFETY_ALERT", title: "Cảnh báo an toàn AI", message: "Dữ liệu kiểm thử: thông báo đã đọc vẫn mở được.", read: true, createdAt: "2026-10-09T10:00:00Z" },
+    { id: "future-read", eventType: "FUTURE_EVENT", title: "Thông báo mới", message: "Nội dung đầy đủ.", read: true, createdAt: "2026-10-09T10:00:00Z" },
+    ...["PAYMENT_CONFIRMED", "HEALTH_QUESTION_SUBMITTED", "HEALTH_QUESTION_ANSWERED", "CONSULTATION_MESSAGE"].map((eventType) => ({ id: eventType, eventType, title: `Thông báo ${eventType}`, message: "Dữ liệu kiểm thử loại thông báo.", read: true, createdAt: "2026-10-09T10:00:00Z" })),
+  ];
+  let writes = 0;
+  await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname.startsWith("/api/v1/notifications") && route.request().method() !== "GET") writes++;
+    if (pathname === "/api/v1/notifications") await route.fulfill({ json: { content: items, totalElements: 2, totalPages: 1 } });
+    else await fallbackOr503(route, pathname);
+  });
+  await page.goto("/admin");
+  for (const item of items) {
+    await page.getByRole("button", { name: "Thông báo hệ thống", exact: true }).click();
+    await page.getByRole("button", { name: new RegExp(item.title) }).click();
+    const detail = page.getByRole("dialog", { name: item.title, exact: true });
+    await expect(detail).toBeVisible();
+    await expect(detail.getByText(item.message)).toBeVisible();
+    const actionHref = item.eventType === "PAYMENT_CONFIRMED" ? "/admin/payments" : item.eventType.startsWith("HEALTH_QUESTION_") ? "/admin/health-questions" : item.eventType === "CONSULTATION_MESSAGE" ? "/admin/consultations" : null;
+    if (actionHref) await expect(detail.getByRole("link")).toHaveAttribute("href", actionHref);
+    else await expect(detail.getByRole("link")).toHaveCount(0);
+    await detail.getByRole("button", { name: "Đóng chi tiết thông báo" }).click();
+    await expect(detail).toBeHidden();
+  }
+  expect(writes).toBe(0);
+});
+
 async function fallbackOr503(route: Route, pathname: string): Promise<void> {
   if (pathname === "/api/v1/auth/browser-sessions/current") {
     await route.fallback();
@@ -19,6 +100,45 @@ async function fallbackOr503(route: Route, pathname: string): Promise<void> {
     body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
   });
 }
+
+test("admin notification pending state follows each row when another read finishes first", async ({ context, page }) => {
+  await installMockBrowserSession(context, browserSessionFixture("ADMIN", "notification-concurrent", "Notification Concurrent"));
+  const items = ["A", "B"].map((letter) => ({ id: letter, eventType: "AI_SAFETY_ALERT", title: `Thông báo ${letter}`, message: "Dữ liệu kiểm thử.", read: false, createdAt: "2026-10-09T10:00:00Z" }));
+  const acknowledged = new Set<string>();
+  let aRequests = 0;
+  let releaseA: (() => void) | undefined;
+  const heldA = new Promise<void>((resolve) => { releaseA = resolve; });
+  await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/v1/notifications") {
+      await route.fulfill({ json: { content: items.map((item) => ({ ...item, read: acknowledged.has(item.id) })), totalElements: 2, totalPages: 1 } });
+    } else if (/\/notifications\/[AB]\/read$/.test(pathname)) {
+      const id = pathname.endsWith("/A/read") ? "A" : "B";
+      if (id === "A") { aRequests++; await heldA; }
+      acknowledged.add(id);
+      await route.fulfill({ status: 204 });
+    } else await fallbackOr503(route, pathname);
+  });
+  await page.goto("/admin");
+  const bell = page.getByRole("button", { name: /Thông báo hệ thống/ });
+  await bell.click();
+  await page.getByRole("button", { name: /Thông báo A/ }).click();
+  await expect(page.getByRole("button", { name: "Đang đánh dấu…" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await bell.click();
+  await page.getByRole("button", { name: /Thông báo B/ }).click();
+  await expect(page.getByRole("dialog", { name: "Thông báo B", exact: true }).getByRole("status")).toHaveText("Đã đọc");
+  await page.keyboard.press("Escape");
+  await bell.click();
+  await page.getByRole("button", { name: /Thông báo A/ }).click();
+  const detailA = page.getByRole("dialog", { name: "Thông báo A", exact: true });
+  await expect(detailA.getByRole("button", { name: "Đang đánh dấu…" })).toBeDisabled();
+  expect(aRequests).toBe(1);
+  releaseA?.();
+  await expect(detailA.getByRole("status")).toHaveText("Đã đọc");
+  await expect(bell).toHaveAttribute("aria-label", "Thông báo hệ thống");
+});
 
 test("unauthenticated admin deep link preserves pathname, query and hash in the login redirect", async ({ context, page }) => {
   await installMockBrowserSession(context, null);

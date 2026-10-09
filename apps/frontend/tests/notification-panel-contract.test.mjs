@@ -8,6 +8,14 @@ const BACKEND_NOTIFICATION = "../../backend/src/main/java/com/healthcare/notific
 const MIGRATION_DIRECTORY = "../../backend/src/main/resources/db/migration";
 const EVENT_TYPE_CONSTRAINT = "chk_notifications_event_type";
 
+test("admin notification queue actions use actual backend event names", async () => {
+  const [detail, entity] = await Promise.all([read("../app/admin/_components/AdminNotificationDetail.tsx"), read(BACKEND_NOTIFICATION)]);
+  const enumBody = entity.match(/public enum EventType\s*\{([\s\S]*?)\n\s*\}/)?.[1];
+  assert.ok(enumBody);
+  const events = new Set(enumBody.replace(/\/\*[\s\S]*?\*\//g, "").split(",").map((name) => name.trim()).filter(Boolean));
+  for (const [, event] of detail.matchAll(/case "([A-Z_]+)"/g)) assert.ok(events.has(event), `queue action uses nonexistent backend event ${event}`);
+});
+
 // The whitelist is rebuilt by the highest-numbered migration that (re)defines
 // the constraint (V73, then V94, then V116) — the same discovery rule the
 // backend NotificationEventTypeWhitelistDriftTest applies, so extending the

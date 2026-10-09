@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, test as nodeTest } from "node:test";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,7 +33,7 @@ function addComponent(relative) {
     if (!specifier.startsWith(".")) return original;
     if (specifier.endsWith(".css")) return 'require("fixture-css")';
     for (const [suffix, stub] of [
-      ["BrandMark", "fixture-brand"], ["UiIcon", "fixture-icon"],
+      ["BrandMark", "fixture-brand"],
       ["CmsLiveSlot", "fixture-cms-live"], ["CmsRenderer", "fixture-cms-renderer"],
     ]) if (specifier.endsWith(suffix)) return `require(${JSON.stringify(stub)})`;
     const target = path.resolve(path.dirname(filename), specifier);
@@ -74,7 +74,6 @@ const ReactDOM = require("react-dom");
 const root = require("react-dom/client").createRoot(document.getElementById("root"));
 const control = window.footerFixture = { pathname: "/", siteShell: false, branches: [] };
 stubs["fixture-brand"] = { __esModule: true, default: () => React.createElement("span") };
-stubs["fixture-icon"] = { __esModule: true, default: (props) => React.createElement("span", { "data-icon": props.name }) };
 stubs["fixture-cms-live"] = { __esModule: true, default: () => null };
 stubs["fixture-cms-renderer"] = { CmsContentRenderer: () => null };
 stubs["next/link"] = { __esModule: true, default: ({ children, ...props }) => React.createElement("a", props, children) };
@@ -154,6 +153,55 @@ const FLAT_SHADOW = "none";
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
 
 const RAIL_HREFS = ["/specialties", "/doctors", "/dat-lich", "/contact"];
+
+test("rail: wrapped booking labels stay centered and every real icon shares a row", async () => {
+  for (const siteShell of [false, true]) {
+    for (const width of [320, 375, 390, 430]) {
+      const page = await mount({ pathname: "/dat-lich", siteShell }, width);
+      try {
+        const geometry = await page.evaluate(() => [...document.querySelectorAll(".mobile-care-rail a")].map((item) => {
+          const label = item.querySelector("span");
+          const icon = item.querySelector("svg");
+          const itemBox = item.getBoundingClientRect();
+          const iconBox = icon.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          return {
+            text: label.textContent,
+            align: getComputedStyle(label).textAlign,
+            iconY: iconBox.y,
+            iconHeight: iconBox.height,
+            height: itemBox.height,
+            left: itemBox.left, right: itemBox.right, top: itemBox.top, bottom: itemBox.bottom,
+            center: itemBox.x + itemBox.width / 2,
+            lines: [...range.getClientRects()].map((line) => ({ x: line.x, width: line.width, top: line.top, bottom: line.bottom })),
+          };
+        }));
+        assert.equal(geometry.length, 4);
+        for (const item of geometry) {
+          assert.equal(item.align, "center", `${width}px: ${item.text} must center wrapped lines`);
+          assert.ok(item.iconHeight >= 18, `${width}px: ${item.text} icon must not shrink`);
+          assert.ok(item.height >= 44, `${width}px: ${item.text} touch target must remain usable`);
+          for (const line of item.lines) {
+            assert.ok(Math.abs(line.x + line.width / 2 - item.center) <= 1,
+              `${width}px: each line of ${item.text} must center within its own item`);
+            assert.ok(line.x >= item.left - 1 && line.x + line.width <= item.right + 1
+              && line.top >= item.top - 1 && line.bottom <= item.bottom + 1,
+            `${width}px: ${item.text} must fit completely inside its touch target`);
+          }
+        }
+        assert.ok(Math.max(...geometry.map((item) => item.iconY)) - Math.min(...geometry.map((item) => item.iconY)) <= 1,
+          `${width}px shell=${siteShell}: wrapping the booking label must not move its calendar above the other icons`);
+        const artifacts = process.env.MOBILE_RAIL_ALIGNMENT_ARTIFACT_DIR;
+        if (artifacts) {
+          mkdirSync(artifacts, { recursive: true });
+          writeFileSync(path.join(artifacts, `rail-${width}-${siteShell ? "white" : "dark"}.json`), JSON.stringify(geometry, null, 2));
+          await page.locator(".mobile-care-rail").screenshot({ path: path.join(artifacts, `rail-${width}-${siteShell ? "white" : "dark"}.png`) });
+        }
+      } finally { await page.close(); }
+    }
+  }
+});
 
 test("rail: tapping through all pages moves the solid green selection and clears every idle item", async () => {
   for (const siteShell of [false, true]) {
