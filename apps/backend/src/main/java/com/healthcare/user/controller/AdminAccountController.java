@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Arrays;
 
 @RestController
 @RequestMapping("/api/v1/admin/users")
@@ -26,9 +27,11 @@ public class AdminAccountController {
         @RequestParam(defaultValue = "") String status, @RequestParam(required = false) Boolean verified,
         @RequestParam(required = false) Boolean demo, @RequestParam(required = false) OffsetDateTime createdFrom,
         @RequestParam(required = false) OffsetDateTime createdTo, @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "20") int size, @RequestParam(defaultValue = "createdAt") String sort,
-        @RequestParam(defaultValue = "desc") String direction) {
-        return noStore(accounts.list(q, role, status, verified, demo, createdFrom, createdTo, page, size, sort, direction));
+        @RequestParam(defaultValue = "20") int size, @RequestParam(defaultValue = "desc") String direction,
+        HttpServletRequest http) {
+        String[] requestedSort = http.getParameterValues("sort");
+        return noStore(accounts.list(q, role, status, verified, demo, createdFrom, createdTo, page, size,
+            requestedSort == null ? null : Arrays.asList(requestedSort), direction));
     }
     @GetMapping("/{id}") public ResponseEntity<AdminAccountResponse> get(@PathVariable UUID id) { return noStore(accounts.get(id)); }
     @PostMapping public ResponseEntity<AdminAccountActionResponse> create(@Valid @RequestBody AdminAccountCreateRequest body, HttpServletRequest http) {

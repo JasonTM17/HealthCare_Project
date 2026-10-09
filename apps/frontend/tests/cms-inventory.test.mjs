@@ -24,12 +24,17 @@ test("telephone support never permits image URLs or unsafe telephone syntax", ()
   assert.equal(isSafeCmsImageUrl("tel:19001234"), false);
   assert.equal(isSafeCmsUrl("tel:115"), false);
   assert.equal(isSafeCmsImageUrl("tel:115"), false);
-  for (const href of ["tel:123", "tel:112", "tel:+115", "tel:115 ", " tel:115", "tel:115\n", "tel:115\t", "tel:%31%31%35", "tel:115;ext=1", "tel:+1234567890123456", "tel:123456;ext=1", "tel:%2b123456", "tel:12 3456", "tel:123456\n", "javascript:alert(1)", "//evil.example", "data:text/html,x"]) {
+  for (const href of ["tel:123", "tel:112", "tel:+115", "tel:115 ", " tel:115", "tel:115\n", "tel:115\t", "tel:%31%31%35", "tel:115;ext=1", "tel:+1234567890123456", "tel:123456;ext=1", "tel:%2b123456", "tel:12 345", "tel:123456\n", "javascript:alert(1)", "//evil.example", "data:text/html,x"]) {
     assert.throws(() => parseCmsContent(row("contact.sidebar", href)), undefined, href);
   }
   assert.throws(() => parseCmsContent({ ...row(), componentType: "IMAGE_CARD", payload: { title: "Ảnh", imageUrl: "tel:19001234" } }));
   assert.throws(() => parseCmsContent({ ...row(), componentType: "IMAGE_CARD", payload: { title: "Ảnh", imageUrl: "tel:115" } }));
   assert.equal(parseCmsContent(row("contact.sidebar", "tel:+842812345678")).payload.ctaHref, "tel:+842812345678");
+  for (const href of ["tel:12 3456", "tel:1900 1234", "tel:+84(28)3978-1234"]) {
+    assert.equal(parseCmsContent(row("contact.sidebar", href)).payload.ctaHref, href);
+    assert.equal(isSafeCmsUrl(href), false);
+    assert.equal(isSafeCmsImageUrl(href), false);
+  }
 });
 
 test("four production telephone classes remain in inventory without schema errors", async () => {
@@ -51,7 +56,9 @@ test("inventory retains valid rows and identifies malformed rows", async () => {
   assert.equal(inventory.errors[0].slotKey, "branches.sidebar");
   assert.equal(inventory.totalCount, 2, "invalid row still counts toward API pagination");
   assert.ok(inventory.errors[0].message.length > 0);
-  await assert.rejects(client.listAdminContent(), /schema|hợp lệ|không an toàn/i, "legacy strict list cannot silently omit rows");
+  const legacyInventory = await client.listAdminContent();
+  assert.deepEqual(legacyInventory.items.map((item) => item.slotKey), ["contact.sidebar"]);
+  assert.deepEqual(legacyInventory.rejectedSlotKeys, ["branches.sidebar"], "legacy inventory cannot silently omit rejected rows");
 });
 
 test("inventory follows validated pagination headers and returns every page", async () => {

@@ -328,6 +328,7 @@ function AdminNotificationBell() {
 function AdminShell({ children, displayName }: { children: ReactNode; displayName?: string }) {
   const pathname = usePathname();
   const cmsEditing = pathname === "/admin/content";
+  const focusedWorkspace = cmsEditing || pathname === "/admin/users";
   const [cmsNavigationOpen, setCmsNavigationOpen] = useState(false);
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -356,10 +357,10 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   return (
     <div className="admin-shell min-h-screen bg-slate-50 text-slate-900 lg:flex">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside id="admin-navigation" className={`${cmsEditing && !cmsNavigationOpen ? "hidden" : ""} border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden`}>
+      <aside id="admin-navigation" className={`${focusedWorkspace && !cmsNavigationOpen ? "hidden" : ""} border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden`}>
         <div className="flex h-full flex-col p-5 overflow-hidden">
           <div className="shrink-0">
-            <div className="flex items-center gap-3 text-teal-100"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></div>
+            <Link aria-label="HealthCare — về trang chủ" className="flex items-center gap-3 text-teal-100 hover:text-white" href="/"><UiIcon name="shield-check" size={24} /><strong className="text-lg">HealthCare</strong></Link>
             <p className="mt-2 text-base font-bold">Điều hành bệnh viện</p>
             <p className="mt-2 text-xs leading-5 text-teal-100/75">
               {displayName ? `Xin chào, ${displayName}.` : "Tài khoản quản trị đã được xác thực."}
@@ -399,7 +400,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8" id="main-content" tabIndex={-1}>
         <div className={cmsEditing ? "w-full" : "mx-auto max-w-7xl"}>
           <div className="mb-6 flex items-start justify-between gap-4">
-            {cmsEditing ? <button className="min-h-11 rounded-lg border border-teal-800 px-4 text-sm font-bold text-teal-900" aria-expanded={cmsNavigationOpen} aria-controls="admin-navigation" type="button" onClick={() => setCmsNavigationOpen((value) => !value)}>{cmsNavigationOpen ? "Thu gọn điều hướng" : "Mở điều hướng quản trị"}</button> : <span />}
+            {focusedWorkspace ? <button className="min-h-11 rounded-lg border border-teal-800 px-4 text-sm font-bold text-teal-900" aria-expanded={cmsNavigationOpen} aria-controls="admin-navigation" type="button" onClick={() => setCmsNavigationOpen((value) => !value)}>{cmsNavigationOpen ? "Thu gọn điều hướng" : "Mở điều hướng quản trị"}</button> : <span />}
             <div className="shrink-0">
               <AdminNotificationBell />
             </div>

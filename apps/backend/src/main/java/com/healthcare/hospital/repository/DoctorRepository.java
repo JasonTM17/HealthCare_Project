@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +22,7 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
     Optional<Doctor> findByUserId(UUID userId);
 
     java.util.List<Doctor> findByUserIdIn(java.util.Collection<UUID> userIds);
+    List<Doctor> findAllByUserIdIn(Collection<UUID> userIds);
 
     Page<Doctor> findByActiveTrue(Pageable pageable);
 

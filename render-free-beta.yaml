@@ -134,7 +134,7 @@ services:
       # a public health endpoint (no credentials), matching the warm cron in
       # .github/workflows/render-warm.yml.
       - key: BACKEND_WARM_URL
-        value: https://healthcare-backup-backend-oqv4.onrender.com/actuator/health
+        value: https://healthcare-backup-backend.onrender.com/actuator/health
 
   - type: web
     name: healthcare-beta-backend
@@ -143,7 +143,7 @@ services:
     region: singapore
     autoDeployTrigger: "off"
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:99499d48fae7c80f839c62471891d986813225928396433350e415bfefc79c73
+      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:91049a5a37b5fe02b4d11114018315b39938d09879deb55897054dee43ac3de9
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE

@@ -383,7 +383,7 @@ class AdminAccountIntegrationTest extends AbstractIntegrationTest {
     private void assertSafe(JsonNode account) {
         List<String> fields = new ArrayList<>(); account.fieldNames().forEachRemaining(fields::add);
         assertThat(fields).containsExactlyInAnyOrder("id", "email", "displayName", "status", "roles", "emailVerified",
-            "emailVerifiedAt", "demo", "createdAt", "updatedAt", "version", "doctorProfile", "patientProfileId", "googleLinked");
+            "emailVerifiedAt", "demo", "createdAt", "updatedAt", "version", "doctorProfile", "patientProfileId", "googleLinked", "phone", "doctorProfileId");
         assertThat(account.toString()).doesNotContain("passwordHash", "password_hash", "googleSubject", "google_subject", "tokenHash", "accessToken", "refreshToken");
     }
     private User fixture(String name, boolean verified, boolean demo, String... roleCodes) {

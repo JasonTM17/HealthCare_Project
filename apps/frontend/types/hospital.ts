@@ -47,10 +47,13 @@ export interface Doctor {
   branchId?: string;
   branchIds?: string[];
   branchNames?: string[];
+  specialtyIds?: string[];
   specialtySlugs?: string[];
   achievements?: string | null;
   aiCredits?: number | null;
   demo?: boolean;
+  /** Admin-only: the login account bound to this catalog entry (GET /admin/doctors). */
+  linkedUser?: { id: string; email: string; displayName: string | null } | null;
 }
 
 export interface Branch {

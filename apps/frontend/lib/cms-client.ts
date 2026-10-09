@@ -106,7 +106,7 @@ export interface CmsInventoryRowError {
   slotKey: string;
   message: string;
 }
-export interface CmsAdminInventory {
+export interface CmsValidatedInventory {
   content: CmsContent[];
   errors: CmsInventoryRowError[];
   totalCount: number;
@@ -126,6 +126,12 @@ export type CmsContent = CmsContentBase & (
   | { componentType: "NOTICE"; payload: CmsNoticePayload }
   | { componentType: "IMAGE_CARD"; payload: CmsImageCardPayload }
 );
+
+export interface CmsAdminInventory {
+  items: CmsContent[];
+  /** Slots the typed contract rejected — surfaced so admins can repair them. */
+  rejectedSlotKeys: string[];
+}
 
 export interface CmsContentHistoryEntry {
   eventId: number;
@@ -342,7 +348,7 @@ export function isSafeCmsUrl(value: string): boolean {
 
 export function assertSafeCmsUrl(value: string, field: string): void {
   if (!isSafeCmsUrl(value)) {
-    throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS URL.`, {
+      throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS URL.`, {
       [`payload.${field}`]: "URL không an toàn hoặc không được hỗ trợ.",
     });
   }
@@ -350,9 +356,10 @@ export function assertSafeCmsUrl(value: string, field: string): void {
 
 /** Telephone actions are link-only; keep image/public URL validation separate. */
 export function isSafeCmsLinkUrl(value: string): boolean {
-  return isSafeCmsUrl(value)
-    || value === "tel:115"
-    || (value === value.trim() && /^tel:\+?[0-9]{6,15}$/.test(value));
+  if (isSafeCmsUrl(value) || value === "tel:115") return true;
+  // Preserve upstream display-formatted telephone actions, confined to links.
+  return value === value.trim() && /^tel:\+?[0-9][0-9(). -]{1,40}$/.test(value)
+    && /^tel:\+?[0-9]{6,15}$/.test(value.replace(/[(). -]/g, ""));
 }
 
 export function assertSafeCmsLinkUrl(value: string, field: string): void {
@@ -788,21 +795,32 @@ export class CmsClient {
     return this.requestContent(this.adminContentPath(slotKey));
   }
 
-  async listAdminContent(): Promise<CmsContent[]> {
+  async listAdminContent(): Promise<CmsAdminInventory> {
     const raw = await this.request<unknown>("/admin/cms/content");
     if (!Array.isArray(raw)) {
       throw new CmsApiError("validation", 0, "CMS API không trả về danh sách slot hợp lệ.");
     }
-    try {
-      return raw.map((item) => parseCmsContent(item));
-    } catch (error) {
-      if (error instanceof CmsApiError) throw error;
-      throw new CmsApiError("validation", 0, "CMS API trả về slot sai schema.");
+    const items: CmsContent[] = [];
+    const rejectedSlotKeys: string[] = [];
+    for (const item of raw) {
+      try {
+        items.push(parseCmsContent(item));
+      } catch {
+        // One malformed row must not blank the whole directory: keep every
+        // valid slot editable and surface the rejected key so the admin can
+        // repair the offending payload instead of seeing a total failure.
+        rejectedSlotKeys.push(
+          isRecord(item) && typeof item.slotKey === "string"
+            ? item.slotKey
+            : "(hàng không đọc được)",
+        );
+      }
     }
+    return { items, rejectedSlotKeys };
   }
 
   /** Read all bounded pages; report corrupt rows without concealing valid rows. */
-  async listAdminInventory(): Promise<CmsAdminInventory> {
+  async listAdminInventory(): Promise<CmsValidatedInventory> {
     const content: CmsContent[] = [];
     const errors: CmsInventoryRowError[] = [];
     const seen = new Set<string>();

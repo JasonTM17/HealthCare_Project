@@ -219,6 +219,8 @@ const VI_VN_DISPLAY_ALLOWLIST = [
   { file: "app/admin/catalog/page.tsx", receiver: "item.price.toLocaleString(\"vi-VN\")", reason: "numeric price, not a date" },
   { file: "app/admin/catalog/page.tsx", receiver: "(item.price).toLocaleString(\"vi-VN\")", reason: "numeric price, not a date" },
   { file: "app/admin/payments/page.tsx", receiver: "total.toLocaleString(\"vi-VN\")", reason: "numeric counter, not a date" },
+  { file: "app/admin/users/page.tsx", receiver: "total.toLocaleString(\"vi-VN\")", reason: "numeric counter, not a date" },
+  { file: "app/admin/page.tsx", receiver: "snapshot.count.toLocaleString(\"vi-VN\")", reason: "numeric counter, not a date" },
   { file: "app/doctor/articles/page.tsx", receiver: "ARTICLE_BODY_MAX_CHARS.toLocaleString(\"vi-VN\")", reason: "numeric char limit, not a date" },
   { file: "app/doctor/articles/page.tsx", receiver: "storedBody.length.toLocaleString(\"vi-VN\")", reason: "numeric char count, not a date" },
   { file: "app/patient/chat/page.tsx", receiver: "draft.length.toLocaleString(\"vi-VN\")", reason: "numeric char count, not a date" },

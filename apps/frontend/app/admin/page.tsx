@@ -8,9 +8,14 @@ import {
   adminListBranches,
   adminListDoctors,
   adminListFaqs,
+  adminListHealthQuestions,
+  adminListJobApplications,
   adminListPackages,
+  adminListPayments,
   adminListServices,
   adminListSpecialties,
+  adminListUsers,
+  fetchAdminAiContentReviews,
 } from "../../lib/api-client";
 import AdminState from "./_components/AdminState";
 import AdminAppointmentsChart from "../../components/charts/AdminAppointmentsChart";
@@ -86,8 +91,15 @@ function SnapshotCard({
   );
 }
 
+type WorkQueueItem = {
+  href: string;
+  label: string;
+  snapshot: Snapshot;
+};
+
 export default function AdminDashboard() {
   const [snapshots, setSnapshots] = useState<SnapshotMap>(INITIAL_SNAPSHOTS);
+  const [queue, setQueue] = useState<Snapshot[]>(Array.from({ length: 5 }, () => ({ status: "loading" }) as Snapshot));
   const loadRun = useRef(0);
 
   const load = useCallback(async () => {
@@ -103,6 +115,11 @@ export default function AdminDashboard() {
       adminListFaqs(0, 1),
       adminListArticles(0, 1),
       adminListAppointments({ page: 0, size: 1 }),
+      adminListPayments({ status: "PENDING_VERIFICATION", page: 0, size: 1 }),
+      adminListJobApplications({ status: "SUBMITTED", page: 0, size: 1 }),
+      adminListHealthQuestions({ state: "PENDING_MODERATION", page: 0, size: 100 }),
+      fetchAdminAiContentReviews({ state: "SUBMITTED", page: 0, size: 1 }),
+      adminListUsers({ status: "DISABLED", page: 0, size: 1 }),
     ]);
 
     const toSnapshot = (result: PromiseSettledResult<{ totalElements: number }>): Snapshot => {
@@ -121,6 +138,17 @@ export default function AdminDashboard() {
       articles: toSnapshot(results[6]),
       appointments: toSnapshot(results[7]),
     });
+    // The health-questions endpoint returns a bare array, not a Page — count
+    // the bounded window (size=100) instead of totalElements.
+    const queueResults = [results[8], results[9], results[10], results[11], results[12]];
+    setQueue(queueResults.map((result, index) => {
+      if (result.status !== "fulfilled") {
+        return { status: "error", description: describeAdminError(result.reason).description };
+      }
+      const value = result.value;
+      const count = Array.isArray(value) ? value.length : value.totalElements;
+      return { status: "success", count };
+    }));
   }, []);
 
   useEffect(() => {
@@ -140,6 +168,39 @@ export default function AdminDashboard() {
           </p>
         </div>
       </header>
+
+      <section aria-labelledby="work-queue-title" className="mt-8">
+        <h2 className="text-xl font-bold text-slate-900" id="work-queue-title">Cần xử lý</h2>
+        <p className="mt-1 text-sm text-slate-600">Các đầu việc đang chờ quản trị viên — bấm vào để đi thẳng tới hàng đợi tương ứng.</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {([
+            { href: "/admin/payments?status=PENDING_VERIFICATION", label: "Thanh toán chờ đối soát" },
+            { href: "/admin/careers?status=SUBMITTED", label: "Hồ sơ ứng tuyển mới" },
+            { href: "/admin/health-questions", label: "Câu hỏi chờ duyệt" },
+            { href: "/admin/ai-content-reviews?state=SUBMITTED", label: "Nội dung AI chờ duyệt" },
+            { href: "/admin/users?status=DISABLED", label: "Tài khoản đang khóa" },
+          ] satisfies Omit<WorkQueueItem, "snapshot">[]).map((item, index) => {
+            const snapshot = queue[index] ?? { status: "loading" };
+            const isSuccess = snapshot.status === "success";
+            const needsWork = isSuccess && snapshot.count > 0;
+            return (
+              <Link
+                className={`border p-4 transition-colors ${needsWork ? "border-amber-300 bg-amber-50 hover:bg-amber-100" : "border-slate-200 bg-white hover:bg-teal-50"}`}
+                href={item.href}
+                key={item.href}
+              >
+                <p className="text-sm font-bold text-slate-700">{item.label}</p>
+                <p className={`mt-2 text-2xl font-bold ${snapshot.status === "error" ? "text-red-700" : needsWork ? "text-amber-900" : "text-teal-800"}`}>
+                  {snapshot.status === "loading" ? "--" : snapshot.status === "error" ? "—" : snapshot.count.toLocaleString("vi-VN")}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {snapshot.status === "error" ? snapshot.description : needsWork ? "Có việc đang chờ" : "Không có việc chờ"}
+                </p>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       <section aria-labelledby="catalog-summary-title" className="mt-8">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
