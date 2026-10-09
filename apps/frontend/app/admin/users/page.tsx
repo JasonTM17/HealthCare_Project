@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuthSession } from "../../../components/useAuthSession";
 import { ACCOUNT_ROLES, accountDateBounds, accountError, adminUsers, type AccountFilters, type AccountPage, type AccountRole, type AccountStatus, type AdminAccount } from "../../../lib/admin-users-client";
 import AdminState from "../_components/AdminState";
@@ -10,12 +11,12 @@ import styles from "./users.module.css";
 
 interface Filters { q: string; role: AccountRole | ""; status: AccountStatus | ""; verified: string; demo: string; from: string; through: string; sort: NonNullable<AccountFilters["sort"]>; direction: "asc" | "desc"; page: number; size: number }
 const DEFAULT_FILTERS: Filters = { q: "", role: "", status: "", verified: "", demo: "", from: "", through: "", sort: "createdAt", direction: "desc", page: 0, size: 20 };
-export default function AdminUsersPage() {
+function AdminUsersContent({ initialStatus }: { initialStatus: Filters["status"] }) {
   const session = useAuthSession();
   const [actor, setActor] = useState<AdminAccount | null>(null);
   const [actorError, setActorError] = useState("");
   const [actorRetry, setActorRetry] = useState(0);
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [filters, setFilters] = useState<Filters>({ ...DEFAULT_FILTERS, status: initialStatus });
   const [data, setData] = useState<AccountPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -102,5 +103,20 @@ export default function AdminUsersPage() {
         </>}
       </>}
     </div>
+  );
+}
+
+function PrivateAdminUsersRoute() {
+  const search = useSearchParams();
+  const requested = search.get("status");
+  const status = requested === "ACTIVE" || requested === "DISABLED" ? requested : "";
+  return <AdminUsersContent key={status} initialStatus={status} />;
+}
+
+export default function AdminUsersPage() {
+  return (
+    <Suspense fallback={<AdminState tone="loading" title="Đang tải bộ lọc tài khoản" description="Đang chuẩn bị danh sách theo liên kết đã mở." />}>
+      <PrivateAdminUsersRoute />
+    </Suspense>
   );
 }
