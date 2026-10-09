@@ -637,6 +637,15 @@ async function getAuthenticatedJson<T>(path: string, init?: RequestInit, timeout
   return withAuthenticatedSession(path, () => getJson<T>(path, init, timeoutMs));
 }
 
+/** Account and structured CMS clients share the established cookie/BFF lane. */
+export async function requestAdminJson(path: string, init: RequestInit = {}): Promise<unknown> {
+  if (!/^\/admin\/(?:users|cms\/content)(?:[/?]|$)/.test(path)
+      || /[\\\u0000-\u001f\u007f]/.test(path)) {
+    throw new ApiError("Đường dẫn quản trị không được hỗ trợ.", 400, path);
+  }
+  return getAuthenticatedJson<unknown>(path, { ...init, cache: "no-store" });
+}
+
 interface SpecialtyRecommendationResponse {
   recommended_specialty: unknown;
   recommended_specialty_id?: unknown;

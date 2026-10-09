@@ -1,6 +1,8 @@
 package com.healthcare.cms.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.healthcare.cms.entity.CmsComponentType;
+import com.healthcare.cms.exception.CmsPayloadValidationException;
 
 import java.util.Map;
 import java.util.Set;
@@ -10,6 +12,7 @@ final class CmsPublicSlotKeys {
 
     private static final Pattern SLOT_KEY = Pattern.compile("[a-z0-9]+(?:[._-][a-z0-9]+)*");
     private static final int MAX_SLOT_KEY_LENGTH = 120;
+    private static final CmsPageLayoutManifest LAYOUTS = new CmsPageLayoutManifest(new ObjectMapper());
     private static final Set<String> CMS_PUBLIC_ROUTE_KEYS = Set.of(
         "homepage",
         "about",
@@ -48,7 +51,7 @@ final class CmsPublicSlotKeys {
             return false;
         }
         String[] parts = slotKey.split("\\.", -1);
-        return parts.length == 2
+        return isLayout(slotKey) || parts.length == 2
             && CMS_PUBLIC_ROUTE_KEYS.contains(parts[0])
             && CMS_SLOT_KEYS.contains(parts[1]);
     }
@@ -57,11 +60,22 @@ final class CmsPublicSlotKeys {
         if (!isAllowed(slotKey)) {
             return Set.of();
         }
+        if (isLayout(slotKey)) return Set.of(CmsComponentType.PAGE_LAYOUT);
         String[] parts = slotKey.split("\\.", -1);
         return CMS_SLOT_COMPONENT_TYPES.getOrDefault(parts[1], Set.of());
     }
 
     static boolean isComponentAllowed(String slotKey, CmsComponentType componentType) {
         return componentType != null && allowedComponentTypes(slotKey).contains(componentType);
+    }
+
+    static boolean isLayout(String slotKey) {
+        if (slotKey == null || !slotKey.endsWith(".layout")) return false;
+        try {
+            LAYOUTS.resolve(slotKey);
+            return true;
+        } catch (CmsPayloadValidationException ex) {
+            return false;
+        }
     }
 }

@@ -231,6 +231,25 @@ test("BFF forwards the backend Cache-Control on public media reads only", async 
   assert.equal(otherResponse.headers.get("cache-control"), "no-store");
 });
 
+test("BFF preserves CMS inventory pagination without leaking unrelated upstream headers", async () => {
+  const bff = await loadBff();
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/admin/cms/content?page=0&size=100"),
+    ["admin", "cms", "content"],
+    { fetchImpl: async () => Response.json([], { headers: {
+      "X-Page": "0", "X-Page-Size": "100", "X-Total-Count": "245", "X-Total-Pages": "3",
+      "X-Internal-Private": "do-not-forward",
+    } }), runtimeConfig },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-page"), "0");
+  assert.equal(response.headers.get("x-page-size"), "100");
+  assert.equal(response.headers.get("x-total-count"), "245");
+  assert.equal(response.headers.get("x-total-pages"), "3");
+  assert.equal(response.headers.get("x-internal-private"), null);
+  assert.equal(response.headers.get("cache-control"), "no-store");
+});
+
 test("CMS image surfaces carry the matching fallback and advisory contracts", async () => {
   const [renderer, imageField, styles] = await Promise.all([
     read("components/cms/CmsRenderer.tsx"),

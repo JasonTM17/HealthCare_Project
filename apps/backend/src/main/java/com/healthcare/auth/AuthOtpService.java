@@ -76,6 +76,25 @@ public class AuthOtpService {
         issue(user, AuthOtpPurpose.EMAIL_VERIFICATION);
     }
 
+    /** Admin service rate-checks before governance locks, then revalidates the locked actor/target. */
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void issueAdminVerificationLocked(User user) {
+        if (user.isEmailVerified() || !"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException(409, "Verification requires an active unverified account");
+        }
+        issue(user, AuthOtpPurpose.EMAIL_VERIFICATION);
+    }
+
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    public void issueAdminPasswordResetLocked(User user) {
+        if (!user.isEmailVerified() || !"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessException(409, "Password reset requires an active verified account");
+        }
+        issue(user, AuthOtpPurpose.PASSWORD_RESET);
+    }
+
     /** Resend is intentionally generic for unknown and already-verified addresses. */
     @Transactional
     public void resendVerification(String email, HttpServletRequest request) {

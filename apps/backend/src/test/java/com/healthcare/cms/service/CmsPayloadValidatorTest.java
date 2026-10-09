@@ -21,6 +21,36 @@ class CmsPayloadValidatorTest {
     }
 
     @Test
+    void acceptsTelephoneActionsWithoutAllowingTelephoneImages() {
+        for (String href : new String[] { "tel:115", "tel:19001234", "tel:+842812345678" }) {
+            ObjectNode banner = JsonNodeFactory.instance.objectNode()
+                .put("title", "Liên hệ").put("body", "Gọi để được hỗ trợ")
+                .put("ctaLabel", "Gọi ngay").put("ctaHref", href);
+            assertThat(validator.validateAndSanitize(CmsComponentType.CTA_BANNER, banner)
+                .get("ctaHref").asText()).isEqualTo(href);
+            assertThatThrownBy(() -> validator.validateAndSanitize(
+                CmsComponentType.IMAGE_CARD, imageCardPayload(href)))
+                .isInstanceOf(CmsPayloadValidationException.class);
+        }
+    }
+
+    @Test
+    void rejectsUnsafeTelephoneSyntax() {
+        for (String href : new String[] {
+            "tel:123", "tel:+1234567890123456", "tel:123456;ext=1",
+            "tel:%2b123456", "tel:12 3456", "tel:123456\n", "tel:123456\r",
+            "tel:112", "tel:+115", "tel:115 ", " tel:115", "tel:115\n",
+            "tel:115\t", "tel:%31%31%35", "tel:115;ext=1",
+        }) {
+            ObjectNode banner = JsonNodeFactory.instance.objectNode()
+                .put("title", "Liên hệ").put("body", "Gọi để được hỗ trợ")
+                .put("ctaLabel", "Gọi ngay").put("ctaHref", href);
+            assertThatThrownBy(() -> validator.validateAndSanitize(CmsComponentType.CTA_BANNER, banner))
+                .isInstanceOf(CmsPayloadValidationException.class);
+        }
+    }
+
+    @Test
     void acceptsRootRelativeAndAllowlistedImageUrls() {
         for (String imageUrl : new String[] {
             "/media/x.jpg",

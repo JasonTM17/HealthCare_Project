@@ -1,0 +1,5 @@
+[data-cms-native-field][tabindex="0"] { cursor: pointer; }
+[data-cms-native-field][tabindex="0"]:hover,
+[data-cms-native-field][tabindex="0"]:focus-visible { outline: 2px dashed #2a676c; outline-offset: 4px; }
+[data-cms-native-selected="true"] { outline: 3px solid #008a82; outline-offset: 4px; }
+.cms-native-preview-notice { padding: 16px; border: 1px solid #d6ba68; background: #fff9e5; color: #5e4700; font-size: 16px; }

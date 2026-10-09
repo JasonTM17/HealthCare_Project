@@ -13,6 +13,7 @@ import {
   PublicBookingButton,
   PublicPageShell,
 } from "../../components/PublicPageShell";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 interface SpecialtyMeta {
   icon: IconName;
@@ -120,173 +121,185 @@ export default function SpecialtiesPage() {
         {/* The PublicRouteBreadcrumb bar above already links home; a second
             "Về trang chính" here duplicated it within one screen. */}
 
-        <header className="resource-page__header">
-          <p className="section-note">Danh mục chuyên khoa</p>
-          <h1>Danh mục Chuyên khoa & Dịch vụ mũi nhọn</h1>
-          <p>
-            Tìm hiểu phạm vi chăm sóc y khoa, đội ngũ bác sĩ chuyên khoa và chủ động đặt lịch
-            theo nhu cầu của bạn.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Danh mục chuyên khoa"} className="section-note">Danh mục chuyên khoa</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Danh mục Chuyên khoa & Dịch vụ mũi nhọn"}>Danh mục Chuyên khoa & Dịch vụ mũi nhọn</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Tìm hiểu phạm vi chăm sóc y khoa, đội ngũ bác sĩ chuyên khoa và chủ động đặt lịch theo nhu cầu của bạn."}>
+              Tìm hiểu phạm vi chăm sóc y khoa, đội ngũ bác sĩ chuyên khoa và chủ động đặt lịch
+              theo nhu cầu của bạn.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
-            <ClinicalIcon name="specialty" />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Chọn chuyên khoa</p>
-            <h2>Định hướng chuyên khoa chuẩn xác trước khi đặt lịch.</h2>
-            <p className="resource-lead">
-              Sử dụng trợ lý triệu chứng AI để được gợi ý chuyên khoa phù hợp, giúp Quý khách chuẩn bị chu đáo và tiết kiệm thời gian thăm khám.
-            </p>
-            <div className="resource-actions">
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <PublicBookingButton selection={featuredSpecialty ? { specialtyId: featuredSpecialty.id } : undefined}>
-                Đặt lịch theo chuyên khoa
-              </PublicBookingButton>
-              <Link className="outline-button outline-button--light" href="/services">
-                Xem dịch vụ
-              </Link>
-            </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Tổng chuyên khoa</dt>
-                <dd aria-live="polite">
-                  {loading ? <span className="skeleton-line" aria-hidden="true" /> : specialtyCountLabel}
-                </dd>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal">
+              <div className="resource-icon" aria-hidden="true">
+                <ClinicalIcon name="specialty" />
               </div>
-              <div>
-                <dt>Chuyên khoa nổi bật</dt>
-                <dd aria-live="polite">
-                  {loading ? <span className="skeleton-line" aria-hidden="true" /> : featuredSpecialtyLabel}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <details className="catalog-guidance">
-          <summary>Cách chọn phù hợp</summary>
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Cách đọc danh mục</p>
-            <h2>Ba mốc để chọn nhanh</h2>
-            <div className="resource-steps resource-steps--grid">
-              {SPECIALTY_STEPS.map((step) => (
-                <div className="resource-step-card" key={step.number}>
-                  <span>{step.number}</span>
-                  <strong>{step.title}</strong>
-                  <p>{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="resource-panel">
-            <p className="section-note">Chuyên khoa nổi bật</p>
-            <h2>Chuyên khoa tiêu biểu</h2>
-            {featuredSpecialty ? (
-              <>
-                <p>{featuredSpecialty.description || "Thông tin chuyên khoa đang được cập nhật chi tiết. Quý khách vui lòng liên hệ tổng đài hoặc đặt lịch để được bác sĩ tư vấn."}</p>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Chọn chuyên khoa"} className="resource-chip">Chọn chuyên khoa</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Định hướng chuyên khoa chuẩn xác trước khi đặt lịch."}>Định hướng chuyên khoa chuẩn xác trước khi đặt lịch.</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Sử dụng trợ lý triệu chứng AI để được gợi ý chuyên khoa phù hợp, giúp Quý khách chuẩn bị chu đáo và tiết kiệm thời gian thăm khám."} className="resource-lead">
+                  Sử dụng trợ lý triệu chứng AI để được gợi ý chuyên khoa phù hợp, giúp Quý khách chuẩn bị chu đáo và tiết kiệm thời gian thăm khám.
+                </CmsNativeText>
                 <div className="resource-actions">
-                  <Link className="text-button" href={`/specialties/${featuredSpecialty.slug}`}>
-                    Mở hồ sơ chuyên khoa →
-                  </Link>
-                  <PublicBookingButton
-                    className="outline-button outline-button--small"
-                    selection={{ specialtyId: featuredSpecialty.id }}
-                  >
-                    Đặt lịch
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <PublicBookingButton selection={featuredSpecialty ? { specialtyId: featuredSpecialty.id } : undefined}>
+                    Đặt lịch theo chuyên khoa
                   </PublicBookingButton>
+                  <Link className="outline-button outline-button--light" href="/services">
+                    Xem dịch vụ
+                  </Link>
                 </div>
-              </>
-            ) : (
-              <p className="resource-muted">Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
-            )}
-          </section>
-        </div>
-        </details>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Tổng chuyên khoa</dt>
+                    <dd aria-live="polite">
+                      {loading ? <span className="skeleton-line" aria-hidden="true" /> : specialtyCountLabel}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Chuyên khoa nổi bật</dt>
+                    <dd aria-live="polite">
+                      {loading ? <span className="skeleton-line" aria-hidden="true" /> : featuredSpecialtyLabel}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          </CmsNativeSection>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải chuyên khoa…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && page?.empty ? (
-          <div className="catalog-status" role="status">
-            <p>Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
-            <div className="resource-actions">
-              <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
-            </div>
-          </div>
-        ) : null}
-
-        {page && !page.empty ? (
-          <>
-            <p className="catalog-meta">
-              {page.totalElements} chuyên khoa · Trang {page.number + 1}/{page.totalPages}
-            </p>
-            <div className="catalog-grid catalog-grid--specialties">
-              {page.content.map((specialty) => {
-                const meta = getSpecialtyMeta(specialty.slug, specialty.name);
-                return (
-                  <article
-                    className="catalog-card specialty-card"
-                    key={specialty.id}
-                  >
-                    <div className="specialty-card__top">
-                      <div
-                        className="specialty-card__icon-wrap"
-                        aria-hidden="true"
-                      >
-                        <Icon name={meta.icon} size={24} />
+          <CmsNativeSection sectionId="guide">
+            <details className="catalog-guidance">
+              <summary>Cách chọn phù hợp</summary>
+              <div className="resource-grid resource-grid--two">
+                <section className="resource-panel resource-panel--accent">
+                  <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Cách đọc danh mục"} className="section-note">Cách đọc danh mục</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title" as="h2" value={"Ba mốc để chọn nhanh"}>Ba mốc để chọn nhanh</CmsNativeText>
+                  <div className="resource-steps resource-steps--grid">
+                    {SPECIALTY_STEPS.map((step, cmsItemIndex) => (
+                      <div className="resource-step-card" key={step.number}>
+                        <span>{step.number}</span>
+                        <CmsNativeText fieldId={`guide.step${step.number}.title`} as="strong" value={step.title}>{step.title}</CmsNativeText>
+                        <CmsNativeText fieldId={`guide.step${step.number}.body`} as="p" value={step.description}>{step.description}</CmsNativeText>
                       </div>
-                    </div>
+                    ))}
+                  </div>
+                </section>
 
-                    <h2 className="specialty-card__title">{specialty.name}</h2>
-                    <p className="specialty-card__desc">
-                      {specialty.description || "Thông tin chuyên khoa đang được cập nhật chi tiết. Quý khách vui lòng liên hệ tổng đài hoặc đặt lịch để được bác sĩ tư vấn."}
-                    </p>
+                <section className="resource-panel">
+                  <CmsNativeText fieldId="guide.eyebrow2" as="p" value={"Chuyên khoa nổi bật"} className="section-note">Chuyên khoa nổi bật</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title2" as="h2" value={"Chuyên khoa tiêu biểu"}>Chuyên khoa tiêu biểu</CmsNativeText>
+                  {featuredSpecialty ? (
+                    <>
+                      <p>{featuredSpecialty.description || "Thông tin chuyên khoa đang được cập nhật chi tiết. Quý khách vui lòng liên hệ tổng đài hoặc đặt lịch để được bác sĩ tư vấn."}</p>
+                      <div className="resource-actions">
+                        <Link className="text-button" href={`/specialties/${featuredSpecialty.slug}`}>
+                          Mở hồ sơ chuyên khoa →
+                        </Link>
+                        <PublicBookingButton
+                          className="outline-button outline-button--small"
+                          selection={{ specialtyId: featuredSpecialty.id }}
+                        >
+                          Đặt lịch
+                        </PublicBookingButton>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="resource-muted">Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
+                  )}
+                </section>
+              </div>
+            </details>
+          </CmsNativeSection>
+        </CmsNativeSections>
 
-                    {specialty.commonSymptoms && specialty.commonSymptoms.length > 0 && (
-                      <div className="specialty-card__symptoms">
-                        <span className="specialty-card__symptoms-label">Triệu chứng thường gặp</span>
-                        <div className="specialty-card__symptom-tags">
-                          {specialty.commonSymptoms.slice(0, 3).map((symptom, idx) => (
-                            <span className="specialty-card__symptom-pill" key={idx}>
-                              {symptom}
-                            </span>
-                          ))}
+        <CmsNativeSection sectionId="directory">
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải chuyên khoa…</p> : null}
+          {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+          {!loading && !error && page?.empty ? (
+            <div className="catalog-status" role="status">
+              <p>Chưa có chuyên khoa công khai. Bạn vẫn có thể đặt lịch hoặc hỏi trợ lý để được định hướng ban đầu.</p>
+              <div className="resource-actions">
+                <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
+                <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+              </div>
+            </div>
+          ) : null}
+
+          {page && !page.empty ? (
+            <>
+              <p className="catalog-meta">
+                {page.totalElements} chuyên khoa · Trang {page.number + 1}/{page.totalPages}
+              </p>
+              <div className="catalog-grid catalog-grid--specialties">
+                {page.content.map((specialty) => {
+                  const meta = getSpecialtyMeta(specialty.slug, specialty.name);
+                  return (
+                    <article
+                      className="catalog-card specialty-card"
+                      key={specialty.id}
+                    >
+                      <div className="specialty-card__top">
+                        <div
+                          className="specialty-card__icon-wrap"
+                          aria-hidden="true"
+                        >
+                          <Icon name={meta.icon} size={24} />
                         </div>
                       </div>
-                    )}
 
-                    <div className="catalog-card__actions">
-                      <Link className="text-button" href={`/specialties/${specialty.slug}`}>
-                        Xem chuyên khoa →
-                      </Link>
-                      <PublicBookingButton
-                        className="outline-button outline-button--small"
-                        selection={{ specialtyId: specialty.id }}
-                      >
-                        Đặt lịch
-                      </PublicBookingButton>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-            <CatalogPagination label="Phân trang chuyên khoa" onPageChange={setCurrentPage} page={page} />
-          </>
-        ) : null}
+                      <h2 className="specialty-card__title">{specialty.name}</h2>
+                      <p className="specialty-card__desc">
+                        {specialty.description || "Thông tin chuyên khoa đang được cập nhật chi tiết. Quý khách vui lòng liên hệ tổng đài hoặc đặt lịch để được bác sĩ tư vấn."}
+                      </p>
 
-        <section className="resource-panel resource-panel--accent">
-          <p className="section-note">Hỗ trợ chọn chuyên khoa</p>
-          <h2>Chưa biết bắt đầu ở đâu?</h2>
-          <p>
-            Trợ lý giúp định hướng theo thông tin bạn cung cấp. Kết quả chỉ mang tính tham khảo và
-            không thay thế chẩn đoán của bác sĩ.
-          </p>
-          <PublicAiButton>Hỗ trợ chọn chuyên khoa</PublicAiButton>
-        </section>
+                      {specialty.commonSymptoms && specialty.commonSymptoms.length > 0 && (
+                        <div className="specialty-card__symptoms">
+                          <span className="specialty-card__symptoms-label">Triệu chứng thường gặp</span>
+                          <div className="specialty-card__symptom-tags">
+                            {specialty.commonSymptoms.slice(0, 3).map((symptom, idx) => (
+                              <span className="specialty-card__symptom-pill" key={idx}>
+                                {symptom}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="catalog-card__actions">
+                        <Link className="text-button" href={`/specialties/${specialty.slug}`}>
+                          Xem chuyên khoa →
+                        </Link>
+                        <PublicBookingButton
+                          className="outline-button outline-button--small"
+                          selection={{ specialtyId: specialty.id }}
+                        >
+                          Đặt lịch
+                        </PublicBookingButton>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <CatalogPagination label="Phân trang chuyên khoa" onPageChange={setCurrentPage} page={page} />
+            </>
+          ) : null}
+        </CmsNativeSection>
+
+        <CmsNativeSection sectionId="closing">
+          <section className="resource-panel resource-panel--accent">
+            <CmsNativeText fieldId="closing.eyebrow" as="p" value={"Hỗ trợ chọn chuyên khoa"} className="section-note">Hỗ trợ chọn chuyên khoa</CmsNativeText>
+            <CmsNativeText fieldId="closing.title" as="h2" value={"Chưa biết bắt đầu ở đâu?"}>Chưa biết bắt đầu ở đâu?</CmsNativeText>
+            <p>
+              Trợ lý giúp định hướng theo thông tin bạn cung cấp. Kết quả chỉ mang tính tham khảo và
+              không thay thế chẩn đoán của bác sĩ.
+            </p>
+            <PublicAiButton>Hỗ trợ chọn chuyên khoa</PublicAiButton>
+          </section>
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

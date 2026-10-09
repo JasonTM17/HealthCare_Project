@@ -20,6 +20,7 @@ public final class HealthcareUserPrincipal implements UserDetails {
     private final String password;
     private final boolean enabled;
     private final boolean demo;
+    private final long securityVersion;
     private final Set<GrantedAuthority> authorities;
 
     private HealthcareUserPrincipal(
@@ -28,12 +29,14 @@ public final class HealthcareUserPrincipal implements UserDetails {
             String password,
             boolean enabled,
             boolean demo,
+            long securityVersion,
             Set<GrantedAuthority> authorities) {
         this.userId = userId;
         this.email = email;
         this.password = password;
         this.enabled = enabled;
         this.demo = demo;
+        this.securityVersion = securityVersion;
         this.authorities = Set.copyOf(authorities);
     }
 
@@ -47,6 +50,7 @@ public final class HealthcareUserPrincipal implements UserDetails {
                 user.getPasswordHash(),
                 "ACTIVE".equals(user.getStatus()),
                 user.isDemo(),
+                user.getSecurityVersion(),
                 authorities
         );
     }
@@ -59,6 +63,8 @@ public final class HealthcareUserPrincipal implements UserDetails {
     public boolean isDemo() {
         return demo;
     }
+
+    public long getSecurityVersion() { return securityVersion; }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

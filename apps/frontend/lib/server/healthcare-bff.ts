@@ -164,6 +164,8 @@ const RESPONSE_HEADER_ALLOWLIST = new Set([
   "x-has-more",
   "x-page",
   "x-page-size",
+  "x-total-count",
+  "x-total-pages",
 ]);
 const SAFE_SEGMENT_PATTERN = /^[A-Za-z0-9._~-]+$/u;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;

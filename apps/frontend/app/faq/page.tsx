@@ -8,6 +8,7 @@ import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../comp
 import CatalogPagination from "../../components/CatalogPagination";
 import { presentApiError } from "../../lib/present-api-error";
 import { JsonLd } from "../../components/JsonLd";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 const FAQ_STEPS = [
   {
@@ -70,125 +71,137 @@ export default function FaqPage() {
 
   const faqJsonLd = page?.content?.length
     ? {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        mainEntity: page.content.map((item) => ({
-          "@type": "Question",
-          name: item.question,
-          acceptedAnswer: {
-            "@type": "Answer",
-            text: item.answer,
-          },
-        })),
-      }
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: page.content.map((item) => ({
+        "@type": "Question",
+        name: item.question,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: item.answer,
+        },
+      })),
+    }
     : null;
 
   return (
     <PublicPageShell>
       {faqJsonLd ? <JsonLd data={faqJsonLd} id="faq-jsonld" /> : null}
       <div aria-busy={loading} className="resource-page section-inner">
-        <header className="resource-page__header">
-          <p className="section-note">Hỗ trợ người bệnh</p>
-          <h1>Câu hỏi thường gặp & Hướng dẫn y khoa</h1>
-          <p>
-            Các câu hỏi thường gặp giúp bạn nắm nhanh cách đặt lịch, chuẩn bị trước khi khám và
-            biết khi nào nên chuyển sang trao đổi trực tiếp.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Hỗ trợ người bệnh"} className="section-note">Hỗ trợ người bệnh</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Câu hỏi thường gặp & Hướng dẫn y khoa"}>Câu hỏi thường gặp & Hướng dẫn y khoa</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Các câu hỏi thường gặp giúp bạn nắm nhanh cách đặt lịch, chuẩn bị trước khi khám và biết khi nào nên chuyển sang trao đổi trực tiếp."}>
+              Các câu hỏi thường gặp giúp bạn nắm nhanh cách đặt lịch, chuẩn bị trước khi khám và
+              biết khi nào nên chuyển sang trao đổi trực tiếp.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật câu hỏi…" : "Đang tải câu hỏi…"}</p> : null}
-        {error ? (
-          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-            <span>{page ? `Chưa thể cập nhật trang FAQ. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
-            <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
-              Thử tải lại
-            </button>
-          </div>
-        ) : null}
-        {!loading && !error && page?.empty ? (
-          <div className="catalog-status" role="status">
-            <p>Danh mục câu hỏi thường gặp đang được cập nhật nội dung mới nhất. Quý khách vui lòng xem hướng dẫn khám hoặc liên hệ đường dây nóng để được hỗ trợ trực tiếp.</p>
-            <div className="resource-actions">
-              <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
-              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+        <CmsNativeSection sectionId="states">
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">{page ? "Đang cập nhật câu hỏi…" : "Đang tải câu hỏi…"}</p> : null}
+          {error ? (
+            <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+              <span>{page ? `Chưa thể cập nhật trang FAQ. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
+              <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
+                Thử tải lại
+              </button>
             </div>
-          </div>
-        ) : null}
-
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
-            <span aria-hidden="true">?</span>
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Câu hỏi thường gặp</p>
-            <h2>Giải đáp những điều người bệnh thường quan tâm.</h2>
-            <p className="resource-lead">
-              Đọc câu trả lời nhanh trước, rồi quyết định có cần đặt lịch hay gọi hỗ trợ trực tiếp hay không.
-            </p>
-            <div className="resource-actions">
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
-              <Link className="outline-button outline-button--light" href="/contact">
-                Liên hệ bệnh viện
-              </Link>
-            </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Câu hỏi</dt>
-                <dd>{loading ? "Đang tải…" : page?.totalElements ?? "Chưa có câu hỏi"}</dd>
+          ) : null}
+          {!loading && !error && page?.empty ? (
+            <div className="catalog-status" role="status">
+              <p>Danh mục câu hỏi thường gặp đang được cập nhật nội dung mới nhất. Quý khách vui lòng xem hướng dẫn khám hoặc liên hệ đường dây nóng để được hỗ trợ trực tiếp.</p>
+              <div className="resource-actions">
+                <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
+                <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
               </div>
-              <div>
-                <dt>Trạng thái</dt>
-                <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Đang cập nhật"}</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Hỗ trợ nhanh</p>
-            <h2>Chưa tìm thấy câu trả lời?</h2>
-            <p>
-              Đặt lịch hoặc liên hệ trực tiếp để đội ngũ hỗ trợ xem lại theo tình huống cụ thể của bạn.
-            </p>
-            <div className="resource-actions">
-              <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
-              <Link className="outline-button" href="/contact">
-                Trang liên hệ
-              </Link>
             </div>
-          </section>
+          ) : null}
+        </CmsNativeSection>
 
-          <section className="resource-panel">
-            <p className="section-note">Cách đọc nhanh</p>
-            <h2>3 bước tra cứu và kết nối thăm khám</h2>
-            <div className="resource-steps resource-steps--grid">
-              {FAQ_STEPS.map((step) => (
-                <div className="resource-step-card" key={step.number}>
-                  <span>{step.number}</span>
-                  <strong>{step.title}</strong>
-                  <p>{step.description}</p>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal">
+              <div className="resource-icon" aria-hidden="true">
+                <CmsNativeText fieldId="overview.label" as="span" value={"?"} aria-hidden="true">?</CmsNativeText>
+              </div>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Câu hỏi thường gặp"} className="resource-chip">Câu hỏi thường gặp</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Giải đáp những điều người bệnh thường quan tâm."}>Giải đáp những điều người bệnh thường quan tâm.</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Đọc câu trả lời nhanh trước, rồi quyết định có cần đặt lịch hay gọi hỗ trợ trực tiếp hay không."} className="resource-lead">
+                  Đọc câu trả lời nhanh trước, rồi quyết định có cần đặt lịch hay gọi hỗ trợ trực tiếp hay không.
+                </CmsNativeText>
+                <div className="resource-actions">
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
+                  <Link className="outline-button outline-button--light" href="/contact">
+                    Liên hệ bệnh viện
+                  </Link>
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Câu hỏi</dt>
+                    <dd>{loading ? "Đang tải…" : page?.totalElements ?? "Chưa có câu hỏi"}</dd>
+                  </div>
+                  <div>
+                    <dt>Trạng thái</dt>
+                    <dd>{loading ? "Đang tải" : page && !page.empty ? "Có thể tra cứu" : "Đang cập nhật"}</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          </CmsNativeSection>
 
-        {page && !page.empty ? (
-          <>
-            <p aria-live="polite" className="catalog-meta">{page.totalElements} câu hỏi · Trang {page.number + 1}/{page.totalPages}</p>
-            <div aria-label="Danh sách câu hỏi thường gặp" className="faq-list">
-              {page.content.map((item) => (
-                <details className="faq-item" key={item.id}>
-                  <summary>{item.question}</summary>
-                  <p>{item.answer || "Câu trả lời đang chờ biên tập. Vui lòng liên hệ bệnh viện nếu cần xác nhận trước."}</p>
-                </details>
-              ))}
+          <CmsNativeSection sectionId="guide">
+            <div className="resource-grid resource-grid--two">
+              <section className="resource-panel resource-panel--accent">
+                <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Hỗ trợ nhanh"} className="section-note">Hỗ trợ nhanh</CmsNativeText>
+                <CmsNativeText fieldId="guide.title" as="h2" value={"Chưa tìm thấy câu trả lời?"}>Chưa tìm thấy câu trả lời?</CmsNativeText>
+                <CmsNativeText fieldId="guide.body" as="p" value={"Đặt lịch hoặc liên hệ trực tiếp để đội ngũ hỗ trợ xem lại theo tình huống cụ thể của bạn."}>
+                  Đặt lịch hoặc liên hệ trực tiếp để đội ngũ hỗ trợ xem lại theo tình huống cụ thể của bạn.
+                </CmsNativeText>
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
+                  <Link className="outline-button" href="/contact">
+                    Trang liên hệ
+                  </Link>
+                </div>
+              </section>
+
+              <section className="resource-panel">
+                <CmsNativeText fieldId="guide.eyebrow2" as="p" value={"Cách đọc nhanh"} className="section-note">Cách đọc nhanh</CmsNativeText>
+                <CmsNativeText fieldId="guide.title2" as="h2" value={"3 bước tra cứu và kết nối thăm khám"}>3 bước tra cứu và kết nối thăm khám</CmsNativeText>
+                <div className="resource-steps resource-steps--grid">
+                  {FAQ_STEPS.map((step, cmsItemIndex) => (
+                    <div className="resource-step-card" key={step.number}>
+                      <span>{step.number}</span>
+                      <CmsNativeText fieldId={`guide.step${step.number}.title`} as="strong" value={step.title}>{step.title}</CmsNativeText>
+                      <CmsNativeText fieldId={`guide.step${step.number}.body`} as="p" value={step.description}>{step.description}</CmsNativeText>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
-            <CatalogPagination label="Phân trang câu hỏi thường gặp" onPageChange={setCurrentPage} page={page} />
-          </>
-        ) : null}
+          </CmsNativeSection>
+        </CmsNativeSections>
+
+        <CmsNativeSection sectionId="questions">
+          {page && !page.empty ? (
+            <>
+              <p aria-live="polite" className="catalog-meta">{page.totalElements} câu hỏi · Trang {page.number + 1}/{page.totalPages}</p>
+              <div aria-label="Danh sách câu hỏi thường gặp" className="faq-list">
+                {page.content.map((item) => (
+                  <details className="faq-item" key={item.id}>
+                    <summary>{item.question}</summary>
+                    <p>{item.answer || "Câu trả lời đang chờ biên tập. Vui lòng liên hệ bệnh viện nếu cần xác nhận trước."}</p>
+                  </details>
+                ))}
+              </div>
+              <CatalogPagination label="Phân trang câu hỏi thường gặp" onPageChange={setCurrentPage} page={page} />
+            </>
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

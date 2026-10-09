@@ -343,7 +343,7 @@ test("CMS reconciliation ledger preserves contiguous order across reordered even
   assert.equal(events.reconciliationCursor, 0);
 });
 
-test("admin editor exposes typed status/version and protected API states", async () => {
+test("legacy editor retains protected states and the professional entry opens the native workspace", async () => {
   const source = await read("components/cms/CmsEditor.tsx");
   const adminPage = await read("app/admin/content/page.tsx");
   const client = await read("lib/cms-client.ts");
@@ -353,7 +353,7 @@ test("admin editor exposes typed status/version and protected API states", async
     "401",
     "403",
     "409",
-    "400/422",
+    "Danh mục nội dung trả về chưa đầy đủ hoặc không đúng định dạng",
     "Lưu bản nháp (ẩn công khai)",
     "Xuất bản",
     "Khôi phục bản đã tải",
@@ -369,8 +369,8 @@ test("admin editor exposes typed status/version and protected API states", async
     assert.ok(source.includes(marker), `missing editor state: ${marker}`);
   }
   assert.doesNotMatch(source, /rollbackPage/);
-  assert.match(adminPage, /authenticatedCmsClient/);
-  assert.match(adminPage, /<CmsEditor client=\{authenticatedCmsClient\}/);
+  assert.match(adminPage, /CmsEditorWorkspace/);
+  assert.doesNotMatch(adminPage, /<CmsEditor client=/);
   assert.match(client, /authenticatedCmsClient = new CmsClient\(\)/);
   assert.match(client, /credentials: init\.credentials \?\? "include"/);
   assert.doesNotMatch(client, /Authorization|Bearer|getAccessToken|accessToken/);

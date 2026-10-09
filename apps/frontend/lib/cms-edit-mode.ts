@@ -1,5 +1,7 @@
 "use client";
 
+import { isCmsPreviewRequested } from "./cms-preview-bridge";
+
 /**
  * Tiny external store for the admin-only inline CMS edit mode. Kept separate
  * from React so both the toolbar (the only writer) and every CmsLiveSlot
@@ -38,7 +40,7 @@ export function subscribeCmsEditMode(listener: () => void): () => void {
 
 /** Snapshot for useSyncExternalStore. "Off" until the toolbar hydrates. */
 export function isCmsEditModeEnabled(): boolean {
-  return enabled;
+  return enabled && !isCmsPreviewRequested();
 }
 
 /** Toolbar-only: read the persisted value once and publish it. */

@@ -29,6 +29,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     @Query("select rt from RefreshToken rt where rt.user.id = :userId and rt.revokedAt is null")
     List<RefreshToken> findAllActiveByUserId(@Param("userId") UUID userId);
 
+    @Modifying
+    @Query("update RefreshToken rt set rt.revokedAt = CURRENT_TIMESTAMP where rt.user.id = :userId and rt.revokedAt is null")
+    int revokeAllActiveByUserId(@Param("userId") UUID userId);
+
     /**
      * Bulk-delete all tokens owned by a user. Called during cascaded cleanup where
      * individual revocation timestamps are not required (e.g. user deletion).

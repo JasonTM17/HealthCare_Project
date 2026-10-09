@@ -7,6 +7,7 @@ import { fetchServiceBySlug } from "../../../lib/api-client";
 import type { MedicalService } from "../../../types/hospital";
 import { ClinicalIcon } from "../../../components/ClinicalIcon";
 import { PublicAiButton, PublicBackLink, PublicBookingButton, PublicPageShell } from "../../../components/PublicPageShell";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../../components/cms/cms-page-layout-provider";
 
 const SERVICE_STEPS = [
   ["01", "Đọc mô tả", "Xác nhận đây có phải dịch vụ phù hợp với nhu cầu hiện tại không."],
@@ -15,7 +16,7 @@ const SERVICE_STEPS = [
 ] as const;
 
 export default function ServiceDetailPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug } = useParams<{ slug: string; }>();
   const [service, setService] = useState<MedicalService | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,82 +40,94 @@ export default function ServiceDetailPage() {
   }, [slug]);
 
   return (
-    <PublicPageShell>
+    <PublicPageShell cmsEntityId={service?.id}>
       <div className="resource-page section-inner">
-        <PublicBackLink href="/services">← Quay lại danh mục dịch vụ</PublicBackLink>
-        <header className="resource-page__header">
-          <p className="section-note">Dịch vụ y tế</p>
-          <h1>Dịch vụ chăm sóc theo nhu cầu</h1>
-          <p>Tìm hiểu thông tin dịch vụ và đặt lịch trao đổi với đội ngũ chuyên môn.</p>
-        </header>
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải dịch vụ…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && !service ? <p className="catalog-status" role="status">Không tìm thấy thông tin dịch vụ này.</p> : null}
+        <CmsNativeSection sectionId="intro">
+          <PublicBackLink href="/services">← Quay lại danh mục dịch vụ</PublicBackLink>
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Dịch vụ y tế"} className="section-note">Dịch vụ y tế</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Dịch vụ chăm sóc theo nhu cầu"}>Dịch vụ chăm sóc theo nhu cầu</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Tìm hiểu thông tin dịch vụ và đặt lịch trao đổi với đội ngũ chuyên môn."}>Tìm hiểu thông tin dịch vụ và đặt lịch trao đổi với đội ngũ chuyên môn.</CmsNativeText>
+          </header>
+        </CmsNativeSection>
+        <CmsNativeSection sectionId="states">
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải dịch vụ…</p> : null}
+          {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+          {!loading && !error && !service ? <p className="catalog-status" role="status">Không tìm thấy thông tin dịch vụ này.</p> : null}
+        </CmsNativeSection>
         {service ? (
           <>
-            <article className="resource-hero-card resource-hero-card--teal">
-              <div className="resource-icon" aria-hidden="true">
-                <ClinicalIcon name="service" />
-              </div>
-              <div className="resource-hero-card__body">
-                <span className="resource-chip">Dịch vụ</span>
-                <h2>{service.name}</h2>
-                <p className="resource-lead">{service.description || "Thông tin chi tiết của dịch vụ đang được cập nhật."}</p>
-                <div className="resource-actions">
-                  <PublicBookingButton>Trao đổi nhu cầu và đặt lịch</PublicBookingButton>
-                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-                  <Link className="outline-button outline-button--light" href="/packages">Xem gói khám liên quan</Link>
+            <CmsNativeSection sectionId="profile">
+              <article className="resource-hero-card resource-hero-card--teal">
+                <div className="resource-icon" aria-hidden="true">
+                  <ClinicalIcon name="service" />
                 </div>
-                <dl className="resource-meta-grid">
-                  <div>
-                    <dt>Loại nội dung</dt>
-                    <dd>Dịch vụ công khai</dd>
+                <div className="resource-hero-card__body">
+                  <span className="resource-chip">Dịch vụ</span>
+                  <h2>{service.name}</h2>
+                  <p className="resource-lead">{service.description || "Thông tin chi tiết của dịch vụ đang được cập nhật."}</p>
+                  <div className="resource-actions">
+                    <PublicBookingButton>Trao đổi nhu cầu và đặt lịch</PublicBookingButton>
+                    <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                    <Link className="outline-button outline-button--light" href="/packages">Xem gói khám liên quan</Link>
                   </div>
-                  <div>
-                    <dt>Hành động tiếp theo</dt>
-                    <dd>Đặt lịch hoặc xem gói khám</dd>
-                  </div>
-                </dl>
-              </div>
-            </article>
+                  <dl className="resource-meta-grid">
+                    <div>
+                      <dt>Loại nội dung</dt>
+                      <dd>Dịch vụ công khai</dd>
+                    </div>
+                    <div>
+                      <dt>Hành động tiếp theo</dt>
+                      <dd>Đặt lịch hoặc xem gói khám</dd>
+                    </div>
+                  </dl>
+                </div>
+              </article>
+            </CmsNativeSection>
 
-            <section className="resource-panel resource-panel--wide">
-              <div className="section-heading">
-                <div>
-                  <p className="section-note">Cách dùng dịch vụ</p>
-                  <h2>Ba bước trước khi chốt lựa chọn</h2>
-                </div>
-              </div>
-              <div className="resource-steps resource-steps--grid">
-                {SERVICE_STEPS.map(([number, title, description]) => (
-                  <div className="resource-step-card" key={number}>
-                    <span>{number}</span>
-                    <strong>{title}</strong>
-                    <p>{description}</p>
+            <CmsNativeSections>
+              <CmsNativeSection sectionId="guide">
+                <section className="resource-panel resource-panel--wide">
+                  <div className="section-heading">
+                    <div>
+                      <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Cách dùng dịch vụ"} className="section-note">Cách dùng dịch vụ</CmsNativeText>
+                      <CmsNativeText fieldId="guide.title" as="h2" value={"Ba bước trước khi chốt lựa chọn"}>Ba bước trước khi chốt lựa chọn</CmsNativeText>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </section>
+                  <div className="resource-steps resource-steps--grid">
+                    {SERVICE_STEPS.map(([number, title, description]) => (
+                      <div className="resource-step-card" key={number}>
+                        <span>{number}</span>
+                        <CmsNativeText fieldId={`guide.step${number}.title`} as="strong" value={title}>{title}</CmsNativeText>
+                        <CmsNativeText fieldId={`guide.step${number}.body`} as="p" value={description}>{description}</CmsNativeText>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </CmsNativeSection>
 
-            <section className="resource-grid resource-grid--two">
-              <section className="resource-panel resource-panel--accent">
-                <p className="section-note">Khi nào nên dùng</p>
-                <h2>Chọn dịch vụ khi bạn đã có nhu cầu rõ hơn</h2>
-                <p>
-                  Nếu bạn biết mình đang cần hỗ trợ ở nhóm dịch vụ nào, đây là điểm vào nhanh trước
-                  khi mở gói khám hoặc đặt lịch.
-                </p>
-              </section>
-              <section className="resource-panel">
-                <p className="section-note">Đi tiếp sau khi đọc</p>
-                <h2>Không cần vòng qua nhiều trang</h2>
-                <p>Mở gói khám để so sánh phạm vi chăm sóc, hoặc đặt lịch ngay khi đã sẵn sàng.</p>
-                <div className="resource-actions">
-                  <Link className="text-button" href="/packages">Xem gói khám →</Link>
-                  <PublicBookingButton className="outline-button outline-button--small">Đặt lịch</PublicBookingButton>
-                </div>
-              </section>
-            </section>
+              <CmsNativeSection sectionId="support">
+                <section className="resource-grid resource-grid--two">
+                  <section className="resource-panel resource-panel--accent">
+                    <CmsNativeText fieldId="support.eyebrow" as="p" value={"Khi nào nên dùng"} className="section-note">Khi nào nên dùng</CmsNativeText>
+                    <CmsNativeText fieldId="support.title" as="h2" value={"Chọn dịch vụ khi bạn đã có nhu cầu rõ hơn"}>Chọn dịch vụ khi bạn đã có nhu cầu rõ hơn</CmsNativeText>
+                    <CmsNativeText fieldId="support.body" as="p" value={"Nếu bạn biết mình đang cần hỗ trợ ở nhóm dịch vụ nào, đây là điểm vào nhanh trước khi mở gói khám hoặc đặt lịch."}>
+                      Nếu bạn biết mình đang cần hỗ trợ ở nhóm dịch vụ nào, đây là điểm vào nhanh trước
+                      khi mở gói khám hoặc đặt lịch.
+                    </CmsNativeText>
+                  </section>
+                  <section className="resource-panel">
+                    <CmsNativeText fieldId="support.eyebrow2" as="p" value={"Đi tiếp sau khi đọc"} className="section-note">Đi tiếp sau khi đọc</CmsNativeText>
+                    <CmsNativeText fieldId="support.title2" as="h2" value={"Không cần vòng qua nhiều trang"}>Không cần vòng qua nhiều trang</CmsNativeText>
+                    <CmsNativeText fieldId="support.body2" as="p" value={"Mở gói khám để so sánh phạm vi chăm sóc, hoặc đặt lịch ngay khi đã sẵn sàng."}>Mở gói khám để so sánh phạm vi chăm sóc, hoặc đặt lịch ngay khi đã sẵn sàng.</CmsNativeText>
+                    <div className="resource-actions">
+                      <Link className="text-button" href="/packages">Xem gói khám →</Link>
+                      <PublicBookingButton className="outline-button outline-button--small">Đặt lịch</PublicBookingButton>
+                    </div>
+                  </section>
+                </section>
+              </CmsNativeSection>
+            </CmsNativeSections>
           </>
         ) : null}
       </div>
