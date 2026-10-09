@@ -223,7 +223,6 @@
   width: 100%;
   min-height: 2.75rem;
   margin-top: 0.15rem;
-  box-shadow: 0 -0.5rem 0.75rem -0.35rem rgb(0 0 0 / 8%);
 }
 
 .consentError {
