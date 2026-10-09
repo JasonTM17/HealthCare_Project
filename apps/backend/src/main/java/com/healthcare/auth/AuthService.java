@@ -631,7 +631,6 @@ public class AuthService {
         }
         if (discardPassword) {
             user.setPasswordHash(randomGooglePasswordHash());
-            revokeAllUserTokensLocked(user);
             authOtpService.invalidateAll(user);
         }
         user.setGoogleSubject(identity.subject());
