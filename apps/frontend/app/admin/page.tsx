@@ -123,10 +123,10 @@ export default function AdminDashboard() {
     ]);
 
     const unavailable: Snapshot = { status: "error", description: "Chưa thể xác định số lượng. Hãy mở danh sách hoặc thử làm mới." };
-    const toSnapshot = (result: PromiseSettledResult<{ totalElements: number }>): Snapshot => {
+    const toSnapshot = (result: PromiseSettledResult<unknown>): Snapshot => {
       if (result.status === "rejected") return { status: "error", description: describeAdminError(result.reason).description };
-      const count = result.value?.totalElements;
-      return Number.isSafeInteger(count) && count >= 0 ? { status: "success", count } : unavailable;
+      const count = result.value && typeof result.value === "object" && "totalElements" in result.value ? result.value.totalElements : undefined;
+      return typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? { status: "success", count } : unavailable;
     };
 
     if (loadRun.current !== runId) return;
@@ -140,19 +140,20 @@ export default function AdminDashboard() {
       articles: toSnapshot(results[6]),
       appointments: toSnapshot(results[7]),
     });
-    // Question lists and AI review slices do not expose an exact total. Keep
-    // their bounded counts honest instead of treating missing metadata as zero.
+    // Older AI responses and question lists expose only a bounded window.
+    // Prefer a validated server total when supplied; never fabricate zero.
     const queueResults = [results[8], results[9], results[10], results[11], results[12]];
     setQueue(queueResults.map((result, index) => {
       if (result.status !== "fulfilled") {
         return { status: "error", description: describeAdminError(result.reason).description };
       }
-      const value = result.value;
+      const value: unknown = result.value;
       if (index === 2) {
         return Array.isArray(value) ? { status: "success", count: value.length, minimum: value.length >= 100 } : unavailable;
       }
       if (index === 3) {
-        if (!value || Array.isArray(value) || !Array.isArray(value.content) || !("hasMore" in value) || typeof value.hasMore !== "boolean") return unavailable;
+        if (value && typeof value === "object" && !Array.isArray(value) && "totalElements" in value) return toSnapshot({ status: "fulfilled", value });
+        if (!value || typeof value !== "object" || Array.isArray(value) || !("content" in value) || !Array.isArray(value.content) || !("hasMore" in value) || typeof value.hasMore !== "boolean") return unavailable;
         if (value.hasMore && value.content.length === 0) return unavailable;
         return { status: "success", count: value.content.length, minimum: value.hasMore };
       }
