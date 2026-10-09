@@ -2,6 +2,8 @@ import { once } from "node:events";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
+import { createNativeCmsLayout, type CmsPageLayout } from "../../lib/cms-page-layout";
+import { resolveCmsPageIdentity } from "../../lib/cms-page-manifest";
 import {
   assertNoSensitiveBrowserStorage,
   browserSessionFixture,
@@ -108,7 +110,7 @@ function feedReadyEvent(): string {
   return eventChunk("ready", ready);
 }
 
-function contentChangedEvent(content: CmsContent, eventId: number): string {
+function contentChangedEvent(content: Pick<CmsContent, "slotKey" | "version" | "updatedAt">, eventId: number): string {
   const changed = {
     eventId,
     slotKey: content.slotKey,
@@ -162,6 +164,14 @@ async function startMultiRoleMockBackend() {
     version: 1,
     updatedAt: "2026-09-07T10:00:00Z",
   };
+
+  let layoutPayload: CmsPageLayout = {
+    ...createNativeCmsLayout(resolveCmsPageIdentity("/")!),
+    fields: { "hero.title": { kind: "text", value: cmsHero.payload.title }, "hero.body": { kind: "rich", format: "markdown", value: cmsHero.payload.body } },
+  };
+  let layoutVersion = 1;
+  let cmsLayout = { slotKey: "homepage.layout", componentType: "PAGE_LAYOUT", payload: structuredClone(layoutPayload), status: "PUBLISHED", version: 1, updatedAt: cmsHero.updatedAt };
+  const layoutDraft = () => ({ slotKey: cmsLayout.slotKey, componentType: "PAGE_LAYOUT", expectedVersion: layoutVersion, hasDraft: layoutVersion !== cmsLayout.version, payload: layoutPayload, draftUpdatedAt: layoutVersion > 1 ? cmsLayout.updatedAt : null, publicContent: cmsLayout });
 
   const sseClients = new Set<ServerResponse>();
   let resolveFeedReady: () => void = () => undefined;
@@ -291,7 +301,32 @@ async function startMultiRoleMockBackend() {
       }
 
       if (method === "GET" && path === "/admin/cms/content") {
-        sendJson(response, 200, [cmsHero]);
+        sendJson(response, 200, [cmsHero, cmsLayout]);
+        return;
+      }
+
+      if (method === "GET" && path === "/cms/content/homepage.layout") {
+        sendJson(response, 200, cmsLayout); return;
+      }
+      if (method === "GET" && path === "/admin/cms/content/homepage.layout/draft") {
+        sendJson(response, 200, layoutDraft()); return;
+      }
+      if (method === "GET" && path === "/admin/cms/content/homepage.layout/history") {
+        sendJson(response, 200, []); return;
+      }
+      if (method === "PUT" && path === "/admin/cms/content/homepage.layout/draft") {
+        const body = await readJsonBody(request) as { componentType: string; expectedVersion: number; payload: CmsPageLayout };
+        expect(body.componentType).toBe("PAGE_LAYOUT"); expect(body.expectedVersion).toBe(layoutVersion);
+        layoutPayload = structuredClone(body.payload); layoutVersion += 1;
+        sendJson(response, 200, layoutDraft()); return;
+      }
+      if (method === "POST" && path === "/admin/cms/content/homepage.layout/publish") {
+        const body = await readJsonBody(request) as { expectedVersion: number };
+        expect(body.expectedVersion).toBe(layoutVersion); expect(layoutVersion).toBe(2);
+        layoutVersion += 1;
+        cmsLayout = { ...cmsLayout, payload: structuredClone(layoutPayload), version: layoutVersion, updatedAt: new Date().toISOString() };
+        sendJson(response, 200, layoutDraft());
+        for (const client of sseClients) client.write(contentChangedEvent(cmsLayout, layoutVersion));
         return;
       }
 
@@ -540,21 +575,40 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
 
       // Admin updates hero content in real-time
       await adminPage.goto("/admin/content");
-      await expect(adminPage.getByRole("heading", { name: "Cập nhật nội dung theo từng trang" })).toBeVisible();
-      await expect(adminPage.locator("#cms-payload-title")).toHaveValue("Chăm sóc sức khỏe đa chuyên khoa chất lượng cao");
+      await expect(adminPage.getByTestId("cms-workspace")).toBeVisible();
+      await expect(adminPage.getByText("Chọn văn bản hoặc ảnh trong trang để chỉnh sửa.")).toBeVisible();
+      const preview = adminPage.frameLocator('[data-testid="cms-preview-frame"]');
+      await preview.locator('[data-cms-native-field="hero.title"]').click();
+      const titleInput = adminPage.getByTestId("cms-field-inspector").getByRole("textbox");
+      await expect(titleInput).toHaveValue("Chăm sóc sức khỏe đa chuyên khoa chất lượng cao");
 
       const updatedHeroTitle = "Hệ thống Bệnh viện Thông minh Realtime 2026";
       const updatedHeroBody = "Cập nhật trực tiếp: Đầy đủ 5 chuyên khoa Tim mạch, Nhi, Thần kinh, Da liễu, Nội tiết.";
-      await adminPage.locator("#cms-payload-title").fill(updatedHeroTitle);
-      await adminPage.locator("#cms-payload-body").fill(updatedHeroBody);
-      await adminPage.getByRole("button", { name: "Xuất bản" }).click();
-      await expect(adminPage.getByText("Đã xuất bản homepage.hero, version 2.")).toBeVisible();
+      await titleInput.fill(updatedHeroTitle);
+      await preview.locator('[data-cms-native-field="hero.body"]').click();
+      const richBody = adminPage.frameLocator(".tox-edit-area__iframe").locator("body");
+      await expect(richBody).toBeVisible(); await richBody.fill(updatedHeroBody);
+      // Edits remain private until the explicit publish confirmation.
+      await expect(heroSlot).not.toContainText(updatedHeroTitle);
+      const publishedLayoutRead = publicHomepage.waitForResponse(async (response) =>
+        response.request().method() === "GET" && new URL(response.url()).pathname === "/api/v1/cms/content/homepage.layout"
+        && response.ok() && (await response.json()).version === 3, { timeout: 75_000 });
+      await adminPage.getByTestId("cms-publish").click();
+      await adminPage.getByRole("dialog").getByRole("button", { name: "Xác nhận xuất bản", exact: true }).click();
+      await expect(adminPage.getByTestId("cms-workspace").getByRole("status").filter({ hasText: "Đã xuất bản nội dung của trang này." }))
+        .toHaveText("Đã xuất bản nội dung của trang này.");
 
       // Verify the patient's open homepage converges through the bounded poll
       // (next 60s tick) without navigation — not through a live push.
       await expect(heroSlot).toContainText(updatedHeroTitle, { timeout: 75_000 });
       await expect(heroSlot).toContainText(updatedHeroBody);
-      await expect(heroSlot).toHaveAttribute("data-cms-version", "2");
+      expect(await (await publishedLayoutRead).json()).toMatchObject({ version: 3, payload: { fields: {
+        "hero.title": { kind: "text", value: updatedHeroTitle },
+        "hero.body": { kind: "rich", format: "markdown", value: updatedHeroBody },
+      } } });
+      // This marker belongs to the unchanged legacy slot; native publication
+      // is independently bound to the version3 layout response above.
+      await expect(heroSlot).toHaveAttribute("data-cms-version", "1");
 
       // Verify clean security storage (no bearer tokens or passwords in localStorage)
       await assertNoSensitiveBrowserStorage(adminPage);
