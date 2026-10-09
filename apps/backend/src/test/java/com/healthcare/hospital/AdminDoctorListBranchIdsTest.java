@@ -246,6 +246,45 @@ class AdminDoctorListBranchIdsTest {
         verify(userRepository, never()).save(any());
     }
 
+    @Test
+    void updateRejectsAccountRebindingForDemoPrincipal() {
+        // Demo boundary parity with /api/v1/admin/users/**: a demo admin may
+        // edit resettable doctor content but must not rebind which login owns
+        // a doctor profile (identity-adjacent mutation).
+        com.healthcare.user.entity.User demoAccount = new com.healthcare.user.entity.User();
+        demoAccount.setId(UUID.fromString("10000000-0000-0000-0000-0000000000d0"));
+        demoAccount.setEmail("demo-admin@example.com");
+        demoAccount.setStatus("ACTIVE");
+        demoAccount.setDemo(true);
+        com.healthcare.security.HealthcareUserPrincipal principal =
+            com.healthcare.security.HealthcareUserPrincipal.from(demoAccount);
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+            .setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal, null, principal.getAuthorities()));
+        try {
+            UUID doctorId = UUID.fromString("30000000-0000-0000-0000-00000000000c");
+            Doctor existing = doctor("BS Demo", "bs-demo", doctorId);
+            when(doctorRepository.findBySlug("bs-demo")).thenReturn(java.util.Optional.of(existing));
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.update("bs-demo",
+                    new DoctorRequest("BS Demo", "bs-demo", "bio", null, true,
+                        UUID.fromString("10000000-0000-0000-0000-0000000000d1"),
+                        false, null, null)))
+                .isInstanceOf(com.healthcare.exception.BusinessException.class)
+                .hasMessageContaining("Demo accounts cannot perform this action");
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.update("bs-demo",
+                    new DoctorRequest("BS Demo", "bs-demo", "bio", null, true,
+                        null, true, null, null)))
+                .isInstanceOf(com.healthcare.exception.BusinessException.class)
+                .hasMessageContaining("Demo accounts cannot perform this action");
+
+            verify(doctorRepository, never()).save(any());
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static Collection<UUID> argContainsAll(UUID... ids) {
         return org.mockito.ArgumentMatchers.argThat(actual ->

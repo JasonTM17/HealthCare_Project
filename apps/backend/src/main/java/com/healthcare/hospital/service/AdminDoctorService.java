@@ -16,9 +16,12 @@ import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
 import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
 import com.healthcare.hospital.repository.SpecialtyRepository;
+import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -255,6 +258,14 @@ public class AdminDoctorService {
             throw new BusinessException(400,
                 "Không thể vừa liên kết tài khoản vừa yêu cầu gỡ liên kết.");
         }
+        // Identity-adjacent: rebinding which login owns a doctor profile is the
+        // same class of mutation as /api/v1/admin/users/** — demo principals may
+        // still edit resettable doctor content but must not change the link.
+        if ((userId != null || unlinkUser) && isDemoPrincipal()) {
+            throw new BusinessException(403,
+                "Demo accounts cannot perform this action. High-impact financial and "
+                    + "security mutations are disabled for synthetic demo identities.");
+        }
         if (unlinkUser) {
             doctor.setUserId(null);
             return;
@@ -276,5 +287,12 @@ public class AdminDoctorService {
                 throw new DuplicateResourceException("User is already linked to another doctor");
             });
         doctor.setUserId(userId);
+    }
+
+    private boolean isDemoPrincipal() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.isAuthenticated()
+            && authentication.getPrincipal() instanceof HealthcareUserPrincipal principal
+            && principal.isDemo();
     }
 }

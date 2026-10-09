@@ -184,7 +184,12 @@ public class AdminUserService {
     }
 
     private void guardNotSelf(User user, UserDetails principal, String field) {
-        if (principal instanceof HealthcareUserPrincipal p && user.getId().equals(p.getUserId())) {
+        // Every user-carrying auth lane resolves the account email as the
+        // principal username — matching both keeps the guard closed even if a
+        // future lane wraps the identity in a different principal type.
+        boolean self = principal instanceof HealthcareUserPrincipal p && user.getId().equals(p.getUserId())
+            || user.getEmail() != null && user.getEmail().equalsIgnoreCase(principal.getUsername());
+        if (self) {
             throw new BusinessException(409,
                 "Không thể thay đổi " + field + " của chính mình. Hãy nhờ một quản trị viên khác thực hiện.");
         }
