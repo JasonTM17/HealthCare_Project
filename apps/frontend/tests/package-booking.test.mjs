@@ -81,7 +81,7 @@ test("packages catalog (/packages) synchronizes 'Đặt lịch với gói này' 
   assert.match(source, /PackageBookingModal/);
   assert.match(source, /selectedPackageForModal/);
   assert.match(source, /Đặt lịch với gói này/);
-  assert.match(source, /onClick=\{\(\) => setSelectedPackageForModal\(item\)\}/);
+  assert.match(source, /onClick=\{\(\) => \{ if \(!isCmsPreviewRequested\(\)\) setSelectedPackageForModal\(item\); \}\}/);
   assert.match(source, /<PackageBookingModal/);
 });
 
@@ -90,9 +90,9 @@ test("package detail (/packages/[slug]) synchronizes hero and bottom CTA buttons
 
   assert.match(source, /PackageBookingModal/);
   assert.match(source, /packageBookingOpen/);
-  assert.match(source, /onBookingRequest=\{\(\) => setPackageBookingOpen\(true\)\}/);
+  assert.match(source, /onBookingRequest=\{\(\) => \{ if \(!isCmsPreviewRequested\(\)\) setPackageBookingOpen\(true\); \}\}/);
   assert.match(source, /Đặt lịch với gói này/);
-  assert.match(source, /onClick=\{\(\) => setPackageBookingOpen\(true\)\}/);
+  assert.match(source, /onClick=\{\(\) => \{ if \(!isCmsPreviewRequested\(\)\) setPackageBookingOpen\(true\); \}\}/);
   assert.match(source, /<PackageBookingModal/);
 });
 
@@ -103,6 +103,6 @@ test("search results (/search) includes 'Đặt lịch với gói này' for ever
   assert.match(source, /selectedPackageForModal/);
   assert.match(source, /result\.packages\.map/);
   assert.match(source, /Đặt lịch với gói này/);
-  assert.match(source, /onClick=\{\(\) => setSelectedPackageForModal\(item\)\}/);
+  assert.match(source, /onClick=\{\(\) => \{ if \(!isCmsPreviewRequested\(\)\) setSelectedPackageForModal\(item\); \}\}/);
   assert.match(source, /<PackageBookingModal/);
 });
