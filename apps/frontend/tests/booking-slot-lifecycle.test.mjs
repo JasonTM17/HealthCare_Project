@@ -172,7 +172,9 @@ test("normalized slot identity and upstream reselects cannot clear a committed s
       `${handlerNames[index]} must leave slot-query state to the owner`,
     );
   }
-  assert.match(source, /useMemo\(\s*\(\) => normalizeBookingSlotQueryIdentity/);
+  // Keep normalization for real selections and suppress all slot-query identity
+  // for an illustrative initial selection, even behind its unavailable notice.
+  assert.match(source, /useMemo\(\s*\(\) => illustrativeInitialSelection \? null : normalizeBookingSlotQueryIdentity\(selectedDoctor, selectedBranch, selectedDate\),\s*\[illustrativeInitialSelection, selectedBranch, selectedDate, selectedDoctor\]/);
   assert.match(source, /\[active, slotQueryIdentity, slotRefreshNonce, slotQueryOwner\]/);
 });
 
