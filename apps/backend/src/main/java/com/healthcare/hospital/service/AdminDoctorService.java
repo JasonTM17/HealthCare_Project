@@ -19,6 +19,7 @@ import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.security.HealthcareUserPrincipal;
 import com.healthcare.user.entity.User;
 import com.healthcare.user.repository.UserRepository;
+import com.healthcare.user.service.AccountGovernance;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -44,6 +46,7 @@ public class AdminDoctorService {
     private final BranchRepository branchRepository;
     private final SpecialtyRepository specialtyRepository;
     private final AiClinicalContentRevisionService revisionService;
+    private final AccountGovernance governance;
 
     public AdminDoctorService(
             DoctorRepository doctorRepository,
@@ -56,7 +59,6 @@ public class AdminDoctorService {
             doctorSpecialtyRepository, branchRepository, specialtyRepository, null);
     }
 
-    @Autowired
     public AdminDoctorService(
             DoctorRepository doctorRepository,
             UserRepository userRepository,
@@ -65,6 +67,14 @@ public class AdminDoctorService {
             BranchRepository branchRepository,
             SpecialtyRepository specialtyRepository,
             AiClinicalContentRevisionService revisionService) {
+        this(doctorRepository, userRepository, doctorBranchRepository, doctorSpecialtyRepository, branchRepository, specialtyRepository, revisionService, null);
+    }
+
+    @Autowired
+    public AdminDoctorService(DoctorRepository doctorRepository, UserRepository userRepository,
+            DoctorBranchRepository doctorBranchRepository, DoctorSpecialtyRepository doctorSpecialtyRepository,
+            BranchRepository branchRepository, SpecialtyRepository specialtyRepository,
+            AiClinicalContentRevisionService revisionService, AccountGovernance governance) {
         this.doctorRepository = doctorRepository;
         this.userRepository = userRepository;
         this.doctorBranchRepository = doctorBranchRepository;
@@ -72,6 +82,7 @@ public class AdminDoctorService {
         this.branchRepository = branchRepository;
         this.specialtyRepository = specialtyRepository;
         this.revisionService = revisionService;
+        this.governance = governance;
     }
 
     /**
@@ -113,6 +124,8 @@ public class AdminDoctorService {
 
     @Transactional
     public Doctor create(DoctorRequest request) {
+        if (governance != null) governance.acquire();
+        Map<UUID, User> locked = lockIdentities(null, request.userId());
         if (doctorRepository.findBySlug(request.slug()).isPresent()) {
             throw new DuplicateResourceException("Doctor slug already exists: " + request.slug());
         }
@@ -126,14 +139,20 @@ public class AdminDoctorService {
         Doctor saved = doctorRepository.save(doctor);
         syncBranches(saved, request.branchIds());
         syncSpecialties(saved, request.specialtyIds());
-        syncLinkedUserDisplayName(saved);
+        syncLinkedUserDisplayName(saved, locked);
+        invalidateBinding(null, saved.getUserId(), locked);
         return saved;
     }
 
     @Transactional
     public Doctor update(String slug, DoctorRequest request) {
+        if (governance != null) governance.acquire();
         Doctor doctor = doctorRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + slug));
+        UUID previousUserId = doctor.getUserId();
+        Map<UUID, User> locked = lockIdentities(doctor, request.userId());
+        if (governance != null) doctor = doctorRepository.findByIdForUpdate(doctor.getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
         if (!slug.equals(request.slug()) && doctorRepository.findBySlug(request.slug()).isPresent()) {
             throw new DuplicateResourceException("Doctor slug already exists: " + request.slug());
         }
@@ -146,7 +165,8 @@ public class AdminDoctorService {
         Doctor saved = doctorRepository.save(doctor);
         syncBranches(saved, request.branchIds());
         syncSpecialties(saved, request.specialtyIds());
-        syncLinkedUserDisplayName(saved);
+        syncLinkedUserDisplayName(saved, locked);
+        invalidateBinding(previousUserId, saved.getUserId(), locked);
         return saved;
     }
 
@@ -216,14 +236,16 @@ public class AdminDoctorService {
         }
     }
 
-    private void syncLinkedUserDisplayName(Doctor doctor) {
+    private void syncLinkedUserDisplayName(Doctor doctor, Map<UUID, User> locked) {
         // The doctor portal header and article author credit both read
         // users.display_name; keeping it equal to the doctor's full name
         // prevents the stale-account-name defect class from V103 recurring.
         if (doctor.getUserId() == null) {
             return;
         }
-        userRepository.findById(doctor.getUserId()).ifPresent(user -> {
+        java.util.Optional<User> account = governance == null ? userRepository.findById(doctor.getUserId())
+            : java.util.Optional.ofNullable(locked.get(doctor.getUserId()));
+        account.ifPresent(user -> {
             if (!doctor.getFullName().equals(user.getDisplayName())) {
                 user.setDisplayName(doctor.getFullName());
                 user.setUpdatedAt(java.time.OffsetDateTime.now());
@@ -234,9 +256,14 @@ public class AdminDoctorService {
 
     @Transactional
     public void delete(String slug) {
+        if (governance != null) governance.acquire();
         Doctor doctor = doctorRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + slug));
+        Map<UUID, User> locked = lockIdentities(doctor, null);
+        if (governance != null) doctor = doctorRepository.findByIdForUpdate(doctor.getId())
+            .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
         if (revisionService != null) revisionService.recordDoctorDeletion(doctor, null);
+        invalidateBinding(doctor.getUserId(), null, locked);
         doctorRepository.delete(doctor);
     }
 
@@ -287,6 +314,22 @@ public class AdminDoctorService {
                 throw new DuplicateResourceException("User is already linked to another doctor");
             });
         doctor.setUserId(userId);
+    }
+
+    private Map<UUID, User> lockIdentities(Doctor doctor, UUID proposedUser) {
+        if (governance == null) return Map.of(); // Retained standalone unit-fixture constructors.
+        List<UUID> affected = new ArrayList<>();
+        if (doctor != null && doctor.getUserId() != null) affected.add(doctor.getUserId());
+        if (proposedUser != null) affected.add(proposedUser);
+        Map<UUID, User> locked = governance.lockUsersAndAuthorize(affected);
+        affected.forEach(id -> AccountGovernance.requireMutable(locked.get(id)));
+        return locked;
+    }
+
+    private void invalidateBinding(UUID before, UUID after, Map<UUID, User> locked) {
+        if (governance == null || java.util.Objects.equals(before, after)) return;
+        if (before != null) governance.invalidateCredentials(locked.get(before), "DOCTOR_BINDING_CHANGED");
+        if (after != null) governance.invalidateCredentials(locked.get(after), "DOCTOR_BINDING_CHANGED");
     }
 
     private boolean isDemoPrincipal() {

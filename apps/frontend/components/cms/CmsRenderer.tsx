@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { isSafeCmsUrl, type CmsContent } from "../../lib/cms-client";
+import { isSafeCmsLinkUrl, isSafeCmsUrl, type CmsContent } from "../../lib/cms-client";
 
 export type CmsRendererHeadingLevel = "h2" | "none";
 
@@ -18,7 +18,7 @@ function CmsTitle({
 }
 
 function SafeLink({ label, href }: { label: string; href: string }): ReactElement {
-  if (!isSafeCmsUrl(href)) {
+  if (!isSafeCmsLinkUrl(href)) {
     return <span className="text-sm text-red-700" role="alert">Liên kết chưa được hiển thị vì URL không an toàn.</span>;
   }
   return (

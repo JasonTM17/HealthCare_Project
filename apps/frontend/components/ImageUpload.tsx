@@ -20,6 +20,8 @@ interface ImageUploadProps {
   purpose?: "ARTICLE_COVER" | "DOCTOR_PORTRAIT" | "PATIENT_AVATAR" | "GENERAL";
   aspectRatio?: "banner" | "square";
   helperText?: string;
+  disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }
 
 export default function ImageUpload({
@@ -29,6 +31,8 @@ export default function ImageUpload({
   purpose = "GENERAL",
   aspectRatio = "banner",
   helperText = `Hỗ trợ định dạng PNG, JPG, WEBP (Tối đa ${MAX_UPLOAD_LABEL})`,
+  disabled = false,
+  onBusyChange,
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // In-flight guard: drop/file-input handlers can fire while a previous
@@ -41,7 +45,7 @@ export default function ImageUpload({
   const [imageError, setImageError] = useState(false);
 
   const handleProcessFile = async (file: File) => {
-    if (inFlightRef.current) return;
+    if (disabled || inFlightRef.current) return;
     if (!MEDIA_UPLOADS_ENABLED) {
       setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
       return;
@@ -60,6 +64,7 @@ export default function ImageUpload({
     setImageError(false);
     inFlightRef.current = true;
     setUploading(true);
+    onBusyChange?.(true);
 
     try {
       const response = await uploadMediaAsset(file, purpose);
@@ -75,6 +80,7 @@ export default function ImageUpload({
     } finally {
       inFlightRef.current = false;
       setUploading(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -89,7 +95,7 @@ export default function ImageUpload({
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!disabled && !uploading) setIsDragging(true);
   };
 
   const handleDragLeave = () => {
@@ -106,6 +112,7 @@ export default function ImageUpload({
   };
 
   const handleRemove = () => {
+    if (disabled || uploading) return;
     onChange("");
     setError(null);
     setImageError(false);
@@ -144,7 +151,7 @@ export default function ImageUpload({
               <div className={styles.actionButtons}>
                 <button
                   className={styles.changeBtn}
-                  disabled={uploading}
+                  disabled={disabled || uploading}
                   onClick={() => {
                     if (!MEDIA_UPLOADS_ENABLED) {
                       setError(MEDIA_UPLOADS_DISABLED_MESSAGE);
@@ -159,7 +166,7 @@ export default function ImageUpload({
                 </button>
                 <button
                   className={styles.removeBtn}
-                  disabled={uploading}
+                  disabled={disabled || uploading}
                   onClick={handleRemove}
                   type="button"
                 >
@@ -180,21 +187,22 @@ export default function ImageUpload({
         ) : (
           <div
             aria-busy={uploading}
+            aria-disabled={disabled || uploading}
             className={`${styles.dropzone} ${isDragging ? styles.dropzoneDragging : ""} ${uploading ? styles.dropzoneBusy : ""}`}
             onClick={() => {
-              if (!uploading) fileInputRef.current?.click();
+              if (!disabled && !uploading) fileInputRef.current?.click();
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                if (!uploading) fileInputRef.current?.click();
+                if (!disabled && !uploading) fileInputRef.current?.click();
               }
             }}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             role="button"
-            tabIndex={0}
+            tabIndex={disabled ? -1 : 0}
           >
             <div className={styles.dropzoneIcon}>
               <UiIcon name="plus" size={20} />
@@ -217,6 +225,7 @@ export default function ImageUpload({
       <input
         accept="image/png,image/jpeg,image/webp,image/gif"
         className={styles.hiddenInput}
+        disabled={disabled || uploading}
         onChange={handleFileChange}
         ref={fileInputRef}
         type="file"

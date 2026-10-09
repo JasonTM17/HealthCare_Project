@@ -5,5 +5,6 @@ public enum CmsComponentType {
     RICH_TEXT,
     CTA_BANNER,
     NOTICE,
-    IMAGE_CARD
+    IMAGE_CARD,
+    PAGE_LAYOUT
 }

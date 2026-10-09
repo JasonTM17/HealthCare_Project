@@ -164,6 +164,8 @@ const RESPONSE_HEADER_ALLOWLIST = new Set([
   "x-has-more",
   "x-page",
   "x-page-size",
+  "x-total-count",
+  "x-total-pages",
 ]);
 const SAFE_SEGMENT_PATTERN = /^[A-Za-z0-9._~-]+$/u;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/u;
@@ -697,9 +699,10 @@ export function readHealthcareBffRuntimeConfig(): HealthcareBffRuntimeConfig {
     rawBackend || DEFAULT_BACKEND_ORIGIN,
   );
   const rawBackup = process.env.BACKEND_BACKUP_URL?.trim() || process.env.BACKEND_FALLBACK_URL?.trim();
-  const backupBackendOrigin = rawBackup
-    ? normalizeBackendOrigin(rawBackup)
-    : (process.env.NODE_ENV === "production" ? "https://healthcare-backup-backend.onrender.com" : undefined);
+  // A deployment without an explicitly configured alternate must stay on its
+  // selected backend; retired clusters must never become an implicit fallback.
+  const configuredBackup = rawBackup ? normalizeBackendOrigin(rawBackup) : undefined;
+  const backupBackendOrigin = configuredBackup === backendOrigin ? undefined : configuredBackup;
   const configuredPublicOrigin = process.env.BFF_PUBLIC_ORIGIN?.trim();
   const defaultOrigins = "https://healthcare.id.vn,https://www.healthcare.id.vn";
   const mergedPublicOrigins = configuredPublicOrigin

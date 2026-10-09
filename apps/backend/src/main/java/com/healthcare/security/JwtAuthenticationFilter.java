@@ -37,7 +37,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(tokenProvider.extractEmail(token));
 
                 if (!(userDetails instanceof HealthcareUserPrincipal principal)
-                        || !principal.getUserId().equals(userId)) {
+                        || !principal.getUserId().equals(userId)
+                        || principal.getSecurityVersion() != tokenProvider.extractSecurityVersion(token)) {
                     SecurityContextHolder.clearContext();
                     filterChain.doFilter(request, response);
                     return;

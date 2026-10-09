@@ -36,6 +36,23 @@ public class CmsContent {
     private JsonNode payload;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "draft_component_type", length = 40)
+    private CmsComponentType draftComponentType;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "draft_payload", columnDefinition = "jsonb")
+    private JsonNode draftPayload;
+
+    @Column(name = "draft_updated_at")
+    private OffsetDateTime draftUpdatedAt;
+
+    @Column(name = "public_revision")
+    private Long publicRevision;
+
+    @Column(name = "public_updated_at")
+    private OffsetDateTime publicUpdatedAt;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private CmsPublicationStatus status;
 
@@ -79,6 +96,23 @@ public class CmsContent {
 
     public void setPayload(JsonNode payload) {
         this.payload = payload;
+    }
+
+    public CmsComponentType getDraftComponentType() { return draftComponentType; }
+    public void setDraftComponentType(CmsComponentType type) { draftComponentType = type; }
+    public JsonNode getDraftPayload() { return draftPayload; }
+    public void setDraftPayload(JsonNode value) { draftPayload = value; }
+    public OffsetDateTime getDraftUpdatedAt() { return draftUpdatedAt; }
+    public void setDraftUpdatedAt(OffsetDateTime value) { draftUpdatedAt = value; }
+    public Long getPublicRevision() { return publicRevision; }
+    public void setPublicRevision(Long value) { publicRevision = value; }
+    public OffsetDateTime getPublicUpdatedAt() { return publicUpdatedAt; }
+    public void setPublicUpdatedAt(OffsetDateTime value) { publicUpdatedAt = value; }
+
+    public void clearDraft() {
+        draftComponentType = null;
+        draftPayload = null;
+        draftUpdatedAt = null;
     }
 
     public CmsPublicationStatus getStatus() {

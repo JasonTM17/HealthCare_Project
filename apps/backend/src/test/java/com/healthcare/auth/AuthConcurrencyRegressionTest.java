@@ -183,7 +183,7 @@ class AuthConcurrencyRegressionTest extends TestcontainersIntegrationTest {
                 }
             }
             return invocation.callRealMethod();
-        }).when(tokenProviderSpy).generateRefreshToken(user.getId());
+        }).when(tokenProviderSpy).generateRefreshToken(user.getId(), user.getSecurityVersion());
 
         doAnswer(invocation -> {
             if ("revoke-race".equals(Thread.currentThread().getName())) {

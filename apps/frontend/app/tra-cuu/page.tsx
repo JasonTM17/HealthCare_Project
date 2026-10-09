@@ -7,6 +7,8 @@ import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../comp
 import useDialogFocus from "../../components/useDialogFocus";
 import { AppointmentDetails } from "../../types/hospital";
 import { buildGoogleCalendarUrl, downloadIcsFile } from "../../lib/appointment-calendar";
+import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 // Lookup/cancellation must use the same-origin proxy, just like the rest of
 // the patient portal.  The backend origin remains server-only in Next config.
@@ -80,6 +82,7 @@ export default function TraCuuPage() {
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCmsPreviewRequested()) return;
     const requestId = ++lookupRequestRef.current;
     setAppointment(null);
     setCancelSuccess(false);
@@ -134,6 +137,7 @@ export default function TraCuuPage() {
   };
 
   const handleCancelAppointment = async () => {
+    if (isCmsPreviewRequested()) return;
     if (!appointment || loading) return;
     setLoading(true);
 
@@ -178,269 +182,256 @@ export default function TraCuuPage() {
     <PublicPageShell>
       <section className="resource-page section-inner">
         {/* Breadcrumb */}
-        <div className="resource-breadcrumb no-print">
-          <Link href="/">Trang chủ</Link>
-          <span>/</span>
-          <span>Tra cứu lịch hẹn & Phiếu khám</span>
-        </div>
+        <CmsNativeSection sectionId="intro">
+          <div className="resource-breadcrumb no-print">
+            <Link href="/">Trang chủ</Link>
+            <span>/</span>
+            <CmsNativeText fieldId="intro.label2" as="span" value={"Tra cứu lịch hẹn & Phiếu khám"}>Tra cứu lịch hẹn & Phiếu khám</CmsNativeText>
+          </div>
 
-        {/* Page Header */}
-        <header className="resource-page__header no-print">
-          <p className="section-note">Cổng thông tin bệnh nhân</p>
-          <h1>Tra cứu lịch hẹn trực tuyến</h1>
-          <p>
-            Nhập Mã lịch hẹn (được cấp khi đặt khám thành công) để xem trạng thái, phòng khám, bác sĩ phụ trách hoặc thay đổi lịch hẹn.
-          </p>
-        </header>
+          {/* Page Header */}
+          <header className="resource-page__header no-print">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Cổng thông tin bệnh nhân"} className="section-note">Cổng thông tin bệnh nhân</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Tra cứu lịch hẹn trực tuyến"}>Tra cứu lịch hẹn trực tuyến</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Nhập Mã lịch hẹn (được cấp khi đặt khám thành công) để xem trạng thái, phòng khám, bác sĩ phụ trách hoặc thay đổi lịch hẹn."}>
+              Nhập Mã lịch hẹn (được cấp khi đặt khám thành công) để xem trạng thái, phòng khám, bác sĩ phụ trách hoặc thay đổi lịch hẹn.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className="resource-hero-card resource-hero-card--teal no-print">
-          <div className="resource-icon" aria-hidden="true">
-            <Icon name="search" size={34} />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Tra cứu & quản lý lịch</p>
-            <h2>Một nơi để kiểm tra mã hẹn, chuẩn bị trước khi đến và xử lý yêu cầu hủy khi đủ điều kiện.</h2>
-            <p className="resource-lead">
-              Thông tin được tra theo mã hẹn và số điện thoại. Nếu chưa tìm thấy dữ liệu, bạn có thể thử lại hoặc liên hệ bệnh viện để được hỗ trợ.
-            </p>
-            <div className="resource-actions">
-              <PublicBookingButton>Đặt lịch mới</PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/huong-dan">
-                Xem hướng dẫn đặt khám
-              </Link>
-              <Link className="outline-button outline-button--light" data-testid="tra-cuu-register-cta-hero" href={registerHref}>
-                Tạo tài khoản để lưu lịch vào cổng bệnh nhân
-              </Link>
-            </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Dữ liệu yêu cầu</dt>
-                <dd>Mã hẹn + số điện thoại</dd>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal no-print">
+              <div className="resource-icon" aria-hidden="true">
+                <Icon name="search" size={34} />
               </div>
-              <div>
-                <dt>Trạng thái hỗ trợ</dt>
-                <dd>Xác nhận, chờ xác nhận, đã hủy</dd>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Tra cứu & quản lý lịch"} className="resource-chip">Tra cứu & quản lý lịch</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Một nơi để kiểm tra mã hẹn, chuẩn bị trước khi đến và xử lý yêu cầu hủy khi đủ điều kiện."}>Một nơi để kiểm tra mã hẹn, chuẩn bị trước khi đến và xử lý yêu cầu hủy khi đủ điều kiện.</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Thông tin được tra theo mã hẹn và số điện thoại. Nếu chưa tìm thấy dữ liệu, bạn có thể thử lại hoặc liên hệ bệnh viện để được hỗ trợ."} className="resource-lead">
+                  Thông tin được tra theo mã hẹn và số điện thoại. Nếu chưa tìm thấy dữ liệu, bạn có thể thử lại hoặc liên hệ bệnh viện để được hỗ trợ.
+                </CmsNativeText>
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch mới</PublicBookingButton>
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <Link className="outline-button outline-button--light" href="/huong-dan">
+                    Xem hướng dẫn đặt khám
+                  </Link>
+                  <Link className="outline-button outline-button--light" data-testid="tra-cuu-register-cta-hero" href={registerHref}>
+                    Tạo tài khoản để lưu lịch vào cổng bệnh nhân
+                  </Link>
+                </div>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Dữ liệu yêu cầu</dt>
+                    <dd>Mã hẹn + số điện thoại</dd>
+                  </div>
+                  <div>
+                    <dt>Trạng thái hỗ trợ</dt>
+                    <dd>Xác nhận, chờ xác nhận, đã hủy</dd>
+                  </div>
+                </dl>
               </div>
-            </dl>
-          </div>
-        </section>
+            </section>
+          </CmsNativeSection>
 
-        <section className="resource-panel resource-panel--wide no-print">
-          <div className="section-heading">
-            <div>
-              <p className="section-note">Cách tra cứu an toàn</p>
-              <h2>Ba bước kiểm tra trước cuộc hẹn</h2>
-            </div>
-          </div>
-          <div className="resource-steps resource-steps--grid">
-            {TRACKING_STEPS.map(([number, title, description]) => (
-              <div className="resource-step-card" key={number}>
-                <span>{number}</span>
-                <strong>{title}</strong>
-                <p>{description}</p>
+          <CmsNativeSection sectionId="guide">
+            <section className="resource-panel resource-panel--wide no-print">
+              <div className="section-heading">
+                <div>
+                  <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Cách tra cứu an toàn"} className="section-note">Cách tra cứu an toàn</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title" as="h2" value={"Ba bước kiểm tra trước cuộc hẹn"}>Ba bước kiểm tra trước cuộc hẹn</CmsNativeText>
+                </div>
               </div>
-            ))}
-          </div>
-        </section>
+              <div className="resource-steps resource-steps--grid">
+                {TRACKING_STEPS.map(([number, title, description]) => (
+                  <div className="resource-step-card" key={number}>
+                    <span>{number}</span>
+                    <CmsNativeText fieldId={`guide.step${number}.title`} as="strong" value={title}>{title}</CmsNativeText>
+                    <CmsNativeText fieldId={`guide.step${number}.body`} as="p" value={description}>{description}</CmsNativeText>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </CmsNativeSection>
+        </CmsNativeSections>
 
         {/* Search Card */}
-        <div className="bg-white p-6 sm:p-8 rounded-[4px] border border-mint-200 shadow-xs mb-8 no-print">
-          <form onSubmit={handleLookup} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-              <div className="sm:col-span-8">
-                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5" htmlFor="appointment-booking-code">
-                  Mã lịch hẹn khám <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="appointment-booking-code"
-                  name="bookingCode"
-                  type="text"
-                  required
-                  placeholder="Ví dụ: APT-9F3A..."
-                  value={bookingCodeInput}
-                  onChange={(e) => setBookingCodeInput(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-[4px] font-mono text-sm font-bold text-ink focus:ring-2 focus:ring-teal-700 focus:outline-none uppercase"
-                />
-              </div>
-
-              <div className="sm:col-span-4">
-                <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5" htmlFor="appointment-phone">
-                  Số điện thoại đặt lịch <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="appointment-phone"
-                  name="phone"
-                  type="tel"
-                  required
-                  placeholder="0901234567"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-[4px] text-sm text-ink focus:ring-2 focus:ring-teal-700 focus:outline-none"
-                />
-              </div>
-
-              <div className="sm:col-span-12 flex items-end">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white font-bold rounded-[4px] text-sm shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra cứu ngay</>}
-                </button>
-              </div>
-            </div>
-          </form>
-
-          {errorMessage && (
-            <div aria-live="assertive" className="mt-4 p-3 bg-red-50 border border-red-200 rounded-[4px] text-xs text-red-700 flex items-center gap-2" role="alert">
-              <Icon name="alert-triangle" size={16} />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {cancelSuccess && (
-            <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-[4px] text-xs text-emerald-800 font-semibold flex items-center gap-2">
-              <Icon name="check" size={16} />
-              <span>Lịch hẹn đã được hủy thành công theo yêu cầu của bạn.</span>
-            </div>
-          )}
-        </div>
-
-        {/* Appointment Result Ticket */}
-        {appointment && (
-          <div className="bg-white rounded-[4px] overflow-hidden border border-slate-200 shadow-sm animate-fadeIn">
-            {/* Header Status Bar */}
-            <div className="bg-teal-900 text-white p-6 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <span className="text-xs text-teal-200 font-bold uppercase tracking-wider block">
-                  PHIẾU KHÁM BỆNH ĐIỆN TỬ
-                </span>
-                <h3 className="text-xl font-extrabold text-white">
-                  Mã Lịch Hẹn: <span className="text-amber-300 font-mono">{appointment.bookingCode}</span>
-                </h3>
-              </div>
-
-              <span
-                className={`px-3 py-1 rounded-[4px] text-xs font-extrabold ${
-                  appointment.status === "CONFIRMED"
-                    ? "bg-emerald-400 text-slate-950"
-                    : appointment.status === "CANCELLED"
-                    ? "bg-red-200 text-red-900"
-                    : "bg-amber-300 text-amber-950"
-                }`}
-              >
-                {appointment.status === "CONFIRMED"
-                  ? "ĐÃ XÁC NHẬN"
-                  : appointment.status === "CANCELLED"
-                  ? "ĐÃ HỦY LỊCH"
-                  : "CHỜ XÁC NHẬN"}
-              </span>
-            </div>
-
-            {/* Ticket Body */}
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-mint-100 text-sm">
-                <div>
-                  <span className="text-xs text-ink-faint font-bold block mb-1">THÔNG TIN BỆNH NHÂN</span>
-                  <p className="font-extrabold text-ink text-base">{appointment.patientName}</p>
-                  <p className="flex items-center gap-1.5 text-xs text-ink-muted mt-1"><Icon name="phone" size={14} /> Số điện thoại: {appointment.patientPhone}</p>
-                  {appointment.patientEmail && (
-                    <p className="flex items-center gap-1.5 text-xs text-ink-muted"><Icon name="mail" size={14} /> Email: {appointment.patientEmail}</p>
-                  )}
-                  {appointment.reasonForVisit && (
-                    <p className="text-xs text-teal-900 bg-teal-50 border border-teal-100 p-2.5 rounded-[4px] mt-2">
-                      <span className="font-semibold">Lý do khám:</span> {appointment.reasonForVisit}
-                    </p>
-                  )}
+        <CmsNativeSection sectionId="lookup">
+          <div className="bg-white p-6 sm:p-8 rounded-[4px] border border-mint-200 shadow-xs mb-8 no-print">
+            <form onSubmit={handleLookup} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                <div className="sm:col-span-8">
+                  <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5" htmlFor="appointment-booking-code">
+                    Mã lịch hẹn khám <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="appointment-booking-code"
+                    name="bookingCode"
+                    type="text"
+                    required
+                    placeholder="Ví dụ: APT-9F3A..."
+                    value={bookingCodeInput}
+                    onChange={(e) => setBookingCodeInput(e.target.value)}
+                    className="w-full p-3 bg-slate-50 border border-slate-300 rounded-[4px] font-mono text-sm font-bold text-ink focus:ring-2 focus:ring-teal-700 focus:outline-none uppercase"
+                  />
                 </div>
 
-                <div>
-                  <span className="text-xs text-ink-faint font-bold block mb-1">THỜI GIAN & ĐỊA ĐIỂM KHÁM</span>
-                  <div className="p-3 bg-amber-50/80 border border-amber-200/60 rounded-[4px] mb-2">
-                    <p className="text-xs text-amber-900 font-semibold">Ngày khám:</p>
-                    <p className="text-base font-extrabold text-amber-950">
-                      <span className="inline-flex items-center gap-1.5"><Icon name="calendar" size={15} /> {appointment.appointmentDate} (Khung giờ: {appointment.startTime.slice(0, 5)} - {appointment.endTime.slice(0, 5)})</span>
-                    </p>
-                  </div>
-                  <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><Icon name="building" size={15} /> {appointment.branchName}</p>
-                  <p className="text-xs text-ink-muted mt-0.5">{appointment.branchAddress}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
-                <div>
-                  <span className="text-xs text-ink-faint font-bold block mb-1">BÁC SĨ PHỤ TRÁCH</span>
-                  <div className="flex items-center gap-3 mt-2">
-                    <div className="w-12 h-12 rounded-[4px] bg-teal-50 text-teal-800 border border-teal-100 flex items-center justify-center text-xl font-bold">
-                      <Icon name="stethoscope" size={22} />
-                    </div>
-                    <div>
-                      <p className="font-bold text-ink">{appointment.doctorName}</p>
-                      <p className="text-xs text-teal-700">{appointment.specialtyName}</p>
-                    </div>
-                  </div>
+                <div className="sm:col-span-4">
+                  <label className="block text-xs font-bold text-ink-muted uppercase mb-1.5" htmlFor="appointment-phone">
+                    Số điện thoại đặt lịch <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="appointment-phone"
+                    name="phone"
+                    type="tel"
+                    required
+                    placeholder="0901234567"
+                    value={phoneInput}
+                    onChange={(e) => setPhoneInput(e.target.value)}
+                    className="w-full p-3 bg-slate-50 border border-slate-300 rounded-[4px] text-sm text-ink focus:ring-2 focus:ring-teal-700 focus:outline-none"
+                  />
                 </div>
 
-                <div>
-                  <span className="text-xs text-ink-faint font-bold block mb-1">HÌNH THỨC THANH TOÁN</span>
-                  <p className="text-xs text-ink-muted mt-2">
-                    Phương thức thanh toán và bảo lãnh có thể khác nhau theo từng cơ sở. Vui lòng xác nhận trước khi đến khám.
-                  </p>
-                </div>
-              </div>
-
-              {/* Patient Guidelines Box */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-[4px] text-xs text-ink-muted space-y-1.5">
-                <span className="flex items-center gap-1.5 font-bold text-ink"><Icon name="book-open" size={15} /> Hướng dẫn khi đến khám:</span>
-                <p>1. Mang theo mã lịch hẹn <span className="font-mono font-bold text-teal-900">{appointment.bookingCode}</span> khi đến cơ sở.</p>
-                <p>2. Giấy tờ, thời gian có mặt và quy định tiếp đón cần được xác nhận lại với cơ sở.</p>
-                <p>3. Không dùng trang tra cứu này như hướng dẫn y khoa hoặc cam kết bảo hiểm.</p>
-              </div>
-
-              {/* Actions */}
-              <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-mint-100 no-print">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Link
-                    className="min-h-[2.75rem] px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
-                    data-testid="tra-cuu-register-cta-ticket"
-                    href={buildRegisterHref(appointment.patientPhone, appointment.patientEmail)}
-                  >
-                    <Icon name="user" size={15} /> Tạo tài khoản để lưu lịch vào cổng bệnh nhân
-                  </Link>
+                <div className="sm:col-span-12 flex items-end">
                   <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="min-h-[2.75rem] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-ink-muted text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3 bg-teal-800 hover:bg-teal-900 disabled:opacity-50 text-white font-bold rounded-[4px] text-sm shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <Icon name="printer" size={15} /> In phiếu khám
+                    {loading ? <><Icon name="clock" size={16} /> Đang tra cứu...</> : <><Icon name="search" size={16} /> Tra cứu ngay</>}
                   </button>
+                </div>
+              </div>
+            </form>
 
-                  {appointment.status === "CONFIRMED" && (
-                    <>
-                      <a
-                        href={buildGoogleCalendarUrl({
-                          appointmentId: appointment.id,
-                          bookingCode: appointment.bookingCode,
-                          patientName: appointment.patientName,
-                          doctorName: appointment.doctorName,
-                          specialtyName: appointment.specialtyName,
-                          appointmentDate: appointment.appointmentDate,
-                          startTime: appointment.startTime,
-                          endTime: appointment.endTime,
-                          branchName: appointment.branchName,
-                        })}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="min-h-[2.75rem] px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
-                        data-testid="tra-cuu-google-calendar"
-                      >
-                        <Icon name="calendar" size={15} /> Thêm vào Google Calendar
-                      </a>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          downloadIcsFile({
+            {errorMessage && (
+              <div aria-live="assertive" className="mt-4 p-3 bg-red-50 border border-red-200 rounded-[4px] text-xs text-red-700 flex items-center gap-2" role="alert">
+                <Icon name="alert-triangle" size={16} />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {cancelSuccess && (
+              <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-[4px] text-xs text-emerald-800 font-semibold flex items-center gap-2">
+                <Icon name="check" size={16} />
+                <span>Lịch hẹn đã được hủy thành công theo yêu cầu của bạn.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Appointment Result Ticket */}
+          {appointment && (
+            <div className="bg-white rounded-[4px] overflow-hidden border border-slate-200 shadow-sm animate-fadeIn">
+              {/* Header Status Bar */}
+              <div className="bg-teal-900 text-white p-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <span className="text-xs text-teal-200 font-bold uppercase tracking-wider block">
+                    PHIẾU KHÁM BỆNH ĐIỆN TỬ
+                  </span>
+                  <h3 className="text-xl font-extrabold text-white">
+                    Mã Lịch Hẹn: <span className="text-amber-300 font-mono">{appointment.bookingCode}</span>
+                  </h3>
+                </div>
+
+                <span
+                  className={`px-3 py-1 rounded-[4px] text-xs font-extrabold ${appointment.status === "CONFIRMED"
+                      ? "bg-emerald-400 text-slate-950"
+                      : appointment.status === "CANCELLED"
+                        ? "bg-red-200 text-red-900"
+                        : "bg-amber-300 text-amber-950"
+                    }`}
+                >
+                  {appointment.status === "CONFIRMED"
+                    ? "ĐÃ XÁC NHẬN"
+                    : appointment.status === "CANCELLED"
+                      ? "ĐÃ HỦY LỊCH"
+                      : "CHỜ XÁC NHẬN"}
+                </span>
+              </div>
+
+              {/* Ticket Body */}
+              <div className="p-6 sm:p-8 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pb-6 border-b border-mint-100 text-sm">
+                  <div>
+                    <span className="text-xs text-ink-faint font-bold block mb-1">THÔNG TIN BỆNH NHÂN</span>
+                    <p className="font-extrabold text-ink text-base">{appointment.patientName}</p>
+                    <p className="flex items-center gap-1.5 text-xs text-ink-muted mt-1"><Icon name="phone" size={14} /> Số điện thoại: {appointment.patientPhone}</p>
+                    {appointment.patientEmail && (
+                      <p className="flex items-center gap-1.5 text-xs text-ink-muted"><Icon name="mail" size={14} /> Email: {appointment.patientEmail}</p>
+                    )}
+                    {appointment.reasonForVisit && (
+                      <p className="text-xs text-teal-900 bg-teal-50 border border-teal-100 p-2.5 rounded-[4px] mt-2">
+                        <span className="font-semibold">Lý do khám:</span> {appointment.reasonForVisit}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <span className="text-xs text-ink-faint font-bold block mb-1">THỜI GIAN & ĐỊA ĐIỂM KHÁM</span>
+                    <div className="p-3 bg-amber-50/80 border border-amber-200/60 rounded-[4px] mb-2">
+                      <p className="text-xs text-amber-900 font-semibold">Ngày khám:</p>
+                      <p className="text-base font-extrabold text-amber-950">
+                        <span className="inline-flex items-center gap-1.5"><Icon name="calendar" size={15} /> {appointment.appointmentDate} (Khung giờ: {appointment.startTime.slice(0, 5)} - {appointment.endTime.slice(0, 5)})</span>
+                      </p>
+                    </div>
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><Icon name="building" size={15} /> {appointment.branchName}</p>
+                    <p className="text-xs text-ink-muted mt-0.5">{appointment.branchAddress}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+                  <div>
+                    <span className="text-xs text-ink-faint font-bold block mb-1">BÁC SĨ PHỤ TRÁCH</span>
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="w-12 h-12 rounded-[4px] bg-teal-50 text-teal-800 border border-teal-100 flex items-center justify-center text-xl font-bold">
+                        <Icon name="stethoscope" size={22} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-ink">{appointment.doctorName}</p>
+                        <p className="text-xs text-teal-700">{appointment.specialtyName}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-xs text-ink-faint font-bold block mb-1">HÌNH THỨC THANH TOÁN</span>
+                    <p className="text-xs text-ink-muted mt-2">
+                      Phương thức thanh toán và bảo lãnh có thể khác nhau theo từng cơ sở. Vui lòng xác nhận trước khi đến khám.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Patient Guidelines Box */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-[4px] text-xs text-ink-muted space-y-1.5">
+                  <span className="flex items-center gap-1.5 font-bold text-ink"><Icon name="book-open" size={15} /> Hướng dẫn khi đến khám:</span>
+                  <p>1. Mang theo mã lịch hẹn <span className="font-mono font-bold text-teal-900">{appointment.bookingCode}</span> khi đến cơ sở.</p>
+                  <p>2. Giấy tờ, thời gian có mặt và quy định tiếp đón cần được xác nhận lại với cơ sở.</p>
+                  <p>3. Không dùng trang tra cứu này như hướng dẫn y khoa hoặc cam kết bảo hiểm.</p>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-mint-100 no-print">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      className="min-h-[2.75rem] px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
+                      data-testid="tra-cuu-register-cta-ticket"
+                      href={buildRegisterHref(appointment.patientPhone, appointment.patientEmail)}
+                    >
+                      <Icon name="user" size={15} /> Tạo tài khoản để lưu lịch vào cổng bệnh nhân
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="min-h-[2.75rem] px-4 py-2 bg-slate-100 hover:bg-slate-200 text-ink-muted text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
+                    >
+                      <Icon name="printer" size={15} /> In phiếu khám
+                    </button>
+
+                    {appointment.status === "CONFIRMED" && (
+                      <>
+                        <a
+                          href={buildGoogleCalendarUrl({
                             appointmentId: appointment.id,
                             bookingCode: appointment.bookingCode,
                             patientName: appointment.patientName,
@@ -450,88 +441,110 @@ export default function TraCuuPage() {
                             startTime: appointment.startTime,
                             endTime: appointment.endTime,
                             branchName: appointment.branchName,
-                          })
-                        }
-                        className="min-h-[2.75rem] px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
-                        data-testid="tra-cuu-download-ics"
-                      >
-                        <Icon name="download" size={15} /> Tải file nhắc hẹn (.ics)
-                      </button>
-                    </>
+                          })}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="min-h-[2.75rem] px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
+                          data-testid="tra-cuu-google-calendar"
+                        >
+                          <Icon name="calendar" size={15} /> Thêm vào Google Calendar
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadIcsFile({
+                              appointmentId: appointment.id,
+                              bookingCode: appointment.bookingCode,
+                              patientName: appointment.patientName,
+                              doctorName: appointment.doctorName,
+                              specialtyName: appointment.specialtyName,
+                              appointmentDate: appointment.appointmentDate,
+                              startTime: appointment.startTime,
+                              endTime: appointment.endTime,
+                              branchName: appointment.branchName,
+                            })
+                          }
+                          className="min-h-[2.75rem] px-3.5 py-2 bg-white border border-teal-200 hover:bg-teal-50 text-teal-900 text-xs font-semibold rounded-[4px] transition-colors flex items-center gap-1.5"
+                          data-testid="tra-cuu-download-ics"
+                        >
+                          <Icon name="download" size={15} /> Tải file nhắc hẹn (.ics)
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {appointment.status === "CONFIRMED" && (
+                    <button
+                      type="button"
+                      onClick={() => { setCancelError(""); setShowCancelDialog(true); }}
+                      className="min-h-[2.75rem] px-4 py-2 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
+                    >
+                      Hủy lịch hẹn này
+                    </button>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
 
-                {appointment.status === "CONFIRMED" && (
+          {/* Cancellation Confirmation Dialog */}
+          {showCancelDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" role="presentation">
+              <div
+                aria-describedby="cancel-dialog-description"
+                aria-labelledby="cancel-dialog-title"
+                aria-modal="true"
+                className="bg-white rounded-[4px] p-6 max-w-md w-full shadow-lg border border-slate-200 space-y-4"
+                ref={cancelDialogRef}
+                role="dialog"
+              >
+                <h3 className="text-lg font-bold text-red-700 flex items-center gap-2" id="cancel-dialog-title">
+                  <Icon name="alert-triangle" size={16} /> Xác nhận hủy lịch khám
+                </h3>
+                <p className="text-xs text-ink-muted leading-relaxed" id="cancel-dialog-description">
+                  Bạn có chắc chắn muốn hủy lịch hẹn mã <span className="font-mono font-bold text-ink">{appointment?.bookingCode}</span> với {appointment?.doctorName} vào ngày {appointment?.appointmentDate}?
+                </p>
+                <div>
+                  <label className="block text-xs font-semibold text-ink-muted mb-1" htmlFor="cancel-reason">
+                    Lý do hủy (không bắt buộc):
+                  </label>
+                  <input
+                    id="cancel-reason"
+                    type="text"
+                    placeholder="Ví dụ: Thay đổi lịch công tác..."
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-[4px] text-xs"
+                  />
+                </div>
+                {cancelError && (
+                  <div aria-live="assertive" className="p-3 bg-red-50 border border-red-200 rounded-[4px] text-xs text-red-700 flex items-center gap-2" role="alert">
+                    <Icon name="alert-triangle" size={16} />
+                    <span>{cancelError}</span>
+                  </div>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => { setCancelError(""); setShowCancelDialog(true); }}
-                    className="min-h-[2.75rem] px-4 py-2 text-xs font-bold text-red-600 hover:text-red-800 hover:bg-red-50 rounded-[4px] transition-colors"
+                    disabled={loading}
+                    onClick={() => setShowCancelDialog(false)}
+                    className="min-h-[2.75rem] px-4 py-2 text-xs font-bold text-ink-muted hover:bg-slate-100 rounded-[4px]"
                   >
-                    Hủy lịch hẹn này
+                    Không, giữ lịch
                   </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Cancellation Confirmation Dialog */}
-        {showCancelDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" role="presentation">
-            <div
-              aria-describedby="cancel-dialog-description"
-              aria-labelledby="cancel-dialog-title"
-              aria-modal="true"
-              className="bg-white rounded-[4px] p-6 max-w-md w-full shadow-lg border border-slate-200 space-y-4"
-              ref={cancelDialogRef}
-              role="dialog"
-            >
-              <h3 className="text-lg font-bold text-red-700 flex items-center gap-2" id="cancel-dialog-title">
-                <Icon name="alert-triangle" size={16} /> Xác nhận hủy lịch khám
-              </h3>
-              <p className="text-xs text-ink-muted leading-relaxed" id="cancel-dialog-description">
-                Bạn có chắc chắn muốn hủy lịch hẹn mã <span className="font-mono font-bold text-ink">{appointment?.bookingCode}</span> với {appointment?.doctorName} vào ngày {appointment?.appointmentDate}?
-              </p>
-              <div>
-                <label className="block text-xs font-semibold text-ink-muted mb-1" htmlFor="cancel-reason">
-                  Lý do hủy (không bắt buộc):
-                </label>
-                <input
-                  id="cancel-reason"
-                  type="text"
-                  placeholder="Ví dụ: Thay đổi lịch công tác..."
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-[4px] text-xs"
-                />
-              </div>
-              {cancelError && (
-                <div aria-live="assertive" className="p-3 bg-red-50 border border-red-200 rounded-[4px] text-xs text-red-700 flex items-center gap-2" role="alert">
-                  <Icon name="alert-triangle" size={16} />
-                  <span>{cancelError}</span>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={handleCancelAppointment}
+                    className="min-h-[2.75rem] px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-[4px] shadow-xs"
+                  >
+                    Đồng ý hủy lịch
+                  </button>
                 </div>
-              )}
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={() => setShowCancelDialog(false)}
-                  className="min-h-[2.75rem] px-4 py-2 text-xs font-bold text-ink-muted hover:bg-slate-100 rounded-[4px]"
-                >
-                  Không, giữ lịch
-                </button>
-                <button
-                  type="button"
-                  disabled={loading}
-                  onClick={handleCancelAppointment}
-                  className="min-h-[2.75rem] px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-[4px] shadow-xs"
-                >
-                  Đồng ý hủy lịch
-                </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </CmsNativeSection>
       </section>
     </PublicPageShell>
   );

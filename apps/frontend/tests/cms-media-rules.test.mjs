@@ -165,18 +165,19 @@ test("client keeps the broader HTTPS link rule for ctaHref and href", async () =
 });
 
 test("tel: hotline CTAs satisfy the link rule on read and write boundaries", async () => {
-  const { isSafeCmsUrl, parseCmsContent, validateCmsContentInput } = await loadCmsClientModule();
+  const { isSafeCmsLinkUrl, isSafeCmsUrl, parseCmsContent, validateCmsContentInput } = await loadCmsClientModule();
 
   // Published production content carries real tel: hotlines (115, 19001234).
-  assert.equal(isSafeCmsUrl("tel:115"), true);
-  assert.equal(isSafeCmsUrl("tel:19001234"), true);
-  assert.equal(isSafeCmsUrl("tel:+842839781234"), true);
-  assert.equal(isSafeCmsUrl("tel:1900 1234"), true);
+  assert.equal(isSafeCmsLinkUrl("tel:115"), true);
+  assert.equal(isSafeCmsLinkUrl("tel:19001234"), true);
+  assert.equal(isSafeCmsLinkUrl("tel:+842839781234"), true);
+  assert.equal(isSafeCmsLinkUrl("tel:1900 1234"), true);
+  assert.equal(isSafeCmsUrl("tel:115"), false, "generic URL authority does not accept telephone actions");
   // The scheme is strict: digits/separators only, no nested schemes or text.
-  assert.equal(isSafeCmsUrl("tel:"), false);
-  assert.equal(isSafeCmsUrl("tel:abc"), false);
-  assert.equal(isSafeCmsUrl("tel:javascript:alert(1)"), false);
-  assert.equal(isSafeCmsUrl("tel:115;rm -rf"), false);
+  assert.equal(isSafeCmsLinkUrl("tel:"), false);
+  assert.equal(isSafeCmsLinkUrl("tel:abc"), false);
+  assert.equal(isSafeCmsLinkUrl("tel:javascript:alert(1)"), false);
+  assert.equal(isSafeCmsLinkUrl("tel:115;rm -rf"), false);
 
   const hotlinePayload = {
     title: "Tổng đài hỗ trợ",
@@ -316,6 +317,25 @@ test("BFF forwards the backend Cache-Control on public media reads only", async 
     { fetchImpl: async () => Response.json({ status: "UP" }), runtimeConfig },
   );
   assert.equal(otherResponse.headers.get("cache-control"), "no-store");
+});
+
+test("BFF preserves CMS inventory pagination without leaking unrelated upstream headers", async () => {
+  const bff = await loadBff();
+  const response = await bff.proxyHealthcareRequest(
+    browserRequest("/api/v1/admin/cms/content?page=0&size=100"),
+    ["admin", "cms", "content"],
+    { fetchImpl: async () => Response.json([], { headers: {
+      "X-Page": "0", "X-Page-Size": "100", "X-Total-Count": "245", "X-Total-Pages": "3",
+      "X-Internal-Private": "do-not-forward",
+    } }), runtimeConfig },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-page"), "0");
+  assert.equal(response.headers.get("x-page-size"), "100");
+  assert.equal(response.headers.get("x-total-count"), "245");
+  assert.equal(response.headers.get("x-total-pages"), "3");
+  assert.equal(response.headers.get("x-internal-private"), null);
+  assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
 test("CMS image surfaces carry the matching fallback and advisory contracts", async () => {

@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.OffsetDateTime;
 import java.util.HashSet;
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
+@DynamicUpdate
 @Table(name = "users")
 public class User {
 
@@ -42,6 +44,9 @@ public class User {
     @Column(name = "status", nullable = false, length = 32)
     private String status;
 
+    @Column(name = "security_version", nullable = false)
+    private long securityVersion;
+
     // The Java default preserves compatibility for operationally-created
     // users and direct test fixtures; registration explicitly sets false.
     @Column(name = "email_verified", nullable = false)
@@ -63,6 +68,7 @@ public class User {
     private OffsetDateTime updatedAt;
 
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @org.hibernate.annotations.BatchSize(size = 100)
     @JoinTable(
         name = "user_roles",
         joinColumns = @JoinColumn(name = "user_id"),
@@ -114,6 +120,9 @@ public class User {
     public void setStatus(String status) {
         this.status = status;
     }
+
+    public long getSecurityVersion() { return securityVersion; }
+    public void setSecurityVersion(long value) { securityVersion = value; }
 
     public boolean isEmailVerified() {
         return emailVerified;

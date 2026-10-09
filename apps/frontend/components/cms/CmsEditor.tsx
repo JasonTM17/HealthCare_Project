@@ -289,9 +289,9 @@ function apiErrorMessage(error: CmsApiError): string {
     case "forbidden":
       return "Tài khoản hiện tại không có quyền ADMIN (403). Nội dung chưa được thay đổi.";
     case "validation":
-      return error.status === 0
-        ? "CMS backend trả về dữ liệu không đúng schema hợp đồng. Tải lại danh mục; nếu lỗi lặp lại hãy báo quản trị kỹ thuật."
-        : "Dữ liệu CMS chưa hợp lệ (400/422). Hãy kiểm tra các trường và thử lại.";
+      return error.status > 0
+        ? "Dữ liệu chưa hợp lệ. Hãy kiểm tra các trường được đánh dấu và thử lại."
+        : "Danh mục nội dung trả về chưa đầy đủ hoặc không đúng định dạng. Hãy tải lại.";
     case "conflict":
       return "Nội dung đã thay đổi ở nơi khác (409). Tải lại slot trước khi ghi đè.";
     case "not-found":
@@ -520,10 +520,13 @@ export function CmsEditor({
     setInventoryError(null);
     setInventoryRejectedKeys([]);
     try {
-      const inventory = await client.listAdminContent();
+      const inventory = await client.listAdminInventory();
       if (!isCurrentInventoryRequest()) return;
-      setInventoryRejectedKeys(inventory.rejectedSlotKeys);
-      setAvailableContent(inventory.items.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      setInventoryRejectedKeys(inventory.errors.map((row) => row.slotKey));
+      setAvailableContent(inventory.content.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      if (inventory.errors.length) {
+        setInventoryError(`${inventory.errors.length} vùng cần kiểm tra: ${inventory.errors.map((row) => row.slotKey).join(", ")}. Các vùng hợp lệ vẫn có thể chỉnh sửa.`);
+      }
     } catch (error) {
       if (!isCurrentInventoryRequest()) return;
       setInventoryError(apiErrorMessage(asCmsError(error)));
