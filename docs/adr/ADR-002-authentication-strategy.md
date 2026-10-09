@@ -2,31 +2,80 @@
 
 ## Status
 
-Accepted for the backend identity foundation. Frontend session transport is
-accepted for the bounded local educational flow; production transport
-hardening remains a release decision.
+Accepted for the application-owned identity and session boundary. Production
+readiness requires deployment evidence in addition to this decision.
 
-## Context
+## Context and decision
 
-The platform will need patients, doctors, and admins. Authentication must be secure before protected healthcare features are added.
+Patients, doctors, and administrators share an identity system but have
+different clinical and operational authority. Use application-owned
+email/password authentication, BCrypt password hashing, JWT access tokens,
+refresh rotation, and database-backed roles. Browser transport uses the
+same-origin BFF and HttpOnly session cookies; direct bearer access remains a
+separate API-client boundary.
 
-## Decision
+The owners are [AuthService](../../apps/backend/src/main/java/com/healthcare/auth/AuthService.java),
+[BrowserSessionService](../../apps/backend/src/main/java/com/healthcare/auth/service/BrowserSessionService.java),
+and the [frontend BFF](../../apps/frontend/lib/server/healthcare-bff.ts).
+JWT lifetime, secret, and claim validation belong to
+[JwtProperties](../../apps/backend/src/main/java/com/healthcare/security/JwtProperties.java)
+and [JwtTokenProvider](../../apps/backend/src/main/java/com/healthcare/security/JwtTokenProvider.java),
+not duplicated policy values in this ADR.
 
-Use application-owned email/password authentication with BCrypt password hashes, JWT bearer access tokens, server-side role checks, refresh-token rotation, and database-backed RBAC tables. The backend exposes registration, login, refresh, logout, and current-user endpoints. New registrations receive only the `PATIENT` role.
+## Account governance rationale
 
-## Consequences
+Legacy account status/role `PATCH` requests and professional lifecycle writers
+share the same governance service. Legacy bodies remain supported, while their
+actor checks, last eligible administrator protection, credential epoch and
+session revocation cannot bypass the shared boundary. Account-success audit
+records participate in the mutation transaction; a failed audit insert rolls
+back account and credential state. Independent clinical read audits retain
+their existing transaction policy.
 
-- Password hashes must never be returned from APIs or logs.
-- Refresh-token rotation, reuse rejection, and logout revocation are covered by backend regression tests.
-- Browser traffic uses HttpOnly `__Host-healthcare_session` cookies through the
-  Next.js same-origin BFF. Direct bearer tokens remain for non-browser API
-  clients and tests. Packaged/beta runtimes should set `BACKEND_BFF_REQUIRED=true`.
-  Production still requires TLS/CSP, distributed rate limiting, and deployment
-  evidence; those are not claimed by this ADR.
+Administrative convenience must not remove the ability to recover access.
+Preserve the acting administrator's access and the final active, verified,
+non-demo administrator, including when changes race. Shared demo identities
+are not eligible recovery administrators and must not be mutated through
+account management.
 
-## JWT policy
+A permission or identity change is a security boundary even if the account
+later returns to its previous status or roles. `securityVersion` is the
+monotonic credential epoch that prevents old access from reviving after an
+unlock or re-promotion. Pair it with refresh, browser-session, and OTP
+revocation; relying on the current role alone would allow stale credentials
+to become valid again. PostgreSQL governance and ordered user locks protect
+this decision across concurrent administrators, with the actor revalidated
+after locking rather than trusted from an earlier request snapshot.
 
-- The current defaults are a 15-minute access token (`900` seconds) and a 7-day refresh token (`604800` seconds).
-- The enforced maximums are 1 hour (`3600` seconds) for access tokens and 30 days (`2592000` seconds) for refresh tokens. Both values must be positive, and the refresh-token TTL cannot be shorter than the access-token TTL.
-- JWT secrets must contain at least 32 UTF-8 bytes, must not be a committed placeholder, and must not be an obvious low-entropy value: fewer than 8 distinct code points or an exact repeated pattern of 8 code points or fewer is rejected.
-- Tokens require a UUID subject, non-empty token ID and type, issued-at and expiration claims, and an expiration after issued-at. Access tokens also require a non-empty email claim. Issued-at may be at most 30 seconds in the future to tolerate small clock skew.
+[AccountGovernance](../../apps/backend/src/main/java/com/healthcare/user/service/AccountGovernance.java)
+owns mutation ordering and credential invalidation;
+[JwtAuthenticationFilter](../../apps/backend/src/main/java/com/healthcare/security/JwtAuthenticationFilter.java)
+owns the fresh database identity/epoch check. Legacy tokens without an epoch
+are interpreted as epoch zero for compatibility, not as an exemption from
+revocation. See [account integration coverage](../../apps/backend/src/test/java/com/healthcare/user/AdminAccountIntegrationTest.java)
+and [governance race coverage](../../apps/backend/src/test/java/com/healthcare/user/AdminAccountGovernanceConcurrencyTest.java).
+
+## Verification and clinical identity
+
+Creating an account or requesting its verification message is not proof of
+email ownership. New administrative creations remain unverified until the
+established verification workflow succeeds. `REQUESTED_UNCONFIRMED` means a
+mail request, not confirmed delivery; SMTP/outbox evidence must establish the
+latter. The owners are [AdminAccountService](../../apps/backend/src/main/java/com/healthcare/user/service/AdminAccountService.java)
+and [AuthOtpService](../../apps/backend/src/main/java/com/healthcare/auth/AuthOtpService.java).
+
+A doctor login must refer to a real, eligible doctor profile; account editing
+must not fabricate clinical identity. Resolve profile prerequisites and
+name authority in doctor management. Removing the doctor role requires an
+explicit unlink decision, and replacing a link must preserve a valid profile.
+[AccountDoctorLinker](../../apps/backend/src/main/java/com/healthcare/user/service/AccountDoctorLinker.java)
+owns these checks alongside [AdminDoctorService](../../apps/backend/src/main/java/com/healthcare/hospital/service/AdminDoctorService.java).
+
+Account information must describe observed facts. Created/updated timestamps
+are not last-login evidence, and verification is not inferred from creation
+or invitation. [AdminAccountResponse](../../apps/backend/src/main/java/com/healthcare/user/dto/AdminAccountResponse.java)
+owns the explicit safe response fields; password hashes, tokens, and provider
+subjects must never be exposed through inventory APIs or logs.
+
+Schema and compatible rollback decisions are in
+[deployment guidance](../deployment.md#cms-and-account-compatibility).

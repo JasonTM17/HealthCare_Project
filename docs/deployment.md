@@ -46,6 +46,36 @@ The Compose stack is a local development boundary. It is not evidence of
 multi-instance CMS fan-out, provider availability, backup/restore, or a
 production deployment.
 
+## CMS and account compatibility
+
+The selected hosted backend is `https://healthcare-backup-backend.onrender.com`
+in the user-selected Render workspace. Its AI dependency is
+`https://healthcare-backup-ai.onrender.com`. Set Vercel's server-only
+`BACKEND_INTERNAL_URL` to this backend and keep the BFF service token aligned
+with that service's secret store. Remove retired-cluster `BACKEND_BACKUP_URL`
+and `BACKEND_FALLBACK_URL` entries. A deployment without an explicitly configured
+alternate retries only its selected backend; it does not select another cluster.
+Project environment changes require a new frontend deployment. Record and
+verify the effective deployment, rather than inferring it from variable names.
+
+Deploy the compatible backend and apply its additive migrations before
+enabling the frontend editor/account consumers. The schema owners are
+[private drafts and page layouts](../apps/backend/src/main/resources/db/migration/V119__cms_private_drafts_and_page_layout.sql)
+and [the credential epoch](../apps/backend/src/main/resources/db/migration/V120__user_security_version.sql).
+Once `PAGE_LAYOUT` data exists, keep every CMS writer layout-aware; a mixed
+writer fleet or an older backend is not an assumed rollback target.
+
+Recover the frontend to a prior compatible deployment while retaining the
+compatible backend and additive data. A backend rollback requires explicit
+compatibility proof for persisted layouts and credential epochs. Do not
+down-migrate, reset epochs, or remove draft/history data as an automatic
+rollback. See [CMS editorial boundaries](architecture/cms-realtime.md) and
+[authentication rationale](adr/ADR-002-authentication-strategy.md).
+
+Account verification/password-reset responses describe a mail request, not
+delivery. Preserve the distinction until actual SMTP/outbox delivery is
+observed; source tests and an accepted request cannot establish it.
+
 ## Verified synthetic beta
 
 The release-record baseline for local Docker readiness is
