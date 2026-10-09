@@ -70,8 +70,21 @@ test("AI slice with hasMore presents a lower bound, never a fabricated exact tot
   assert.match(html, /Có thêm bản ghi/);
 });
 
+test("AI responses with a valid exact total prefer it; invalid totals stay unavailable", async () => {
+  const html = await dashboard({ ai: { content: [{}], page: 0, size: 1, hasMore: true, totalElements: 45 } });
+  assert.match(html, />45</);
+  assert.doesNotMatch(html, />1\+</);
+  const zero = await dashboard({ ai: { content: [], page: 0, size: 1, hasMore: true, totalElements: 0 } });
+  assert.doesNotMatch(zero, /Chưa thể xác định số lượng/);
+  assert.doesNotMatch(zero, />0\+</);
+  for (const totalElements of [undefined, -1, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, "45"]) {
+    const invalid = await dashboard({ ai: { content: [{}], page: 0, size: 1, hasMore: true, totalElements } });
+    assert.match(invalid, /Chưa thể xác định số lượng/);
+  }
+});
+
 test("missing or invalid totals degrade only their card and do not become zero", async () => {
-  for (const totalElements of [undefined, -1, NaN, "7"]) {
+  for (const totalElements of [undefined, -1, NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1, "7"]) {
     const html = await dashboard({ payments: { totalElements } });
     assert.match(html, /Điều hành bệnh viện/);
     assert.match(html, /Chưa thể xác định số lượng/);
@@ -83,4 +96,6 @@ test("bounded question lists show truncation and malformed AI slices stay visibl
   const html = await dashboard({ questions: Array.from({ length: 100 }, () => ({})), ai: { content: [] } });
   assert.match(html, />100\+</);
   assert.match(html, /Chưa thể xác định số lượng/);
+  const emptyMore = await dashboard({ ai: { content: [], page: 0, size: 1, hasMore: true } });
+  assert.match(emptyMore, /Chưa thể xác định số lượng/);
 });

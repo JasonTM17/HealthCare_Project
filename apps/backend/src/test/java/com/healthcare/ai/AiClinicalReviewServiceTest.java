@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,17 +61,58 @@ class AiClinicalReviewServiceTest {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         UserRepository users = mock(UserRepository.class);
         when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(73L);
 
         Map<String, Object> page = new AiClinicalReviewService(jdbc, users)
             .adminQueuePage("ARTICLE", "DRAFT", 2, 25);
 
         assertThat(page).containsEntry("page", 2).containsEntry("size", 25)
-            .containsEntry("hasMore", false).containsEntry("content", List.of());
+            .containsEntry("hasMore", false).containsEntry("content", List.of()).containsEntry("totalElements", 73L);
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).queryForList(sql.capture(), any(Object[].class));
         assertThat(sql.getValue()).contains("h.eligibility_state = ?")
             .contains("h.source_type = ?")
             .contains("LIMIT ? OFFSET ?");
+        verify(jdbc).queryForList(anyString(), eq("DRAFT"), eq("ARTICLE"), eq(25), eq(50));
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForObject(countSql.capture(), eq(Long.class), eq("DRAFT"), eq("ARTICLE"));
+        assertThat(countSql.getValue()).contains("COUNT(*)", "h.eligibility_state = ?", "h.source_type = ?")
+            .doesNotContain("LIMIT", "OFFSET");
+    }
+
+    @Test
+    void doctorQueueTotalUsesTheNormalizedStateAndIgnoresPageBounds() {
+        for (String state : new String[] { null, " ", " draft " }) {
+            JdbcTemplate jdbc = mock(JdbcTemplate.class);
+            when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+            when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(7L);
+            Map<String, Object> page = new AiClinicalReviewService(jdbc, mock(UserRepository.class))
+                .queuePage(state, -1, 1000);
+            String normalized = state == null || state.isBlank() ? "SUBMITTED" : "DRAFT";
+            assertThat(page).containsEntry("page", 0).containsEntry("size", 100).containsEntry("totalElements", 7L);
+            verify(jdbc).queryForList(anyString(), eq(normalized), eq(100), eq(0));
+            ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+            verify(jdbc).queryForObject(countSql.capture(), eq(Long.class), eq(normalized));
+            assertThat(countSql.getValue()).contains("COUNT(*)", "h.eligibility_state = ?", "h.source_type IN")
+                .doesNotContain("LIMIT", "OFFSET");
+        }
+    }
+
+    @Test
+    void unfilteredAdminTotalDoesNotAccidentallyUseStateOrPaginationParameters() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+        when(jdbc.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(51L);
+        Map<String, Object> page = new AiClinicalReviewService(jdbc, mock(UserRepository.class))
+            .adminQueuePage(null, " ", 3, 10);
+        assertThat(page).containsEntry("totalElements", 51L);
+        verify(jdbc).queryForList(anyString(), eq(10), eq(30));
+        ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> countArgs = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).queryForObject(countSql.capture(), eq(Long.class), countArgs.capture());
+        assertThat(countArgs.getValue()).isEmpty();
+        assertThat(countSql.getValue()).contains("COUNT(*)", "h.source_type IN")
+            .doesNotContain("h.eligibility_state = ?", "h.source_type = ?", "LIMIT", "OFFSET");
     }
 
     @Test
