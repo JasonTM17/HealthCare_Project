@@ -487,6 +487,16 @@ export function resolveCmsSlotKey(slug: string, slotKey: CmsSlotKey): string {
   return validateSlotKey(`${normalizedSlug}.${slotKey}`);
 }
 
+/**
+ * Default imagery the public page renders when a CMS slot leaves imageUrl
+ * empty. The homepage hero falls back to this asset (see HomeHeroVisual in
+ * app/page.tsx); the admin preview must show the same effective image so it
+ * matches what visitors see instead of rendering a bare text block.
+ */
+export const CMS_SLOT_DEFAULT_IMAGES: Readonly<Record<string, string>> = {
+  "homepage.hero": "/media/hospital-team-landscape.jpg",
+};
+
 function readCmsSlotKeyFromResolvedSlotKey(slotKey: string): CmsSlotKey {
   const normalized = validateSlotKey(slotKey);
   const parts = normalized.split(".");

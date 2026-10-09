@@ -29,13 +29,13 @@ import {
   type Page,
 } from "../lib/api-client";
 import { formatBusinessDate } from "../lib/business-time";
-import { isSafeCmsLinkUrl, isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
+import { CMS_SLOT_DEFAULT_IMAGES, isSafeCmsLinkUrl, isSafeCmsUrl, type CmsContent, type CmsHeroPayload } from "../lib/cms-client";
 import { safeTelephoneHref } from "../lib/phone";
 import { presentApiError } from "../lib/present-api-error";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../lib/article-visuals";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
 
-const HERO_IMAGE = "/media/hospital-team-landscape.jpg";
+const HERO_IMAGE = CMS_SLOT_DEFAULT_IMAGES["homepage.hero"];
 const DEFAULT_QUICK_CHIPS = ["Tim mạch", "Nhi khoa", "Tiêu hóa", "Khám tổng quát"];
 // Retain fallback reference for test compatibility: /media/about-care-poster.jpg
 
