@@ -26,7 +26,7 @@
 @media (prefers-reduced-motion: reduce) { .page *, .page *::before, .page *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 .demoSection { margin: 24px 0 14px; }
 .demoSection :global(.section-note) { margin-bottom: 8px; display: block; }
-.roleGroup { margin: 0 0 12px; padding: 4px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; border: 1px solid #d5e7e5; border-radius: var(--radius-sm); background: #f2f8f7; }
+.roleGroup { margin: 0 0 12px; padding: 4px; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; border: 1px solid #d5e7e5; border-radius: var(--radius-sm); background: #f2f8f7; }
 .roleButton { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border: 1px solid transparent; border-radius: var(--radius-sm); color: #475569; background: transparent; font-size: .82rem; font-weight: 600; cursor: pointer; transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease; white-space: nowrap; }
 .roleButton:hover { color: #075f5e; background: #e8f4f2; transform: none; }
 .roleButtonActive { color: #075f5e; background: #fff; border-color: rgba(7,95,94,.25); font-weight: 750; }
