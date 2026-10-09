@@ -471,22 +471,12 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     }
   };
 
-  const handleBrandClick = (e: React.MouseEvent<HTMLAnchorElement>): void => {
-    if (typeof window !== "undefined") {
-      if (pathname === homePath) {
-        e.preventDefault();
-      }
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      window.scrollTo({ top: 0, left: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });
-    }
-  };
-
   return (
     <div className="portal-shell">
       <a className="skip-link" href="#portal-main-content">Bỏ qua điều hướng</a>
       <header className="portal-header">
         <div className="portal-header__inner">
-          <Link className="portal-brand" href={homePath} onClick={handleBrandClick}>
+          <Link aria-label="HealthCare — về trang chủ" className="portal-brand" href="/">
             <BrandMark size="compact" tagline={ROLE_LABEL[role]} />
           </Link>
 
