@@ -63,3 +63,22 @@ test("production login never renders demo credentials without the explicit demo 
     "demo role selection must be a no-op when the gate is off"
   );
 });
+
+test("demo role buttons share the row evenly for any count", async () => {
+  const css = await readFile(
+    new URL("../app/auth/login/login.module.css", import.meta.url),
+    "utf8"
+  );
+  const roleGroup = css.match(/\.roleGroup\s*\{[^}]*\}/);
+  assert.ok(roleGroup, "roleGroup rule must exist");
+  assert.match(
+    roleGroup[0],
+    /grid-auto-flow:\s*column;\s*grid-auto-columns:\s*1fr/,
+    "role buttons must split the row into equal columns (2 buttons = 50/50, 3 = thirds)"
+  );
+  assert.doesNotMatch(
+    roleGroup[0],
+    /grid-template-columns:\s*repeat\(3/,
+    "must not pin a fixed 3-column grid that leaves a gap when a role is hidden"
+  );
+});
