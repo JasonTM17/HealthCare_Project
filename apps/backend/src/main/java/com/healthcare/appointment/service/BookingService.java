@@ -16,6 +16,7 @@ import com.healthcare.auth.mail.NoopEmailSender;
 import com.healthcare.exception.BusinessException;
 import com.healthcare.exception.ErrorCodes;
 import com.healthcare.hospital.entity.Doctor;
+import com.healthcare.hospital.CatalogueIllustration;
 import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
@@ -246,6 +247,8 @@ public class BookingService {
                 "Vui lòng chọn cơ sở khám trước khi giữ chỗ."
             );
         }
+        // Reject before replay: recycling an expired idempotency key is itself a write.
+        CatalogueIllustration.requireBookable(request.doctorId(), request.branchId(), request.packageId());
         // The phone is the guest identity key, so its normalized form must be
         // a real number before any lookup runs. This rejects separator-only
         // input ('-------' passes the DTO pattern but normalizes to '') early
@@ -1036,6 +1039,11 @@ public class BookingService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, BOOKING_NOT_FOUND_MESSAGE));
 
         authorizeAppointment(appointment, request.phone(), principal, BOOKING_NOT_FOUND_MESSAGE);
+
+        // Authorization stays first; sample identities must never reach slot cleanup or mutation.
+        CatalogueIllustration.requireBookable(appointment.getDoctor().getId(),
+            request.branchId() != null ? request.branchId() : appointment.getBranch() == null ? null : appointment.getBranch().getId(),
+            appointment.getMedicalPackage() == null ? null : appointment.getMedicalPackage().getId());
 
         if (appointment.getStatus() != AppointmentStatus.CONFIRMED) {
             throw new ResponseStatusException(

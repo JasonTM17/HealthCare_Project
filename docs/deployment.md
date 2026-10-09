@@ -142,3 +142,9 @@ traffic. Revert Vercel to a prior `READY` deployment through the project
 dashboard/CLI. Supabase rollback is the target-specific capsule documented in
 [deployment-beta.md](deployment-beta.md), never a broad reset or
 `supabase db push`.
+
+## Illustrated catalogue booking boundary
+
+The labelled catalogue batch is identified by immutable UUID membership in `apps/frontend/lib/catalogue-illustration.json` and its matching backend resource. Editable names and slugs do not grant booking authority. Sample doctors, branches and packages are rejected before hold replay or cleanup and before reschedule mutation. Sample prices remain visibly labelled; bound booking controls and transactional selectors exclude these entries, and sample packages/doctors do not publish operational offering/provider structured data.
+
+Deploy and verify the guarded backend before the matching frontend and before inserting the reviewed batch. After enrichment, an older backend without this guard is an incompatible rollback. Retain a guarded immutable backend artifact or use a scoped forward repair. Keep the manifest, target identity, backup, unchanged-row fingerprints, source/UI proof and refreshed data-operation freeze tied together; source CI alone does not authorize a data apply. No automatic production restore or deletion is part of recovery.

@@ -5,6 +5,7 @@ import type {
   ConfirmAppointmentPayload,
   AppointmentDetails,
 } from "../types/hospital";
+import { ILLUSTRATIVE_BOOKING_NOTICE, isIllustrativeSelection } from "./catalogue-illustration";
 
 // Keep booking traffic on the same-origin Next.js rewrite.  A public runtime
 // API-base override would bypass the Vercel proxy and create a second CORS
@@ -163,6 +164,7 @@ function holdIdempotencyKey(payload: HoldSlotPayload): string {
 export async function holdAppointmentSlot(
   payload: HoldSlotPayload
 ): Promise<HoldSlotResult> {
+  if (isIllustrativeSelection(payload)) throw new Error(ILLUSTRATIVE_BOOKING_NOTICE);
   const requestUrl = `${API_BASE_URL}/appointments/hold`;
   // One key per hold intent (stable across calls for the same payload), reused
   // by the retry below: a lost 502/504 response must replay the original hold
