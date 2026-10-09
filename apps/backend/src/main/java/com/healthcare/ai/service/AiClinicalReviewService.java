@@ -151,12 +151,22 @@ public class AiClinicalReviewService {
     public Map<String, Object> queuePage(String state, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(size, 100));
+        // queue() re-validates and defaults the state; normalize here so the
+        // COUNT uses the identical predicate.
+        String normalized = state == null || state.isBlank() ? "SUBMITTED" : state.trim().toUpperCase(Locale.ROOT);
         List<Map<String, Object>> content = queue(state, safePage, safeSize);
+        Long total = jdbc.queryForObject("""
+            SELECT COUNT(*)
+              FROM ai_content_review_heads h
+             WHERE h.eligibility_state = ?
+               AND h.source_type IN ('SPECIALTY', 'ARTICLE', 'FAQ')
+            """, Long.class, normalized);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("content", content);
         result.put("page", safePage);
         result.put("size", safeSize);
         result.put("hasMore", content.size() == safeSize);
+        result.put("totalElements", total == null ? 0L : total);
         return result;
     }
 
@@ -207,11 +217,22 @@ public class AiClinicalReviewService {
         args.add(safeSize);
         args.add(safePage * safeSize);
         List<Map<String, Object>> rows = jdbc.queryForList(sql, args.toArray());
+        // COUNT over the identical filter set — the dashboard and review page
+        // consume totalElements through the shared Page contract.
+        List<Object> countArgs = new ArrayList<>(args.subList(0, args.size() - 2));
+        Long total = jdbc.queryForObject("""
+            SELECT COUNT(*)
+              FROM ai_content_review_heads h
+             WHERE h.source_type IN ('SPECIALTY', 'ARTICLE', 'FAQ')
+            """ + (normalizedState == null ? "" : " AND h.eligibility_state = ?")
+                + (normalizedType == null ? "" : " AND h.source_type = ?"),
+            Long.class, countArgs.toArray());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("content", rows.stream().map(this::summary).toList());
         result.put("page", safePage);
         result.put("size", safeSize);
         result.put("hasMore", rows.size() == safeSize);
+        result.put("totalElements", total == null ? 0L : total);
         return result;
     }
 
