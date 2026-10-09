@@ -74,6 +74,14 @@ test("dashboard uses live catalog snapshots instead of invented metrics", async 
   assert.doesNotMatch(page, />500</);
   assert.doesNotMatch(page, />30</);
   assert.doesNotMatch(page, />1000</);
+  // /admin/ai-content answers a bounded Map ({content, hasMore}) with no
+  // totalElements — the queue must degrade to a visible count instead of
+  // throwing undefined.toLocaleString and blanking the whole dashboard.
+  assert.match(page, /typeof value\?\.totalElements === "number"/);
+  assert.match(page, /Array\.isArray\(value\?\.content\) \? value\.content\.length : 0/);
+  // toSnapshot must also reject fulfilled-but-shapeless responses rather than
+  // feeding undefined into SnapshotCard's toLocaleString.
+  assert.match(page, /typeof result\.value\?\.totalElements === "number"/);
 });
 
 test("doctor and specialty screens cover loading, empty, error, and admin mutation states", async () => {

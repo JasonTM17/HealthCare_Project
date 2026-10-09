@@ -122,8 +122,13 @@ export default function AdminDashboard() {
       adminListUsers({ status: "DISABLED", page: 0, size: 1 }),
     ]);
 
-    const toSnapshot = (result: PromiseSettledResult<{ totalElements: number }>): Snapshot => {
-      if (result.status === "fulfilled") return { status: "success", count: result.value.totalElements };
+    const toSnapshot = (result: PromiseSettledResult<{ totalElements?: number }>): Snapshot => {
+      if (result.status === "fulfilled" && typeof result.value?.totalElements === "number") {
+        return { status: "success", count: result.value.totalElements };
+      }
+      if (result.status === "fulfilled") {
+        return { status: "error", description: "Dịch vụ trả về dữ liệu không đúng định dạng." };
+      }
       return { status: "error", description: describeAdminError(result.reason).description };
     };
 
@@ -146,7 +151,14 @@ export default function AdminDashboard() {
         return { status: "error", description: describeAdminError(result.reason).description };
       }
       const value = result.value;
-      const count = Array.isArray(value) ? value.length : value.totalElements;
+      // Prefer the server total; when an endpoint answers a bounded Map shape
+      // ({content, hasMore}) without totalElements, fall back to the visible
+      // row count so a missing field can never crash the dashboard.
+      const count = Array.isArray(value)
+        ? value.length
+        : typeof value?.totalElements === "number"
+          ? value.totalElements
+          : Array.isArray(value?.content) ? value.content.length : 0;
       return { status: "success", count };
     }));
   }, []);
