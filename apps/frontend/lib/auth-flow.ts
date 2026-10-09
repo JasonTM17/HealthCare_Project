@@ -15,16 +15,20 @@ export type AuthFieldErrors = Partial<Record<AuthFieldName, string>>;
 /** Only destinations belonging to the issued session's role are accepted. */
 export function authSessionDestination(roles: readonly string[], next: string | null = null): string {
   const safeNext = safeAuthNextPath(next);
-  for (const [role, prefix, fallback] of [
+  const issued = new Set(roles.map((role) => role.replace(/^ROLE_/, "").toUpperCase()));
+  const matched = ([
     ["PATIENT", "/patient", "/patient/dashboard"],
     ["DOCTOR", "/doctor", "/doctor/dashboard"],
     ["ADMIN", "/admin", "/admin"],
-  ]) {
-    if (roles.includes(role)) {
-      return safeNext && (safeNext === prefix || safeNext.startsWith(`${prefix}/`)) ? safeNext : fallback;
+  ] as const).filter(([role]) => issued.has(role));
+  if (matched.length === 0) return "/";
+  if (safeNext) {
+    const pathname = new URL(safeNext, "https://healthcare.test").pathname;
+    if (matched.some(([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+      return safeNext;
     }
   }
-  return "/";
+  return matched[0][2];
 }
 
 export const REGISTRATION_PASSWORD_HELP = "Mật khẩu từ 8 đến 128 ký tự, gồm ít nhất một chữ cái và một chữ số.";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent, type ReactElement } from "react";
 import { ApiError, uploadMediaAsset } from "../lib/api-client";
 import { presentApiError } from "../lib/present-api-error";
 import { MEDIA_UPLOADS_DISABLED_MESSAGE, MEDIA_UPLOADS_ENABLED } from "../lib/media-uploads";
@@ -12,6 +12,41 @@ import styles from "./ImageUpload.module.css";
 // helper copy stay pinned to the same default the server enforces.
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MAX_UPLOAD_LABEL = "5 MB";
+
+function UploadImagePreview({
+  value,
+  aspectRatio,
+}: {
+  value: string;
+  aspectRatio: "banner" | "square";
+}): ReactElement {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <>
+        {aspectRatio === "square" ? (
+          <div className={styles.previewSquareFallback}>
+            <UiIcon name="user" size={48} />
+          </div>
+        ) : (
+          <div className={styles.previewBannerFallback}>
+            <UiIcon name="layers" size={40} />
+          </div>
+        )}
+        <p className={styles.errorText} role="alert">Không thể tải bản xem trước hình ảnh.</p>
+      </>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt="Xem trước hình ảnh"
+      className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
+      onError={() => setFailed(true)}
+      src={value}
+    />
+  );
+}
 
 interface ImageUploadProps {
   value?: string;
@@ -42,7 +77,6 @@ export default function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
   const handleProcessFile = async (file: File) => {
     if (disabled || inFlightRef.current) return;
@@ -61,7 +95,6 @@ export default function ImageUpload({
     }
 
     setError(null);
-    setImageError(false);
     inFlightRef.current = true;
     setUploading(true);
     onBusyChange?.(true);
@@ -85,6 +118,7 @@ export default function ImageUpload({
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
     const file = e.target.files?.[0];
     if (file) {
       void handleProcessFile(file);
@@ -105,6 +139,7 @@ export default function ImageUpload({
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
+    if (disabled || uploading) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       void handleProcessFile(file);
@@ -115,12 +150,6 @@ export default function ImageUpload({
     if (disabled || uploading) return;
     onChange("");
     setError(null);
-    setImageError(false);
-  };
-
-  const handleImageError = () => {
-    setImageError(true);
-    setError("Không thể tải bản xem trước hình ảnh.");
   };
 
   return (
@@ -130,23 +159,7 @@ export default function ImageUpload({
       <div className={styles.uploadHost}>
         {value ? (
           <div className={styles.previewWrapper}>
-            {!imageError ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                alt="Xem trước hình ảnh"
-                className={aspectRatio === "square" ? styles.previewSquare : styles.previewBanner}
-                onError={handleImageError}
-                src={value}
-              />
-            ) : aspectRatio === "square" ? (
-              <div className={styles.previewSquareFallback}>
-                <UiIcon name="user" size={48} />
-              </div>
-            ) : (
-              <div className={styles.previewBannerFallback}>
-                <UiIcon name="layers" size={40} />
-              </div>
-            )}
+            <UploadImagePreview key={value} value={value} aspectRatio={aspectRatio} />
             <div className={styles.previewActions}>
               <div className={styles.actionButtons}>
                 <button

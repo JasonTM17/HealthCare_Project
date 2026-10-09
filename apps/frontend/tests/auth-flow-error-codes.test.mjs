@@ -41,6 +41,44 @@ test("Google and password sessions route by issued roles and reject cross-role d
   assert.equal(authSessionDestination(["PATIENT"], "//example.test"), "/patient/dashboard");
 });
 
+test("authSessionDestination normalizes ROLE_ prefixes and honours same-role deep links", async () => {
+  const { authSessionDestination } = await loadAuthFlow();
+  assert.equal(authSessionDestination(["ROLE_ADMIN"]), "/admin");
+  assert.equal(authSessionDestination(["ROLE_ADMIN"], "/admin/users"), "/admin/users");
+  assert.equal(authSessionDestination(["ROLE_PATIENT", "ROLE_ADMIN"], "/admin/users"), "/admin/users");
+  assert.equal(authSessionDestination(["PATIENT", "ADMIN"], "/admin"), "/admin");
+  assert.equal(authSessionDestination(["ADMIN", "PATIENT"]), "/patient/dashboard");
+});
+
+test("authSessionDestination accepts only an issued-role pathname and keeps query/hash", async () => {
+  const { authSessionDestination } = await loadAuthFlow();
+  assert.equal(authSessionDestination(["PATIENT"], "/admin"), "/patient/dashboard");
+  assert.equal(authSessionDestination(["ADMIN"], "/patient/profile"), "/admin");
+  assert.equal(authSessionDestination(["ROLE_ADMIN"], "/admin?x=1"), "/admin?x=1");
+  assert.equal(
+    authSessionDestination(["ADMIN"], "/admin/users?status=DISABLED#accounts"),
+    "/admin/users?status=DISABLED#accounts",
+  );
+  assert.equal(authSessionDestination(["DOCTOR"], "/admin?x=1"), "/doctor/dashboard");
+  for (const hostile of ["//evil.test", "/%2f%2fevil.test", "/\\evil.test"]) {
+    assert.equal(authSessionDestination(["DOCTOR"], hostile), "/doctor/dashboard", hostile);
+  }
+  assert.equal(authSessionDestination(["ROLE_AUDITOR"], "/admin"), "/");
+  assert.equal(authSessionDestination([], "/admin"), "/");
+});
+
+test("authSessionDestination rejects dot-segment escapes outside the issued role prefix", async () => {
+  const { authSessionDestination } = await loadAuthFlow();
+  assert.equal(authSessionDestination(["ADMIN"], "/admin/../patient"), "/admin");
+  assert.equal(authSessionDestination(["ADMIN"], "/admin/%2e%2e/patient"), "/admin");
+  assert.equal(authSessionDestination(["ADMIN"], "/admin/%2E%2E/patient"), "/admin");
+  assert.equal(authSessionDestination(["PATIENT"], "/patient/../admin"), "/patient/dashboard");
+  assert.equal(
+    authSessionDestination(["ADMIN"], "/admin/users/../list?status=OK#frag"),
+    "/admin/users/../list?status=OK#frag",
+  );
+});
+
 test("PHONE_LINKED_TO_BOOKING_EMAIL surfaces the booking-email instruction instead of the generic conflict copy", async () => {
   const { authErrorMessage, authFieldErrors, ApiError } = await loadAuthFlow();
 
