@@ -22,7 +22,7 @@ class CmsPayloadValidatorTest {
 
     @Test
     void acceptsTelephoneActionsWithoutAllowingTelephoneImages() {
-        for (String href : new String[] { "tel:115", "tel:19001234", "tel:+842812345678" }) {
+        for (String href : new String[] { "tel:115", "tel:19001234", "tel:+842812345678", "tel:12 3456", "tel:1900 1234", "tel:+84(28)3978-1234" }) {
             ObjectNode banner = JsonNodeFactory.instance.objectNode()
                 .put("title", "Liên hệ").put("body", "Gọi để được hỗ trợ")
                 .put("ctaLabel", "Gọi ngay").put("ctaHref", href);
@@ -38,7 +38,7 @@ class CmsPayloadValidatorTest {
     void rejectsUnsafeTelephoneSyntax() {
         for (String href : new String[] {
             "tel:123", "tel:+1234567890123456", "tel:123456;ext=1",
-            "tel:%2b123456", "tel:12 3456", "tel:123456\n", "tel:123456\r",
+            "tel:%2b123456", "tel:12 345", "tel:123456\n", "tel:123456\r",
             "tel:112", "tel:+115", "tel:115 ", " tel:115", "tel:115\n",
             "tel:115\t", "tel:%31%31%35", "tel:115;ext=1",
         }) {
