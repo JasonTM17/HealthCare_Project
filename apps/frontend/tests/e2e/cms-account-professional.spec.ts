@@ -364,6 +364,103 @@ test.describe("CMS native production UI with fixtures", () => {
     await expect(page.locator("body")).not.toContainText(PRIVATE_TITLE);
     expect(fixture.requests.some((request) => request.path.endsWith("/draft"))).toBe(false);
   });
+  test("native image field reattempts recovered sources and saves the current src", async ({ context, page }) => {
+    const fixture = await installFixtures(context);
+    const flipUrl = "/media/qa-flip-native.jpg";
+    let flipOk = false;
+    const pixelPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    await context.route(`**${flipUrl}`, async (route) => {
+      if (!flipOk) {
+        await route.fulfill({ status: 404 });
+        return;
+      }
+      await route.fulfill({ status: 200, contentType: "image/png", body: pixelPng });
+    });
+    const layout = fixture.drafts.get("homepage.layout")!;
+    layout.payload.fields["hero.image"] = { kind: "image", src: "/media/hospital-team-landscape.jpg", alt: "Đội ngũ bệnh viện" };
+    const publicImage = structuredClone(layout.publicContent!.payload.fields["hero.image"] ?? null);
+    await page.goto("/admin/content");
+    const frame = await previewFrame(page);
+    await selectNative(page, frame, "hero.image");
+
+    const host = page.locator('[id="cms-field-hero.image"]');
+    const input = page.getByLabel("URL hình ảnh (bắt buộc)", { exact: true });
+    const fieldPreview = host.locator("figure img");
+    const uploadPreview = host.locator("[class*='previewWrapper'] img");
+    const brokenNote = host.getByText("Không thể tải bản xem trước hình ảnh.");
+    const unsafeNote = host.getByText(/Đường dẫn ảnh phải là/);
+    await expect(input).toHaveValue("/media/hospital-team-landscape.jpg");
+
+    await input.fill(flipUrl);
+    await expect(fieldPreview).toBeHidden();
+    await expect(uploadPreview).toBeHidden();
+    await expect(brokenNote).toBeVisible();
+
+    await input.fill("/icon.svg");
+    await expect(fieldPreview).toBeVisible();
+    await expect(uploadPreview).toBeVisible();
+    await expect(brokenNote).toBeHidden();
+    await expect.poll(() => fieldPreview.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    await expect.poll(() => uploadPreview.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+
+    flipOk = true;
+    await input.fill(flipUrl);
+    await expect(brokenNote).toBeHidden();
+    await expect(fieldPreview).toBeVisible();
+    await expect(uploadPreview).toBeVisible();
+    await expect.poll(() => fieldPreview.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    await expect.poll(() => uploadPreview.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+
+    await input.fill("javascript:alert(1)");
+    await expect(unsafeNote).toBeVisible();
+    await expect(fieldPreview).toBeHidden();
+    await input.fill(flipUrl);
+    await expect(unsafeNote).toBeHidden();
+    await expect(fieldPreview).toBeVisible();
+
+    await page.getByTestId("cms-save-draft").click();
+    await expect(page.getByTestId("cms-draft-status")).toContainText("Bản nháp đã lưu");
+    expect(fixture.drafts.get("homepage.layout")!.payload.fields["hero.image"]).toEqual({ kind: "image", src: flipUrl, alt: "Đội ngũ bệnh viện" });
+    expect(fixture.drafts.get("homepage.layout")!.publicContent!.payload.fields["hero.image"] ?? null).toEqual(publicImage);
+  });
+  test("deferred native image upload keeps the workspace inert and applies only its own URL", async ({ context, page }) => {
+    const fixture = await installFixtures(context);
+    const layout = fixture.drafts.get("homepage.layout")!;
+    layout.payload.fields["hero.image"] = { kind: "image", src: "/media/hospital-team-landscape.jpg", alt: "Đội ngũ bệnh viện" };
+    let releaseUpload: () => void = () => undefined;
+    const uploadGate = new Promise<void>((resolve) => { releaseUpload = resolve; });
+    const uploadRequests: string[] = [];
+    await context.route("**/api/v1/media/upload**", async (route) => {
+      uploadRequests.push(route.request().method());
+      await uploadGate;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ url: "/media/qa-uploaded.jpg", id: "qa-uploaded" }) });
+    });
+    const pixelPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    await context.route("**/media/qa-uploaded.jpg", async (route) => {
+      await route.fulfill({ status: 200, contentType: "image/png", body: pixelPng });
+    });
+    await page.goto("/admin/content");
+    const frame = await previewFrame(page);
+    await selectNative(page, frame, "hero.image");
+
+    const input = page.getByLabel("URL hình ảnh (bắt buộc)", { exact: true });
+    await input.fill("");
+    const fileInput = page.locator('[id="cms-field-hero.image"] input[type="file"]');
+    await fileInput.setInputFiles({ name: "qa.png", mimeType: "image/png", buffer: pixelPng });
+    await expect.poll(() => uploadRequests.length).toBe(1);
+
+    await expect(input).toBeDisabled();
+    await expect(input).toHaveValue("");
+    await expect(page.getByTestId("cms-save-draft")).toBeDisabled();
+    await expect(page.getByTestId("cms-page-picker")).toBeDisabled();
+    await page.getByRole("button", { name: "Nội dung", exact: true }).first().dispatchEvent("click");
+    await expect(page.getByTestId("cms-field-inspector").getByRole("heading", { name: "Ảnh minh họa", exact: true })).toBeVisible();
+
+    releaseUpload();
+    await expect(input).toHaveValue("/media/qa-uploaded.jpg");
+    await expect(input).toBeEnabled();
+    await expect(page.getByTestId("cms-page-picker")).toBeEnabled();
+  });
 });
 
 test.describe("Account production UI with safe DTO fixtures", () => {

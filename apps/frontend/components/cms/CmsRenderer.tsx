@@ -80,7 +80,7 @@ function CmsContentBody({
               <div className="cms-renderer__action"><SafeLink href={content.payload.ctaHref} label={content.payload.ctaLabel} /></div>
             ) : null}
           </div>
-          {content.payload.imageUrl ? <SafeImage alt={content.payload.title} src={content.payload.imageUrl} /> : null}
+          {content.payload.imageUrl ? <SafeImage alt={content.payload.title} key={content.payload.imageUrl} src={content.payload.imageUrl} /> : null}
         </div>
       );
     case "RICH_TEXT":
@@ -108,7 +108,7 @@ function CmsContentBody({
     case "IMAGE_CARD":
       return (
         <article className="cms-renderer cms-renderer--image-card">
-          {content.payload.imageUrl ? <SafeImage alt={content.payload.title} src={content.payload.imageUrl} /> : null}
+          {content.payload.imageUrl ? <SafeImage alt={content.payload.title} key={content.payload.imageUrl} src={content.payload.imageUrl} /> : null}
           <div className="cms-renderer__content">
             <CmsTitle headingLevel={headingLevel}>{content.payload.title}</CmsTitle>
             {content.payload.body ? <p className="cms-renderer__body">{content.payload.body}</p> : null}
