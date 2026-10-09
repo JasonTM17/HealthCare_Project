@@ -1036,7 +1036,7 @@
 }
 
 .primaryConsentButton {
-  width: fit-content;
+  width: 100%;
   min-height: var(--chat-touch-size);
   padding: 0 var(--sp-3);
   border: 1px solid var(--chat-accent);
