@@ -204,6 +204,9 @@ test.describe("Isolated native CMS route/detail persistence", () => {
     expect((await draft(context.request, identity)).payload.fields[field.id]).toEqual({ kind: "text", value });
   });
   test("keyboard plus pointer order persist after full reload", async ({ page, context }) => {
+    // Put both full sibling rows in view before pointer-down. dragTo scrolls
+    // its target mid-gesture in the bounded outline and does not prove a swap.
+    await page.setViewportSize({ width: 1440, height: 2600 });
     const identity = resolveCmsPageIdentity("/about")!; await page.goto(new URL("/admin/content", BASE_URL).href); await open(page, identity);
     const before = (await draft(context.request, identity)).payload.sectionOrder;
     const current = before.indexOf("values");
@@ -213,7 +216,20 @@ test.describe("Isolated native CMS route/detail persistence", () => {
     await page.reload(); await open(page, identity);
     expect(await page.locator('[data-testid^="cms-section-"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")!.replace("cms-section-", "")))).toEqual(after);
     const from = page.getByTestId("cms-section-values"); const to = page.getByTestId(`cms-section-${before[current] === after[current] ? before[current + 1] : after[current]}`);
-    await from.locator(".cms-section-drag-handle").dragTo(to); await save(page); const dragged = (await draft(context.request, identity)).payload.sectionOrder; expect(dragged).not.toEqual(after);
+    const handle = to.locator(".cms-section-drag-handle");
+    await from.scrollIntoViewIfNeeded(); await handle.scrollIntoViewIfNeeded();
+    const sourceBox = (await handle.boundingBox())!; const targetBox = (await from.boundingBox())!;
+    const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+    const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
+    expect(start.y).toBeGreaterThan(0); expect(end.y).toBeLessThan(2600);
+    await page.mouse.move(start.x, start.y); await page.mouse.down();
+    try {
+      await page.mouse.move(start.x + 12, start.y + 12, { steps: 4 });
+      await page.mouse.move(end.x, end.y, { steps: 24 });
+      await page.mouse.move(end.x, end.y + Math.sign(end.y - start.y) * 8, { steps: 4 });
+    } finally { await page.mouse.up(); }
+    await expect(page.getByTestId("cms-draft-status")).toContainText("Có thay đổi chưa lưu");
+    await save(page); const dragged = (await draft(context.request, identity)).payload.sectionOrder; expect(dragged).toEqual(before); expect(dragged).not.toEqual(after);
     await page.reload(); await open(page, identity); expect(await page.locator('[data-testid^="cms-section-"]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid")!.replace("cms-section-", "")))).toEqual(dragged);
   });
   test("real image and TinyMCE bounded Markdown survive draft reload", async ({ page, context }) => {

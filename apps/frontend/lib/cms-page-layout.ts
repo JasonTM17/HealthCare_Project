@@ -46,6 +46,7 @@ function plainText(value: unknown, max: number, allowEmpty = false): string {
 }
 
 function safeUrl(value: string, image: boolean): boolean {
+  if (!image && value.startsWith("tel:")) return isSafeCmsLinkUrl(value);
   return !/[\s\\]/.test(value) && !CONTROLS.test(value)
     && (image ? isSafeCmsImageUrl(value) : isSafeCmsLinkUrl(value));
 }

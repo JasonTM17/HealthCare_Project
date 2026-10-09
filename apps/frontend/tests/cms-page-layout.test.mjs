@@ -91,6 +91,18 @@ test("sparse text, image and safe Markdown overrides preserve input and clear to
   assert.equal(Object.hasOwn(parseCmsPageLayout(payload, home).fields, "hero.title"), false);
 });
 
+test("Markdown telephone actions use the strict action rule while images and other URL whitespace stay rejected", () => {
+  const payload = createNativeCmsLayout(home);
+  for (const url of ["tel:115", "tel:1900 1234", "tel:12 3456", "tel:+84-1234-5678"]) {
+    payload.fields["hero.body"] = { kind: "rich", format: "markdown", value: `[Gọi](${url})` };
+    assert.equal(parseCmsPageLayout(payload, home).fields["hero.body"].value, payload.fields["hero.body"].value);
+  }
+  for (const value of ["[Gọi](tel:12 345)", "[Gọi](tel:112)", "[Gọi](tel:1900%201234)", "[Gọi](tel:1900 1234;ext=1)", "[Gọi]( tel:1900 1234)", "[Gọi](tel:1900 1234 )", "[Gọi](tel:1900\n1234)", "[Web](https://example.com/a b)", "[Web](/a b)", "![Ảnh](tel:1900 1234)", "![Ảnh](/media/a b.jpg)"]) {
+    payload.fields["hero.body"] = { kind: "rich", format: "markdown", value };
+    assert.throws(() => parseCmsPageLayout(payload, home));
+  }
+});
+
 test("known movable sections can reorder without crossing fixed interactive boundaries", () => {
   const payload = createNativeCmsLayout(home);
   const care = payload.sectionOrder.indexOf("care");
