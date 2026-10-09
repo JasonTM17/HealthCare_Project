@@ -16,6 +16,7 @@ import {
   PublicPageShell,
 } from "../../../components/PublicPageShell";
 import { JsonLd } from "../../../components/JsonLd";
+import { isIllustrativeCatalogue } from "../../../lib/catalogue-illustration";
 import { CmsNativeSection, CmsNativeText } from "../../../components/cms/cms-page-layout-provider";
 
 const DOCTOR_STEPS = [
@@ -69,7 +70,7 @@ export default function DoctorDetailPage() {
 
   const isDemoDoctor = Boolean(doctor?.demo) || Boolean(doctor?.slug?.startsWith("demo-bs-"));
 
-  const doctorJsonLd = doctor
+  const doctorJsonLd = doctor && !isIllustrativeCatalogue(doctor)
     ? {
       "@context": "https://schema.org",
       "@type": "Physician",

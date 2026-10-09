@@ -82,3 +82,7 @@ Do not repair Flyway history, delete a volume, or remove additive schema as an
 automatic CMS recovery action; preserve a verified backup and inspect the
 database's recorded history first. Browser fixtures and local persistence
 checks are separate evidence from multi-instance or production verification.
+
+## Responsive editing workspace
+
+Admin navigation starts collapsed below the desktop breakpoint, closes after route navigation, and supports Escape. The native preview initially follows the host device class (375/768/1440); explicit device choices persist in browser session storage across resize and reload. Storage failure retains usable in-session controls. The public ADMIN CMS toggle clears the mobile care rail and stays absent from private admin pages. These presentation settings do not change publication, preview authorization or the validated native bridge.

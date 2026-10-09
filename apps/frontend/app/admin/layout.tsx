@@ -342,7 +342,6 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [openForPath, setOpenForPath] = useState<string | null>(null);
   const navOpen = openForPath === pathname;
-  const navToggleRef = useRef<HTMLButtonElement>(null);
   const workspaceToggleRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -350,14 +349,14 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenForPath(null);
-        (focusedWorkspace ? workspaceToggleRef : navToggleRef).current?.focus();
+        workspaceToggleRef.current?.focus();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [navOpen, focusedWorkspace]);
+  }, [navOpen]);
 
   const handleLogout = async (): Promise<void> => {
     if (loggingOut) return;
@@ -382,7 +381,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
   return (
     <div className="admin-shell min-h-screen bg-slate-50 text-slate-900 lg:flex">
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside id="admin-navigation" className={`${focusedWorkspace && !navOpen ? "hidden" : ""} border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden`}>
+      <aside id="admin-navigation" className={`${navOpen ? "block" : focusedWorkspace ? "hidden" : "hidden lg:block"} border-b border-teal-900 bg-teal-950 text-white lg:sticky lg:top-0 lg:h-screen lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r lg:overflow-hidden`}>
         <div className="flex h-full flex-col p-5 overflow-hidden">
           <div className="flex shrink-0 items-start justify-between gap-3">
             <div className="min-w-0">
@@ -392,17 +391,6 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
                 {displayName ? `Xin chào, ${displayName}.` : "Tài khoản quản trị đã được xác thực."}
               </p>
             </div>
-            <button
-              aria-controls="admin-nav-panel"
-              aria-expanded={navOpen}
-              aria-label={navOpen ? "Đóng menu quản trị" : "Mở menu quản trị"}
-              className={`${focusedWorkspace ? "hidden" : "inline-flex"} min-h-11 w-11 shrink-0 items-center justify-center rounded-lg text-teal-100 hover:bg-teal-900 hover:text-white lg:hidden`}
-              onClick={() => setOpenForPath(navOpen ? null : pathname)}
-              ref={navToggleRef}
-              type="button"
-            >
-              <UiIcon name={navOpen ? "x" : "menu"} size={20} />
-            </button>
           </div>
 
           <div className={`min-h-0 flex-1 flex-col ${navOpen ? "flex" : "hidden"} lg:flex`} id="admin-nav-panel">
@@ -441,7 +429,7 @@ function AdminShell({ children, displayName }: { children: ReactNode; displayNam
       <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8" id="main-content" tabIndex={-1}>
         <div className={cmsEditing ? "w-full" : "mx-auto max-w-7xl"}>
           <div className="mb-6 flex items-start justify-between gap-4">
-            {focusedWorkspace ? <button className="min-h-11 rounded-lg border border-teal-800 px-4 text-sm font-bold text-teal-900" aria-expanded={navOpen} aria-controls="admin-navigation" type="button" onClick={() => setOpenForPath(navOpen ? null : pathname)} ref={workspaceToggleRef}>{navOpen ? "Thu gọn điều hướng" : "Mở điều hướng quản trị"}</button> : <span />}
+            <button className={`${focusedWorkspace ? "" : "lg:hidden"} min-h-11 rounded-lg border border-teal-800 px-4 text-sm font-bold text-teal-900`} aria-expanded={navOpen} aria-controls="admin-navigation" type="button" onClick={() => setOpenForPath(navOpen ? null : pathname)} ref={workspaceToggleRef}>{focusedWorkspace ? (navOpen ? "Thu gọn điều hướng" : "Mở điều hướng quản trị") : (navOpen ? "Đóng menu quản trị" : "Mở menu quản trị")}</button>
             <div className="shrink-0">
               <AdminNotificationBell />
             </div>

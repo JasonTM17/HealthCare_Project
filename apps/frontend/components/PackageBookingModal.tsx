@@ -25,6 +25,8 @@ import { presentApiError } from "../lib/present-api-error";
 import { buildGoogleCalendarUrl, downloadIcsFile } from "../lib/appointment-calendar";
 import Icon from "./UiIcon";
 import useDialogFocus from "./useDialogFocus";
+import { bookableBranches, ILLUSTRATIVE_BOOKING_NOTICE, isIllustrativeCatalogue, isIllustrativeSelection } from "../lib/catalogue-illustration";
+import IllustrativeBookingNotice from "./IllustrativeBookingNotice";
 
 export type PackageItem = HealthPackage;
 
@@ -96,6 +98,8 @@ export default function PackageBookingModal({
   branches: providedBranches = [],
   initialBranchId,
 }: PackageBookingModalProps) {
+  const illustrativeInitialSelection = isIllustrativeCatalogue(packageItem) || isIllustrativeSelection({ branchId: initialBranchId })
+    || providedBranches.some((branch) => branch.id === initialBranchId && isIllustrativeCatalogue(branch));
   const [step, setStep] = useState<number>(1);
   const [loadedBranches, setLoadedBranches] = useState<Branch[]>([]);
   const [loadedDoctors, setLoadedDoctors] = useState<Doctor[]>([]);
@@ -103,7 +107,7 @@ export default function PackageBookingModal({
   const [catalogError, setCatalogError] = useState<string>("");
   const [catalogRequest, setCatalogRequest] = useState(0);
 
-  const effectiveBranches = providedBranches.length > 0 ? providedBranches : loadedBranches;
+  const effectiveBranches = useMemo(() => bookableBranches(providedBranches.length > 0 ? providedBranches : loadedBranches), [providedBranches, loadedBranches]);
 
   // Step 1: Branch Selection
   const [selectedBranchId, setSelectedBranchId] = useState<string>(initialBranchId || "");
@@ -272,7 +276,7 @@ export default function PackageBookingModal({
 
   // Fetch branches if needed; doctors load per active branch below.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || illustrativeInitialSelection) return;
 
     let cancelled = false;
     const loadCatalogs = async () => {
@@ -300,7 +304,7 @@ export default function PackageBookingModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, providedBranches.length, catalogRequest]);
+  }, [isOpen, illustrativeInitialSelection, providedBranches.length, catalogRequest]);
 
   // Resolve active branch
   const activeBranchId = useMemo(() => {
@@ -322,7 +326,7 @@ export default function PackageBookingModal({
   // Doctors are fetched per active branch: branch-scoped queries stay small on
   // hosted backends, while unfiltered catalogs time out at larger page sizes.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || illustrativeInitialSelection) return;
     let cancelled = false;
     const task = Promise.resolve().then(async () => {
       try {
@@ -332,7 +336,7 @@ export default function PackageBookingModal({
         if (!cancelled && page.content.length === 0) {
           page = await fetchDoctors({ page: 0, size: 20 });
         }
-        if (!cancelled && page.content.length > 0) setLoadedDoctors(page.content);
+        if (!cancelled) setLoadedDoctors(page.content.filter((doctor) => !isIllustrativeCatalogue(doctor)));
       } catch {
         // keep prior doctors; the branch card UI still renders without them
       }
@@ -341,7 +345,7 @@ export default function PackageBookingModal({
       cancelled = true;
       void task;
     };
-  }, [isOpen, currentBranch]);
+  }, [isOpen, illustrativeInitialSelection, currentBranch]);
 
   const intakeDoctor = useMemo(() => {
     if (!currentBranch) return loadedDoctors[0];
@@ -369,7 +373,7 @@ export default function PackageBookingModal({
 
   // Load slots when date or branch changes
   useEffect(() => {
-    if (!isOpen || !activeBranchId || !selectedDate) return;
+    if (!isOpen || illustrativeInitialSelection || !activeBranchId || !selectedDate) return;
 
     let cancelled = false;
     const controller = new AbortController();
@@ -416,7 +420,7 @@ export default function PackageBookingModal({
       cancelled = true;
       controller.abort();
     };
-  }, [isOpen, activeBranchId, selectedDate, intakeDoctor?.id]);
+  }, [isOpen, illustrativeInitialSelection, activeBranchId, selectedDate, intakeDoctor?.id]);
 
   // Timers for hold & OTP expiration in Step 4
   useEffect(() => {
@@ -457,6 +461,9 @@ export default function PackageBookingModal({
   }, [resendCooldownSeconds]);
 
   if (!isOpen) return null;
+  if (illustrativeInitialSelection) {
+    return <IllustrativeBookingNotice onClose={onClose} />;
+  }
 
   const holdExpired = secondsRemaining <= 0;
   const otpExpired = otpSecondsRemaining <= 0;
@@ -513,6 +520,9 @@ export default function PackageBookingModal({
       return;
     }
     const doctorIdToUse = intakeDoctor.id;
+    if (isIllustrativeCatalogue(packageItem) || isIllustrativeSelection({ doctorId: doctorIdToUse, branchId: activeBranchId, packageId: packageItem.id })) {
+      setErrorMessage(ILLUSTRATIVE_BOOKING_NOTICE); return;
+    }
 
     // Build structured reason / notes containing DOB & gender
     const noteParts: string[] = [];
