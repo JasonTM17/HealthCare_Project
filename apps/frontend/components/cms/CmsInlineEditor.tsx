@@ -100,7 +100,10 @@ export function CmsEditModeToolbar(): ReactElement | null {
     hydrateCmsEditMode();
   }, []);
 
-  if (pathname === "/admin" || pathname?.startsWith("/admin/") || !session || !hasRole(session.user, "ADMIN")) return null;
+  const suppressedRoute = ["/admin", "/doctor", "/patient", "/auth"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+  if (!session || !hasRole(session.user, "ADMIN") || suppressedRoute) return null;
 
   return (
     <>
@@ -108,7 +111,7 @@ export function CmsEditModeToolbar(): ReactElement | null {
         className="fixed bottom-4 left-4 z-[70] flex items-center gap-2 rounded-full border border-teal-800 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900"
         data-testid="cms-edit-toolbar"
       >
-        <label className="flex cursor-pointer items-center gap-2">
+        <label className="flex min-h-11 cursor-pointer items-center gap-2">
           <input
             checked={editMode}
             onChange={(event) => setCmsEditMode(event.target.checked)}
