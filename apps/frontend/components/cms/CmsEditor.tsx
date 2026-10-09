@@ -12,6 +12,7 @@ import {
 import {
   CMS_PUBLIC_ROUTE_SLUGS,
   CMS_PUBLICATION_STATUSES,
+  CMS_SLOT_DEFAULT_IMAGES,
   CMS_SLOT_KEYS,
   CmsApiError,
   CmsClient,
@@ -706,10 +707,22 @@ export function CmsEditor({
   const isBusy = operation !== "idle";
   const authBlocked = apiError?.kind === "auth" || apiError?.kind === "forbidden";
   const canMutate = !authBlocked && !isBusy;
+  const compactedPayload = compactPayload(draft.payload);
+  // The public page falls back to a site-owned default image for some slots
+  // (e.g. homepage.hero). The preview must render that same effective image —
+  // labeled as the default — instead of dropping the visual, so the admin sees
+  // exactly what visitors see.
+  const defaultSlotImage = CMS_SLOT_DEFAULT_IMAGES[loadedSlotKey] ?? "";
+  const previewUsesDefaultImage =
+    defaultSlotImage.length > 0
+    && payloadValue(compactedPayload, "imageUrl").length === 0
+    && (draft.componentType === "HERO" || draft.componentType === "IMAGE_CARD");
   const previewContent = {
     slotKey: loadedSlotKey,
     componentType: draft.componentType,
-    payload: compactPayload(draft.payload),
+    payload: previewUsesDefaultImage
+      ? { ...compactedPayload, imageUrl: defaultSlotImage }
+      : compactedPayload,
     status: draft.status,
     version: content?.version ?? 0,
     updatedAt: content?.updatedAt ?? "",
@@ -964,6 +977,11 @@ export function CmsEditor({
           </div>
           <article className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <CmsContentRenderer content={previewContent} />
+            {previewUsesDefaultImage ? (
+              <p className="mt-3 border-t border-slate-100 pt-2 text-xs leading-5 text-slate-500">
+                Đang dùng ảnh mặc định của trang — đặt URL hình ảnh để thay thế.
+              </p>
+            ) : null}
           </article>
         </aside>
       </div>
