@@ -44,7 +44,7 @@ function load(relative) {
 const client = load("lib/admin-users-client.ts");
 const state = load("app/admin/users/account-form-state.ts");
 const { default: AccountPanel, AccountTime } = load("app/admin/users/account-panel.tsx");
-const { default: AdminUsersPage } = load("app/admin/users/page.tsx");
+const { default: AdminUsersPage, AdminUsersContent } = load("app/admin/users/page.tsx");
 
 test("actual DTO parser preserves exact instant/epoch and retains only explicit safe fields", () => {
   const result = client.parseAdminAccount(account({ passwordHash: "must-never-reach-ui", googleSubject: "private", refreshToken: "private", lastLogin: "guessed" }));
@@ -162,6 +162,10 @@ test("actual detail rendering includes source timestamps, multi-role labels and 
   assert.match(demoted, /Chưa xác minh được quyền thay đổi/); assert.match(demoted, /fieldset disabled/);
 });
 test("actual inventory renders safely before actor/session metadata exists and disables creation", () => {
-  const html = renderToStaticMarkup(React.createElement(AdminUsersPage));
+  // The page-level Suspense boundary renders the fallback while search params
+  // resolve; the inventory SSR contract lives on the content component.
+  const fallback = renderToStaticMarkup(React.createElement(AdminUsersPage));
+  assert.match(fallback, /Đang tải bộ lọc tài khoản/);
+  const html = renderToStaticMarkup(React.createElement(AdminUsersContent, { initialStatus: "" }));
   assert.match(html, /Tài khoản/); assert.match(html, /disabled=""[^>]*>Tạo tài khoản/); assert.match(html, /Đang cập nhật danh sách/);
 });
