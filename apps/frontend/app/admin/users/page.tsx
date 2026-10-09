@@ -11,7 +11,7 @@ import styles from "./users.module.css";
 
 interface Filters { q: string; role: AccountRole | ""; status: AccountStatus | ""; verified: string; demo: string; from: string; through: string; sort: NonNullable<AccountFilters["sort"]>; direction: "asc" | "desc"; page: number; size: number }
 const DEFAULT_FILTERS: Filters = { q: "", role: "", status: "", verified: "", demo: "", from: "", through: "", sort: "createdAt", direction: "desc", page: 0, size: 20 };
-function AdminUsersContent({ initialStatus }: { initialStatus: Filters["status"] }) {
+export function AdminUsersContent({ initialStatus }: { initialStatus: Filters["status"] }) {
   const session = useAuthSession();
   const [actor, setActor] = useState<AdminAccount | null>(null);
   const [actorError, setActorError] = useState("");
