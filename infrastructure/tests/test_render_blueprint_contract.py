@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 5770cc1d (lease resilience, booking/mail/credit fixes on top of
-# self-harm alert line).
+# release line, built from 6dc1eb3f (native public page
+# CMS editing and account lifecycle governance).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:99499d48fae7c80f839c62471891d986813225928396433350e415bfefc79c73"
+    "sha256:56e746c814ef2226f706c2c412da337ee7666407537c4087e00bfa389eff3f45"
 )
 
 
@@ -41,17 +41,16 @@ def _sql_without_line_comments(path: Path) -> str:
 def test_render_manifest_is_free_only() -> None:
     blueprint = _blueprint(ROOT / "render.yaml")
     services = _services()
-    database = blueprint["databases"][0]
-    assert database["name"] == "healthcare-beta-postgres"
-    assert database["plan"] == "free"
-    assert database["postgresMajorVersion"] == "16"
-    assert database["user"] == "healthcare_beta_app_20260830r1"
-    assert database["ipAllowList"] == []
+    # The live topology is the backup Render workspace: two web services only.
+    # PostgreSQL is Supabase and Redis is an external connection string — both
+    # dashboard-managed secrets, so the blueprint must not declare managed
+    # Render data resources that a blueprint sync would recreate.
+    assert "databases" not in blueprint
     assert set(services) == {
-        "healthcare-beta-redis", "healthcare-beta-ai", "healthcare-beta-backend"
+        "healthcare-backup-ai", "healthcare-backup-backend"
     }
     assert all(service["plan"] == "free" for service in services.values())
-    assert all(service["type"] != "pserv" for service in services.values())
+    assert all(service["type"] == "web" for service in services.values())
 
 
 def test_named_free_manifest_matches_canonical() -> None:
@@ -60,7 +59,7 @@ def test_named_free_manifest_matches_canonical() -> None:
 
 def test_render_manifest_uses_immutable_backend_image() -> None:
     services = _services()
-    backend = services["healthcare-beta-backend"]
+    backend = services["healthcare-backup-backend"]
     assert backend["runtime"] == "image"
     assert backend["autoDeployTrigger"] == "off"
     assert backend["image"]["url"] == (
@@ -74,7 +73,7 @@ def test_render_manifest_uses_immutable_backend_image() -> None:
 
 
 def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
-    ai = _services()["healthcare-beta-ai"]
+    ai = _services()["healthcare-backup-ai"]
     assert ai["runtime"] == "python"
     assert ai["plan"] == "free"
     assert ai["region"] == "singapore"
@@ -106,15 +105,15 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     # [L1] Cross-warmer ai→backend must stay enabled: without this key the
     # startup hook in app/main.py self-disables and the warm chain is one-way.
     assert ai_env["BACKEND_WARM_URL"]["value"] == (
-        "https://healthcare-backup-backend-oqv4.onrender.com/actuator/health"
+        "https://healthcare-backup-backend.onrender.com/actuator/health"
     )
 
 
 def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -> None:
     services = _services()
-    backend = _env(services["healthcare-beta-backend"])
-    # 2026-10-07: healthcare-beta-postgres no longer exists and the stale
-    # fromDatabase materialization kept resolving to the decommissioned
+    backend = _env(services["healthcare-backup-backend"])
+    # 2026-10-07: no Render-managed Postgres exists in the live workspace and
+    # stale fromDatabase materialization kept resolving to a decommissioned
     # Supabase user; DATABASE_* plus the SPRING_DATASOURCE_* relaxed-binding
     # override are now dashboard/API-managed secrets (see render.yaml comment).
     for key in (
@@ -123,7 +122,7 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
         "SPRING_DATASOURCE_PASSWORD",
     ):
         assert backend[key]["sync"] is False
-    # healthcare-beta-redis lives in a different workspace; REDIS_URL is a
+    # Redis lives outside this Render workspace; REDIS_URL is a
     # dashboard/API-managed internal connection string.
     assert backend["REDIS_URL"]["sync"] is False
     for key in ("BFF_ALLOWED_ORIGINS", "JWT_SECRET", "BACKEND_BFF_SERVICE_TOKEN"):

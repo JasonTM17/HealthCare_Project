@@ -57,11 +57,11 @@ class AdminCmsIntegrationTest extends AbstractIntegrationTest {
     }
 
     private DoctorRequest doctor(String fullName, String slug) {
-        return new DoctorRequest(fullName, slug, null, null, true, null);
+        return new DoctorRequest(fullName, slug, null, null, true, null, false, null, null);
     }
 
     private DoctorRequest doctor(String fullName, String slug, boolean active) {
-        return new DoctorRequest(fullName, slug, null, null, active, null);
+        return new DoctorRequest(fullName, slug, null, null, active, null, false, null, null);
     }
 
     private SpecialtyRequest specialty(String name, String slug, boolean active) {

@@ -212,12 +212,28 @@ public class PublicAiChatController {
                 Map<String, Object> amenity = publicAmenityResponse(userMessage);
                 if (amenity != null) return ResponseEntity.ok(amenity);
             }
-            // A generic pre-visit checklist is a complete deterministic
-            // answer — nothing a provider round-trip could improve.  Runs
-            // before the specific-branch path for parity with the
-            // authenticated lane: a PREPARATION-classified message must
-            // never be claimed by branch resolution and fail closed.
+            // Preparation questions ("nhịn ăn trước xét nghiệm") are
+            // health-education asks: try the governed article/FAQ lane first
+            // so an approved source answers with citations instead of the
+            // generic checklist. The canned card stays the floor whenever
+            // RAG authorizes nothing or the upstream lane is down — and the
+            // education kill switch still governs this reach.
             if (earlyIntent == ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION) {
+                if (healthEducationEnabled) {
+                    try {
+                        Map<String, Object> grounded = runCancellableChat(
+                            servletRequest, cancellation ->
+                                publicEducationChat(userMessage, recentTurns, cancellation));
+                        if (!"public_education_source_unavailable"
+                                .equals(grounded.get("routingReason"))) {
+                            return ResponseEntity.ok(grounded);
+                        }
+                    } catch (CancellationException exception) {
+                        throw cancelledRequest(servletRequest, exception);
+                    } catch (ResponseStatusException ex) {
+                        if (!isAiFailure(ex)) throw ex;
+                    }
+                }
                 Map<String, Object> preparation = publicPreparationResponse(userMessage);
                 if (preparation != null) return ResponseEntity.ok(preparation);
             }

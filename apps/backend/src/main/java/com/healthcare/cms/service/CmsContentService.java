@@ -121,7 +121,7 @@ public class CmsContentService {
             throw new ResourceNotFoundException("Published CMS content not found");
         }
         CmsContent content = published.get();
-        CmsContentResponse response = toResponse(content);
+        CmsContentResponse response = toPublishedResponse(content);
         // The request cursor proves only that this read bypassed the local cache;
         // it is not evidence that the response includes a future durable event.
         // Persist only the server-observed watermark so a client cannot poison
@@ -135,7 +135,7 @@ public class CmsContentService {
         List<CmsContentResponse> responses = contentRepository
             .findByStatusOrderBySlotKeyAsc(CmsPublicationStatus.PUBLISHED)
             .stream()
-            .map(this::toResponse)
+            .map(this::toPublishedResponse)
             .toList();
         return responses;
     }
@@ -185,10 +185,12 @@ public class CmsContentService {
             created.setComponentType(request.componentType());
             created.setPayload(sanitizedPayload);
             created.setStatus(request.status());
+            created.setPublicRevision(request.status() == CmsPublicationStatus.PUBLISHED ? 1L : null);
             created.setVersion(1L);
             OffsetDateTime now = now();
             created.setCreatedAt(now);
             created.setUpdatedAt(now);
+            created.setPublicUpdatedAt(request.status() == CmsPublicationStatus.PUBLISHED ? now : null);
             try {
                 existing = contentRepository.saveAndFlush(created);
             } catch (DataIntegrityViolationException ex) {
@@ -201,7 +203,10 @@ public class CmsContentService {
             existing.setComponentType(request.componentType());
             existing.setPayload(sanitizedPayload);
             existing.setStatus(request.status());
+            existing.clearDraft();
+            existing.setPublicRevision(request.status() == CmsPublicationStatus.PUBLISHED ? expectedVersion + 1L : null);
             existing.setUpdatedAt(now());
+            existing.setPublicUpdatedAt(request.status() == CmsPublicationStatus.PUBLISHED ? existing.getUpdatedAt() : null);
             try {
                 existing = contentRepository.saveAndFlush(existing);
             } catch (ObjectOptimisticLockingFailureException ex) {
@@ -277,7 +282,8 @@ public class CmsContentService {
             change.getContentVersion(),
             change.getActorEmail(),
             change.getChangedAt(),
-            change.getComponentType() != null && change.getStatus() != null && change.getPayload() != null
+            change.getComponentType() != null && change.getComponentType() != CmsComponentType.PAGE_LAYOUT
+                && change.getStatus() != null && change.getPayload() != null
         );
     }
 
@@ -296,7 +302,14 @@ public class CmsContentService {
         );
     }
 
-    private String validateSlotKey(String slotKey) {
+    CmsContentResponse toPublishedResponse(CmsContent content) {
+        return new CmsContentResponse(content.getSlotKey(), content.getComponentType(), content.getPayload(),
+            CmsPublicationStatus.PUBLISHED,
+            content.getPublicRevision() == null ? content.getVersion() : content.getPublicRevision(),
+            content.getPublicUpdatedAt() == null ? content.getUpdatedAt() : content.getPublicUpdatedAt());
+    }
+
+    String validateSlotKey(String slotKey) {
         if (!CmsPublicSlotKeys.isAllowed(slotKey)) {
             throw new CmsPayloadValidationException(
                 "slotKey must target an allowed public CMS route and slot"
@@ -305,7 +318,7 @@ public class CmsContentService {
         return slotKey;
     }
 
-    private void validateSlotComponent(String slotKey, CmsComponentType componentType) {
+    void validateSlotComponent(String slotKey, CmsComponentType componentType) {
         if (!CmsPublicSlotKeys.isComponentAllowed(slotKey, componentType)) {
             throw new CmsPayloadValidationException(
                 "componentType " + componentType + " is not supported for CMS slot " + slotKey
@@ -313,7 +326,7 @@ public class CmsContentService {
         }
     }
 
-    private void lockPublicationCursor() {
+    void lockPublicationCursor() {
         jdbcTemplate.execute((ConnectionCallback<Void>) connection -> {
             if (!"PostgreSQL".equalsIgnoreCase(connection.getMetaData().getDatabaseProductName())) {
                 return null;

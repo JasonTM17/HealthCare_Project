@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -11,6 +12,7 @@ import {
 import {
   CMS_PUBLIC_ROUTE_SLUGS,
   CMS_PUBLICATION_STATUSES,
+  CMS_SLOT_DEFAULT_IMAGES,
   CMS_SLOT_KEYS,
   CmsApiError,
   CmsClient,
@@ -18,6 +20,7 @@ import {
   defaultCmsClient,
   cmsComponentTypesForSlot,
   isCmsComponentAllowedForSlot,
+  isSafeCmsUrl,
   resolveCmsSlotKey,
   validateCmsContentInput,
   type CmsComponentType,
@@ -147,14 +150,131 @@ function prettyUpdatedAt(value: string | undefined): string {
 
 function slotSelection(slotKey: string): { slug: string; slot: CmsSlotKey } | null {
   const normalized = slotKey.trim().toLowerCase();
-  if (normalized === "homepage.hero") return { slug: "home", slot: "hero" };
   const separator = normalized.lastIndexOf(".");
   if (separator <= 0) return null;
   const slug = normalized.slice(0, separator);
   const slot = normalized.slice(separator + 1);
-  return CMS_SLOT_KEYS.includes(slot as CmsSlotKey)
-    ? { slug, slot: slot as CmsSlotKey }
-    : null;
+  if (!CMS_SLOT_KEYS.includes(slot as CmsSlotKey)) return null;
+  // The editor's "home" preset maps to the homepage.* backend prefix, so every
+  // homepage slot — not just hero — must resolve back to that same slug.
+  return { slug: slug === "homepage" ? "home" : slug, slot: slot as CmsSlotKey };
+}
+
+interface CmsDirectoryRow {
+  slot: CmsSlotKey;
+  item: CmsContent | null;
+  /** False for slots that exist in the backend but never render publicly. */
+  rendersPublicly: boolean;
+}
+
+interface CmsDirectoryGroup {
+  slug: string;
+  label: string;
+  publicHref: string;
+  rows: CmsDirectoryRow[];
+}
+
+interface CmsPageDirectory {
+  groups: CmsDirectoryGroup[];
+  /** Resolvable slots on non-preset slugs (custom route families). */
+  extras: CmsDirectoryGroup[];
+  /** Rows whose slotKey does not end in a known CMS slot — informational only. */
+  unresolvable: CmsContent[];
+}
+
+/**
+ * Rebuilds the inventory as the public page map: one card per route in site
+ * order, each card listing its slots in render order (hero → body → sidebar →
+ * footer) so the admin sees exactly what the page shows and where. Missing
+ * slots stay visible as explicit empty rows instead of silently dropping out.
+ */
+function buildPageDirectory(content: CmsContent[]): CmsPageDirectory {
+  const bySlotKey = new Map(content.map((item) => [item.slotKey, item]));
+  const claimed = new Set<string>();
+  const groups = CMS_ROUTE_PRESETS.map(([routeSlug, label]): CmsDirectoryGroup => {
+    const sidebarless = CMS_SIDEBARLESS_ROUTE_SLUGS.has(routeSlug);
+    const rows: CmsDirectoryRow[] = [];
+    for (const slot of CMS_SLOT_KEYS) {
+      const rendersPublicly = !sidebarless || slot !== "sidebar";
+      const key = resolveCmsSlotKey(routeSlug, slot);
+      const item = bySlotKey.get(key) ?? null;
+      if (item) claimed.add(key);
+      if (item === null && !rendersPublicly) continue;
+      rows.push({ slot, item, rendersPublicly });
+    }
+    return {
+      slug: routeSlug,
+      label,
+      publicHref: routeSlug === "home" ? "/" : `/${routeSlug}`,
+      rows,
+    };
+  });
+
+  const extrasBySlug = new Map<string, CmsDirectoryRow[]>();
+  const unresolvable: CmsContent[] = [];
+  for (const item of content) {
+    if (claimed.has(item.slotKey)) continue;
+    const selection = slotSelection(item.slotKey);
+    if (!selection) {
+      unresolvable.push(item);
+      continue;
+    }
+    const bucket = extrasBySlug.get(selection.slug) ?? [];
+    bucket.push({ slot: selection.slot, item, rendersPublicly: true });
+    extrasBySlug.set(selection.slug, bucket);
+  }
+  const extras = [...extrasBySlug.entries()]
+    .map(([slug, rows]): CmsDirectoryGroup => ({
+      slug,
+      label: `/${slug}`,
+      publicHref: `/${slug}`,
+      rows: rows.sort(
+        (left, right) => CMS_SLOT_KEYS.indexOf(left.slot) - CMS_SLOT_KEYS.indexOf(right.slot),
+      ),
+    }))
+    .sort((left, right) => left.slug.localeCompare(right.slug));
+
+  return { groups, extras, unresolvable };
+}
+
+const DIRECTORY_TILE_LABELS: Record<CmsComponentType, string> = {
+  HERO: "Hero",
+  RICH_TEXT: "Text",
+  CTA_BANNER: "CTA",
+  NOTICE: "Note",
+  IMAGE_CARD: "Ảnh",
+};
+
+/**
+ * Small payload thumbnail for the page map. A broken or unsafe src falls back
+ * to a labeled tile so a bad image is visible as a problem instead of a gap.
+ */
+function DirectoryThumb({ item }: { item: CmsContent }): ReactElement {
+  const [broken, setBroken] = useState(false);
+  const imageUrl = payloadValue(item.payload, "imageUrl");
+  const showImage = imageUrl.length > 0 && isSafeCmsUrl(imageUrl) && !broken;
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-12 w-[4.5rem] shrink-0 items-center justify-center overflow-hidden rounded-sm border border-slate-200 bg-slate-100"
+    >
+      {showImage ? (
+        // eslint-disable-next-line @next/next/no-img-element -- arbitrary CMS URL, remote patterns unknowable at build time
+        <img
+          alt=""
+          className="h-full w-full object-cover"
+          decoding="async"
+          loading="lazy"
+          onError={() => setBroken(true)}
+          src={imageUrl}
+        />
+      ) : (
+        <span className={`px-1 text-center text-xs font-bold ${broken && imageUrl ? "text-red-600" : "text-slate-400"}`}>
+          {broken && imageUrl ? "Ảnh lỗi" : DIRECTORY_TILE_LABELS[item.componentType]}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function asCmsError(error: unknown): CmsApiError {
@@ -169,7 +289,9 @@ function apiErrorMessage(error: CmsApiError): string {
     case "forbidden":
       return "Tài khoản hiện tại không có quyền ADMIN (403). Nội dung chưa được thay đổi.";
     case "validation":
-      return "Dữ liệu CMS chưa hợp lệ (400/422). Hãy kiểm tra các trường và thử lại.";
+      return error.status > 0
+        ? "Dữ liệu chưa hợp lệ. Hãy kiểm tra các trường được đánh dấu và thử lại."
+        : "Danh mục nội dung trả về chưa đầy đủ hoặc không đúng định dạng. Hãy tải lại.";
     case "conflict":
       return "Nội dung đã thay đổi ở nơi khác (409). Tải lại slot trước khi ghi đè.";
     case "not-found":
@@ -260,7 +382,7 @@ function PayloadFields({
           <TextField {...common} field="body" label="Mô tả" multiline />
           <div className="grid gap-3 sm:grid-cols-2">
             <TextField {...common} field="ctaLabel" label="Nhãn CTA" />
-            <TextField {...common} field="ctaHref" label="URL CTA" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
+            <TextField {...common} field="ctaHref" label="URL CTA" help="Đường dẫn /..., HTTPS URL hoặc tel: (ví dụ tel:115)." />
           </div>
           <CmsImageField disabled={disabled} id="cms-hero-image" onChange={(v) => onChange("imageUrl", v)} value={payloadValue(draft.payload, "imageUrl")} />
         </div>
@@ -278,7 +400,7 @@ function PayloadFields({
           <TextField {...common} field="title" label="Tiêu đề" required />
           <TextField {...common} field="body" label="Nội dung" multiline required />
           <TextField {...common} field="ctaLabel" label="Nhãn CTA" required />
-          <TextField {...common} field="ctaHref" label="URL CTA" help="Chỉ đường dẫn /... hoặc HTTPS URL." required />
+          <TextField {...common} field="ctaHref" label="URL CTA" help="Đường dẫn /..., HTTPS URL hoặc tel: (ví dụ tel:19001234)." required />
         </div>
       );
     case "NOTICE":
@@ -294,7 +416,7 @@ function PayloadFields({
           <TextField {...common} field="title" label="Tiêu đề" required />
           <TextField {...common} field="body" label="Mô tả" multiline />
           <CmsImageField disabled={disabled} id="cms-image-card-image" onChange={(v) => onChange("imageUrl", v)} required value={payloadValue(draft.payload, "imageUrl")} />
-          <TextField {...common} field="href" label="URL đích" help="Chỉ đường dẫn /... hoặc HTTPS URL." />
+          <TextField {...common} field="href" label="URL đích" help="Đường dẫn /..., HTTPS URL hoặc tel: (ví dụ tel:115)." />
         </div>
       );
   }
@@ -318,6 +440,7 @@ export function CmsEditor({
   const [availableContent, setAvailableContent] = useState<CmsContent[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [inventoryRejectedKeys, setInventoryRejectedKeys] = useState<string[]>([]);
   const [history, setHistory] = useState<CmsContentHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -395,10 +518,15 @@ export function CmsEditor({
     const isCurrentInventoryRequest = (): boolean => inventoryGenerationRef.current === requestGeneration;
     setInventoryLoading(true);
     setInventoryError(null);
+    setInventoryRejectedKeys([]);
     try {
-      const slots = await client.listAdminContent();
+      const inventory = await client.listAdminInventory();
       if (!isCurrentInventoryRequest()) return;
-      setAvailableContent(slots.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      setInventoryRejectedKeys(inventory.errors.map((row) => row.slotKey));
+      setAvailableContent(inventory.content.sort((left, right) => left.slotKey.localeCompare(right.slotKey)));
+      if (inventory.errors.length) {
+        setInventoryError(`${inventory.errors.length} vùng cần kiểm tra: ${inventory.errors.map((row) => row.slotKey).join(", ")}. Các vùng hợp lệ vẫn có thể chỉnh sửa.`);
+      }
     } catch (error) {
       if (!isCurrentInventoryRequest()) return;
       setInventoryError(apiErrorMessage(asCmsError(error)));
@@ -417,9 +545,16 @@ export function CmsEditor({
   }, [initialSlug, loadAvailableContent, loadContent]);
 
   const loadedSelection = slotSelection(loadedSlotKey);
+  const directory = useMemo(() => buildPageDirectory(availableContent), [availableContent]);
   const editableSlot = loadedSelection?.slot ?? selectedSlot;
   const allowedComponentTypes = cmsComponentTypesForSlot(editableSlot);
   const sidebarlessRoute = CMS_SIDEBARLESS_ROUTE_SLUGS.has(slug.trim().toLowerCase());
+  // Live slotKey preview: the hint under "Slug trang" must reflect the slot
+  // currently chosen in the dropdown, not a stale "hero" example.
+  const previewSlug = slug.trim().toLowerCase();
+  const slotKeyPreview = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(previewSlug)
+    ? resolveCmsSlotKey(previewSlug, selectedSlot)
+    : `${previewSlug || "slug"}.${selectedSlot}`;
 
   const handleSlugChange = (nextSlug: string): void => {
     setSlug(nextSlug);
@@ -572,10 +707,22 @@ export function CmsEditor({
   const isBusy = operation !== "idle";
   const authBlocked = apiError?.kind === "auth" || apiError?.kind === "forbidden";
   const canMutate = !authBlocked && !isBusy;
+  const compactedPayload = compactPayload(draft.payload);
+  // The public page falls back to a site-owned default image for some slots
+  // (e.g. homepage.hero). The preview must render that same effective image —
+  // labeled as the default — instead of dropping the visual, so the admin sees
+  // exactly what visitors see.
+  const defaultSlotImage = CMS_SLOT_DEFAULT_IMAGES[loadedSlotKey] ?? "";
+  const previewUsesDefaultImage =
+    defaultSlotImage.length > 0
+    && payloadValue(compactedPayload, "imageUrl").length === 0
+    && (draft.componentType === "HERO" || draft.componentType === "IMAGE_CARD");
   const previewContent = {
     slotKey: loadedSlotKey,
     componentType: draft.componentType,
-    payload: compactPayload(draft.payload),
+    payload: previewUsesDefaultImage
+      ? { ...compactedPayload, imageUrl: defaultSlotImage }
+      : compactedPayload,
     status: draft.status,
     version: content?.version ?? 0,
     updatedAt: content?.updatedAt ?? "",
@@ -584,8 +731,8 @@ export function CmsEditor({
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">CMS nội dung</p>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Chỉnh sửa một component theo slot</h1>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-700">CMS Live</p>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">Cập nhật nội dung theo từng trang</h1>
         <p className="max-w-3xl text-sm leading-6 text-slate-600">
           Mỗi slot lưu đúng một component typed theo backend contract. Không có nội dung demo tự động thay thế khi live backend chưa sẵn sàng.
         </p>
@@ -607,7 +754,7 @@ export function CmsEditor({
             disabled={isBusy}
             value={slug}
           />
-          <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">home + hero → homepage.hero</span>
+          <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">{previewSlug || "slug"} + {selectedSlot} → {slotKeyPreview}</span>
         </label>
         <label className="text-sm font-semibold text-slate-700">
           Slot
@@ -627,52 +774,97 @@ export function CmsEditor({
         </button>
       </form>
 
-      <section aria-labelledby="cms-route-directory-title" className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Public route directory</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-950" id="cms-route-directory-title">Chọn nhanh vùng trang cần quản trị</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Chọn nhóm trang, giữ slot và bấm “Tải slot” để đọc version live hiện tại. Trang chi tiết dùng chung slot theo nhóm route.</p>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {CMS_ROUTE_PRESETS.map(([routeSlug, label]) => (
-            <button
-              aria-pressed={slug === routeSlug}
-              className={`min-h-11 rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${slug === routeSlug ? "border-teal-700 bg-teal-50 text-teal-950" : "border-slate-300 text-slate-700 hover:bg-slate-50"}`}
-              key={routeSlug}
-              onClick={() => handleSlugChange(routeSlug)}
-              disabled={isBusy}
-              type="button"
-            >
-              {label}
-              <span className="ml-2 font-mono text-xs font-normal text-slate-600">/{routeSlug}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
       <section aria-labelledby="cms-slot-directory-title" className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Slot directory</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Sơ đồ nội dung theo trang</p>
             <h2 className="mt-1 text-xl font-bold text-slate-950" id="cms-slot-directory-title">Các component CMS đã có trong backend</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+              Mỗi thẻ là một trang công khai; các dòng bên trong đúng trình tự render trên trang đó: Hero → Nội dung chính → Sidebar → Footer. Bấm một dòng để tải slot tương ứng, hoặc mở trang live để đối chiếu trực tiếp.
+            </p>
           </div>
           <button className="min-h-11 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60" disabled={inventoryLoading || isBusy} onClick={() => void loadAvailableContent()} type="button">
             {inventoryLoading ? "Đang đọc…" : "Làm mới danh mục"}
           </button>
         </div>
         {inventoryError ? <p className="mt-3 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950" role="status">{inventoryError} Có thể nhập slug thủ công nếu phiên ADMIN đã sẵn sàng.</p> : null}
+        {inventoryRejectedKeys.length > 0 ? (
+          <p className="mt-3 rounded-sm border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950" role="status">
+            {inventoryRejectedKeys.length} slot trả về không đúng schema và không hiển thị trong sơ đồ: <span className="font-mono">{inventoryRejectedKeys.join(", ")}</span>. Hãy sửa trực tiếp slot đó hoặc báo quản trị kỹ thuật.
+          </p>
+        ) : null}
         {!inventoryLoading && !inventoryError && availableContent.length === 0 ? <p className="mt-3 text-sm text-slate-600">Chưa có slot CMS nào được trả về. Hãy nhập slug route và tải slot để tạo component đầu tiên.</p> : null}
         {availableContent.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {availableContent.map((item) => {
-              const selection = slotSelection(item.slotKey);
-              return selection ? (
-                <button className="min-h-11 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-left text-sm font-semibold text-teal-950 hover:bg-teal-100 disabled:opacity-60" disabled={isBusy} key={item.slotKey} onClick={() => void loadContent(selection.slug, selection.slot)} type="button">
-                  <span className="block font-mono text-xs">{item.slotKey}</span>
-                  <span className="block text-xs font-normal text-teal-800">{item.componentType} · v{item.version} · {item.status}</span>
-                </button>
-              ) : null;
-            })}
+          <div className="mt-4 grid gap-4 xl:grid-cols-2">
+            {[...directory.groups, ...directory.extras].map((group) => (
+              <section className="overflow-hidden rounded-sm border border-slate-200" key={group.slug}>
+                <header className="flex items-center justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-bold text-slate-900">{group.label}</h3>
+                    <p className="font-mono text-xs text-slate-500">{group.publicHref}</p>
+                  </div>
+                  <a className="shrink-0 rounded-sm border border-slate-300 px-2 py-1 text-xs font-bold text-slate-700 hover:bg-white" href={group.publicHref} rel="noopener noreferrer" target="_blank">
+                    Mở trang
+                  </a>
+                </header>
+                <ul className="divide-y divide-slate-100">
+                  {group.rows.map((row) => {
+                    const isCurrent = loadedSelection?.slug === group.slug && loadedSelection?.slot === row.slot;
+                    const title = row.item ? payloadValue(row.item.payload, "title") : "";
+                    return (
+                      <li key={row.slot}>
+                        <button
+                          aria-current={isCurrent || undefined}
+                          className={`flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors disabled:opacity-60 ${isCurrent ? "bg-teal-50" : row.item ? "hover:bg-slate-50" : "bg-white hover:bg-slate-50"}`}
+                          disabled={isBusy}
+                          onClick={() => void loadContent(group.slug, row.slot)}
+                          type="button"
+                        >
+                          {row.item ? <DirectoryThumb item={row.item} /> : (
+                            <span aria-hidden="true" className="flex h-12 w-[4.5rem] shrink-0 items-center justify-center rounded-sm border border-dashed border-slate-300 bg-white text-xs font-bold text-slate-400">
+                              Trống
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-baseline gap-2">
+                              <span className="text-sm font-bold text-slate-900">{SLOT_LABELS[row.slot]}</span>
+                              <span className="truncate font-mono text-xs text-slate-500">{row.item?.slotKey ?? resolveCmsSlotKey(group.slug, row.slot)}</span>
+                            </span>
+                            {row.item ? (
+                              <span className="mt-0.5 block">
+                                <span className="block truncate text-xs text-slate-600">{title || "(chưa có tiêu đề)"}</span>
+                                <span className="mt-0.5 block text-xs text-slate-500">
+                                  {row.item.componentType} · v{row.item.version} ·{" "}
+                                  <span className={row.item.status === "PUBLISHED" ? "font-semibold text-emerald-700" : "font-semibold text-amber-700"}>{row.item.status}</span>
+                                  {" · "}{prettyUpdatedAt(row.item.updatedAt)}
+                                </span>
+                                {!row.rendersPublicly ? (
+                                  <span className="mt-1 inline-block rounded-sm bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">Slot này không render trên trang công khai</span>
+                                ) : null}
+                              </span>
+                            ) : (
+                              <span className="mt-0.5 block text-xs text-slate-500">Trống — bấm để tạo component cho vùng này.</span>
+                            )}
+                          </span>
+                          {isCurrent ? <span className="shrink-0 rounded-sm bg-teal-700 px-2 py-0.5 text-xs font-bold text-white">Đang sửa</span> : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
+        ) : null}
+        {directory.unresolvable.length > 0 ? (
+          <div className="mt-4 rounded-sm border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-semibold text-amber-950">Slot không thuộc sơ đồ trang chuẩn</p>
+            <ul className="mt-2 space-y-1 text-xs text-amber-900">
+              {directory.unresolvable.map((item) => (
+                <li className="font-mono" key={item.slotKey}>{item.slotKey} · {item.componentType} · v{item.version}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-amber-900">Nhập phần đầu của slotKey vào ô slug thủ công để chỉnh sửa.</p>
           </div>
         ) : null}
       </section>
@@ -785,6 +977,11 @@ export function CmsEditor({
           </div>
           <article className="rounded-sm border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <CmsContentRenderer content={previewContent} />
+            {previewUsesDefaultImage ? (
+              <p className="mt-3 border-t border-slate-100 pt-2 text-xs leading-5 text-slate-500">
+                Đang dùng ảnh mặc định của trang — đặt URL hình ảnh để thay thế.
+              </p>
+            ) : null}
           </article>
         </aside>
       </div>

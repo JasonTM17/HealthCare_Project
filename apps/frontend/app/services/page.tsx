@@ -8,6 +8,7 @@ import type { MedicalService } from "../../types/hospital";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
 import CatalogPagination from "../../components/CatalogPagination";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 const SERVICE_STEPS = [
   {
@@ -82,127 +83,137 @@ export default function ServicesPage() {
   return (
     <PublicPageShell>
       <div className="catalog-page catalog-page--directory section-inner">
-        <header className="resource-page__header">
-          <p className="section-note">Dịch vụ y tế</p>
-          <h1>Dịch vụ cho từng nhu cầu chăm sóc</h1>
-          <p>
-            Khám phá các dịch vụ hiện có và lựa chọn phương án phù hợp với nhu cầu của bạn.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Dịch vụ y tế"} className="section-note">Dịch vụ y tế</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Dịch vụ cho từng nhu cầu chăm sóc"}>Dịch vụ cho từng nhu cầu chăm sóc</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Khám phá các dịch vụ hiện có và lựa chọn phương án phù hợp với nhu cầu của bạn."}>
+              Khám phá các dịch vụ hiện có và lựa chọn phương án phù hợp với nhu cầu của bạn.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
-            <ClinicalIcon name="service" />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Danh mục dịch vụ</p>
-            <h2>Một nơi để đọc, so sánh và đi tiếp sang đặt lịch.</h2>
-            <p className="resource-lead">
-              Dịch vụ công khai được gom vào cùng một khung để bạn dễ chọn hơn trước khi mở form khám
-              hay liên hệ hỗ trợ.
-            </p>
-            <div className="resource-actions">
-              <PublicBookingButton>Đặt lịch tư vấn</PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/packages">
-                Xem gói khám
-              </Link>
-            </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Tổng dịch vụ</dt>
-                <dd aria-live="polite">{serviceCountLabel}</dd>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal">
+              <div className="resource-icon" aria-hidden="true">
+                <ClinicalIcon name="service" />
               </div>
-              <div>
-                <dt>Dịch vụ nổi bật</dt>
-                <dd aria-live="polite">{featuredServiceLabel}</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <details className="catalog-guidance">
-          <summary>Cách chọn phù hợp</summary>
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Cách đọc danh mục</p>
-            <h2>Ba mốc để chọn nhanh</h2>
-            <div className="resource-steps resource-steps--grid">
-              {SERVICE_STEPS.map((step) => (
-                <div className="resource-step-card" key={step.number}>
-                  <span>{step.number}</span>
-                  <strong>{step.title}</strong>
-                  <p>{step.description}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="resource-panel">
-            <p className="section-note">Dịch vụ nổi bật</p>
-            <h2>Điểm bắt đầu của danh mục</h2>
-            {featuredService ? (
-              <>
-                <p>{featuredService.description || "Mô tả ngắn đang chờ duyệt. Hãy mở chi tiết hoặc đặt lịch để được tư vấn đúng nhu cầu."}</p>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Danh mục dịch vụ"} className="resource-chip">Danh mục dịch vụ</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Một nơi để đọc, so sánh và đi tiếp sang đặt lịch."}>Một nơi để đọc, so sánh và đi tiếp sang đặt lịch.</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Dịch vụ công khai được gom vào cùng một khung để bạn dễ chọn hơn trước khi mở form khám hay liên hệ hỗ trợ."} className="resource-lead">
+                  Dịch vụ công khai được gom vào cùng một khung để bạn dễ chọn hơn trước khi mở form khám
+                  hay liên hệ hỗ trợ.
+                </CmsNativeText>
                 <div className="resource-actions">
-                  <Link className="text-button" href={`/services/${featuredService.slug}`}>
-                    Xem chi tiết →
+                  <PublicBookingButton>Đặt lịch tư vấn</PublicBookingButton>
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <Link className="outline-button outline-button--light" href="/packages">
+                    Xem gói khám
                   </Link>
-                  <PublicBookingButton className="outline-button outline-button--small">
-                    Đặt lịch tư vấn
-                  </PublicBookingButton>
                 </div>
-              </>
-            ) : (
-              <p className="resource-muted">Chưa có dịch vụ công khai. Bạn vẫn có thể đặt lịch tư vấn hoặc xem gói khám liên quan.</p>
-            )}
-          </section>
-        </div>
-        </details>
-
-        {loading ? (
-          <p className="catalog-status catalog-status--loading" role="status">
-            Đang tải danh mục dịch vụ…
-          </p>
-        ) : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && page?.empty ? (
-          <div className="catalog-status" role="status">
-            <p>Chưa có dịch vụ công khai. Bạn vẫn có thể đặt lịch tư vấn hoặc liên hệ bệnh viện để được hướng dẫn.</p>
-            <div className="resource-actions">
-              <PublicBookingButton className="button button--amber">Đặt lịch tư vấn</PublicBookingButton>
-              <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
-            </div>
-          </div>
-        ) : null}
-
-        {page && !page.empty ? (
-          <>
-            <p className="catalog-meta">
-              {page.totalElements} dịch vụ · Trang {page.number + 1}/{page.totalPages}
-            </p>
-            <div className="catalog-grid">
-              {page.content.map((service) => (
-                <article className="catalog-card" key={service.id}>
-                  <span className="resource-icon resource-icon--small" aria-hidden="true">
-                    <ClinicalIcon name="service" />
-                  </span>
-                  <h2>{service.name}</h2>
-                  <p>{service.description || "Mô tả ngắn đang chờ duyệt. Hãy mở chi tiết hoặc đặt lịch để được tư vấn đúng nhu cầu."}</p>
-                  <div className="catalog-card__actions">
-                    <Link className="text-button" href={`/services/${service.slug}`}>
-                      Xem chi tiết →
-                    </Link>
-                    <PublicBookingButton className="outline-button outline-button--small">
-                      Đặt lịch tư vấn
-                    </PublicBookingButton>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Tổng dịch vụ</dt>
+                    <dd aria-live="polite">{serviceCountLabel}</dd>
                   </div>
-                </article>
-              ))}
+                  <div>
+                    <dt>Dịch vụ nổi bật</dt>
+                    <dd aria-live="polite">{featuredServiceLabel}</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          </CmsNativeSection>
+
+          <CmsNativeSection sectionId="guide">
+            <details className="catalog-guidance">
+              <summary>Cách chọn phù hợp</summary>
+              <div className="resource-grid resource-grid--two">
+                <section className="resource-panel resource-panel--accent">
+                  <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Cách đọc danh mục"} className="section-note">Cách đọc danh mục</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title" as="h2" value={"Ba mốc để chọn nhanh"}>Ba mốc để chọn nhanh</CmsNativeText>
+                  <div className="resource-steps resource-steps--grid">
+                    {SERVICE_STEPS.map((step, cmsItemIndex) => (
+                      <div className="resource-step-card" key={step.number}>
+                        <span>{step.number}</span>
+                        <CmsNativeText fieldId={`guide.step${step.number}.title`} as="strong" value={step.title}>{step.title}</CmsNativeText>
+                        <CmsNativeText fieldId={`guide.step${step.number}.body`} as="p" value={step.description}>{step.description}</CmsNativeText>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="resource-panel">
+                  <CmsNativeText fieldId="guide.eyebrow2" as="p" value={"Dịch vụ nổi bật"} className="section-note">Dịch vụ nổi bật</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title2" as="h2" value={"Điểm bắt đầu của danh mục"}>Điểm bắt đầu của danh mục</CmsNativeText>
+                  {featuredService ? (
+                    <>
+                      <p>{featuredService.description || "Mô tả ngắn đang chờ duyệt. Hãy mở chi tiết hoặc đặt lịch để được tư vấn đúng nhu cầu."}</p>
+                      <div className="resource-actions">
+                        <Link className="text-button" href={`/services/${featuredService.slug}`}>
+                          Xem chi tiết →
+                        </Link>
+                        <PublicBookingButton className="outline-button outline-button--small">
+                          Đặt lịch tư vấn
+                        </PublicBookingButton>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="resource-muted">Chưa có dịch vụ công khai. Bạn vẫn có thể đặt lịch tư vấn hoặc xem gói khám liên quan.</p>
+                  )}
+                </section>
+              </div>
+            </details>
+          </CmsNativeSection>
+        </CmsNativeSections>
+
+        <CmsNativeSection sectionId="directory">
+          {loading ? (
+            <p className="catalog-status catalog-status--loading" role="status">
+              Đang tải danh mục dịch vụ…
+            </p>
+          ) : null}
+          {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+          {!loading && !error && page?.empty ? (
+            <div className="catalog-status" role="status">
+              <p>Chưa có dịch vụ công khai. Bạn vẫn có thể đặt lịch tư vấn hoặc liên hệ bệnh viện để được hướng dẫn.</p>
+              <div className="resource-actions">
+                <PublicBookingButton className="button button--amber">Đặt lịch tư vấn</PublicBookingButton>
+                <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
+              </div>
             </div>
-            <CatalogPagination label="Phân trang dịch vụ" onPageChange={setCurrentPage} page={page} />
-          </>
-        ) : null}
+          ) : null}
+
+          {page && !page.empty ? (
+            <>
+              <p className="catalog-meta">
+                {page.totalElements} dịch vụ · Trang {page.number + 1}/{page.totalPages}
+              </p>
+              <div className="catalog-grid">
+                {page.content.map((service) => (
+                  <article className="catalog-card" key={service.id}>
+                    <span className="resource-icon resource-icon--small" aria-hidden="true">
+                      <ClinicalIcon name="service" />
+                    </span>
+                    <h2>{service.name}</h2>
+                    <p>{service.description || "Mô tả ngắn đang chờ duyệt. Hãy mở chi tiết hoặc đặt lịch để được tư vấn đúng nhu cầu."}</p>
+                    <div className="catalog-card__actions">
+                      <Link className="text-button" href={`/services/${service.slug}`}>
+                        Xem chi tiết →
+                      </Link>
+                      <PublicBookingButton className="outline-button outline-button--small">
+                        Đặt lịch tư vấn
+                      </PublicBookingButton>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <CatalogPagination label="Phân trang dịch vụ" onPageChange={setCurrentPage} page={page} />
+            </>
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

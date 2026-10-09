@@ -11,6 +11,8 @@ import type { CmsContent, CmsHeroPayload } from "../../lib/cms-client";
 import type { JobPosition } from "../../types/hospital";
 import CareerApplicationDialog from "./CareerApplicationDialog";
 import styles from "./careers.module.css";
+import { CmsNativeSection, CmsNativeText } from "../../components/cms/cms-page-layout-provider";
+import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
 
 function formatDeadline(value?: string | null): string | null {
   if (!value) return null;
@@ -34,13 +36,13 @@ function CareerHero({ content, loading, positionCount }: {
     <section className={styles.hero}>
       <div className={`${styles.inner} ${styles.heroGrid}`}>
         <div className={styles.heroCopy}>
-          {content.eyebrow ? <span className={styles.eyebrow}>{content.eyebrow}</span> : null}
-          <h1>{content.title}</h1>
-          {content.body ? <p>{content.body}</p> : null}
+          {content.eyebrow ? <CmsNativeText fieldId="hero.eyebrow" className={styles.eyebrow} value={content.eyebrow} /> : null}
+          <CmsNativeText fieldId="hero.title" as="h1" value={content.title} />
+          {content.body ? <CmsNativeText fieldId="hero.body" as="p" value={content.body} /> : null}
           <div className={styles.heroActions}>
             {content.ctaLabel && content.ctaHref ? (
               <a className={styles.primaryButton} href={content.ctaHref}>
-                {content.ctaLabel} <Icon name="arrow-right" size={18} />
+                <CmsNativeText fieldId="hero.ctaLabel" value={content.ctaLabel} /> <Icon name="arrow-right" size={18} />
               </a>
             ) : null}
             <Link className={styles.secondaryButton} href="/about">Tìm hiểu về bệnh viện</Link>
@@ -53,17 +55,17 @@ function CareerHero({ content, loading, positionCount }: {
           </div>
           <div className={styles.pathCard}>
             <span className={styles.pathIcon}><Icon name="user" size={22} /></span>
-            <div><strong>Chọn vị trí</strong><small>Đọc kỹ phạm vi công việc</small></div>
+            <div><CmsNativeText fieldId="hero.step1.title" as="strong" value="Chọn vị trí" /><CmsNativeText fieldId="hero.step1.body" as="small" value="Đọc kỹ phạm vi công việc" /></div>
           </div>
           <div className={styles.pathLine} aria-hidden="true" />
           <div className={styles.pathCard}>
             <span className={styles.pathIcon}><Icon name="mail" size={22} /></span>
-            <div><strong>Gửi hồ sơ</strong><small>Nhận mã tiếp nhận ngay</small></div>
+            <div><CmsNativeText fieldId="hero.step2.title" as="strong" value="Gửi hồ sơ" /><CmsNativeText fieldId="hero.step2.body" as="small" value="Nhận mã tiếp nhận ngay" /></div>
           </div>
           <div className={styles.pathLine} aria-hidden="true" />
           <div className={styles.pathCard}>
             <span className={styles.pathIcon}><Icon name="heart" size={22} /></span>
-            <div><strong>Trao đổi phù hợp</strong><small>Đội ngũ tuyển dụng chủ động liên hệ</small></div>
+            <div><CmsNativeText fieldId="hero.step3.title" as="strong" value="Trao đổi phù hợp" /><CmsNativeText fieldId="hero.step3.body" as="small" value="Đội ngũ tuyển dụng chủ động liên hệ" /></div>
           </div>
         </div>
       </div>
@@ -71,14 +73,14 @@ function CareerHero({ content, loading, positionCount }: {
   );
 }
 
-function CareerCmsBody({ content }: { content: CmsContent }): React.ReactElement {
+function CareerCmsBody({ content }: { content: CmsContent; }): React.ReactElement {
   const payload = content.payload;
   return (
     <section className={`${styles.inner} ${styles.cmsBody}`} aria-labelledby="career-cms-body-title">
       <div>
-        <span className={styles.eyebrow}>Thông tin dành cho ứng viên</span>
-        <h2 id="career-cms-body-title">{payload.title}</h2>
-        {payload.body ? <p>{payload.body}</p> : null}
+        <CmsNativeText fieldId="values.authoredEyebrow" className={styles.eyebrow} value="Thông tin dành cho ứng viên" />
+        <CmsNativeText fieldId="values.authoredTitle" as="h2" id="career-cms-body-title" value={payload.title} />
+        {payload.body ? <CmsNativeText fieldId="values.authoredBody" as="p" value={payload.body} /> : null}
       </div>
       {"ctaLabel" in payload && payload.ctaLabel && "ctaHref" in payload && payload.ctaHref ? (
         <a className={styles.secondaryButton} href={payload.ctaHref}>{payload.ctaLabel} <Icon name="arrow-right" size={18} /></a>
@@ -129,151 +131,159 @@ export default function CareersPage(): React.ReactElement {
   return (
     <PublicPageShell>
       <div className={styles.page}>
-        <CmsLiveSlot
-          fallback={<CareerHero content={DEFAULT_HERO} loading={loading} positionCount={positions.length} />}
-          hideWhenNotFound
-          renderContent={(content) => (
-            <CareerHero
-              content={content.componentType === "HERO" ? content.payload : DEFAULT_HERO}
-              loading={loading}
-              positionCount={positions.length}
-            />
-          )}
-          showSourceLabel={false}
-          slug="careers"
-          slotKey="hero"
-        />
+        <CmsNativeSection sectionId="hero">
+          <CmsLiveSlot
+            fallback={<CareerHero content={DEFAULT_HERO} loading={loading} positionCount={positions.length} />}
+            hideWhenNotFound
+            renderContent={(content) => (
+              <CareerHero
+                content={content.componentType === "HERO" ? content.payload : DEFAULT_HERO}
+                loading={loading}
+                positionCount={positions.length}
+              />
+            )}
+            showSourceLabel={false}
+            slug="careers"
+            slotKey="hero"
+          />
+        </CmsNativeSection>
 
-        <section className={`${styles.inner} ${styles.values}`} aria-labelledby="career-values-title">
-          <div className={styles.sectionIntro}>
-            <span className={styles.eyebrow}>Cùng một mục tiêu</span>
-            <h2 id="career-values-title">Môi trường để bạn làm tốt phần việc của mình</h2>
-            <p>Chúng tôi ưu tiên cách làm việc có quy trình, phối hợp liên chuyên môn và tôn trọng từng người trong đội ngũ.</p>
-          </div>
-          <div className={styles.valueGrid}>
-            <article className={styles.valueCard}>
-              <Icon name="shield-check" size={27} />
-              <h3>An toàn là nền tảng</h3>
-              <p>Mỗi quyết định và quy trình đều bắt đầu từ sự an toàn của người bệnh và nhân viên y tế.</p>
-            </article>
-            <article className={styles.valueCard}>
-              <Icon name="layers" size={27} />
-              <h3>Phối hợp rõ ràng</h3>
-              <p>Thông tin được bàn giao đầy đủ, trách nhiệm được xác định và phản hồi được ghi nhận.</p>
-            </article>
-            <article className={styles.valueCard}>
-              <Icon name="heart" size={27} />
-              <h3>Tôn trọng con người</h3>
-              <p>Chuyên môn đi cùng lắng nghe, thấu hiểu hoàn cảnh của người bệnh và đồng nghiệp.</p>
-            </article>
-          </div>
-        </section>
-
-        <CmsLiveSlot
-          className={styles.cmsLiveSlot}
-          hideWhenNotFound
-          hideWhileLoading
-          renderContent={(content) => <CareerCmsBody content={content} />}
-          showSourceLabel={false}
-          slug="careers"
-          slotKey="body"
-        />
-
-        <section className={styles.openings} id="vi-tri-dang-tuyen" aria-labelledby="openings-title">
-          <div className={styles.inner}>
-            <div className={styles.openingsHeading}>
-              <div className={styles.sectionIntro}>
-                <span className={styles.eyebrow}>Vị trí đang tuyển</span>
-                <h2 id="openings-title">Tìm công việc phù hợp với bạn</h2>
-                <p>Các vị trí đang tiếp nhận hồ sơ và thông tin cần biết trước khi bạn ứng tuyển.</p>
-              </div>
-              <div className={styles.filters} aria-label="Lọc vị trí tuyển dụng">
-                <label>
-                  <span>Khối chuyên môn</span>
-                  <select value={department} onChange={(event) => setDepartment(event.target.value)}>
-                    <option value="">Tất cả khối</option>
-                    {departments.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>Nơi làm việc</span>
-                  <select value={location} onChange={(event) => setLocation(event.target.value)}>
-                    <option value="">Tất cả cơ sở</option>
-                    {locations.map((item) => <option key={item} value={item}>{item}</option>)}
-                  </select>
-                </label>
-              </div>
+        <CmsNativeSection sectionId="values">
+          <section className={`${styles.inner} ${styles.values}`} aria-labelledby="career-values-title">
+            <div className={styles.sectionIntro}>
+              <CmsNativeText fieldId="values.eyebrow" as="span" value={"Cùng một mục tiêu"} className={styles.eyebrow}>Cùng một mục tiêu</CmsNativeText>
+              <CmsNativeText fieldId="values.title" as="h2" value={"Môi trường để bạn làm tốt phần việc của mình"} id="career-values-title">Môi trường để bạn làm tốt phần việc của mình</CmsNativeText>
+              <CmsNativeText fieldId="values.body" as="p" value={"Chúng tôi ưu tiên cách làm việc có quy trình, phối hợp liên chuyên môn và tôn trọng từng người trong đội ngũ."}>Chúng tôi ưu tiên cách làm việc có quy trình, phối hợp liên chuyên môn và tôn trọng từng người trong đội ngũ.</CmsNativeText>
             </div>
+            <div className={styles.valueGrid}>
+              <article className={styles.valueCard}>
+                <Icon name="shield-check" size={27} />
+                <CmsNativeText fieldId="values.title2" as="h3" value={"An toàn là nền tảng"}>An toàn là nền tảng</CmsNativeText>
+                <CmsNativeText fieldId="values.body2" as="p" value={"Mỗi quyết định và quy trình đều bắt đầu từ sự an toàn của người bệnh và nhân viên y tế."}>Mỗi quyết định và quy trình đều bắt đầu từ sự an toàn của người bệnh và nhân viên y tế.</CmsNativeText>
+              </article>
+              <article className={styles.valueCard}>
+                <Icon name="layers" size={27} />
+                <CmsNativeText fieldId="values.title3" as="h3" value={"Phối hợp rõ ràng"}>Phối hợp rõ ràng</CmsNativeText>
+                <CmsNativeText fieldId="values.body3" as="p" value={"Thông tin được bàn giao đầy đủ, trách nhiệm được xác định và phản hồi được ghi nhận."}>Thông tin được bàn giao đầy đủ, trách nhiệm được xác định và phản hồi được ghi nhận.</CmsNativeText>
+              </article>
+              <article className={styles.valueCard}>
+                <Icon name="heart" size={27} />
+                <CmsNativeText fieldId="values.title4" as="h3" value={"Tôn trọng con người"}>Tôn trọng con người</CmsNativeText>
+                <CmsNativeText fieldId="values.body4" as="p" value={"Chuyên môn đi cùng lắng nghe, thấu hiểu hoàn cảnh của người bệnh và đồng nghiệp."}>Chuyên môn đi cùng lắng nghe, thấu hiểu hoàn cảnh của người bệnh và đồng nghiệp.</CmsNativeText>
+              </article>
+            </div>
+          </section>
 
-            {loading ? (
-              <div className={styles.jobList} aria-busy="true" aria-label="Đang tải vị trí tuyển dụng">
-                {[0, 1, 2].map((item) => <div className={styles.jobSkeleton} key={item} />)}
-              </div>
-            ) : null}
-            {error ? (
-              <div className={styles.stateCard} role="alert">
-                <Icon name="alert-triangle" size={24} />
-                <div><strong>Danh sách chưa tải được</strong><p>{error}</p></div>
-                <button className={styles.secondaryButton} onClick={loadPositions} type="button">Thử tải lại</button>
-              </div>
-            ) : null}
-            {!loading && !error && visiblePositions.length === 0 ? (
-              <div className={styles.stateCard} role="status">
-                <Icon name="search" size={24} />
-                <div><strong>Chưa có vị trí phù hợp bộ lọc</strong><p>Hãy chọn lại khối chuyên môn hoặc nơi làm việc.</p></div>
-                <button className={styles.secondaryButton} onClick={() => { setDepartment(""); setLocation(""); }} type="button">Xóa bộ lọc</button>
-              </div>
-            ) : null}
+          <CmsLiveSlot
+            className={styles.cmsLiveSlot}
+            hideWhenNotFound
+            hideWhileLoading
+            renderContent={(content) => <CareerCmsBody content={content} />}
+            showSourceLabel={false}
+            slug="careers"
+            slotKey="body"
+          />
+        </CmsNativeSection>
 
-            {!loading && !error && visiblePositions.length > 0 ? (
-              <div className={styles.jobList}>
-                {visiblePositions.map((position) => {
-                  const deadline = formatDeadline(position.deadline);
-                  return (
-                    <article className={`${styles.jobCard} ${position.featured ? styles.jobCardFeatured : ""}`} key={position.id}>
-                      <div className={styles.jobTopline}>
-                        <div className={styles.jobTags}>
-                          {position.featured ? <span className={styles.featuredTag}>Ưu tiên tuyển</span> : null}
-                          <span>{position.department}</span>
-                        </div>
-                        <span className={styles.typeTag}>{position.employmentTypeLabel}</span>
-                      </div>
-                      <div className={styles.jobMain}>
-                        <div>
-                          <h3>{position.title}</h3>
-                          <div className={styles.jobMeta}>
-                            <span><Icon name="location" size={17} /> {position.location}</span>
-                            {deadline ? <span><Icon name="calendar" size={17} /> Nhận hồ sơ đến {deadline}</span> : null}
+        <CmsNativeSection sectionId="openings">
+          <section className={styles.openings} id="vi-tri-dang-tuyen" aria-labelledby="openings-title">
+            <div className={styles.inner}>
+              <div className={styles.openingsHeading}>
+                <div className={styles.sectionIntro}>
+                  <CmsNativeText fieldId="openings.eyebrow" as="span" value={"Vị trí đang tuyển"} className={styles.eyebrow}>Vị trí đang tuyển</CmsNativeText>
+                  <CmsNativeText fieldId="openings.title" as="h2" value={"Tìm công việc phù hợp với bạn"} id="openings-title">Tìm công việc phù hợp với bạn</CmsNativeText>
+                  <CmsNativeText fieldId="openings.body" as="p" value={"Các vị trí đang tiếp nhận hồ sơ và thông tin cần biết trước khi bạn ứng tuyển."}>Các vị trí đang tiếp nhận hồ sơ và thông tin cần biết trước khi bạn ứng tuyển.</CmsNativeText>
+                </div>
+                <div className={styles.filters} aria-label="Lọc vị trí tuyển dụng">
+                  <label>
+                    <span>Khối chuyên môn</span>
+                    <select value={department} onChange={(event) => setDepartment(event.target.value)}>
+                      <option value="">Tất cả khối</option>
+                      {departments.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span>Nơi làm việc</span>
+                    <select value={location} onChange={(event) => setLocation(event.target.value)}>
+                      <option value="">Tất cả cơ sở</option>
+                      {locations.map((item) => <option key={item} value={item}>{item}</option>)}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              {loading ? (
+                <div className={styles.jobList} aria-busy="true" aria-label="Đang tải vị trí tuyển dụng">
+                  {[0, 1, 2].map((item) => <div className={styles.jobSkeleton} key={item} />)}
+                </div>
+              ) : null}
+              {error ? (
+                <div className={styles.stateCard} role="alert">
+                  <Icon name="alert-triangle" size={24} />
+                  <div><strong>Danh sách chưa tải được</strong><p>{error}</p></div>
+                  <button className={styles.secondaryButton} onClick={loadPositions} type="button">Thử tải lại</button>
+                </div>
+              ) : null}
+              {!loading && !error && visiblePositions.length === 0 ? (
+                <div className={styles.stateCard} role="status">
+                  <Icon name="search" size={24} />
+                  <div><strong>Chưa có vị trí phù hợp bộ lọc</strong><p>Hãy chọn lại khối chuyên môn hoặc nơi làm việc.</p></div>
+                  <button className={styles.secondaryButton} onClick={() => { setDepartment(""); setLocation(""); }} type="button">Xóa bộ lọc</button>
+                </div>
+              ) : null}
+
+              {!loading && !error && visiblePositions.length > 0 ? (
+                <div className={styles.jobList}>
+                  {visiblePositions.map((position) => {
+                    const deadline = formatDeadline(position.deadline);
+                    return (
+                      <article className={`${styles.jobCard} ${position.featured ? styles.jobCardFeatured : ""}`} key={position.id}>
+                        <div className={styles.jobTopline}>
+                          <div className={styles.jobTags}>
+                            {position.featured ? <span className={styles.featuredTag}>Ưu tiên tuyển</span> : null}
+                            <span>{position.department}</span>
                           </div>
-                          <p>{position.summary}</p>
+                          <span className={styles.typeTag}>{position.employmentTypeLabel}</span>
                         </div>
-                        <button className={styles.primaryButton} onClick={() => setSelectedPosition(position)} type="button">
-                          Ứng tuyển vị trí này <Icon name="arrow-right" size={18} />
-                        </button>
-                      </div>
-                      <details className={styles.jobDetails}>
-                        <summary>Xem mô tả công việc và yêu cầu</summary>
-                        <div className={styles.detailGrid}>
-                          <div><h4>Công việc chính</h4><ul>{position.responsibilities.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                          <div><h4>Yêu cầu</h4><ul>{position.requirements.map((item) => <li key={item}>{item}</li>)}</ul></div>
-                          <div><h4>Khi đồng hành</h4><ul>{position.benefits.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                        <div className={styles.jobMain}>
+                          <div>
+                            <h3>{position.title}</h3>
+                            <div className={styles.jobMeta}>
+                              <span><Icon name="location" size={17} /> {position.location}</span>
+                              {deadline ? <span><Icon name="calendar" size={17} /> Nhận hồ sơ đến {deadline}</span> : null}
+                            </div>
+                            <p>{position.summary}</p>
+                          </div>
+                          <button className={styles.primaryButton} onClick={() => { if (!isCmsPreviewRequested()) setSelectedPosition(position); }} type="button">
+                            Ứng tuyển vị trí này <Icon name="arrow-right" size={18} />
+                          </button>
                         </div>
-                      </details>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-        </section>
+                        <details className={styles.jobDetails}>
+                          <summary>Xem mô tả công việc và yêu cầu</summary>
+                          <div className={styles.detailGrid}>
+                            <div><h4>Công việc chính</h4><ul>{position.responsibilities.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                            <div><h4>Yêu cầu</h4><ul>{position.requirements.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                            <div><h4>Khi đồng hành</h4><ul>{position.benefits.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                          </div>
+                        </details>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </CmsNativeSection>
 
-        <section className={`${styles.inner} ${styles.recruitmentNote}`}>
-          <div>
-            <span className={styles.noteIcon}><Icon name="shield-check" size={24} /></span>
-            <div><strong>Lưu ý khi ứng tuyển</strong><p>Bệnh viện không yêu cầu ứng viên chuyển khoản hoặc đóng phí trong quá trình tiếp nhận hồ sơ.</p></div>
-          </div>
-          <Link href="/contact">Liên hệ bệnh viện <Icon name="arrow-up-right" size={17} /></Link>
-        </section>
+        <CmsNativeSection sectionId="recruitment">
+          <section className={`${styles.inner} ${styles.recruitmentNote}`}>
+            <div>
+              <span className={styles.noteIcon}><Icon name="shield-check" size={24} /></span>
+              <div><CmsNativeText fieldId="recruitment.title" as="strong" value={"Lưu ý khi ứng tuyển"}>Lưu ý khi ứng tuyển</CmsNativeText><p>Bệnh viện không yêu cầu ứng viên chuyển khoản hoặc đóng phí trong quá trình tiếp nhận hồ sơ.</p></div>
+            </div>
+            <Link href="/contact">Liên hệ bệnh viện <Icon name="arrow-up-right" size={17} /></Link>
+          </section>
+        </CmsNativeSection>
       </div>
 
       {selectedPosition ? (

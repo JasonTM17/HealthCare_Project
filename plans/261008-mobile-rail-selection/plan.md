@@ -1,6 +1,6 @@
 ---
 title: Mobile care rail follows the current page
-status: in-progress
+status: completed
 priority: P1
 effort: small
 branch: main
@@ -21,4 +21,4 @@ See [phase-01](phase-01-fix-and-verify.md). Consistency sweep: route state remai
 Run node --test tests/footer-care-rail.behavior.test.mjs in apps/frontend before and after CSS repair. Cover 320/375/390/430px, route changes/detail paths, keyboard/press behavior, phone action and hidden desktop rail. Inspect browser screenshot; perform independent read-only review. Run git diff --check; CI supplies package build/test gates at the published SHA. Rerun only affected gates on observed failures. Existing protected-main PR workflow stays intact. Release evidence must distinguish source, CI and live deployed navigation.
 
 ## Risk and rollback
-CSS cascade could keep the old booking paint: tests check every idle item as well as the selected one. Rollback is a revert of this scoped change; preserve concurrent main updates and use normal merge only. Native goal creation is blocked by the unfinished Google goal; this plan records the new objective without falsely completing the old live-account gate.
+CSS cascade could keep the old booking paint: tests check every idle item as well as the selected one. Rollback is a revert of this scoped change; preserve concurrent main updates and use normal merge only. Native goal creation was initially blocked by the unfinished Google goal. Following observed production account/session verification and completion of that goal, the user's requested mobile goal was created and completed against this plan's existing release evidence.

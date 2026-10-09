@@ -131,6 +131,47 @@ class AiClinicalProjectionIndexServiceTest {
     }
 
     @Test
+    void skipsReindexingWhenOnlyTheStoredExpiryOffsetFormatDiffers() {
+        AiService aiService = mock(AiService.class);
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(aiService.isRagIngestConfigured()).thenReturn(true);
+
+        UUID currentId = UUID.randomUUID();
+        Map<String, Object> approved = new LinkedHashMap<>();
+        approved.put("source_type", "faq");
+        approved.put("source_id", currentId.toString());
+        approved.put("title", "Câu hỏi đã duyệt");
+        approved.put("content", "Trả lời đã duyệt.");
+        approved.put("content_revision", 4L);
+        approved.put("eligibility_revision", 9L);
+        approved.put("content_hash", "b".repeat(64));
+        approved.put("approval_round", 2L);
+        approved.put("approval_expires_at", "2027-04-06 06:25:18.086311+00");
+        when(jdbc.queryForList(org.mockito.ArgumentMatchers.anyString()))
+            .thenReturn(List.of(approved));
+
+        // Stored projections may carry an ISO "+00:00" offset while the SQL
+        // snapshot emits Postgres "::text" "+00" — the comparison must treat
+        // them as the same instant or the corpus is re-pushed every cycle.
+        when(aiService.listIndexedDocuments()).thenReturn(List.of(Map.of(
+            "source_type", "faq",
+            "source_id", currentId.toString(),
+            "projection_kind", "CLINICAL",
+            "content_revision", 4L,
+            "eligibility_revision", 9L,
+            "content_hash", "b".repeat(64),
+            "approval_id", "2",
+            "approval_expires_at", "2027-04-06 06:25:18.086311+00:00"
+        )));
+
+        AiClinicalProjectionIndexService service = new AiClinicalProjectionIndexService(aiService, jdbc);
+        assertThat(service.synchronizeClinicalNow()).isZero();
+
+        org.mockito.Mockito.verify(aiService, org.mockito.Mockito.never())
+            .indexDocument(org.mockito.ArgumentMatchers.anyMap());
+    }
+
+    @Test
     void reconciliationQueryFencesEveryClinicalProjectionToLiveCanonicalContent() {
         AiService aiService = mock(AiService.class);
         JdbcTemplate jdbc = mock(JdbcTemplate.class);

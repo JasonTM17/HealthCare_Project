@@ -10,6 +10,7 @@ import { fetchBranches, type Page } from "../../lib/api-client";
 import { safeTelephoneHref } from "../../lib/phone";
 import type { Branch } from "../../types/hospital";
 import styles from "./BranchesPage.module.css";
+import { CmsNativeSection, CmsNativeText } from "../../components/cms/cms-page-layout-provider";
 
 export default function BranchesPage() {
   const [page, setPage] = useState<Page<Branch> | null>(null);
@@ -79,179 +80,189 @@ export default function BranchesPage() {
   return (
     <PublicPageShell branches={page?.content ?? []}>
       <div className={`catalog-page section-inner ${styles.branchesPage}`}>
-        <header className="resource-page__header">
-          <p className="section-note">Hệ thống cơ sở y tế</p>
-          <h1>Chọn cơ sở thuận tiện cho bạn</h1>
-          <p>
-            Xem địa chỉ, vị trí Google Maps, giờ làm việc và số điện thoại trước khi đến khám — tất
-            cả trên một luồng nhất quán.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Hệ thống cơ sở y tế"} className="section-note">Hệ thống cơ sở y tế</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Chọn cơ sở thuận tiện cho bạn"}>Chọn cơ sở thuận tiện cho bạn</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Xem địa chỉ, vị trí Google Maps, giờ làm việc và số điện thoại trước khi đến khám — tất cả trên một luồng nhất quán."}>
+              Xem địa chỉ, vị trí Google Maps, giờ làm việc và số điện thoại trước khi đến khám — tất
+              cả trên một luồng nhất quán.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className={styles.networkOverview} aria-labelledby="branch-network-overview-title">
-          <div className={`resource-icon ${styles.networkIcon}`} aria-hidden="true">
-            <ClinicalIcon name="branch" />
-          </div>
-          <div>
-            <p className="section-note">Cơ sở đang hoạt động</p>
-            <h2 id="branch-network-overview-title">
-              {page && !page.empty ? `${branchCount} cơ sở sẵn sàng đón bạn` : "Tìm cơ sở phù hợp trước khi đi khám"}
-            </h2>
-            <p className={styles.networkLead}>
-              Xem địa chỉ, giờ làm việc, đầu mối liên hệ và mở chỉ đường ngay từ danh sách bên dưới.
-            </p>
-            <div className="resource-actions">
-              {featuredBranch?.activeDoctorCount === 0 ? (
-                <Link className="button button--amber" href={`/branches/${featuredBranch.slug}`}>
-                  Xem tình trạng lịch
-                </Link>
-              ) : (
-                <PublicBookingButton selection={featuredBranch ? { branchId: featuredBranch.id } : undefined}>
-                  Đặt lịch tại cơ sở
-                </PublicBookingButton>
-              )}
-              <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button" href="/contact">
-                Liên hệ bệnh viện
-              </Link>
+        <CmsNativeSection sectionId="overview">
+          <section className={styles.networkOverview} aria-labelledby="branch-network-overview-title">
+            <div className={`resource-icon ${styles.networkIcon}`} aria-hidden="true">
+              <ClinicalIcon name="branch" />
             </div>
-            <div className={`${styles.summaryAnchor} resource-hero-card`}>
-              <dl className={`${styles.networkSummary} resource-meta-grid`}>
-                <div>
-                  <dt>Tổng cơ sở</dt>
-                  <dd>{branchCountLabel}</dd>
-                </div>
-                <div>
-                  <dt>Cơ sở ưu tiên</dt>
-                  <dd>{featuredBranchLabel}</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-        </section>
-
-        {loading ? (
-          <p className="catalog-status catalog-status--loading" role="status">
-            Đang tải danh sách cơ sở y tế…
-          </p>
-        ) : null}
-        {error ? (
-          <div className="catalog-status catalog-status--error" role="alert">
-            <p>{error}</p>
-            <button
-              className="outline-button outline-button--small"
-              onClick={() => setRetryCount((count) => count + 1)}
-              type="button"
-            >
-              Thử tải lại
-            </button>
-          </div>
-        ) : null}
-        {!loading && !error && page?.empty ? (
-          <div className="catalog-status" role="status">
-            <p>Chưa có cơ sở công khai để hiển thị. Bạn vẫn có thể đặt lịch hoặc gửi yêu cầu liên hệ để đội ngũ hỗ trợ xác nhận địa điểm phù hợp.</p>
-            <div className="resource-actions">
-              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
-              <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
-            </div>
-          </div>
-        ) : null}
-
-        {page && !page.empty && featuredBranch ? (
-          <section className={styles.featuredContact} aria-labelledby="branch-featured-contact-title">
             <div>
-              <p className="section-note">Cơ sở ưu tiên</p>
-              <h2 id="branch-featured-contact-title">{featuredBranch.name}</h2>
-              <p>{featuredBranch.address}</p>
-            </div>
-            <div className="resource-actions">
-              {featuredPhoneHref ? (
-                <a className="button button--amber" href={featuredPhoneHref}>
-                  {featuredBranch?.emergencyHotline ? "Gọi cấp cứu" : "Gọi cơ sở"}
-                </a>
-              ) : null}
-              {featuredMapHref ? (
-                <a className="outline-button" href={featuredMapHref}>
-                  Xem bản đồ
-                </a>
-              ) : null}
+              <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Cơ sở đang hoạt động"} className="section-note">Cơ sở đang hoạt động</CmsNativeText>
+              <h2 id="branch-network-overview-title">
+                {page && !page.empty ? `${branchCount} cơ sở sẵn sàng đón bạn` : "Tìm cơ sở phù hợp trước khi đi khám"}
+              </h2>
+              <CmsNativeText fieldId="overview.body" as="p" value={"Xem địa chỉ, giờ làm việc, đầu mối liên hệ và mở chỉ đường ngay từ danh sách bên dưới."} className={styles.networkLead}>
+                Xem địa chỉ, giờ làm việc, đầu mối liên hệ và mở chỉ đường ngay từ danh sách bên dưới.
+              </CmsNativeText>
+              <div className="resource-actions">
+                {featuredBranch?.activeDoctorCount === 0 ? (
+                  <Link className="button button--amber" href={`/branches/${featuredBranch.slug}`}>
+                    Xem tình trạng lịch
+                  </Link>
+                ) : (
+                  <PublicBookingButton selection={featuredBranch ? { branchId: featuredBranch.id } : undefined}>
+                    Đặt lịch tại cơ sở
+                  </PublicBookingButton>
+                )}
+                <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
+                <Link className="outline-button" href="/contact">
+                  Liên hệ bệnh viện
+                </Link>
+              </div>
+              <div className={`${styles.summaryAnchor} resource-hero-card`}>
+                <dl className={`${styles.networkSummary} resource-meta-grid`}>
+                  <div>
+                    <dt>Tổng cơ sở</dt>
+                    <dd>{branchCountLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>Cơ sở ưu tiên</dt>
+                    <dd>{featuredBranchLabel}</dd>
+                  </div>
+                </dl>
+              </div>
             </div>
           </section>
-        ) : null}
+        </CmsNativeSection>
 
-        {page && !page.empty ? (
-          <div className="catalog-grid catalog-grid--branches">
-            {page.content.map((branch) => {
-              const address = branch.address?.trim();
-              const telHref = safeTelephoneHref(branch.phone);
-              const emergencyHref = safeTelephoneHref(branch.emergencyHotline);
+        <CmsNativeSection sectionId="states">
+          {loading ? (
+            <p className="catalog-status catalog-status--loading" role="status">
+              Đang tải danh sách cơ sở y tế…
+            </p>
+          ) : null}
+          {error ? (
+            <div className="catalog-status catalog-status--error" role="alert">
+              <p>{error}</p>
+              <button
+                className="outline-button outline-button--small"
+                onClick={() => setRetryCount((count) => count + 1)}
+                type="button"
+              >
+                Thử tải lại
+              </button>
+            </div>
+          ) : null}
+          {!loading && !error && page?.empty ? (
+            <div className="catalog-status" role="status">
+              <p>Chưa có cơ sở công khai để hiển thị. Bạn vẫn có thể đặt lịch hoặc gửi yêu cầu liên hệ để đội ngũ hỗ trợ xác nhận địa điểm phù hợp.</p>
+              <div className="resource-actions">
+                <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+                <Link className="outline-button outline-button--small" href="/contact">Liên hệ bệnh viện</Link>
+              </div>
+            </div>
+          ) : null}
+        </CmsNativeSection>
 
-              return (
-                <article className="catalog-card" key={branch.id}>
-                  <span className="resource-icon resource-icon--small" aria-hidden="true">
-                    <ClinicalIcon name="branch" />
-                  </span>
-                  <h2>{branch.name}</h2>
-                  <div className="branch-card__address">
-                    <Icon name="location" size={18} />
-                    <p>
-                      {address || <span className="resource-muted">Đang cập nhật địa chỉ chi tiết · Vui lòng liên hệ tổng đài trước khi đến.</span>}
-                    </p>
-                  </div>
-                  <BranchMap
-                    address={address}
-                    branchName={branch.name}
-                    className="branch-card__map-link"
-                    variant="link"
-                  />
-                  <dl className="catalog-card__details">
-                    <div>
-                      <dt>Điện thoại</dt>
-                      <dd>{branch.phone || "Liên hệ qua trang hỗ trợ"}</dd>
+        <CmsNativeSection sectionId="featured">
+          {page && !page.empty && featuredBranch ? (
+            <section className={styles.featuredContact} aria-labelledby="branch-featured-contact-title">
+              <div>
+                <p className="section-note">Cơ sở ưu tiên</p>
+                <h2 id="branch-featured-contact-title">{featuredBranch.name}</h2>
+                <p>{featuredBranch.address}</p>
+              </div>
+              <div className="resource-actions">
+                {featuredPhoneHref ? (
+                  <a className="button button--amber" href={featuredPhoneHref}>
+                    {featuredBranch?.emergencyHotline ? "Gọi cấp cứu" : "Gọi cơ sở"}
+                  </a>
+                ) : null}
+                {featuredMapHref ? (
+                  <a className="outline-button" href={featuredMapHref}>
+                    Xem bản đồ
+                  </a>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+        </CmsNativeSection>
+
+        <CmsNativeSection sectionId="directory">
+          {page && !page.empty ? (
+            <div className="catalog-grid catalog-grid--branches">
+              {page.content.map((branch) => {
+                const address = branch.address?.trim();
+                const telHref = safeTelephoneHref(branch.phone);
+                const emergencyHref = safeTelephoneHref(branch.emergencyHotline);
+
+                return (
+                  <article className="catalog-card" key={branch.id}>
+                    <span className="resource-icon resource-icon--small" aria-hidden="true">
+                      <ClinicalIcon name="branch" />
+                    </span>
+                    <h2>{branch.name}</h2>
+                    <div className="branch-card__address">
+                      <Icon name="location" size={18} />
+                      <p>
+                        {address || <span className="resource-muted">Đang cập nhật địa chỉ chi tiết · Vui lòng liên hệ tổng đài trước khi đến.</span>}
+                      </p>
                     </div>
-                    <div>
-                      <dt>Giờ làm việc</dt>
-                      <dd>{branch.workingHours || "Vui lòng xác nhận trước khi đến"}</dd>
-                    </div>
-                    {typeof branch.activeDoctorCount === "number" ? (
+                    <BranchMap
+                      address={address}
+                      branchName={branch.name}
+                      className="branch-card__map-link"
+                      variant="link"
+                    />
+                    <dl className="catalog-card__details">
                       <div>
-                        <dt>Lịch trực tuyến</dt>
-                        <dd>{branch.activeDoctorCount > 0 ? "Có bác sĩ phụ trách" : "Đang sắp xếp lịch tiếp nhận"}</dd>
+                        <dt>Điện thoại</dt>
+                        <dd>{branch.phone || "Liên hệ qua trang hỗ trợ"}</dd>
                       </div>
-                    ) : null}
-                  </dl>
-                  <div className="catalog-card__actions">
-                    <Link className="text-button" href={`/branches/${branch.slug}`}>
-                      Xem chi tiết →
-                    </Link>
-                    {telHref ? (
-                      <a className="text-button" href={telHref}>
-                        Gọi cơ sở →
-                      </a>
-                    ) : null}
-                    {emergencyHref ? (
-                      <a className="text-button" href={emergencyHref}>
-                        Gọi cấp cứu →
-                      </a>
-                    ) : null}
-                    {branch.activeDoctorCount === 0 ? (
-                      <Link className="outline-button outline-button--small" href={`/branches/${branch.slug}`}>
-                        Xem tình trạng lịch
+                      <div>
+                        <dt>Giờ làm việc</dt>
+                        <dd>{branch.workingHours || "Vui lòng xác nhận trước khi đến"}</dd>
+                      </div>
+                      {typeof branch.activeDoctorCount === "number" ? (
+                        <div>
+                          <dt>Lịch trực tuyến</dt>
+                          <dd>{branch.activeDoctorCount > 0 ? "Có bác sĩ phụ trách" : "Đang sắp xếp lịch tiếp nhận"}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    <div className="catalog-card__actions">
+                      <Link className="text-button" href={`/branches/${branch.slug}`}>
+                        Xem chi tiết →
                       </Link>
-                    ) : (
-                      <PublicBookingButton
-                        className="outline-button outline-button--small"
-                        selection={{ branchId: branch.id }}
-                      >
-                        Đặt lịch
-                      </PublicBookingButton>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : null}
+                      {telHref ? (
+                        <a className="text-button" href={telHref}>
+                          Gọi cơ sở →
+                        </a>
+                      ) : null}
+                      {emergencyHref ? (
+                        <a className="text-button" href={emergencyHref}>
+                          Gọi cấp cứu →
+                        </a>
+                      ) : null}
+                      {branch.activeDoctorCount === 0 ? (
+                        <Link className="outline-button outline-button--small" href={`/branches/${branch.slug}`}>
+                          Xem tình trạng lịch
+                        </Link>
+                      ) : (
+                        <PublicBookingButton
+                          className="outline-button outline-button--small"
+                          selection={{ branchId: branch.id }}
+                        >
+                          Đặt lịch
+                        </PublicBookingButton>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

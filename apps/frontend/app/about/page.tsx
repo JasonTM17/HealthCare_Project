@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
@@ -9,8 +8,9 @@ import { CmsSlotRenderer } from "../../components/cms/CmsRenderer";
 import Icon from "../../components/UiIcon";
 import { fetchBranches, fetchDoctors, fetchSpecialties } from "../../lib/api-client";
 import styles from "./about.module.css";
+import { CmsNativeSection, CmsNativeText, CmsNativeImage, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
-type Snapshot = { doctors: number; specialties: number; branches: number };
+type Snapshot = { doctors: number; specialties: number; branches: number; };
 
 const VALUES = [
   {
@@ -124,35 +124,36 @@ export default function AboutPage() {
   return (
     <PublicPageShell>
       <div className={styles.page}>
-        <section className={`${styles.hero} section-inner`} aria-labelledby="about-title">
-          <div className={styles.heroCopy}>
-            <p className="section-note">Về HealthCare</p>
-            <h1 id="about-title">Chăm sóc bắt đầu từ sự thấu hiểu</h1>
-            <p className={styles.heroLead}>
-              Chúng tôi kết nối con người, chuyên môn và công nghệ để mỗi người bệnh
-              biết mình nên bắt đầu từ đâu và luôn chủ động trong hành trình chăm sóc sức khỏe.
-            </p>
-            <div className="resource-actions">
-              <PublicBookingButton className="button button--primary">Đặt lịch khám</PublicBookingButton>
+        <CmsNativeSection sectionId="hero">
+          <section className={`${styles.hero} section-inner`} aria-labelledby="about-title">
+            <div className={styles.heroCopy}>
+              <CmsNativeText fieldId="hero.eyebrow" as="p" value={"Về HealthCare"} className="section-note">Về HealthCare</CmsNativeText>
+              <CmsNativeText fieldId="hero.title" as="h1" value={"Chăm sóc bắt đầu từ sự thấu hiểu"} id="about-title">Chăm sóc bắt đầu từ sự thấu hiểu</CmsNativeText>
+              <CmsNativeText fieldId="hero.body" as="p" value={"Chúng tôi kết nối con người, chuyên môn và công nghệ để mỗi người bệnh biết mình nên bắt đầu từ đâu và luôn chủ động trong hành trình chăm sóc sức khỏe."} className={styles.heroLead}>
+                Chúng tôi kết nối con người, chuyên môn và công nghệ để mỗi người bệnh
+                biết mình nên bắt đầu từ đâu và luôn chủ động trong hành trình chăm sóc sức khỏe.
+              </CmsNativeText>
+              <div className="resource-actions">
+                <PublicBookingButton className="button button--primary">Đặt lịch khám</PublicBookingButton>
+              </div>
             </div>
-          </div>
 
-          <figure className={styles.teamShowcase}>
-            <Image
-              src="/media/hospital-team-landscape.jpg"
-              alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
-              width={1024}
-              height={682}
-              priority
-              className={styles.teamImage}
-            />
-            <figcaption className={styles.teamCaption}>
-              Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn.
-            </figcaption>
-          </figure>
-        </section>
+            <figure className={styles.teamShowcase}>
+              <CmsNativeImage fieldId="hero.image"
+                src="/media/hospital-team-landscape.jpg"
+                alt="Đội ngũ bác sĩ và nhân viên y tế chuyên khoa Bệnh viện HealthCare"
+                width={1024}
+                height={682}
+                priority
+                className={styles.teamImage}
+              />
+              <figcaption className={styles.teamCaption}>
+                <CmsNativeText fieldId="hero.caption" value="Đội ngũ chuyên gia y tế, bác sĩ chuyên khoa và điều dưỡng tận tâm tại HealthCare luôn sẵn sàng đồng hành cùng bạn." />
+              </figcaption>
+            </figure>
+          </section>
 
-        {/*
+          {/*
           * Published CMS content for /about. The shared route frame is skipped
           * for this slug (see components/cms/RouteCmsSlots.tsx) because it would
           * drop a second hero band above the native hero below, so the authored
@@ -160,162 +161,173 @@ export default function AboutPage() {
           * plus `hideWhileLoading` means an unpublished slot adds no DOM at all:
           * the page is unchanged until the hospital publishes a component.
           */}
-        <CmsLiveSlot
-          className="section-inner"
-          hideOnError
-          hideWhenNotFound
-          hideWhileLoading
-          renderContent={(content) => (
-            <CmsSlotRenderer content={content} headingLevel="h2" slotKey="hero" />
-          )}
-          showSourceLabel={false}
-          slug="about"
-          slotKey="hero"
-        />
+          <CmsLiveSlot
+            className="section-inner"
+            hideOnError
+            hideWhenNotFound
+            hideWhileLoading
+            renderContent={(content) => (
+              <CmsSlotRenderer content={content} headingLevel="h2" slotKey="hero" />
+            )}
+            showSourceLabel={false}
+            slug="about"
+            slotKey="hero"
+          />
+        </CmsNativeSection>
 
-        <section className={`${styles.story} section-inner`} aria-labelledby="about-story-title">
-          <div className={styles.storyHeading}>
-            <p className="section-note">Câu chuyện của chúng tôi</p>
-            <h2 id="about-story-title">Bệnh viện dễ tiếp cận hơn, từ những điều rất nhỏ</h2>
-          </div>
-          <div className={styles.storyBody}>
-            <p className={styles.storyLead}>
-              Một hành trình khám bệnh tốt bắt đầu từ lúc người bệnh được giải thích rõ, chọn đúng
-              nơi và biết điều gì sẽ diễn ra tiếp theo. HealthCare đặt chuyên khoa, bác sĩ, cơ sở
-              và lịch khám trong cùng một trải nghiệm để bạn chủ động hơn cho buổi khám của mình.
-            </p>
-            <figure className={styles.videoFigure}>
-              <div className={styles.videoFrame}>
-                <video
-                  ref={videoRef}
-                  aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
-                  autoPlay
-                  disablePictureInPicture
-                  loop
-                  muted
-                  onContextMenu={(event) => event.preventDefault()}
-                  playsInline
-                  poster="/media/about-care-poster.jpg"
-                  preload="metadata"
-                >
-                  <source src="/media/about-introduction.mp4" type="video/mp4" />
-                  Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
-                </video>
-                <div className={styles.videoLabel}>
-                  <span className={styles.videoPulse} aria-hidden="true" />
-                  Thước phim giới thiệu
-                </div>
-                <button
-                  aria-label={videoPaused ? "Phát thước phim giới thiệu" : "Tạm dừng thước phim giới thiệu"}
-                  aria-pressed={videoPaused}
-                  className={styles.videoControl}
-                  type="button"
-                  onClick={toggleVideo}
-                >
-                  {videoPaused ? "Phát" : "Tạm dừng"}
-                </button>
-              </div>
-              <figcaption>
-                Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
-                <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
-                  Cedric Fauntleroy / Pexels
-                </a>
-              </figcaption>
-            </figure>
-          </div>
-        </section>
-
-        <CmsLiveSlot
-          className="section-inner"
-          hideOnError
-          hideWhenNotFound
-          hideWhileLoading
-          renderContent={(content) => (
-            <CmsSlotRenderer content={content} headingLevel="h2" slotKey="body" />
-          )}
-          showSourceLabel={false}
-          slug="about"
-          slotKey="body"
-        />
-
-        <section className={styles.valuesSection} aria-labelledby="about-values-title">
-          <div className="section-inner">
-            <div className={styles.sectionHeading}>
-              <div>
-                <p className="section-note">Nguyên tắc chăm sóc</p>
-                <h2 id="about-values-title">Bốn điều dẫn lối cho mọi trải nghiệm</h2>
-              </div>
-              <p>Cách chúng tôi thiết kế từng bước người bệnh tương tác với bệnh viện.</p>
+        <CmsNativeSection sectionId="story">
+          <section className={`${styles.story} section-inner`} aria-labelledby="about-story-title">
+            <div className={styles.storyHeading}>
+              <CmsNativeText fieldId="story.eyebrow" as="p" value={"Câu chuyện của chúng tôi"} className="section-note">Câu chuyện của chúng tôi</CmsNativeText>
+              <CmsNativeText fieldId="story.title" as="h2" value={"Bệnh viện dễ tiếp cận hơn, từ những điều rất nhỏ"} id="about-story-title">Bệnh viện dễ tiếp cận hơn, từ những điều rất nhỏ</CmsNativeText>
             </div>
-            <div className={styles.valueGrid}>
-              {VALUES.map((value, index) => (
-                <article className={styles.valueCard} key={value.title}>
-                  <span className={styles.valueIndex}>0{index + 1}</span>
-                  <span className={styles.valueIcon}><Icon name={value.icon} size={25} /></span>
-                  <h3>{value.title}</h3>
-                  <p>{value.description}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className={`${styles.network} section-inner`} aria-labelledby="about-network-title">
-          <div className={styles.networkPanel}>
-            <div className={styles.networkCopy}>
-              <p className="section-note">Mạng lưới HealthCare</p>
-              <h2 id="about-network-title">Một điểm kết nối, nhiều lựa chọn chăm sóc</h2>
-              <p>
-                Khám phá đội ngũ chuyên môn và các cơ sở đang tiếp nhận đặt lịch trong hệ thống.
-              </p>
-              <Link className={styles.networkLink} href="/branches">
-                Tìm cơ sở và chỉ đường <Icon name="arrow-up-right" size={18} />
-              </Link>
-            </div>
-
-            {loading ? (
-              <p className={styles.networkStatus} role="status">Đang cập nhật quy mô mạng lưới…</p>
-            ) : null}
-            {error ? (
-              <div className={styles.networkStatus} role="alert" aria-live="polite">
-                <span>Chưa tải được quy mô mạng lưới. Bạn vẫn có thể xem từng cơ sở từ liên kết bên cạnh.</span>
-                <button
-                  className={styles.networkRetry}
-                  type="button"
-                  onClick={retryNetwork}
-                >
-                  Thử tải lại
-                </button>
-              </div>
-            ) : null}
-            {snapshot ? (
-              <dl className={styles.metrics} aria-label="Quy mô mạng lưới hiện tại">
-                {[
-                  ["Bác sĩ", snapshot.doctors],
-                  ["Chuyên khoa", snapshot.specialties],
-                  ["Cơ sở", snapshot.branches],
-                ].map(([label, count]) => (
-                  <div key={label}>
-                    <dt>{label}</dt>
-                    <dd>{count}</dd>
+            <div className={styles.storyBody}>
+              <CmsNativeText fieldId="story.body" as="p" value={"Một hành trình khám bệnh tốt bắt đầu từ lúc người bệnh được giải thích rõ, chọn đúng nơi và biết điều gì sẽ diễn ra tiếp theo. HealthCare đặt chuyên khoa, bác sĩ, cơ sở và lịch khám trong cùng một trải nghiệm để bạn chủ động hơn cho buổi khám của mình."} className={styles.storyLead}>
+                Một hành trình khám bệnh tốt bắt đầu từ lúc người bệnh được giải thích rõ, chọn đúng
+                nơi và biết điều gì sẽ diễn ra tiếp theo. HealthCare đặt chuyên khoa, bác sĩ, cơ sở
+                và lịch khám trong cùng một trải nghiệm để bạn chủ động hơn cho buổi khám của mình.
+              </CmsNativeText>
+              <figure className={styles.videoFigure}>
+                <div className={styles.videoFrame}>
+                  <video
+                    ref={videoRef}
+                    aria-label="Thước phim minh họa hành trình tư vấn và chăm sóc người bệnh"
+                    autoPlay
+                    disablePictureInPicture
+                    loop
+                    muted
+                    onContextMenu={(event) => event.preventDefault()}
+                    playsInline
+                    poster="/media/about-care-poster.jpg"
+                    preload="metadata"
+                  >
+                    <source src="/media/about-introduction.mp4" type="video/mp4" />
+                    Trình duyệt của bạn chưa hỗ trợ phát video. Bạn vẫn có thể tìm hiểu về HealthCare qua nội dung bên dưới.
+                  </video>
+                  <div className={styles.videoLabel}>
+                    <span className={styles.videoPulse} aria-hidden="true" />
+                    Thước phim giới thiệu
                   </div>
-                ))}
-              </dl>
-            ) : null}
-          </div>
-        </section>
+                  <button
+                    aria-label={videoPaused ? "Phát thước phim giới thiệu" : "Tạm dừng thước phim giới thiệu"}
+                    aria-pressed={videoPaused}
+                    className={styles.videoControl}
+                    type="button"
+                    onClick={toggleVideo}
+                  >
+                    {videoPaused ? "Phát" : "Tạm dừng"}
+                  </button>
+                </div>
+                <figcaption>
+                  Thước phim minh họa hành trình tư vấn. Nguồn:{" "}
+                  <a href="https://www.pexels.com/video/woman-getting-medical-consultation-4486776/" rel="noreferrer" target="_blank">
+                    Cedric Fauntleroy / Pexels
+                  </a>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
 
-        <section className={`${styles.closing} section-inner`} aria-labelledby="about-closing-title">
-          <div>
-            <p className="section-note">Bắt đầu cùng HealthCare</p>
-            <h2 id="about-closing-title">Chúng tôi sẵn sàng lắng nghe bạn</h2>
-            <p>Chọn chuyên khoa phù hợp hoặc liên hệ bệnh viện nếu bạn cần được hướng dẫn thêm.</p>
-          </div>
-          <div className="resource-actions">
-            <Link className="button button--primary" href="/specialties">Xem chuyên khoa</Link>
-            <Link className="outline-button" href="/contact">Liên hệ bệnh viện</Link>
-          </div>
-        </section>
+          <CmsLiveSlot
+            className="section-inner"
+            hideOnError
+            hideWhenNotFound
+            hideWhileLoading
+            renderContent={(content) => (
+              <CmsSlotRenderer content={content} headingLevel="h2" slotKey="body" />
+            )}
+            showSourceLabel={false}
+            slug="about"
+            slotKey="body"
+          />
+        </CmsNativeSection>
+
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="values">
+            <section className={styles.valuesSection} aria-labelledby="about-values-title">
+              <div className="section-inner">
+                <div className={styles.sectionHeading}>
+                  <div>
+                    <CmsNativeText fieldId="values.eyebrow" as="p" value={"Nguyên tắc chăm sóc"} className="section-note">Nguyên tắc chăm sóc</CmsNativeText>
+                    <CmsNativeText fieldId="values.title" as="h2" value={"Bốn điều dẫn lối cho mọi trải nghiệm"} id="about-values-title">Bốn điều dẫn lối cho mọi trải nghiệm</CmsNativeText>
+                  </div>
+                  <CmsNativeText fieldId="values.body" as="p" value={"Cách chúng tôi thiết kế từng bước người bệnh tương tác với bệnh viện."}>Cách chúng tôi thiết kế từng bước người bệnh tương tác với bệnh viện.</CmsNativeText>
+                </div>
+                <div className={styles.valueGrid}>
+                  {VALUES.map((value, index) => (
+                    <article className={styles.valueCard} key={value.title}>
+                      <span className={styles.valueIndex}>0{index + 1}</span>
+                      <span className={styles.valueIcon}><Icon name={value.icon} size={25} /></span>
+                      <CmsNativeText fieldId={`values.item${index + 1}.title`} as="h3" value={value.title}>{value.title}</CmsNativeText>
+                      <CmsNativeText fieldId={`values.item${index + 1}.body`} as="p" value={value.description}>{value.description}</CmsNativeText>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </CmsNativeSection>
+
+          <CmsNativeSection sectionId="network">
+            <section className={`${styles.network} section-inner`} aria-labelledby="about-network-title">
+              <div className={styles.networkPanel}>
+                <div className={styles.networkCopy}>
+                  <CmsNativeText fieldId="network.eyebrow" as="p" value={"Mạng lưới HealthCare"} className="section-note">Mạng lưới HealthCare</CmsNativeText>
+                  <CmsNativeText fieldId="network.title" as="h2" value={"Một điểm kết nối, nhiều lựa chọn chăm sóc"} id="about-network-title">Một điểm kết nối, nhiều lựa chọn chăm sóc</CmsNativeText>
+                  <CmsNativeText fieldId="network.body" as="p" value={"Khám phá đội ngũ chuyên môn và các cơ sở đang tiếp nhận đặt lịch trong hệ thống."}>
+                    Khám phá đội ngũ chuyên môn và các cơ sở đang tiếp nhận đặt lịch trong hệ thống.
+                  </CmsNativeText>
+                  <Link className={styles.networkLink} href="/branches">
+                    Tìm cơ sở và chỉ đường <Icon name="arrow-up-right" size={18} />
+                  </Link>
+                </div>
+
+                {loading ? (
+                  <p className={styles.networkStatus} role="status">Đang cập nhật quy mô mạng lưới…</p>
+                ) : null}
+                {error ? (
+                  <div className={styles.networkStatus} role="alert" aria-live="polite">
+                    <span>Chưa tải được quy mô mạng lưới. Bạn vẫn có thể xem từng cơ sở từ liên kết bên cạnh.</span>
+                    <button
+                      className={styles.networkRetry}
+                      type="button"
+                      onClick={retryNetwork}
+                    >
+                      Thử tải lại
+                    </button>
+                  </div>
+                ) : null}
+                {snapshot ? (
+                  <dl className={styles.metrics} aria-label="Quy mô mạng lưới hiện tại">
+                    {[
+                      ["Bác sĩ", snapshot.doctors],
+                      ["Chuyên khoa", snapshot.specialties],
+                      ["Cơ sở", snapshot.branches],
+                    ].map(([label, count]) => (
+                      <div key={label}>
+                        <dt>{label}</dt>
+                        <dd>{count}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </div>
+            </section>
+          </CmsNativeSection>
+
+          <CmsNativeSection sectionId="closing">
+            <section className={`${styles.closing} section-inner`} aria-labelledby="about-closing-title">
+              <div>
+                <CmsNativeText fieldId="closing.eyebrow" as="p" value={"Bắt đầu cùng HealthCare"} className="section-note">Bắt đầu cùng HealthCare</CmsNativeText>
+                <CmsNativeText fieldId="closing.title" as="h2" value={"Chúng tôi sẵn sàng lắng nghe bạn"} id="about-closing-title">Chúng tôi sẵn sàng lắng nghe bạn</CmsNativeText>
+                <CmsNativeText fieldId="closing.body" as="p" value={"Chọn chuyên khoa phù hợp hoặc liên hệ bệnh viện nếu bạn cần được hướng dẫn thêm."}>Chọn chuyên khoa phù hợp hoặc liên hệ bệnh viện nếu bạn cần được hướng dẫn thêm.</CmsNativeText>
+              </div>
+              <div className="resource-actions">
+                <Link className="button button--primary" href="/specialties">Xem chuyên khoa</Link>
+                <Link className="outline-button" href="/contact">Liên hệ bệnh viện</Link>
+              </div>
+            </section>
+          </CmsNativeSection>
+        </CmsNativeSections>
       </div>
     </PublicPageShell>
   );

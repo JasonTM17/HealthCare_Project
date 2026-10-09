@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { SITE_URL, indexingAllowed } from "../lib/site-url";
 import "./styles.css";
@@ -7,6 +8,7 @@ import "./typography.css";
 import "./branches/maps.css";
 import "./brand-experience.css";
 import "./catalog-directory.css";
+import "./cms-native-preview.css";
 import BackendWarmup from "../components/BackendWarmup";
 import DeferredClientWidgets from "../components/DeferredClientWidgets";
 import OfflineNetworkIndicator from "../components/OfflineNetworkIndicator";
@@ -76,6 +78,7 @@ export default function RootLayout({
     <html lang="vi" data-scroll-behavior="smooth" suppressHydrationWarning
       className={beVietnamPro.variable}>
       <body suppressHydrationWarning>
+        <Script id="cms-preview-readonly" src="/cms-preview-guard.js" strategy="beforeInteractive" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

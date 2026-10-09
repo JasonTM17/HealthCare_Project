@@ -838,17 +838,23 @@ public class AiConversationService {
     }
 
     /**
-     * Answer a source-less general hospital-support question with a bounded
-     * remote answer. Patient chat normally requires at least one authorized
-     * source so Spring can revalidate every citation, but a general wellness
-     * question ("Uống bao nhiêu nước mỗi ngày?") has no catalog row to cite,
-     * and the public surface already answers that lane under the same output
-     * gates. This path mirrors the public condition and never widens it:
+     * Answer a source-less question with a bounded remote answer when the
+     * retrieved candidates authorized nothing. Patient chat normally requires
+     * at least one authorized source so Spring can revalidate every citation,
+     * but a general wellness question ("Uống bao nhiêu nước mỗi ngày?") or a
+     * clinical-education/triage question without an approved catalog row has
+     * nothing to cite, and the public surface already answers that lane under
+     * the same output gates. This path mirrors the public condition and never
+     * widens it:
      *
      * <ul>
-     *   <li>only {@code HOSPITAL_SUPPORT} — clinical modes stay source-bound;</li>
-     *   <li>only intent {@code GENERAL} — catalog, booking, education and
-     *       navigation questions keep their deterministic fallback;</li>
+     *   <li>{@code HOSPITAL_SUPPORT} only for intent {@code GENERAL} —
+     *       catalog, booking, education and navigation questions keep their
+     *       deterministic fallback;</li>
+     *   <li>{@code HEALTH_EDUCATION} and {@code SYMPTOM_TRIAGE} when no
+     *       approved source authorized — the ai-service still applies the
+     *       shared clinical floor, so diagnosis, prescription and treatment
+     *       asks continue to fail closed;</li>
      *   <li>only when remote providers are enabled for this deployment, and
      *       only a {@code remote_provider} answer is ever displayed. A local
      *       fallback or an insufficient upstream answer returns {@code null},
@@ -869,10 +875,19 @@ public class AiConversationService {
             List<Map<String, String>> turns,
             boolean chunkedDeliveryGeneration,
             ChatRequestCancellation cancellation) {
-        if (mode != ChatMode.HOSPITAL_SUPPORT
-                || !remoteProviderEnabled
-                || ChatSuggestedActionResolver.classify(content)
-                    != ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL) {
+        // Hospital-support keeps its GENERAL-intent gate so catalog, booking,
+        // education and navigation questions retain their deterministic
+        // fallback. Clinical modes carry no intent classifier; the ai-service
+        // re-applies the shared clinical floor (treatment/diagnosis/
+        // medication asks stay denied) before any remote call is made, and
+        // the answer still passes through sanitize below with an empty
+        // authorized list.
+        boolean supportLane = mode == ChatMode.HOSPITAL_SUPPORT
+                && ChatSuggestedActionResolver.classify(content)
+                    == ChatSuggestedActionResolver.HospitalSupportIntent.GENERAL;
+        boolean clinicalLane = mode == ChatMode.HEALTH_EDUCATION
+                || mode == ChatMode.SYMPTOM_TRIAGE;
+        if (!(supportLane || clinicalLane) || !remoteProviderEnabled) {
             return null;
         }
         Map<String, Object> generation = new LinkedHashMap<>();
@@ -1725,7 +1740,7 @@ public class AiConversationService {
             disclaimer = SAFE_DISCLAIMER;
         }
         ChatSafetyAction safetyAction = parseSafety(response.get("safety_action"));
-        TriageSummary triage = parseTriage(response.get("triage"), mode);
+        TriageSummary triage = parseTriage(response.get("triage"), mode, groundedTitles(authorized));
         List<AiChatSourceResolver.ResolvedSource> finalSources = new ArrayList<>();
         // The exact-echo contract only applies when the provider claims an
         // answer: a non-ANSWER turn (INSUFFICIENT_EVIDENCE, REFUSE, HANDOFF,
@@ -1860,6 +1875,23 @@ public class AiConversationService {
     }
 
     private TriageSummary parseTriage(Object raw, ChatMode mode) {
+        // Read path: the stored value already passed the write-time gate, so
+        // structural validation is sufficient — re-checking a mutable catalog
+        // allowlist on reload would break history when a specialty is renamed.
+        return parseTriage(raw, mode, null);
+    }
+
+    private Set<String> groundedTitles(List<AiChatSourceResolver.ResolvedSource> authorized) {
+        Set<String> titles = new java.util.HashSet<>();
+        for (AiChatSourceResolver.ResolvedSource source : authorized) {
+            if (source != null && source.title() != null && !source.title().isBlank()) {
+                titles.add(source.title());
+            }
+        }
+        return titles;
+    }
+
+    private TriageSummary parseTriage(Object raw, ChatMode mode, Set<String> groundedTitles) {
         if (raw == null) return null;
         // Triage is a mode-specific contract.  Never persist or expose a
         // provider-supplied triage object for operational/educational chats.
@@ -1893,8 +1925,15 @@ public class AiConversationService {
         if (urgency == null) urgency = stringValue(value.get("urgencyLevel"));
         String specialty = stringValue(value.get("recommended_specialty"));
         if (specialty == null) specialty = stringValue(value.get("recommendedSpecialty"));
-        if (urgency == null || !TRIAGE_URGENCY.contains(urgency)
-                || (specialty != null && !TRIAGE_SPECIALTIES.contains(specialty))) {
+        // The write path accepts the static display names plus a specialty
+        // grounded in this turn's authorized sources (local triage now
+        // recommends the top authorized source title — a live catalog name
+        // such as "Mắt" that predates the nine-name display allowlist).
+        boolean specialtyOk = specialty == null
+            || TRIAGE_SPECIALTIES.contains(specialty)
+            || groundedTitles == null
+            || groundedTitles.contains(specialty);
+        if (urgency == null || !TRIAGE_URGENCY.contains(urgency) || !specialtyOk) {
             throw invalidAiResponse();
         }
         return new TriageSummary(urgency, specialty);
@@ -2134,9 +2173,11 @@ public class AiConversationService {
                 "Giờ làm việc có thể khác theo từng cơ sở. Hãy mở mục Cơ sở & giờ làm việc "
                     + "để xem thông tin hiện tại trước khi đến khám.";
             case PREPARATION ->
-                "Trước khi đi khám, bạn nên kiểm tra hướng dẫn của cơ sở, mang giấy tờ cần thiết "
-                    + "và các kết quả hoặc đơn thuốc liên quan nếu có. Yêu cầu chuẩn bị có thể khác "
-                    + "theo dịch vụ; hãy xác nhận lại khi đặt lịch hoặc với cơ sở.";
+                "Trước khi đi khám, bạn nên mang theo giấy tờ tùy thân (CCCD/CMND), "
+                    + "thẻ BHYT nếu có, các kết quả xét nghiệm hoặc chẩn đoán hình ảnh gần nhất "
+                    + "và danh sách thuốc đang sử dụng. Nên đến sớm khoảng 15–30 phút để làm thủ tục. "
+                    + "Một số xét nghiệm hoặc dịch vụ có yêu cầu riêng (ví dụ nhịn ăn) — "
+                    + "bạn nên xác nhận trước khi đặt lịch hoặc gọi cho cơ sở.";
             case EDUCATION ->
                 "Mình chưa tìm thấy bài viết hoặc câu hỏi thường gặp phù hợp trong kho kiến thức "
                     + "đã được kiểm duyệt. Bạn có thể mở Cẩm nang sức khỏe hoặc Câu hỏi thường gặp.";
@@ -2363,34 +2404,6 @@ public class AiConversationService {
     }
 
     /**
-     * Server-owned pre-visit checklist for generic preparation questions
-     * ("chuẩn bị trước khi khám", "cần mang theo gì").  The guidance is a
-     * complete deterministic answer — nothing a provider round-trip could
-     * improve — so it reports ANSWER with the free local tier.
-     */
-    private SanitizedAiResponse preparationDeterministicResponse(String content) {
-        String answer =
-            "Trước khi đi khám, bạn nên mang theo giấy tờ tùy thân (CCCD/CMND), "
-                + "thẻ BHYT nếu có, các kết quả xét nghiệm hoặc chẩn đoán hình ảnh gần nhất "
-                + "và danh sách thuốc đang sử dụng. Nên đến sớm khoảng 15–30 phút để làm thủ tục. "
-                + "Một số xét nghiệm hoặc dịch vụ có yêu cầu riêng (ví dụ nhịn ăn) — "
-                + "bạn nên xác nhận trước khi đặt lịch hoặc gọi cho cơ sở.";
-        return new SanitizedAiResponse(
-            answer,
-            SAFE_DISCLAIMER,
-            "local_fallback",
-            List.of(),
-            ChatSafetyAction.ANSWER,
-            null,
-            ChatSuggestedActionResolver.hospitalSupportFallback(content),
-            "CURRENT",
-            List.of(),
-            "local_free",
-            "preparation_guidance"
-        );
-    }
-
-    /**
      * Resolve explicit branch identities before the semantic index is asked
      * to generate.  Numeric branch labels are especially prone to nearby-row
      * matches (Cơ sở 13 can look similar to Cơ sở 2), so an exact operational
@@ -2402,18 +2415,18 @@ public class AiConversationService {
 
         ChatSuggestedActionResolver.HospitalSupportIntent supportIntent =
             ChatSuggestedActionResolver.classify(content);
-        if ((supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY
-                    || supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.PREPARATION)
+        // Preparation questions ("nhịn ăn trước xét nghiệm") deliberately
+        // reach retrieval now: the governed article/FAQ corpus answers them
+        // with citations, and when nothing authorizes the canned checklist
+        // still lands via supportAwareFallback — the deterministic copy is
+        // the floor, not the ceiling.
+        if (supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY
                 && !ChatMedicalSafety.containsProtectedInputCue(content)) {
             // Amenity questions resolve against the live amenities JSON —
             // the RAG copy strips serialized JSON from excerpts, so retrieval
-            // cannot answer them faithfully anyway.  Preparation questions
-            // get the server-owned checklist: a complete deterministic
-            // answer that cannot hallucinate.
+            // cannot answer them faithfully anyway.
             try {
-                return supportIntent == ChatSuggestedActionResolver.HospitalSupportIntent.AMENITY
-                    ? amenityDeterministicResponse(content)
-                    : preparationDeterministicResponse(content);
+                return amenityDeterministicResponse(content);
             } catch (RuntimeException ex) {
                 return null;
             }
@@ -2487,6 +2500,11 @@ public class AiConversationService {
                             : ambiguousBranchResponse(content, boundedOwn);
                     }
                 }
+                // Generic branch-intent questions with no resolvable identity
+                // ("giờ làm việc của bệnh viện?") still have a deterministic
+                // answer: the live branch overview, same as the public lane.
+                SanitizedAiResponse overview = branchHoursOverviewResponse(content);
+                if (overview != null) return overview;
                 return null;
             }
             List<AiChatSourceResolver.BranchDetails> matches = sourceResolver.branchDetails(content);
@@ -2603,6 +2621,65 @@ public class AiConversationService {
             sources,
             "local_free",
             "ambiguous_branch_fallback"
+        );
+    }
+
+    /** Mirrors the public lane's opening-hours overview: generic branch questions answer from the live catalog. */
+    private static final int MAX_BRANCH_HOURS_OVERVIEW_ROWS = 4;
+
+    private SanitizedAiResponse branchHoursOverviewResponse(String content) {
+        List<AiChatSourceResolver.BranchDetails> branches;
+        try {
+            branches = sourceResolver.activeBranchOverview(MAX_BRANCH_HOURS_OVERVIEW_ROWS);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (branches == null || branches.isEmpty()) return null;
+        List<String> parts = new ArrayList<>();
+        List<AiChatSourceResolver.ResolvedSource> sources = new ArrayList<>();
+        for (AiChatSourceResolver.BranchDetails branch : branches) {
+            if (branch == null || branch.source() == null) continue;
+            String hours = branch.workingHours() == null || branch.workingHours().isBlank()
+                ? "giờ làm việc đang cập nhật"
+                : branch.workingHours();
+            parts.add(branch.source().title() + " — " + hours);
+            sources.add(branch.source());
+        }
+        if (parts.isEmpty()) return null;
+        List<Map<String, String>> citations;
+        try {
+            citations = sourceResolver.citations(sources);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        if (citations == null || citations.isEmpty()) return null;
+        List<Map<String, String>> actions;
+        try {
+            actions = sourceResolver.actions(sources).stream()
+                .filter(java.util.Objects::nonNull)
+                .filter(value -> "VIEW_SOURCE".equals(value.get("kind")))
+                .limit(3)
+                .toList();
+        } catch (RuntimeException ex) {
+            actions = List.of();
+        }
+        if (actions.isEmpty()) {
+            actions = ChatSuggestedActionResolver.hospitalSupportFallback(content);
+        }
+        return new SanitizedAiResponse(
+            "Theo dữ liệu cơ sở đang hoạt động, giờ làm việc của bệnh viện như sau: "
+                + String.join("; ", parts)
+                + ". Giờ có thể thay đổi trong ngày lễ; bạn nên kiểm tra lại trước khi đến khám.",
+            SAFE_DISCLAIMER,
+            "local_fallback",
+            citations,
+            ChatSafetyAction.ANSWER,
+            null,
+            actions,
+            "CURRENT",
+            sources,
+            "local_free",
+            "branch_hours_overview"
         );
     }
 

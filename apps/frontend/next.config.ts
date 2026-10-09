@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { CMS_PAGE_MANIFESTS } from "./lib/cms-page-manifest";
 
 const distDir = process.env.NEXT_DIST_DIR || ".next";
 const development = process.env.NODE_ENV !== "production";
@@ -155,6 +156,21 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      {
+        // Client navigation keeps the entry document's CSP. Every admin entry
+        // can host the CMS preview; its own framing protections stay DENY.
+        source: "/admin/:path*",
+        headers: [{ key: "Content-Security-Policy", value: contentSecurityPolicy.replace("frame-src https://", "frame-src 'self' https://") }],
+      },
+      ...CMS_PAGE_MANIFESTS.flatMap((page) => [page.path, ...(page.supportsDetail ? [`${page.path}/:slug`] : [])].map((source) => ({
+        source,
+        has: [{ type: "query" as const, key: "cmsPreview", value: "1" }],
+        headers: [
+          { key: "Content-Security-Policy", value: contentSecurityPolicy.replace("frame-ancestors 'none'", "frame-ancestors 'self'") },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      }))),
     ];
   },
   images: {

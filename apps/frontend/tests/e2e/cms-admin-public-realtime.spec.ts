@@ -2,6 +2,8 @@ import { once } from "node:events";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test } from "@playwright/test";
+import { createNativeCmsLayout, type CmsPageLayout } from "../../lib/cms-page-layout";
+import { resolveCmsPageIdentity } from "../../lib/cms-page-manifest";
 import {
   assertNoSensitiveBrowserStorage,
   browserSessionFixture,
@@ -10,21 +12,14 @@ import {
 
 type CmsContent = {
   slotKey: string;
-  componentType: "HERO";
-  payload: {
-    eyebrow: string;
-    title: string;
-    body: string;
-    ctaLabel: string;
-    ctaHref: string;
-    imageUrl: string;
-  };
+  componentType: "PAGE_LAYOUT";
+  payload: CmsPageLayout;
   status: "PUBLISHED";
   version: number;
   updatedAt: string;
 };
 
-const SLOT_KEY = "homepage.hero";
+const SLOT_KEY = "homepage.layout";
 const INITIAL_TITLE = "Trung tâm chăm sóc chủ động";
 const UPDATED_TITLE = "Trung tâm chăm sóc realtime";
 const UPDATED_BODY = "Nội dung hero này được admin xuất bản và đồng bộ sang tab người dùng.";
@@ -45,14 +40,10 @@ function pageEnvelope<T>(content: T[] = []) {
 function cmsContent(version: number, title: string, body: string): CmsContent {
   return {
     slotKey: SLOT_KEY,
-    componentType: "HERO",
+    componentType: "PAGE_LAYOUT",
     payload: {
-      eyebrow: "HealthCare CMS",
-      title,
-      body,
-      ctaLabel: "Đặt lịch khám",
-      ctaHref: "/dat-lich",
-      imageUrl: "/icon.svg",
+      ...createNativeCmsLayout(resolveCmsPageIdentity("/")!),
+      fields: { "hero.title": { kind: "text", value: title }, "hero.body": { kind: "rich", format: "markdown", value: body } },
     },
     status: "PUBLISHED",
     version,
@@ -124,6 +115,8 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 
 async function startCmsMockBackend() {
   let publishedContent = cmsContent(1, INITIAL_TITLE, "Nội dung ban đầu từ backend CMS.");
+  let workingPayload = structuredClone(publishedContent.payload);
+  let workingVersion = 1;
   let publishRequested = false;
   let publicReadAfterPublish = false;
   let feedReady = false;
@@ -175,7 +168,8 @@ async function startCmsMockBackend() {
       }
 
       if (method === "GET" && (
-        apiPath === "/cms/content/homepage.body"
+        apiPath === "/cms/content/homepage.hero"
+        || apiPath === "/cms/content/homepage.body"
         || apiPath === "/cms/content/homepage.sidebar"
         || apiPath === "/cms/content/homepage.footer"
       )) {
@@ -208,27 +202,32 @@ async function startCmsMockBackend() {
         return;
       }
 
-      if (method === "GET" && apiPath === `/admin/cms/content/${SLOT_KEY}`) {
-        sendJson(response, 200, publishedContent);
+      if (method === "GET" && apiPath === `/admin/cms/content/${SLOT_KEY}/draft`) {
+        sendJson(response, 200, { slotKey: SLOT_KEY, componentType: "PAGE_LAYOUT", expectedVersion: workingVersion, hasDraft: workingVersion !== publishedContent.version, payload: workingPayload, draftUpdatedAt: workingVersion > 1 ? publishedContent.updatedAt : null, publicContent: publishedContent });
         return;
       }
 
-      if (method === "PUT" && apiPath === `/admin/cms/content/${SLOT_KEY}`) {
+      if (method === "PUT" && apiPath === `/admin/cms/content/${SLOT_KEY}/draft`) {
         const body = await readJsonBody(request) as {
           componentType?: unknown;
-          payload?: { title?: unknown; body?: unknown };
-          status?: unknown;
+          payload?: CmsPageLayout;
           expectedVersion?: unknown;
         };
 
-        if (body.componentType !== "HERO") serverErrors.push(`Unexpected componentType: ${String(body.componentType)}.`);
-        if (body.status !== "PUBLISHED") serverErrors.push(`Unexpected status: ${String(body.status)}.`);
+        if (body.componentType !== "PAGE_LAYOUT") serverErrors.push("Unexpected componentType.");
         if (body.expectedVersion !== 1) serverErrors.push(`Unexpected expectedVersion: ${String(body.expectedVersion)}.`);
-        if (body.payload?.title !== UPDATED_TITLE) serverErrors.push(`Unexpected title: ${String(body.payload?.title)}.`);
-
+        if (body.payload?.fields["hero.title"]?.kind !== "text" || body.payload.fields["hero.title"].value !== UPDATED_TITLE) serverErrors.push("Unexpected title.");
+        if (body.payload?.fields["hero.body"]?.kind !== "rich" || body.payload.fields["hero.body"].value !== UPDATED_BODY) serverErrors.push("Unexpected rich body.");
+        workingPayload = body.payload!; workingVersion = 2;
+        sendJson(response, 200, { slotKey: SLOT_KEY, componentType: "PAGE_LAYOUT", expectedVersion: workingVersion, hasDraft: true, payload: workingPayload, draftUpdatedAt: publishedContent.updatedAt, publicContent: publishedContent });
+        return;
+      }
+      if (method === "POST" && apiPath === `/admin/cms/content/${SLOT_KEY}/publish`) {
+        const body = await readJsonBody(request) as { expectedVersion?: unknown };
+        if (body.expectedVersion !== 2) serverErrors.push("Publish must promote exactly the saved revision.");
         publishRequested = true;
-        publishedContent = cmsContent(2, UPDATED_TITLE, String(body.payload?.body ?? UPDATED_BODY));
-        sendJson(response, 200, publishedContent);
+        publishedContent = { ...cmsContent(3, UPDATED_TITLE, UPDATED_BODY), payload: structuredClone(workingPayload) }; workingVersion = 3;
+        sendJson(response, 200, { slotKey: SLOT_KEY, componentType: "PAGE_LAYOUT", expectedVersion: workingVersion, hasDraft: false, payload: workingPayload, draftUpdatedAt: publishedContent.updatedAt, publicContent: publishedContent });
         for (const client of sseClients) {
           client.write(contentChangedEvent(publishedContent, 2));
         }
@@ -308,9 +307,8 @@ test("admin publish reaches the public homepage hero through the bounded poll wh
     const publicPage = await context.newPage();
     await publicPage.goto("/");
 
-    const heroSlot = publicPage.locator('[data-cms-live-slot="hero"]');
+    const heroSlot = publicPage.locator('[data-cms-native-field="hero.title"]');
     await expect(heroSlot).toContainText(INITIAL_TITLE);
-    await expect(heroSlot).toHaveAttribute("data-cms-version", "1");
 
     let publicMainFrameNavigationsAfterLoad = 0;
     publicPage.on("framenavigated", (frame) => {
@@ -324,20 +322,23 @@ test("admin publish reaches the public homepage hero through the bounded poll wh
     );
 
     await adminPage.goto("/admin/content");
-    await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
-    await expect(adminPage.locator("#cms-payload-title")).toHaveValue(INITIAL_TITLE);
-
-    await adminPage.locator("#cms-payload-title").fill(UPDATED_TITLE);
-    await adminPage.locator("#cms-payload-body").fill(UPDATED_BODY);
-    await adminPage.getByRole("button", { name: "Xuất bản" }).click();
-
-    await expect(adminPage.getByText("Đã xuất bản homepage.hero, version 2.")).toBeVisible();
+    await expect(adminPage.getByTestId("cms-workspace")).toBeVisible();
+    await expect(adminPage.getByText("Chọn văn bản hoặc ảnh trong trang để chỉnh sửa.")).toBeVisible();
+    const preview = adminPage.frameLocator('[data-testid="cms-preview-frame"]');
+    await preview.locator('[data-cms-native-field="hero.title"]').click();
+    await expect(adminPage.getByTestId("cms-field-inspector").getByRole("textbox")).toHaveValue(INITIAL_TITLE);
+    await adminPage.getByTestId("cms-field-inspector").getByRole("textbox").fill(UPDATED_TITLE);
+    await preview.locator('[data-cms-native-field="hero.body"]').click();
+    const tinyBody = adminPage.frameLocator(".tox-edit-area__iframe").locator("body");
+    await expect(tinyBody).toBeVisible(); await tinyBody.fill(UPDATED_BODY);
+    await adminPage.getByTestId("cms-publish").click();
+    await adminPage.getByRole("dialog").getByRole("button", { name: "Xác nhận xuất bản", exact: true }).click();
+    await expect(adminPage.getByText("Đã xuất bản nội dung của trang này.")).toBeVisible();
     // The public tab holds no push feed — that invocation pinning was the Fluid
     // memory leak this branch fixes — so it converges on its next 60s poll.
     // 75s covers one full poll cycle from mount.
     await expect(heroSlot).toContainText(UPDATED_TITLE, { timeout: 75_000 });
-    await expect(heroSlot).toContainText(UPDATED_BODY);
-    await expect(heroSlot).toHaveAttribute("data-cms-version", "2");
+    await expect(publicPage.locator('[data-cms-native-field="hero.body"]')).toContainText(UPDATED_BODY);
     await expect(heroSlot).not.toContainText(INITIAL_TITLE);
 
     expect(publicMainFrameNavigationsAfterLoad).toBe(0);

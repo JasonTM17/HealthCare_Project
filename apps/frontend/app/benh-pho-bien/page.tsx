@@ -20,6 +20,8 @@ import { presentApiError } from "../../lib/present-api-error";
 import type { Article, HealthQuestionSummary } from "../../types/hospital";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../../lib/article-visuals";
 import { ARTICLE_CATEGORY_LABELS } from "../../lib/article-category";
+import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
+import { CmsNativeSection, CmsNativeText } from "../../components/cms/cms-page-layout-provider";
 
 const ARTICLE_PAGE_SIZE = 9;
 const QUESTION_PAGE_SIZE = 4;
@@ -199,6 +201,7 @@ export default function CommonDiseasesPage() {
   }, [category, normalizedQuery]);
 
   const report = async (questionId: string) => {
+    if (isCmsPreviewRequested()) return;
     if (!session || !hasRole(session.user, "PATIENT")) {
       setReportNotice("Hãy đăng nhập bằng tài khoản bệnh nhân để báo cáo nội dung.");
       return;
@@ -218,175 +221,183 @@ export default function CommonDiseasesPage() {
   return (
     <PublicPageShell>
       <div className="catalog-page section-inner">
-        <header className="resource-page__header">
-          <p className="section-note">Kho kiến thức bệnh phổ biến</p>
-          <h1>Hiểu đúng để biết khi nào nên đi khám</h1>
-          <p>
-            Nội dung tham khảo được thẩm định chuyên môn bởi Hội đồng Y khoa HealthCare. Không thay thế thăm khám hoặc chẩn đoán trực tiếp từ bác sĩ.
-          </p>
-          <div className="resource-actions">
-            <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
-            <PublicBookingButton>Đặt lịch với bác sĩ</PublicBookingButton>
-          </div>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Kho kiến thức bệnh phổ biến"} className="section-note">Kho kiến thức bệnh phổ biến</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Hiểu đúng để biết khi nào nên đi khám"}>Hiểu đúng để biết khi nào nên đi khám</CmsNativeText>
+            <p>
+              Nội dung tham khảo được thẩm định chuyên môn bởi Hội đồng Y khoa HealthCare. Không thay thế thăm khám hoặc chẩn đoán trực tiếp từ bác sĩ.
+            </p>
+            <div className="resource-actions">
+              <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
+              <PublicBookingButton>Đặt lịch với bác sĩ</PublicBookingButton>
+            </div>
+          </header>
+        </CmsNativeSection>
 
-        <section aria-labelledby="disease-filters-title" className="resource-panel resource-panel--accent">
-          <p className="section-note" id="disease-filters-title">Tìm theo bệnh hoặc chủ đề</p>
-          <div className="resource-grid resource-grid--two">
-            <label className="disease-filter" htmlFor="disease-search">
-              <span className="sr-only">Từ khóa tìm kiếm</span>
-              <input
-                className="disease-filter__control"
-                id="disease-search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Ví dụ: đau đầu, tiểu đường…"
-                type="search"
-              />
-            </label>
-            <label className="disease-filter" htmlFor="disease-category">
-              <span className="sr-only">Lọc theo chuyên đề</span>
-              <select className="disease-filter__control" id="disease-category" value={category} onChange={(event) => setCategory(event.target.value)}>
-                <option value="ALL">Tất cả chuyên đề</option>
-                {categories.map((value) => (
-                  <option key={value} value={value.toUpperCase()}>{labelForToken(value, ARTICLE_CATEGORY_LABELS, "Chuyên đề sức khỏe")}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <p className="catalog-meta" aria-live="polite">
-            {filteredArticles.length} bài hướng dẫn · {filteredQuestions.length} câu hỏi đã xuất bản
-          </p>
-        </section>
+        <CmsNativeSection sectionId="filters">
+          <section aria-labelledby="disease-filters-title" className="resource-panel resource-panel--accent">
+            <p className="section-note" id="disease-filters-title">Tìm theo bệnh hoặc chủ đề</p>
+            <div className="resource-grid resource-grid--two">
+              <label className="disease-filter" htmlFor="disease-search">
+                <span className="sr-only">Từ khóa tìm kiếm</span>
+                <input
+                  className="disease-filter__control"
+                  id="disease-search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Ví dụ: đau đầu, tiểu đường…"
+                  type="search"
+                />
+              </label>
+              <label className="disease-filter" htmlFor="disease-category">
+                <span className="sr-only">Lọc theo chuyên đề</span>
+                <select className="disease-filter__control" id="disease-category" value={category} onChange={(event) => setCategory(event.target.value)}>
+                  <option value="ALL">Tất cả chuyên đề</option>
+                  {categories.map((value) => (
+                    <option key={value} value={value.toUpperCase()}>{labelForToken(value, ARTICLE_CATEGORY_LABELS, "Chuyên đề sức khỏe")}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="catalog-meta" aria-live="polite">
+              {filteredArticles.length} bài hướng dẫn · {filteredQuestions.length} câu hỏi đã xuất bản
+            </p>
+          </section>
+        </CmsNativeSection>
 
-        <section aria-busy={articlesLoading} aria-labelledby="disease-guides-title">
-          <div className="section-heading">
-            <div>
-              <p className="section-note">Hướng dẫn bệnh phổ biến</p>
-              <h2 id="disease-guides-title">Bắt đầu từ thông tin phù hợp với bạn</h2>
-            </div>
-          </div>
-          {articlesLoading ? <p className="catalog-status catalog-status--loading" role="status">{articles.length ? "Đang cập nhật hướng dẫn…" : "Đang tải hướng dẫn…"}</p> : null}
-          {articlesError ? (
-            <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-              <span>{articles.length ? `Chưa thể cập nhật hướng dẫn mới. ${articlesError} Đang hiển thị nội dung đã tải trước đó.` : articlesError}</span>
-              <button className="outline-button outline-button--small" onClick={() => setArticlesRetry((value) => value + 1)} type="button">Thử tải lại hướng dẫn</button>
-            </div>
-          ) : null}
-          {!articlesLoading && !articlesError && articlePage.empty ? (
-            <div className="rounded-[4px] border border-slate-200 bg-white p-8 mb-12 shadow-xs text-center max-w-2xl mx-auto" role="status">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[4px] bg-teal-50 text-teal-800 border border-teal-100">
-                <UiIcon name="book-open" size={26} />
-              </div>
-              <h3 className="text-lg font-bold text-teal-950 mb-2">
-                Kho hướng dẫn bệnh phổ biến đang được cập nhật
-              </h3>
-              <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-                {hasActiveFilters ? "Chưa có bài viết phù hợp với bộ lọc hiện tại." : "Kho hướng dẫn đang được bệnh viện bổ sung."} Hãy thử nội dung khác hoặc xem cẩm nang sức khỏe.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                {hasActiveFilters ? (
-                  <button className="outline-button outline-button--small min-h-11" onClick={() => { setQuery(""); setCategory("ALL"); }} type="button">
-                    Xóa bộ lọc
-                  </button>
-                ) : null}
-                <Link className="button button--primary button--small" href="/articles">
-                  Mở cẩm nang sức khỏe →
-                </Link>
-                <Link className="outline-button outline-button--small" href="/contact">
-                  Liên hệ bác sĩ chuyên khoa
-                </Link>
+        <CmsNativeSection sectionId="guides">
+          <section aria-busy={articlesLoading} aria-labelledby="disease-guides-title">
+            <div className="section-heading">
+              <div>
+                <CmsNativeText fieldId="guides.eyebrow" as="p" value={"Hướng dẫn bệnh phổ biến"} className="section-note">Hướng dẫn bệnh phổ biến</CmsNativeText>
+                <CmsNativeText fieldId="guides.title" as="h2" value={"Bắt đầu từ thông tin phù hợp với bạn"} id="disease-guides-title">Bắt đầu từ thông tin phù hợp với bạn</CmsNativeText>
               </div>
             </div>
-          ) : null}
-          {!articlesLoading && !articlePage.empty ? (
-            <>
-              <div className="catalog-grid catalog-grid--articles">
-                {articlePage.content.map((article) => (
-                  <article className="catalog-card" key={article.id}>
-                    <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        alt={resolveArticleAlt(article)}
-                        className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-                        src={resolveArticleCoverImage(article)}
-                      />
-                      <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
-                        {articleCategory(article)}
-                      </span>
-                    </div>
-                    <p className="section-note">{article.readingMinutes ?? 5} phút đọc</p>
-                    <h3>{article.title}</h3>
-                    <p>{article.summary}</p>
-                    <p className="catalog-meta">Cập nhật {formatBusinessDate(article.updatedAt ?? article.publishedAt)}</p>
-                    <Link className="text-button" href={`/benh-pho-bien/${encodeURIComponent(article.slug)}`}>Xem hướng dẫn →</Link>
-                  </article>
-                ))}
+            {articlesLoading ? <p className="catalog-status catalog-status--loading" role="status">{articles.length ? "Đang cập nhật hướng dẫn…" : "Đang tải hướng dẫn…"}</p> : null}
+            {articlesError ? (
+              <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+                <span>{articles.length ? `Chưa thể cập nhật hướng dẫn mới. ${articlesError} Đang hiển thị nội dung đã tải trước đó.` : articlesError}</span>
+                <button className="outline-button outline-button--small" onClick={() => setArticlesRetry((value) => value + 1)} type="button">Thử tải lại hướng dẫn</button>
               </div>
-              <CatalogPagination label="Phân trang hướng dẫn bệnh phổ biến" onPageChange={setArticlePageNumber} page={articlePage} />
-            </>
-          ) : null}
-        </section>
+            ) : null}
+            {!articlesLoading && !articlesError && articlePage.empty ? (
+              <div className="rounded-[4px] border border-slate-200 bg-white p-8 mb-12 shadow-xs text-center max-w-2xl mx-auto" role="status">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[4px] bg-teal-50 text-teal-800 border border-teal-100">
+                  <UiIcon name="book-open" size={26} />
+                </div>
+                <h3 className="text-lg font-bold text-teal-950 mb-2">
+                  Kho hướng dẫn bệnh phổ biến đang được cập nhật
+                </h3>
+                <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                  {hasActiveFilters ? "Chưa có bài viết phù hợp với bộ lọc hiện tại." : "Kho hướng dẫn đang được bệnh viện bổ sung."} Hãy thử nội dung khác hoặc xem cẩm nang sức khỏe.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {hasActiveFilters ? (
+                    <button className="outline-button outline-button--small min-h-11" onClick={() => { setQuery(""); setCategory("ALL"); }} type="button">
+                      Xóa bộ lọc
+                    </button>
+                  ) : null}
+                  <Link className="button button--primary button--small" href="/articles">
+                    Mở cẩm nang sức khỏe →
+                  </Link>
+                  <Link className="outline-button outline-button--small" href="/contact">
+                    Liên hệ bác sĩ chuyên khoa
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+            {!articlesLoading && !articlePage.empty ? (
+              <>
+                <div className="catalog-grid catalog-grid--articles">
+                  {articlePage.content.map((article) => (
+                    <article className="catalog-card" key={article.id}>
+                      <div className="relative h-44 w-full mb-4 overflow-hidden rounded-[4px] bg-slate-100 border border-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          alt={resolveArticleAlt(article)}
+                          className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                          src={resolveArticleCoverImage(article)}
+                        />
+                        <span className="absolute top-2.5 left-2.5 rounded-[4px] bg-teal-950/85 backdrop-blur-md px-2 py-0.5 text-xs font-bold text-teal-100 shadow-xs">
+                          {articleCategory(article)}
+                        </span>
+                      </div>
+                      <p className="section-note">{article.readingMinutes ?? 5} phút đọc</p>
+                      <h3>{article.title}</h3>
+                      <p>{article.summary}</p>
+                      <p className="catalog-meta">Cập nhật {formatBusinessDate(article.updatedAt ?? article.publishedAt)}</p>
+                      <Link className="text-button" href={`/benh-pho-bien/${encodeURIComponent(article.slug)}`}>Xem hướng dẫn →</Link>
+                    </article>
+                  ))}
+                </div>
+                <CatalogPagination label="Phân trang hướng dẫn bệnh phổ biến" onPageChange={setArticlePageNumber} page={articlePage} />
+              </>
+            ) : null}
+          </section>
+        </CmsNativeSection>
 
-        <section aria-busy={questionsLoading} aria-labelledby="published-questions-title" className="resource-panel mt-12">
-          <div className="section-heading mb-4">
-            <div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
-                Hỏi đáp đã xuất bản
-              </span>
-              <h2 className="text-2xl font-black text-teal-950 tracking-tight mt-2" id="published-questions-title">
-                Câu hỏi được bác sĩ duyệt
-              </h2>
-              <p className="portal-panel__intro mt-1">
-                Danh tính thật không hiển thị. Bạn có thể báo cáo nội dung không phù hợp để bệnh viện kiểm tra.
-              </p>
-            </div>
-          </div>
-          {questionsLoading ? <p className="catalog-status catalog-status--loading" role="status">{questions.length ? "Đang cập nhật hỏi đáp…" : "Đang tải hỏi đáp…"}</p> : null}
-          {questionsError ? (
-            <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-              <span>{questions.length ? `Chưa thể cập nhật hỏi đáp mới. ${questionsError} Đang hiển thị nội dung đã tải trước đó.` : questionsError}</span>
-              <button className="outline-button outline-button--small" onClick={() => setQuestionsRetry((value) => value + 1)} type="button">Thử tải lại hỏi đáp</button>
-            </div>
-          ) : null}
-          {!questionsLoading && !questionsError && questionPage.empty ? (
-            <div className="rounded-[4px] border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600" role="status">
-              <p className="font-semibold text-slate-800 mb-1">
-                {hasActiveFilters ? "Chưa có câu hỏi phù hợp với từ khóa hiện tại." : "Chưa có câu hỏi đã xuất bản."}
-              </p>
-              <p className="text-xs text-slate-500 mb-3">Bạn có thể xem thêm các giải đáp thường gặp hoặc gửi câu hỏi mới.</p>
-              <Link className="button button--primary button--small" href="/faq">Mở câu hỏi thường gặp →</Link>
-            </div>
-          ) : null}
-          {!questionsLoading && !questionPage.empty ? (
-            <>
-              <div className="resource-grid resource-grid--two">
-                {questionPage.content.map((item) => (
-                  <article className="catalog-card" key={item.id}>
-                    <p className="section-note">{topicLabel(item.topicSlug)} · {item.publicAlias || "Người hỏi ẩn danh"}</p>
-                    <h3>{item.question}</h3>
-                    {item.answer ? <p>{item.answer}</p> : <p className="resource-muted">Câu trả lời đang được cập nhật.</p>}
-                    <p className="catalog-meta">Đã xuất bản {formatBusinessDate(item.createdAt)}</p>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <label className="sr-only" htmlFor={`report-reason-${item.id}`}>Lý do báo cáo</label>
-                      <select id={`report-reason-${item.id}`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 text-sm" value={reportReason[item.id] ?? "SAFETY_CONCERN"} onChange={(event) => setReportReason((current) => ({ ...current, [item.id]: event.target.value }))}>
-                        <option value="SAFETY_CONCERN">Lo ngại an toàn</option>
-                        <option value="PII_DETECTED">Có thông tin cá nhân</option>
-                        <option value="SPAM">Spam hoặc lạm dụng</option>
-                        <option value="DUPLICATE">Trùng nội dung</option>
-                      </select>
-                      <button aria-busy={reportingId === item.id} className="outline-button outline-button--small" disabled={reportingId === item.id} onClick={() => void report(item.id)} type="button">
-                        {reportingId === item.id ? "Đang gửi…" : "Báo cáo nội dung"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
+        <CmsNativeSection sectionId="questions">
+          <section aria-busy={questionsLoading} aria-labelledby="published-questions-title" className="resource-panel mt-12">
+            <div className="section-heading mb-4">
+              <div>
+                <CmsNativeText fieldId="questions.label" as="span" value={"Hỏi đáp đã xuất bản"} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] text-xs font-bold uppercase tracking-wider bg-teal-50 text-teal-800 border border-teal-200/60">
+                  Hỏi đáp đã xuất bản
+                </CmsNativeText>
+                <CmsNativeText fieldId="questions.title" as="h2" value={"Câu hỏi được bác sĩ duyệt"} className="text-2xl font-black text-teal-950 tracking-tight mt-2" id="published-questions-title">
+                  Câu hỏi được bác sĩ duyệt
+                </CmsNativeText>
+                <CmsNativeText fieldId="questions.body" as="p" value={"Danh tính thật không hiển thị. Bạn có thể báo cáo nội dung không phù hợp để bệnh viện kiểm tra."} className="portal-panel__intro mt-1">
+                  Danh tính thật không hiển thị. Bạn có thể báo cáo nội dung không phù hợp để bệnh viện kiểm tra.
+                </CmsNativeText>
               </div>
-              <CatalogPagination label="Phân trang hỏi đáp sức khỏe" onPageChange={setQuestionPageNumber} page={questionPage} />
-            </>
-          ) : null}
-          {reportNotice ? <p aria-live="polite" className="catalog-status" role="status">{reportNotice}</p> : null}
-        </section>
+            </div>
+            {questionsLoading ? <p className="catalog-status catalog-status--loading" role="status">{questions.length ? "Đang cập nhật hỏi đáp…" : "Đang tải hỏi đáp…"}</p> : null}
+            {questionsError ? (
+              <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+                <span>{questions.length ? `Chưa thể cập nhật hỏi đáp mới. ${questionsError} Đang hiển thị nội dung đã tải trước đó.` : questionsError}</span>
+                <button className="outline-button outline-button--small" onClick={() => setQuestionsRetry((value) => value + 1)} type="button">Thử tải lại hỏi đáp</button>
+              </div>
+            ) : null}
+            {!questionsLoading && !questionsError && questionPage.empty ? (
+              <div className="rounded-[4px] border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-600" role="status">
+                <p className="font-semibold text-slate-800 mb-1">
+                  {hasActiveFilters ? "Chưa có câu hỏi phù hợp với từ khóa hiện tại." : "Chưa có câu hỏi đã xuất bản."}
+                </p>
+                <p className="text-xs text-slate-500 mb-3">Bạn có thể xem thêm các giải đáp thường gặp hoặc gửi câu hỏi mới.</p>
+                <Link className="button button--primary button--small" href="/faq">Mở câu hỏi thường gặp →</Link>
+              </div>
+            ) : null}
+            {!questionsLoading && !questionPage.empty ? (
+              <>
+                <div className="resource-grid resource-grid--two">
+                  {questionPage.content.map((item) => (
+                    <article className="catalog-card" key={item.id}>
+                      <p className="section-note">{topicLabel(item.topicSlug)} · {item.publicAlias || "Người hỏi ẩn danh"}</p>
+                      <h3>{item.question}</h3>
+                      {item.answer ? <p>{item.answer}</p> : <p className="resource-muted">Câu trả lời đang được cập nhật.</p>}
+                      <p className="catalog-meta">Đã xuất bản {formatBusinessDate(item.createdAt)}</p>
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <label className="sr-only" htmlFor={`report-reason-${item.id}`}>Lý do báo cáo</label>
+                        <select id={`report-reason-${item.id}`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 text-sm" value={reportReason[item.id] ?? "SAFETY_CONCERN"} onChange={(event) => setReportReason((current) => ({ ...current, [item.id]: event.target.value }))}>
+                          <option value="SAFETY_CONCERN">Lo ngại an toàn</option>
+                          <option value="PII_DETECTED">Có thông tin cá nhân</option>
+                          <option value="SPAM">Spam hoặc lạm dụng</option>
+                          <option value="DUPLICATE">Trùng nội dung</option>
+                        </select>
+                        <button aria-busy={reportingId === item.id} className="outline-button outline-button--small" disabled={reportingId === item.id} onClick={() => void report(item.id)} type="button">
+                          {reportingId === item.id ? "Đang gửi…" : "Báo cáo nội dung"}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <CatalogPagination label="Phân trang hỏi đáp sức khỏe" onPageChange={setQuestionPageNumber} page={questionPage} />
+              </>
+            ) : null}
+            {reportNotice ? <p aria-live="polite" className="catalog-status" role="status">{reportNotice}</p> : null}
+          </section>
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

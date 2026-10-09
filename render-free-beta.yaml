@@ -1,42 +1,26 @@
-# Render Free blueprint for the synthetic HealthCare beta.
+# Render Free blueprint for the hosted HealthCare deployment.
 #
-# This file is a named validation copy of the canonical `render.yaml` manifest.
-# Keep both files Free-only; Render auto-discovers `render.yaml` for Blueprint
-# operations.
+# This is the canonical hosted manifest. The live topology lives entirely on
+# the backup Render workspace (healthcare-backup-backend + healthcare-backup-ai);
+# the old healthcare-beta-* workspace is retired. PostgreSQL is Supabase and
+# Redis is an external connection string — both arrive as dashboard-managed
+# secrets, so the blueprint declares only the two web services.
+# Keep remote-provider, clinical, storage, mail, payment and AV paths
+# fail-closed. The public HOSPITAL_SUPPORT chatbot uses a separate local-only
+# FastAPI service on Render Free.
 #
 # The selected deployment contract intentionally uses only resources available
-# on Render Free: PostgreSQL, Key Value, one public Spring web service and one
-# public FastAPI web service. Render Free web services cannot receive private
-# network traffic, so the Spring-to-AI hop uses HTTPS plus a server-only token.
+# on Render Free: one public Spring web service and one public FastAPI web
+# service. Render Free web services cannot receive private network traffic, so
+# the Spring-to-AI hop uses HTTPS plus a server-only token.
 # Object-storage, mail, payment, and attachment-scanning features remain
 # fail-closed until a separately reviewed paid/private topology exists.
 # The backend consumes an immutable GHCR digest, so Render never builds or
 # stores a Docker image on the operator workstation.
 
-databases:
-  - name: healthcare-beta-postgres
-    plan: free
-    region: singapore
-    postgresMajorVersion: "16"
-    databaseName: healthcare_beta_postgres
-    # This is the rotated default credential identity. The password stays in
-    # Render's managed secret store and is never committed.
-    user: healthcare_beta_app_20260830r1
-    ipAllowList: []
-
 services:
-  - type: keyvalue
-    name: healthcare-beta-redis
-    plan: free
-    region: singapore
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-    # Render Free Key Value is intentionally ephemeral. PostgreSQL remains the
-    # transactional authority; Redis is limited to rate limits/realtime fanout.
-    persistenceMode: "off"
-
   - type: web
-    name: healthcare-beta-ai
+    name: healthcare-backup-ai
     runtime: python
     plan: free
     region: singapore
@@ -134,26 +118,25 @@ services:
       # a public health endpoint (no credentials), matching the warm cron in
       # .github/workflows/render-warm.yml.
       - key: BACKEND_WARM_URL
-        value: https://healthcare-backup-backend-oqv4.onrender.com/actuator/health
+        value: https://healthcare-backup-backend.onrender.com/actuator/health
 
   - type: web
-    name: healthcare-beta-backend
+    name: healthcare-backup-backend
     runtime: image
     plan: free
     region: singapore
     autoDeployTrigger: "off"
     image:
-      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:99499d48fae7c80f839c62471891d986813225928396433350e415bfefc79c73
+      url: ghcr.io/jasontm17/healthcare-project-backend@sha256:56e746c814ef2226f706c2c412da337ee7666407537c4087e00bfa389eff3f45
     healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: render-beta
-      # 2026-10-07: the Render-managed `healthcare-beta-postgres` resource no
-      # longer exists in this workspace, and the materialized `fromDatabase`
-      # values had gone stale (they still resolved to the decommissioned
-      # Supabase project's `postgres.<old-ref>` user, which the new pooler
-      # rejects). DATABASE_* are therefore dashboard/API-managed secrets
-      # (sync:false) pointing at the current Supabase pooler, and the
+      # 2026-10-07: there is no Render-managed Postgres in the live workspace,
+      # and materialized `fromDatabase` values had gone stale (they resolved to
+      # a decommissioned Supabase project's `postgres.<old-ref>` user, which the
+      # new pooler rejects). DATABASE_* are therefore dashboard/API-managed
+      # secrets (sync:false) pointing at the current Supabase pooler, and the
       # SPRING_DATASOURCE_* triplet is set alongside so Spring relaxed binding
       # wins even if stale materialized values ever reappear in the env layer.
       - key: DATABASE_URL
@@ -168,9 +151,9 @@ services:
         sync: false
       - key: SPRING_DATASOURCE_PASSWORD
         sync: false
-      # `healthcare-beta-redis` lives in a different Render workspace than this
-      # service, so the fromService link cannot resolve; the internal
-      # connection string is a dashboard/API-managed secret.
+      # The Redis instance lives outside this Render workspace, so a
+      # fromService link cannot resolve; the internal connection string is a
+      # dashboard/API-managed secret.
       - key: REDIS_URL
         sync: false
       # Google Identity Services Web client id for the GOOGLE browser-session
@@ -247,7 +230,7 @@ services:
       # 2026-10-07: the fromService links stopped re-materializing after the
       # env-layer wipe (generateValue secrets are never readable via API), so
       # both tokens are dashboard/API-managed secrets kept identical on this
-      # service and healthcare-beta-ai.
+      # service and healthcare-backup-ai.
       - key: AI_SERVICE_TOKEN
         sync: false
       - key: AI_RAG_INGEST_TOKEN
@@ -268,7 +251,7 @@ services:
       - key: AI_SERVICE_READ_TIMEOUT_MS
         value: "26000"
       # [L2] Spring-side key of the patient egress set (paired with the
-      # healthcare-beta-ai flips above). application.yml:295 binds this to
+      # healthcare-backup-ai flips above). application.yml:295 binds this to
       # AiConversationService, whose sanitize gate (:1559) otherwise rejects
       # provenance=remote_provider with a 502 AI_RESPONSE_INVALID. Safety
       # guards are unchanged: sanitize re-validation, rejectDiagnoseOrPrescribe,

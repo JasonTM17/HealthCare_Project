@@ -1,133 +1,84 @@
-# CMS realtime content slice
+# CMS editing and realtime publication
 
-This local-development slice gives an `ADMIN` a typed, versioned API for editing
-frontend component slots in PostgreSQL. Public clients read only `PUBLISHED`
-content and can subscribe to a bounded SSE change feed; an event carries the
-slot/version/visibility metadata and the client refetches the public snapshot.
-Draft payloads and content bodies are never sent through the feed.
+CMS is a presentation boundary for public pages. Catalogue and clinical facts
+retain their domain owners; a layout override is not authority to change a
+doctor, price, article approval, or booking rule.
 
-## API contract
+## Draft, publication, and recovery decisions
 
-- `GET /api/v1/cms/content` — published snapshots for all slots.
-- `GET /api/v1/cms/content/{slotKey}` — one published snapshot. A read with
-  `?afterEventId=<durable-feed-cursor>` explicitly bypasses the backend's
-  in-process snapshot cache and is used for heartbeat/reconnect reconciliation;
-  this prevents a backend that missed Redis Pub/Sub from acknowledging a new
-  cursor with stale content.
-- `GET /api/v1/cms/content/events` — public SSE feed. `Last-Event-ID` or the
-  `after` query parameter requests replay. Replay is capped at 50 events;
-  older cursors receive `resync` and must refetch the snapshot endpoint.
-- `GET /api/v1/admin/cms/content` and
-  `GET /api/v1/admin/cms/content/{slotKey}` — admin draft/published views.
-- `PUT /api/v1/admin/cms/content/{slotKey}` — `ADMIN`-only upsert. New slots
-  require `expectedVersion: 0`; subsequent writes must send the current
-  version. The response version increments on each committed edit.
-- `GET /api/v1/admin/cms/content/{slotKey}/history?limit=20` — `ADMIN`-only
-  versioned snapshots with actor metadata. Draft-only edits are recorded here
-  but never enter the public SSE cursor.
-- `POST /api/v1/admin/cms/content/{slotKey}/rollback` — `ADMIN`-only restore
-  of a snapshot by `{ changeId, expectedVersion }`. Rollback is an ordinary
-  new version and therefore preserves the optimistic-concurrency contract.
+A **working draft** is private editorial work. A **published snapshot** is the
+deliberate public release. Saving a draft or restoring history into a draft
+must not change what visitors see. Keep this distinction when integrating
+clients: the legacy `PUT` with `DRAFT` still means unpublish, not private save.
+The new editor's restore-to-draft action is distinct from legacy rollback.
 
-The allowed component types are `HERO`, `RICH_TEXT`, `CTA_BANNER`, `NOTICE`,
-and `IMAGE_CARD`. Each has a fixed allow-list of scalar text fields. The
-backend trims and validates those fields, rejects HTML/script/style-like input,
-and accepts only relative paths or HTTPS URLs for links/images. There is no
-arbitrary HTML/JS/CSS field, secret field, or patient-data field in the model.
-Slot keys are also bounded to the public route inventory:
-`homepage`, `about`, `branches`, `specialties`, `doctors`, `services`,
-`packages`, `articles`, `careers`, `search`, `dat-lich`, `contact`, `faq`,
-`huong-dan`, and `tra-cuu`, each with one of `hero`, `body`, `sidebar`, or
-`footer`. Private/authenticated paths such as `admin`, `patient`, and `doctor`
-cannot be persisted as public CMS slots through the API or the database
-constraint.
+The API owner is [AdminCmsContentController](../../apps/backend/src/main/java/com/healthcare/cms/controller/AdminCmsContentController.java).
+[CmsDraftService](../../apps/backend/src/main/java/com/healthcare/cms/service/CmsDraftService.java)
+owns private save, explicit publish, and restore-to-draft;
+[CmsContentService](../../apps/backend/src/main/java/com/healthcare/cms/service/CmsContentService.java)
+owns the compatibility API and public snapshot reads. Privacy, conflict, and
+legacy behavior are exercised by [CmsDraftIntegrationTest](../../apps/backend/src/test/java/com/healthcare/cms/CmsDraftIntegrationTest.java).
 
-Public responses use `Cache-Control: no-store`. The backend's small in-process
-published snapshot cache is evicted and the SSE event is broadcast from an
-`AFTER_COMMIT` transaction listener, including rollback because rollback creates
-a new committed version. CMS mutations acquire a PostgreSQL advisory
-transaction lock before writing content or change rows, so the durable
-`cms_content_changes` cursor is allocated and committed in one serialized
-publication lane rather than by racing admin transactions on separate slots.
-When `CMS_DISTRIBUTED_REALTIME_ENABLED=true`, the same post-commit metadata is
-fanned out through Redis Pub/Sub to every backend instance; the origin instance
-ignores its own broker echo. Redis carries only a low-latency wake-up signal,
-never the content body or authoritative state: a remote subscriber resolves the
-broker `eventId` back to a public `cms_content_changes` row and then emits
-canonical metadata from PostgreSQL. PostgreSQL's durable `cms_content_changes`
-cursor remains the source for
-reconnect/replay, and the SSE heartbeat includes the latest durable event
-cursor so the frontend can reconcile a missed broker event even while the SSE
-connection remains open.
-Bounded polling remains the fallback for failed reconciliation or SSE failures.
-Set a unique `CMS_INSTANCE_ID` per backend instance when deploying more than
-one replica. A full replay window falls back to a GET snapshot.
+A conflict is a decision to reconcile another editor's work, not permission
+to overwrite it silently. Inspect the latest draft before choosing whether
+to retain the local edit or replace it. Save or explicitly discard dirty work
+before changing pages or restoring history. The operator flow and confirmation
+copy live in the [editor workspace](../../apps/frontend/components/cms/cms-editor-workspace.tsx).
 
-The frontend CI includes a Playwright browser gate for the homepage
-admin-to-public CMS realtime path. That gate verifies browser orchestration,
-the admin editor contract, an open SSE stream, `afterEventId` reconciliation,
-DOM version update, and no main-frame reload against a mocked backend/SSE
-server. It does not prove the live PostgreSQL/Redis/MinIO Compose stack or
-multi-instance Redis fan-out.
+## Page identity and content authority
 
-## Migration ordering
+The [native page manifest](../../apps/frontend/lib/cms-page-manifest.ts) is the
+canonical route, section, editable-field, and domain-admin navigation owner.
+Its [synchronizer](../../scripts/sync-cms-page-manifest.mjs) derives the backend
+resource; do not maintain a second route inventory in documentation.
 
-This checkout contains Flyway V1-V24 plus the `10.4` and `10.5` ordering
-points. V10 enforces branch assignments, V10.4 first rejects a real zero-UUID
-branch and cancels expired holds, V10.5 then repairs overlapping legacy
-pending holds before V11 creates branch-aware scheduling constraints, V12 adds
-CMS content, V13 provides an idempotent repair for volumes that already
-reached V12, V14 bounds appointment OTP attempts, V15 expands structured
-detail content, V16 adds actor-aware CMS audit snapshots and rollback
-metadata, V17 enforces published article content, V18 hashes appointment
-OTPs, V19 adds secure stored-file metadata, V20 records appointment-reminder
-delivery, V21 expands patient profile details, V22 adds careers and job
-applications, V23 constrains CMS slots to public route keys after a
-preflight that reports any legacy private slots for explicit operator repair
-without deleting production CMS data, and V24 binds component types to the
-public slot shapes that routes actually render. The separate
-`seed-local-careers.sql` fixture runs only after V22 so older migration tests can still exercise the base seed without
-referencing career tables. No migration rewrites an already-applied migration;
-do not renumber these migrations on the integration head.
+Detail identity uses a catalogue UUID because a slug can change. Family-level
+presentation structure must not become a replacement for an individual
+entity's facts. Resolve a real public entity before editing its detail page;
+use the manifest's domain-admin destination for protected factual changes.
+The identity boundaries are owned by [public detail navigation](../../apps/frontend/lib/cms-page-navigation.ts)
+and [CmsLayoutEntityResolver](../../apps/backend/src/main/java/com/healthcare/cms/service/CmsLayoutEntityResolver.java).
 
-If an existing local volume already applied V12 before V10/V11, first verify a
-database backup and then run one maintenance start with
-`SPRING_FLYWAY_OUT_OF_ORDER=true`; after V10/V11 are recorded, restart with the
-default `false`. This is an explicit recovery override, not the normal Compose
-mode. Never use `repair` or delete `postgres-data` without reviewing the
-database history and backup.
+Rich editing intentionally trades arbitrary HTML flexibility for a bounded
+Markdown presentation model. TinyMCE is an editing surface, not an HTML or
+script storage contract. Stable fields and fixed page regions preserve native
+page composition when sections move. The executable limits belong to
+[CmsPageLayoutValidator](../../apps/backend/src/main/java/com/healthcare/cms/service/CmsPageLayoutValidator.java)
+and the [frontend layout model](../../apps/frontend/lib/cms-page-layout.ts).
 
-## Compose seed and verification
+## Preview boundary
 
-`infrastructure/docker-compose.yml` includes a one-shot `local-seed` service.
-It mounts the seed SQL only in that service and waits for the backend health
-check, which is after Flyway startup. The default is the small fictional local
-seed:
+Preview uses the actual public page so an administrator can assess its native
+composition. It is an authorized editorial view, never a transaction surface:
+booking, search, contact, feedback, and payment actions must remain inert.
+Do not share a preview URL as public access to a draft or pass credentials
+through iframe messages.
 
-```powershell
-docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
-```
+Authorization and rendering are owned by the [page layout provider](../../apps/frontend/components/cms/cms-page-layout-provider.tsx).
+The [preview bridge](../../apps/frontend/lib/cms-preview-bridge.ts) owns exact
+origin, source, channel, route, and revision checks; the
+[pre-hydration guard](../../apps/frontend/public/cms-preview-guard.js) owns the
+read-only preview boundary. [Next configuration](../../apps/frontend/next.config.ts)
+owns the narrow self-embedding exception. Private and authentication routes
+are outside the public-page editor's authority.
 
-To choose the larger fictional dataset for a run without changing `.env`:
+## Realtime authority and operational boundaries
 
-```powershell
-$env:SEED_FILE = "../apps/backend/src/main/resources/db/seed/seed-large-data.sql"
-docker compose --env-file .env -f infrastructure/docker-compose.yml up --build
-Remove-Item Env:SEED_FILE
-```
+PostgreSQL is the publication and replay authority. Redis is a wake-up path;
+its availability cannot be used as proof that a client has the latest snapshot.
+Public change metadata must never carry draft bodies. Reconnect and fallback
+decisions belong to [CmsChangeFeedHub](../../apps/backend/src/main/java/com/healthcare/cms/service/CmsChangeFeedHub.java),
+the [Redis subscriber](../../apps/backend/src/main/java/com/healthcare/cms/service/CmsChangeFeedRedisSubscriber.java),
+and [client reconciliation](../../apps/frontend/lib/cms-reconciliation.mjs).
+Replica configuration belongs to [CmsRealtimeProperties](../../apps/backend/src/main/java/com/healthcare/cms/config/CmsRealtimeProperties.java)
+and [Compose](../../infrastructure/docker-compose.yml); give each replica a
+distinct instance identity.
 
-The base seed, career fixture, and rich-content overlay are idempotent. The
-one-shot service applies them in that order after Flyway and backend health.
-With the stack running, rerun it and verify the migration, content row, career
-fixture, and uniqueness by querying from the PostgreSQL container (the command
-does not print credentials):
-
-```powershell
-docker compose --env-file .env -f infrastructure/docker-compose.yml run --rm local-seed
-docker compose --env-file .env -f infrastructure/docker-compose.yml exec -T postgres sh -ec 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select table_name from information_schema.tables where table_schema = ''public'' and table_name in (''cms_contents'',''cms_content_changes'') order by table_name; select slot_key, status, version, count(*) over (partition by slot_key) as rows_for_slot from cms_contents where slot_key = ''homepage.hero'';"'
-```
-
-Expected evidence is both CMS tables, one `homepage.hero` row, four active
-`job_positions`, zero `job_applications`, and `rows_for_slot = 1`.
-`docker compose --env-file .env -f infrastructure/docker-compose.yml config --quiet`
-is the safe config-only check before booting.
+Use [deployment guidance](../deployment.md#cms-and-account-compatibility) for
+backend-first rollout and recovery. Local seed ownership remains in
+[Compose](../../infrastructure/docker-compose.yml) and
+[seed resources](../../apps/backend/src/main/resources/db/seed/).
+Do not repair Flyway history, delete a volume, or remove additive schema as an
+automatic CMS recovery action; preserve a verified backup and inspect the
+database's recorded history first. Browser fixtures and local persistence
+checks are separate evidence from multi-instance or production verification.

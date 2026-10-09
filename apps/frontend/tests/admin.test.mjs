@@ -43,7 +43,9 @@ test("admin layout gates access and exposes real account actions", async () => {
   assert.match(layout, /forbidden/);
   assert.match(layout, /aria-current/);
   assert.match(layout, /logoutCurrentUser/);
-  assert.match(layout, /\/auth\/login\?next=%2Fadmin/);
+  assert.match(layout, /\/auth\/login\?next=" \+ loginNext\(\)/);
+  assert.match(layout, /window\.location\.pathname}\$\{window\.location\.search}\$\{window\.location\.hash}/);
+  assert.match(layout, /encodeURIComponent/);
   assert.match(layout, /href="#main-content"/);
   assert.match(layout, /id="main-content"/);
   assert.doesNotMatch(layout, /healthcare\.auth\.session|sessionStorage|localStorage/);
@@ -74,6 +76,14 @@ test("dashboard uses live catalog snapshots instead of invented metrics", async 
   assert.doesNotMatch(page, />500</);
   assert.doesNotMatch(page, />30</);
   assert.doesNotMatch(page, />1000</);
+  // Legacy /admin/ai-content responses omit totalElements; newer responses
+  // provide exact totals. Legacy queues must show a visible lower bound instead of
+  // throwing undefined.toLocaleString and blanking the whole dashboard.
+  assert.match(page, /"totalElements" in value\) return toSnapshot/);
+  assert.match(page, /count: value\.content\.length, minimum: value\.hasMore/);
+  // toSnapshot must also reject fulfilled-but-shapeless responses rather than
+  // feeding undefined into SnapshotCard's toLocaleString.
+  assert.match(page, /Number\.isSafeInteger\(count\) && count >= 0/);
 });
 
 test("doctor and specialty screens cover loading, empty, error, and admin mutation states", async () => {

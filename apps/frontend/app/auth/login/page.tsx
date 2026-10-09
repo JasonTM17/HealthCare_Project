@@ -21,7 +21,7 @@ interface DemoRoleInfo {
   badgeText: string;
 }
 
-const DEMO_ROLES: readonly DemoRoleInfo[] = [
+const ALL_DEMO_ROLES: readonly DemoRoleInfo[] = [
   {
     role: "PATIENT",
     label: "Bệnh nhân",
@@ -57,6 +57,13 @@ const DEMO_ROLES: readonly DemoRoleInfo[] = [
 // Demo credentials must never render in production. The helper panel is
 // opt-in via build-time env so hosted builds default to a plain login form.
 const SHOW_DEMO_ACCOUNTS = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === "true";
+
+// The privileged admin demo entry needs a second opt-in so hosted builds can
+// keep the patient/doctor helpers while hiding the administrator credential.
+const SHOW_DEMO_ADMIN = process.env.NEXT_PUBLIC_ENABLE_DEMO_ADMIN === "true";
+const DEMO_ROLES: readonly DemoRoleInfo[] = ALL_DEMO_ROLES.filter(
+  (item) => item.role !== "ADMIN" || SHOW_DEMO_ADMIN
+);
 
 // Google Identity Services button only renders when a Web client id is
 // configured at build time (see components/GoogleSignInButton).

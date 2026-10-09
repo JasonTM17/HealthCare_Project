@@ -93,3 +93,75 @@ for (const viewport of [
     expect(geometry.composer.bottom).toBeLessThanOrEqual(geometry.viewport.height);
   });
 }
+
+for (const viewport of [
+  { width: 390, height: 500, label: "short mobile" },
+  { width: 1000, height: 420, label: "short landscape" },
+]) {
+  test(`consent CTA stays visible inside the panel on a ${viewport.width}x${viewport.height} ${viewport.label} viewport`, async ({ context, page }) => {
+    // Consent-pending conversation: the policy copy is tall enough that the
+    // action used to scroll below the panel's visible bottom on short
+    // viewports, leaving patients with no obvious way to proceed.
+    await installChatPolicy(context);
+    const consentPendingConversation = {
+      id: "conv-consent",
+      title: "Tư vấn",
+      mode: "HOSPITAL_SUPPORT",
+      status: "ACTIVE",
+      inFlight: false,
+      consentRequired: true,
+      consentVersion: null,
+      consentedAt: null,
+      createdAt: "2026-08-23T00:00:00Z",
+      updatedAt: "2026-08-23T00:00:00Z",
+      lastMessageAt: null,
+      expiresAt: "2026-11-21T00:00:00Z",
+    };
+    await context.route("**/api/v1/ai/conversations**", async (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/messages")) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ content: [], nextCursor: null }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([consentPendingConversation]),
+      });
+    });
+    await installMockPatientPortalSession(context, PATIENT_SESSION);
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto("/about", { waitUntil: "domcontentloaded" });
+
+    await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
+    const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+    await expect(dialog).toBeVisible();
+
+    const consentButton = dialog.getByRole("button", { name: /Tôi đồng ý/u });
+    await expect(consentButton).toBeVisible();
+    await expect(consentButton).toBeEnabled();
+
+    const geometry = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>("#floating-health-assistant-panel");
+      const button = Array.from(
+        panel?.querySelectorAll<HTMLElement>("button") ?? [],
+      ).find((candidate) => /Tôi đồng ý/u.test(candidate.textContent ?? ""));
+      if (!panel || !button) throw new Error("Consent button or panel is missing");
+      const panelRect = panel.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      return {
+        panel: { top: panelRect.top, bottom: panelRect.bottom },
+        button: { top: buttonRect.top, bottom: buttonRect.bottom },
+        viewport: { height: window.innerHeight },
+      };
+    });
+    // The CTA must render inside the panel's visible box, not below the fold.
+    expect(geometry.button.top).toBeGreaterThanOrEqual(geometry.panel.top);
+    expect(geometry.button.bottom).toBeLessThanOrEqual(geometry.panel.bottom + 1);
+    expect(geometry.button.bottom).toBeLessThanOrEqual(geometry.viewport.height);
+  });
+}
