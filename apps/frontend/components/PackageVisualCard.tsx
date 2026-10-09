@@ -5,6 +5,7 @@ import { getPackageVisual } from "../lib/package-visuals";
 import type { HealthPackage } from "../types/hospital";
 import Icon from "./UiIcon";
 import styles from "./PackageVisuals.module.css";
+import { isIllustrativeCatalogue, ILLUSTRATIVE_BOOKING_NOTICE } from "../lib/catalogue-illustration";
 
 const formatCurrency = (price: number): string => new Intl.NumberFormat("vi-VN").format(price);
 
@@ -24,6 +25,7 @@ export default function PackageVisualCard({
   variant = "catalog",
 }: PackageVisualCardProps) {
   const visual = getPackageVisual(packageItem);
+  const illustrative = isIllustrativeCatalogue(packageItem);
   const Heading = headingLevel;
   const detailHref = `/packages/${packageItem.slug}`;
   const checklist = packageItem.checklist?.slice(0, variant === "home" ? 2 : 3) ?? [];
@@ -66,10 +68,10 @@ export default function PackageVisualCard({
         ) : null}
 
         <div className={styles.footer}>
-          <p className={styles.price}><small>Chi phí gói</small><strong>{formatCurrency(packageItem.price)} <span>VNĐ</span></strong></p>
+          <p className={styles.price}><small>{illustrative ? "Giá minh họa" : "Chi phí gói"}</small><strong>{formatCurrency(packageItem.price)} <span>VNĐ</span></strong></p>
           <div className={styles.actions}>
             <Link className={styles.detailLink} href={detailHref}>Chi tiết <Icon name="arrow-up-right" size={16} /></Link>
-            {bookingAction}
+            {illustrative ? <button className={styles.bookButton} type="button" disabled title={ILLUSTRATIVE_BOOKING_NOTICE}>Chỉ xem minh họa</button> : bookingAction}
           </div>
         </div>
       </div>

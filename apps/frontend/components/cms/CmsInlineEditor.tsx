@@ -108,7 +108,7 @@ export function CmsEditModeToolbar(): ReactElement | null {
   return (
     <>
       <div
-        className="fixed bottom-4 left-4 z-[70] flex items-center gap-2 rounded-full border border-teal-800 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900"
+        className="cms-edit-toolbar fixed bottom-4 left-4 z-[70] flex items-center gap-2 rounded-full border border-teal-800 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900"
         data-testid="cms-edit-toolbar"
       >
         <label className="flex min-h-11 cursor-pointer items-center gap-2">

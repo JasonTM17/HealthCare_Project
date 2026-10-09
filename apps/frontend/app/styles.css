@@ -10063,6 +10063,22 @@ main {
   text-wrap: balance;
 }
 
+.site-shell--public-route .resource-page__header--detail {
+  max-width: 64rem;
+}
+
+.site-shell--public-route .resource-page__header--detail h1 {
+  max-width: 28ch;
+  font-size: clamp(2.35rem, 4vw, 3.5rem);
+}
+
+@media (max-width: 640px) {
+  .cms-edit-toolbar {
+    bottom: calc(6rem + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 2rem);
+  }
+}
+
 .site-shell--public-route .resource-page__header > p:last-child {
   max-width: 58ch;
   line-height: 1.75;

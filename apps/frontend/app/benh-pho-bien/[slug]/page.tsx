@@ -189,7 +189,7 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
               dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(structuredData) }}
             />
             <CmsNativeSection sectionId="profile">
-              <header className="resource-page__header">
+              <header className="resource-page__header resource-page__header--detail">
                 <p className="section-note">{categoryLabel(article.category)} · Nguồn bệnh viện được bác sĩ nội bộ duyệt</p>
                 <h1>{article.title}</h1>
                 <p>{article.summary}</p>

@@ -16,7 +16,8 @@ export function CmsNativePreview({ identity, layout, mode, onSelected, focusFiel
   const [epoch, setEpoch] = useState(0);
   const [frameReady, setFrameReady] = useState(false);
   const [notice, setNotice] = useState("Đang mở bản xem trước…");
-  const [width, setWidth] = useState(1440);
+  const manualWidth = useRef(false);
+  const [width, setWidth] = useState(375);
   const [available, setAvailable] = useState(600);
   const height = width === 375 ? 812 : width === 768 ? 1024 : 900;
   const scale = Math.min(1, available / width);
@@ -30,9 +31,21 @@ export function CmsNativePreview({ identity, layout, mode, onSelected, focusFiel
   useEffect(() => {
     const element = container.current;
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setAvailable(Math.max(1, entry.contentRect.width)));
+    const chooseDevice = () => {
+      if (!manualWidth.current) setWidth(window.innerWidth < 640 ? 375 : window.innerWidth < 1024 ? 768 : 1440);
+    };
+    const observer = new ResizeObserver(([entry]) => {
+      setAvailable(Math.max(1, entry.contentRect.width));
+      chooseDevice();
+    });
+    // Restore a deliberate device choice after hydration; the server never reads browser state.
+    try {
+      const stored = Number(window.sessionStorage.getItem("cms-preview-width"));
+      if ([375, 768, 1440].includes(stored)) { manualWidth.current = true; queueMicrotask(() => setWidth(stored)); }
+    } catch { /* A blocked storage policy still allows this session's device controls. */ }
     observer.observe(element);
-    return () => observer.disconnect();
+    window.addEventListener("resize", chooseDevice);
+    return () => { observer.disconnect(); window.removeEventListener("resize", chooseDevice); };
   }, []);
   useEffect(() => {
     if (!channel) return;
@@ -65,7 +78,11 @@ export function CmsNativePreview({ identity, layout, mode, onSelected, focusFiel
   }, [channel, frameReady, focusFieldId, focusNonce, identity, mode]);
   return <section className={styles.preview} aria-label="Bản xem trước trang thật">
     <div className={styles.previewToolbar}>
-      <label>Thiết bị <select data-testid="cms-preview-width" value={width} onChange={(event) => setWidth(Number(event.target.value))}><option value={375}>Điện thoại · 375</option><option value={768}>Máy tính bảng · 768</option><option value={1440}>Máy tính · 1440</option></select></label>
+      <label>Thiết bị <select data-testid="cms-preview-width" value={width} onChange={(event) => {
+        const chosen = Number(event.target.value);
+        manualWidth.current = true; setWidth(chosen);
+        try { window.sessionStorage.setItem("cms-preview-width", String(chosen)); } catch { /* Optional preference persistence. */ }
+      }}><option value={375}>Điện thoại · 375</option><option value={768}>Máy tính bảng · 768</option><option value={1440}>Máy tính · 1440</option></select></label>
       <span>{width}px · {Math.round(scale * 100)}%</span>
       <button type="button" onClick={() => setEpoch((value) => value + 1)}>Tải lại</button>
       <a href={identity.canonicalPath} target="_blank" rel="noreferrer">Mở trang công khai ↗</a>
