@@ -228,3 +228,71 @@ test("admin users page edits roles with a real doctor profile through confirmati
   await expect(dialog).toBeHidden();
   expect(patchedRoleSets).toEqual([["PATIENT", "DOCTOR"]]);
 });
+
+test("admin users honours the status deep link and only fetches matching rows", async ({ context, page }) => {
+  await installAdminSession(context);
+  const listStatuses: (string | null)[] = [];
+  await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
+    if (await fulfillNotificationBell(route)) return;
+    const request = route.request();
+    const url = new URL(request.url());
+    if (!url.pathname.startsWith("/api/v1/admin/users") || request.method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    if (url.pathname !== "/api/v1/admin/users") {
+      const id = url.pathname.split("/").pop();
+      await route.fulfill({ json: id === ACTOR_ID ? ACTOR_USER : id === ADMIN_USER.id ? ADMIN_USER : PATIENT_USER });
+      return;
+    }
+    const status = url.searchParams.get("status");
+    listStatuses.push(status);
+    const rows = status === "DISABLED" ? [ADMIN_USER] : status === "ACTIVE" ? [PATIENT_USER] : [PATIENT_USER, ADMIN_USER];
+    await route.fulfill({ json: pageEnvelope(rows) });
+  });
+  const statusFilter = page.getByTestId("account-status-filter");
+
+  await page.goto("/admin/users?status=DISABLED");
+  await expect(statusFilter).toHaveValue("DISABLED");
+  await expect(page.getByText("Quản trị viên Hai")).toBeVisible();
+  await expect(page.getByText("Nguyễn Văn An")).toBeHidden();
+  expect(listStatuses.at(-1)).toBe("DISABLED");
+
+  await page.evaluate(() => window.history.pushState({}, "", "/admin/users?status=ACTIVE"));
+  await expect(statusFilter).toHaveValue("ACTIVE");
+  await expect(page.getByText("Nguyễn Văn An")).toBeVisible();
+  await expect(page.getByText("Quản trị viên Hai")).toBeHidden();
+  await expect.poll(() => listStatuses.at(-1)).toBe("ACTIVE");
+
+  await page.goto("/admin/users?status=NO_SUCH");
+  await expect(statusFilter).toHaveValue("");
+  await expect(page.getByText("Nguyễn Văn An")).toBeVisible();
+  await expect(page.getByText("Quản trị viên Hai")).toBeVisible();
+  await expect.poll(() => listStatuses.at(-1)).toBeNull();
+
+  await page.goto("/admin/users");
+  await expect(statusFilter).toHaveValue("");
+  await expect(page.getByRole("table", { name: /Danh sách tài khoản/ }).getByRole("row")).toHaveCount(3);
+  await expect.poll(() => listStatuses.at(-1)).toBeNull();
+
+  await page.goto("/admin/users?status=DISABLED");
+  await expect(statusFilter).toHaveValue("DISABLED");
+  await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
+  await expect(statusFilter).toHaveValue("");
+  await expect(page.getByText("Nguyễn Văn An")).toBeVisible();
+  await expect.poll(() => listStatuses.at(-1)).toBeNull();
+
+  await page.getByTestId(`account-row-${ADMIN_USER.id}`).getByRole("button", { name: "Xem chi tiết" }).click();
+  const nameInput = page.getByLabel("Họ tên hiển thị");
+  await expect(nameInput).toHaveValue("Quản trị viên Hai");
+  await nameInput.fill("Quản trị viên Hai đổi");
+  await page.getByRole("button", { name: "Mở điều hướng quản trị" }).click();
+  await page.getByRole("link", { name: "Tổng quan" }).click();
+  const leaveDialog = page.getByRole("dialog", { name: "Bạn có thay đổi chưa lưu" });
+  await expect(leaveDialog).toBeVisible();
+  expect(page.url()).toContain("/admin/users?status=DISABLED");
+  await leaveDialog.getByRole("button", { name: "Ở lại" }).click();
+  await expect(leaveDialog).toBeHidden();
+  await expect(nameInput).toHaveValue("Quản trị viên Hai đổi");
+});
