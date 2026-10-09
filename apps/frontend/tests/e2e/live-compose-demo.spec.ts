@@ -1500,7 +1500,7 @@ test.describe("live Compose role-based demo", () => {
 
       await loginViaUi(adminPage, DEMO_ADMIN_EMAIL, "/admin", "Điều hành bệnh viện");
       await adminPage.goto(appUrl("/admin/content"));
-      await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
+      await expect(adminPage.getByRole("heading", { name: "Cập nhật nội dung theo từng trang" })).toBeVisible();
       await expect(adminPage.locator("#cms-payload-title")).toHaveValue(initialTitle);
       await expect(adminPage.locator("#cms-payload-body")).toHaveValue(initialBody);
 

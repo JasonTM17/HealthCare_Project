@@ -540,7 +540,7 @@ test.describe("Multi-User Roles & Realtime Interactions", () => {
 
       // Admin updates hero content in real-time
       await adminPage.goto("/admin/content");
-      await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
+      await expect(adminPage.getByRole("heading", { name: "Cập nhật nội dung theo từng trang" })).toBeVisible();
       await expect(adminPage.locator("#cms-payload-title")).toHaveValue("Chăm sóc sức khỏe đa chuyên khoa chất lượng cao");
 
       const updatedHeroTitle = "Hệ thống Bệnh viện Thông minh Realtime 2026";
