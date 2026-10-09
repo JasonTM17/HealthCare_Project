@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -83,6 +84,7 @@ public class UserController {
 
     @Operation(summary = "Kiểm tra quyền truy cập Administrator", description = "Xác thực quyền quản trị viên cấp cao của phiên đăng nhập")
     @GetMapping("/admin/access")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> checkAdministratorAccess() {
         return ResponseEntity.noContent().build();
     }

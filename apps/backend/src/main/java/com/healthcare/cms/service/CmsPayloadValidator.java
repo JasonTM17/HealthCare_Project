@@ -22,6 +22,7 @@ public class CmsPayloadValidator {
     private static final Pattern FIELD_NAME = Pattern.compile("[a-z][A-Za-z0-9]{0,39}");
     private static final Pattern UNSAFE_TEXT = Pattern.compile("(?i)(<|>|javascript\\s*:|data\\s*:)");
     private static final Pattern TELEPHONE_ACTION = Pattern.compile("tel:\\+?[0-9]{6,15}");
+    private static final Pattern FORMATTED_TELEPHONE_ACTION = Pattern.compile("tel:\\+?[0-9][0-9(). -]{1,40}");
     private static final int MAX_FIELDS = 12;
     private static final int MAX_TEXT_LENGTH = 4_000;
     private static final int MAX_PAYLOAD_BYTES = 32_768;
@@ -114,7 +115,9 @@ public class CmsPayloadValidator {
     }
 
     static boolean isSafeActionLink(String value) {
-        return isSafeLink(value.trim()) || value.equals("tel:115") || TELEPHONE_ACTION.matcher(value).matches();
+        return isSafeLink(value.trim()) || value.equals("tel:115")
+            || (value.equals(value.trim()) && FORMATTED_TELEPHONE_ACTION.matcher(value).matches()
+                && TELEPHONE_ACTION.matcher(value.replaceAll("[(). -]", "")).matches());
     }
 
     static boolean isSafeLink(String value) {

@@ -1567,9 +1567,15 @@ def test_uncited_general_question_is_answered_by_the_remote_provider(
     assert provider.complete_json.call_count == 1
 
 
-def test_uncited_general_question_is_not_answered_in_clinical_modes(
+@pytest.mark.parametrize("mode", [ChatMode.SYMPTOM_TRIAGE, ChatMode.HEALTH_EDUCATION])
+def test_uncited_clinical_question_escalates_to_remote_when_floor_allows(
+    mode: ChatMode,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Clinical modes now get the same bounded uncited lane as support: the
+    operator asked for DeepSeek to answer exactly when no approved source
+    exists, while the clinical floor keeps diagnosis/treatment asks closed."""
+
     _reset_circuit(monkeypatch)
     provider = MagicMock()
     provider.complete_json.return_value = {
@@ -1579,7 +1585,37 @@ def test_uncited_general_question_is_not_answered_in_clinical_modes(
     response = generate_chat_response(
         ChatGenerateRequest(
             message="Uống bao nhiêu nước mỗi ngày?",
-            mode=ChatMode.SYMPTOM_TRIAGE,
+            mode=mode,
+            authorized_sources=[],
+        ),
+        _uncited_settings(),
+        _service(),
+        client=provider,
+    )
+
+    assert response.provenance == "remote_provider"
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert response.used_sources == []
+    assert response.citations == []
+    assert provider.complete_json.call_count == 1
+
+
+@pytest.mark.parametrize("mode", [ChatMode.SYMPTOM_TRIAGE, ChatMode.HEALTH_EDUCATION])
+def test_uncited_clinical_lane_keeps_the_diagnosis_and_treatment_floor(
+    mode: ChatMode,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The widened lane never becomes a diagnostic or prescribing surface:
+    "Tôi bị bệnh gì?" still fails closed without a provider call."""
+
+    _reset_circuit(monkeypatch)
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": "Bạn có thể bị cảm cúm."}
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="Tôi bị bệnh gì?",
+            mode=mode,
             authorized_sources=[],
         ),
         _uncited_settings(),
@@ -1907,6 +1943,155 @@ def test_retrieve_pool_rescue_finds_document_buried_below_top_k() -> None:
     assert response.candidates[0].score >= 0.35
 
 
+def test_retrieve_pool_rescue_outranks_wrong_above_threshold_hit() -> None:
+    """A wrong-but-above-threshold vector hit must not shield the correct
+    specialty from the lexical pool rescore.
+
+    Production evidence: "đau mắt đỏ" returned only "Tai mũi họng" (0.667 via
+    the "mat"/"dau" tokens inside "chóng mặt"/"đau tai") while "Mắt" — whose
+    approved content literally lists "đau mắt" and "mắt đỏ" — sat below the
+    vector cut. The pool merge must still surface it.
+    """
+
+    eye_content = (
+        "Mắt\nBệnh mắt: cận - viễn - loạn thị, đục thủy tinh thể, glôcôm, "
+        "viêm kết mạc, võng mạc.\nđau mắt\nmắt đỏ\nchảy nước mắt\nmắt ngứa"
+    )
+    ent_content = (
+        "Tai mũi họng\nKhám điều trị tai - mũi - họng: viêm tai giữa, "
+        "viêm xoang, rối loạn tiền đình gây chóng mặt xoay tròn.\n"
+        "đau tai\nđau họng\nchóng mặt xoay tròn"
+    )
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "spec-mat",
+        "Mắt",
+        eye_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(eye_content),
+    )
+    service.ingest(
+        "specialty",
+        "spec-tmh",
+        "Tai mũi họng",
+        ent_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(ent_content),
+    )
+    ent_doc = service.index.get("specialty:spec-tmh")
+    assert ent_doc is not None
+    ent_hit: RagDocument = ent_doc
+
+    class NoisyVectorRag(RagService):
+        """Vector noise ranks the wrong specialty above the threshold and
+        leaves the correct one buried out of the hit list entirely."""
+
+        def __init__(self, inner: RagService) -> None:
+            super().__init__(index=inner.index)
+            self._inner = inner
+
+        def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return [(ent_hit, 0.667)]
+
+        def lexical_candidates(
+            self, query_text: str, *, source_types: Any = None, limit: int = 800
+        ) -> list[RagDocument]:
+            return self._inner.lexical_candidates(
+                query_text, source_types=source_types, limit=limit
+            )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="đau mắt đỏ",
+            mode=ChatMode.SYMPTOM_TRIAGE,
+        ),
+        _threshold_settings(),
+        NoisyVectorRag(service),
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert response.candidates, "pool merge must surface the eye specialty"
+    assert response.candidates[0].source_id == "spec-mat"
+    assert response.candidates[0].score >= response.candidates[-1].score
+
+
+def test_retrieve_pool_rescue_skips_safety_scan_for_sub_threshold_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Per-document safety scans cost ~100 ms; running them before the
+    overlap bar multiplied a ~700-row education pool into a minute-long
+    /chat/retrieve on production (backend budget: 6 s).  The gate order must
+    stay cheap-first, and the pool itself must stay bounded."""
+
+    import app.chatbot as chatbot_module
+
+    service = RagService()
+    service.ingest(
+        "faq",
+        "faq-match",
+        "Nhịn ăn xét nghiệm máu thế nào",
+        "Nhịn ăn 8-10 tiếng trước khi xét nghiệm máu.",
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata("Nhịn ăn 8-10 tiếng trước khi xét nghiệm máu."),
+    )
+    service.ingest(
+        "faq",
+        "faq-unrelated",
+        "Giờ làm việc của phòng khám",
+        "Phòng khám mở cửa từ 7h đến 18h hằng ngày.",
+        [0.0] * 384,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata("Phòng khám mở cửa từ 7h đến 18h hằng ngày."),
+    )
+
+    safety_calls: list[str] = []
+    real_safe = chatbot_module._context_is_safe
+
+    def counting_safe(meta: Any) -> bool:
+        safety_calls.append(meta.document.source_id)
+        return real_safe(meta)
+
+    monkeypatch.setattr(chatbot_module, "_context_is_safe", counting_safe)
+
+    seen_limits: list[int] = []
+
+    class EmptyVectorRag(RagService):
+        def __init__(self, inner: RagService) -> None:
+            super().__init__(index=inner.index)
+            self._inner = inner
+
+        def search(self, *_args: Any, **_kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return []
+
+        def lexical_candidates(
+            self, query_text: str, *, source_types: Any = None, limit: int = 800
+        ) -> list[RagDocument]:
+            seen_limits.append(limit)
+            return self._inner.lexical_candidates(
+                query_text, source_types=source_types, limit=limit
+            )
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="Tôi cần nhịn ăn bao lâu trước khi xét nghiệm máu?",
+            mode=ChatMode.HEALTH_EDUCATION,
+        ),
+        _threshold_settings(),
+        EmptyVectorRag(service),
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert [candidate.source_id for candidate in response.candidates] == ["faq-match"]
+    assert safety_calls == ["faq-match"], (
+        "safety scans must only run on rows that already passed the overlap bar"
+    )
+    assert seen_limits and seen_limits[0] <= 300
+
+
 def test_retrieve_pool_rescue_never_promotes_ineligible_rows() -> None:
     """The pool widens recall, not authorization: operational rows and
     unapproved clinical rows stay fenced out of clinical modes."""
@@ -2074,3 +2259,52 @@ def test_approved_clinical_source_survives_clinical_prose_but_operational_does_n
     ops_doc = operational.index.get("service:ops-prose")
     assert ops_doc is not None
     assert grounded_source_is_echo_safe(ops_doc, ChatMode.HOSPITAL_SUPPORT) is False
+
+
+def test_local_triage_recommends_the_grounded_specialty_title() -> None:
+    """Regression: the static rule table still names pre-catalog specialties
+    ("Da Liễu & Thẩm Mỹ Da") that Spring's TRIAGE_SPECIALTIES never accepts —
+    a local answer carrying such a name returned 502 upstream. The governed
+    top source title is the recommendation instead, and the lead sentence
+    stays coherent with it rather than quoting mismatched rule advice."""
+
+    eye_content = (
+        "Chuyên khoa Mắt: đau mắt, mắt đỏ, chảy nước mắt, ngứa mắt, "
+        "viêm kết mạc, cận - viễn - loạn thị."
+    )
+    service = RagService()
+    service.ingest(
+        "specialty",
+        "mat",
+        "Mắt",
+        eye_content,
+        [1.0] + [0.0] * 383,
+        embedding_model="local-hash",
+        metadata=_clinical_metadata(eye_content),
+    )
+
+    response = generate_chat_response(
+        ChatGenerateRequest(
+            message="đau mắt đỏ ngứa và chảy nước mắt",
+            mode=ChatMode.SYMPTOM_TRIAGE,
+            authorized_sources=[
+                AuthorizedSource(
+                    source_type="specialty",
+                    source_id="mat",
+                    projection_kind="CLINICAL",
+                    content_revision=1,
+                    eligibility_revision=1,
+                    content_hash="c" * 64,
+                    approval_id="round-1",
+                )
+            ],
+        ),
+        _settings(),
+        service,
+    )
+
+    assert response.safety_action is ChatSafetyAction.ANSWER
+    assert response.triage is not None
+    assert response.triage.recommended_specialty == "Mắt"
+    assert "chuyên khoa Mắt" in response.answer
+    assert "da liễu" not in response.answer.casefold()

@@ -5,6 +5,8 @@ import com.healthcare.security.HealthcareUserPrincipal;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -36,13 +38,23 @@ public class ClinicalAccessAuditService {
      * two authorities stay separable in an audit query.
      */
     public static final String ACTION_ADMIN_CANCEL_APPOINTMENT = "ADMIN_CANCEL_APPOINTMENT";
+    /**
+     * User-account governance from {@code /api/v1/admin/users/**} (status
+     * flips and role rewrites). TARGET_USER keeps those rows separable from
+     * clinical-artifact touches in one ordered audit table.
+     */
+    public static final String TARGET_USER = "USER";
+    public static final String ACTION_ADMIN_UPDATE_USER_STATUS = "ADMIN_UPDATE_USER_STATUS";
+    public static final String ACTION_ADMIN_UPDATE_USER_ROLES = "ADMIN_UPDATE_USER_ROLES";
     public static final String DECISION_ALLOW = "ALLOW";
     public static final String DECISION_DENY = "DENY";
 
     private final IndependentClinicalTransactions sideEffects;
+    private final JdbcTemplate jdbc;
 
-    public ClinicalAccessAuditService(IndependentClinicalTransactions sideEffects) {
+    public ClinicalAccessAuditService(IndependentClinicalTransactions sideEffects, JdbcTemplate jdbc) {
         this.sideEffects = sideEffects;
+        this.jdbc = jdbc;
     }
 
     /**
@@ -57,7 +69,21 @@ public class ClinicalAccessAuditService {
             String targetId,
             String action,
             String decision) {
-        sideEffects.write(jdbc -> jdbc.update(
+        sideEffects.write(connection -> insert(connection, principal, patientId, targetType, targetId, action, decision));
+    }
+
+    /** A successful governance audit must never survive a failed account transaction. */
+    public void recordGovernance(UserDetails principal, UUID patientId, String targetType,
+                                 String targetId, String action, String decision) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("Governance audit requires the account transaction");
+        }
+        insert(jdbc, principal, patientId, targetType, targetId, action, decision);
+    }
+
+    private void insert(JdbcTemplate connection, UserDetails principal, UUID patientId, String targetType,
+                        String targetId, String action, String decision) {
+        connection.update(
             """
             insert into clinical_access_audit
                 (id, actor_user_id, actor_email, actor_role, patient_id, target_type, target_id, action, decision)
@@ -72,7 +98,7 @@ public class ClinicalAccessAuditService {
             bound(targetId, 128),
             bound(action, 32),
             bound(decision, 16)
-        ));
+        );
     }
 
     private UUID actorUserId(UserDetails principal) {

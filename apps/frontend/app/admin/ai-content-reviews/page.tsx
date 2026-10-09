@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   fetchAdminAiContentReviews,
@@ -10,6 +11,7 @@ import {
 import { presentApiError } from "../../../lib/present-api-error";
 import { formatDateTime } from "../../../lib/datetime";
 import UiIcon from "../../../components/UiIcon";
+import AdminState from "../_components/AdminState";
 import useDialogFocus from "../../../components/useDialogFocus";
 import type {
   AiContentReviewState,
@@ -85,9 +87,17 @@ function StateBadge({ state }: { state: AiContentReviewState }) {
   );
 }
 
-export default function AdminAiContentReviewsPage() {
+function AdminAiContentReviewsWorkspace() {
+  const searchParams = useSearchParams();
   const [type, setType] = useState<AiContentType | "">("");
-  const [state, setState] = useState<AiContentReviewState | "">("");
+  // A valid ?state= deep link (e.g. the dashboard "Nội dung AI chờ duyệt"
+  // queue) seeds the filter; anything else falls back to all states.
+  const [state, setState] = useState<AiContentReviewState | "">(() => {
+    const requested = searchParams.get("state");
+    return STATES.includes(requested as AiContentReviewState | "") && requested
+      ? (requested as AiContentReviewState)
+      : "";
+  });
   const [items, setItems] = useState<AiContentReviewSummary[]>([]);
   const [selected, setSelected] = useState<AiContentReviewSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -561,5 +571,13 @@ export default function AdminAiContentReviewsPage() {
         </div>
       )}
     </section>
+  );
+}
+
+export default function AdminAiContentReviewsPage() {
+  return (
+    <Suspense fallback={<AdminState tone="loading" title="Đang mở hàng đợi duyệt nội dung AI" description="Vui lòng chờ trong giây lát." />}>
+      <AdminAiContentReviewsWorkspace />
+    </Suspense>
   );
 }

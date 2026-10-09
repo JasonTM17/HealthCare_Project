@@ -11,6 +11,13 @@
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
 .grid { display: grid; grid-template-columns: 224px minmax(0,1fr) 320px; gap: 16px; margin-top: 16px; }
 .grid > div { min-width: 0; }
+.outline, .inspector { align-self: start; }
+@media (min-width: 801px) {
+  .outline { max-height: calc(100dvh - 280px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
+@media (min-width: 1200px) {
+  .inspector { max-height: calc(100dvh - 280px); overflow-y: auto; overscroll-behavior: contain; }
+}
 .panel { padding: 16px; border: 1px solid #d6dfe0; background: white; min-width: 0; }
 .panel h2 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
 .panel label { display: grid; gap: 6px; margin-bottom: 14px; }

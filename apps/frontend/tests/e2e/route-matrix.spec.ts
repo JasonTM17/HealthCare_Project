@@ -100,6 +100,7 @@ const ADMIN_ROUTES = [
   "/admin/content",
   "/admin/health-questions",
   "/admin/ai-credits",
+  "/admin/users",
   "/admin/payments",
 ] as const;
 

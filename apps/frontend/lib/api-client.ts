@@ -1699,6 +1699,10 @@ export interface AdminDoctorPayload {
   photoUrl?: string | null;
   active: boolean;
   userId?: string | null;
+  /** Explicitly clears the account link — a null userId alone means "keep as is". */
+  unlinkUser?: boolean;
+  branchIds?: string[];
+  specialtyIds?: string[];
 }
 
 export async function adminListDoctors(
@@ -2173,6 +2177,55 @@ export async function adminUpdateJobApplicationStatus(
       method: "PATCH",
       body: JSON.stringify({ status }),
     },
+  );
+}
+
+export interface AdminUserAccount {
+  id: string;
+  email: string;
+  displayName: string;
+  status: string;
+  roles: string[];
+  emailVerified: boolean;
+  demo: boolean;
+  phone: string | null;
+  patientProfileId: string | null;
+  doctorProfileId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function adminListUsers(
+  filters: { role?: string; status?: string; q?: string; page?: number; size?: number } = {},
+): Promise<Page<AdminUserAccount>> {
+  return getAuthenticatedJson<Page<AdminUserAccount>>(
+    `/admin/users${toQuery({
+      role: filters.role,
+      status: filters.status,
+      q: filters.q,
+      page: filters.page ?? 0,
+      size: filters.size ?? 20,
+    })}`,
+  );
+}
+
+export async function adminUpdateUserStatus(
+  userId: string,
+  status: "ACTIVE" | "DISABLED",
+): Promise<AdminUserAccount> {
+  return getAuthenticatedJson<AdminUserAccount>(
+    `/admin/users/${encodeURIComponent(userId)}/status`,
+    { method: "PATCH", body: JSON.stringify({ status }) },
+  );
+}
+
+export async function adminUpdateUserRoles(
+  userId: string,
+  roles: string[],
+): Promise<AdminUserAccount> {
+  return getAuthenticatedJson<AdminUserAccount>(
+    `/admin/users/${encodeURIComponent(userId)}/roles`,
+    { method: "PATCH", body: JSON.stringify({ roles }) },
   );
 }
 

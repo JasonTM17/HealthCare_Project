@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -90,6 +91,99 @@ class AdminAccountGovernanceConcurrencyTest extends AbstractIntegrationTest {
         assertThat(denied.getResponse().getStatus()).isEqualTo(403);
         assertThat(detail(patient.getId())).isEqualTo(baseline);
         assertThat(userRepository.countEligibleAdministrators()).isEqualTo(1);
+    }
+
+    @Test
+    void legacyRolePatchAndProfessionalHoldCannotRemoveBothEligibleAdministrators() throws Exception {
+        mixedAdministratorRace(true, false);
+    }
+
+    @Test
+    void legacyStatusPatchAndProfessionalDemotionCannotRemoveBothEligibleAdministrators() throws Exception {
+        mixedAdministratorRace(false, false);
+    }
+
+    @Test
+    void legacyRoleAndStatusPatchesShareOneEligibleAdministratorSentinel() throws Exception {
+        mixedAdministratorRace(true, true);
+    }
+
+    private void mixedAdministratorRace(boolean firstIsRoles, boolean secondIsPatch) throws Exception {
+        User other = fixture("Mixed-writer second administrator", "ADMIN");
+        User demo = fixture("Ineligible demo roster entry", "ADMIN");
+        User unverified = fixture("Ineligible unverified roster entry", "ADMIN");
+        jdbcTemplate.update("update users set is_demo=true where id=?", demo.getId());
+        jdbcTemplate.update("update users set email_verified=false where id=?", unverified.getId());
+        ObjectNode first = firstIsRoles ? legacyRoles("PATIENT") : mapper.createObjectNode().put("status", "DISABLED");
+        ObjectNode second = updateBody(detail(actor.getId()));
+        if (firstIsRoles) second.put("status", "DISABLED"); else second.putArray("roles").add("PATIENT");
+        MockHttpServletRequestBuilder requestOne = legacyRequest(other.getId(), firstIsRoles ? "roles" : "status", first, admin);
+        MockHttpServletRequestBuilder requestTwo = secondIsPatch
+            ? legacyRequest(actor.getId(), "status", mapper.createObjectNode().put("status", "DISABLED"), bearer(other))
+            : accountRequest(actor.getId(), second, bearer(other));
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        AtomicReference<Future<MvcResult>> one = new AtomicReference<>(); AtomicReference<Future<MvcResult>> two = new AtomicReference<>();
+        CountDownLatch started = new CountDownLatch(2);
+        try {
+            new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+                governance.acquire();
+                one.set(workers.submit(() -> { started.countDown(); return perform(requestOne); }));
+                two.set(workers.submit(() -> { started.countDown(); return perform(requestTwo); }));
+                await(started); awaitBlocked(2);
+            });
+            assertThat(List.of(one.get().get(15, TimeUnit.SECONDS).getResponse().getStatus(), two.get().get(15, TimeUnit.SECONDS).getResponse().getStatus())).containsExactlyInAnyOrder(200, 403);
+            assertThat(userRepository.countEligibleAdministrators()).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject("select sum(security_version) from users", Long.class)).isEqualTo(1);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from clinical_access_audit where target_type='USER' and decision='ALLOW'", Long.class)).isEqualTo(1);
+            assertThat(userRepository.findById(demo.getId()).orElseThrow().getSecurityVersion()).isZero();
+            assertThat(userRepository.findById(unverified.getId()).orElseThrow().getSecurityVersion()).isZero();
+        } finally { stopWorkers(workers); }
+    }
+
+    @Test
+    void queuedLegacyStatusPatchRechecksActorAfterProfessionalDemotion() throws Exception {
+        queuedLegacyActor(false);
+    }
+
+    @Test
+    void queuedLegacyRolePatchRechecksActorAfterLegacyDemotion() throws Exception {
+        queuedLegacyActor(true);
+    }
+
+    private void queuedLegacyActor(boolean rolesPatch) throws Exception {
+        User staleActor = fixture("Queued legacy administrator", "ADMIN"); User patient = fixture("Unchanged mixed-writer patient", "PATIENT");
+        JsonNode baseline = detail(patient.getId());
+        ObjectNode body = rolesPatch ? legacyRoles("PATIENT", "ADMIN") : mapper.createObjectNode().put("status", "DISABLED");
+        ObjectNode demotion = updateBody(detail(staleActor.getId())); demotion.putArray("roles").add("PATIENT");
+        MvcResult denied = queueBehind(legacyRequest(patient.getId(), rolesPatch ? "roles" : "status", body, bearer(staleActor)), () -> {
+            if (rolesPatch) expect(legacyRequest(staleActor.getId(), "roles", legacyRoles("PATIENT"), admin), 200);
+            else expect(accountRequest(staleActor.getId(), demotion, admin), 200);
+        });
+        assertThat(denied.getResponse().getStatus()).isEqualTo(403); assertThat(detail(patient.getId())).isEqualTo(baseline);
+        assertThat(userRepository.countEligibleAdministrators()).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from clinical_access_audit where target_id=?", Long.class, patient.getId().toString())).isZero();
+    }
+
+    @Test
+    void queuedLegacyPatchPreservesFieldsChangedByCommittedProfessionalUpdate() throws Exception {
+        User patient = fixture("Before professional rename", "PATIENT"); JsonNode baseline = detail(patient.getId());
+        MvcResult held = queueBehind(legacyRequest(patient.getId(), "status", mapper.createObjectNode().put("status", "DISABLED"), admin),
+            () -> expect(accountRequest(patient.getId(), updateBody(baseline).put("displayName", "Committed professional rename"), admin), 200));
+        assertThat(held.getResponse().getStatus()).isEqualTo(200);
+        JsonNode after = detail(patient.getId()); assertThat(after.path("displayName").asText()).isEqualTo("Committed professional rename");
+        assertThat(after.path("status").asText()).isEqualTo("DISABLED"); assertThat(after.path("roles")).isEqualTo(baseline.path("roles"));
+        assertThat(after.path("version").asLong()).isEqualTo(1);
+    }
+
+    @Test
+    void queuedLegacyRolePatchRejectsProfileDeactivatedByDoctorWriter() throws Exception {
+        User patient = fixture("Legacy bound profile", "PATIENT"); Doctor profile = doctor(patient.getDisplayName(), patient.getId());
+        JsonNode baseline = detail(patient.getId());
+        MvcResult denied = queueBehind(legacyRequest(patient.getId(), "roles", legacyRoles("DOCTOR"), admin),
+            () -> expect(doctorRequest(profile, profile.getFullName(), false, null), 200));
+        assertThat(denied.getResponse().getStatus()).isEqualTo(400);
+        assertThat(detail(patient.getId()).path("roles")).isEqualTo(baseline.path("roles"));
+        assertThat(doctorRepository.findById(profile.getId()).orElseThrow().isActive()).isFalse();
     }
 
     @Test
@@ -225,6 +319,12 @@ class AdminAccountGovernanceConcurrencyTest extends AbstractIntegrationTest {
     }
     private MockHttpServletRequestBuilder accountRequest(UUID id, ObjectNode body, String authorization) {
         return put(ACCOUNTS + id).header("Authorization", authorization).contentType(MediaType.APPLICATION_JSON).content(body.toString());
+    }
+    private ObjectNode legacyRoles(String... codes) {
+        ObjectNode body = mapper.createObjectNode(); var array = body.putArray("roles"); for (String code : codes) array.add(code); return body;
+    }
+    private MockHttpServletRequestBuilder legacyRequest(UUID id, String lane, ObjectNode body, String authorization) {
+        return patch(ACCOUNTS + id + "/" + lane).header("Authorization", authorization).contentType(MediaType.APPLICATION_JSON).content(body.toString());
     }
     private MockHttpServletRequestBuilder doctorRequest(Doctor doctor, String name, boolean active, UUID user) {
         ObjectNode body = mapper.createObjectNode().put("fullName", name).put("slug", doctor.getSlug()).put("active", active);

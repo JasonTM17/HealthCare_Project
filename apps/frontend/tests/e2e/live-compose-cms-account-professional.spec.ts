@@ -274,7 +274,7 @@ test.describe("Isolated account governance browser API boundary", () => {
     await page.getByLabel("Họ tên hiển thị", { exact: true }).fill(`${name} cập nhật`); await page.getByTestId("account-save").click(); await page.getByRole("dialog").getByRole("button", { name: "Lưu thay đổi", exact: true }).click(); await expect(page.getByRole("dialog")).toBeHidden();
     for (const [label, status] of [["Khóa tài khoản", "DISABLED"], ["Mở khóa tài khoản", "ACTIVE"]]) { await page.getByRole("button", { name: label, exact: true }).click(); await page.getByRole("dialog").getByRole("button", { name: label, exact: true }).click(); await expect(page.getByRole("dialog")).toBeHidden(); expect((await api<AdminAccount>(context.request, `/admin/users/${created.id}`)).status).toBe(status); }
     const safe = await api<Record<string, unknown>>(context.request, `/admin/users/${created.id}`);
-    expect(Object.keys(safe).sort()).toEqual(["createdAt", "demo", "displayName", "doctorProfile", "email", "emailVerified", "emailVerifiedAt", "googleLinked", "id", "patientProfileId", "roles", "status", "updatedAt", "version"].sort());
+    expect(Object.keys(safe).sort()).toEqual(["createdAt", "demo", "displayName", "doctorProfile", "doctorProfileId", "email", "emailVerified", "emailVerifiedAt", "googleLinked", "id", "patientProfileId", "phone", "roles", "status", "updatedAt", "version"].sort());
     // No delete API is invented: this fixture is removed when controller disposes DATABASE.
   });
   for (const role of ["PATIENT", "DOCTOR", "DEMO_ADMIN"] as const) test(`${role} cannot read private CMS or mutate accounts`, async ({ browser, context: adminContext }) => {

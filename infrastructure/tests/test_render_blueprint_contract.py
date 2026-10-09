@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 5770cc1d (lease resilience, booking/mail/credit fixes on top of
-# self-harm alert line).
+# release line, built from bd0b3234 (admin account
+# management, doctor assignments, work queue + V117 audit + audit-wave fixes).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:99499d48fae7c80f839c62471891d986813225928396433350e415bfefc79c73"
+    "sha256:91049a5a37b5fe02b4d11114018315b39938d09879deb55897054dee43ac3de9"
 )
 
 
@@ -106,7 +106,7 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     # [L1] Cross-warmer ai→backend must stay enabled: without this key the
     # startup hook in app/main.py self-disables and the warm chain is one-way.
     assert ai_env["BACKEND_WARM_URL"]["value"] == (
-        "https://healthcare-backup-backend-oqv4.onrender.com/actuator/health"
+        "https://healthcare-backup-backend.onrender.com/actuator/health"
     )
 
 

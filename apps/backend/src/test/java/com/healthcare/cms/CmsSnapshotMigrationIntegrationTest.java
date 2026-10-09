@@ -3,7 +3,8 @@ package com.healthcare.cms;
 import com.healthcare.AbstractIntegrationTest;
 import com.healthcare.database.CatalogFixtureCallback;
 import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.sql.DataSource;
@@ -19,8 +20,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CmsSnapshotMigrationIntegrationTest extends AbstractIntegrationTest {
     @Autowired private DataSource dataSource;
 
-    @Test
-    void v116UpgradeBackfillsOnlyPublicSnapshotAndEnforcesDraftEpochAndNullMetadataContracts() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"116", "117"})
+    void upgradeBackfillsOnlyPublicSnapshotAndPreservesAuditDraftAndEpochContracts(String baseline) throws Exception {
         String ownedSchema = "cms_snapshot_test_" + UUID.randomUUID().toString().replace("-", "");
         assertThat(ownedSchema).matches("cms_snapshot_test_[0-9a-f]{32}");
         UUID published = UUID.randomUUID();
@@ -28,7 +30,7 @@ class CmsSnapshotMigrationIntegrationTest extends AbstractIntegrationTest {
         UUID user = UUID.randomUUID();
         OffsetDateTime timestamp = OffsetDateTime.parse("2026-01-02T03:04:05.123456Z");
         try {
-            migrate(ownedSchema, "116");
+            migrate(ownedSchema, baseline);
             try (Connection connection = dataSource.getConnection()) {
                 connection.setSchema(ownedSchema);
                 try {
@@ -41,10 +43,22 @@ class CmsSnapshotMigrationIntegrationTest extends AbstractIntegrationTest {
                     }
                 } finally { connection.setSchema("public"); }
             }
-            migrate(ownedSchema, "118");
+            migrate(ownedSchema, "120");
             try (Connection connection = dataSource.getConnection()) {
                 connection.setSchema(ownedSchema);
                 try {
+                    for (String target : new String[]{"MEDICAL_RECORD", "PRESCRIPTION", "DIAGNOSTIC", "FILE", "DOCUMENT", "APPOINTMENT", "USER"}) {
+                        audit(connection, target, "READ");
+                    }
+                    for (String action : new String[]{"READ", "DOWNLOAD", "PRESCRIBE", "ADMIN_CANCEL_APPOINTMENT", "GENERATE", "REVOKE", "ADMIN_UPDATE_USER_STATUS", "ADMIN_UPDATE_USER_ROLES"}) {
+                        audit(connection, "USER", action);
+                    }
+                    try (var statement = connection.createStatement(); var revisions = statement.executeQuery("select version from flyway_schema_history where version in ('117','119','120') and success order by installed_rank")) {
+                        assertThat(revisions.next()).isTrue(); assertThat(revisions.getString(1)).isEqualTo("117");
+                        assertThat(revisions.next()).isTrue(); assertThat(revisions.getString(1)).isEqualTo("119");
+                        assertThat(revisions.next()).isTrue(); assertThat(revisions.getString(1)).isEqualTo("120");
+                        assertThat(revisions.next()).isFalse();
+                    }
                     try (PreparedStatement sql = connection.prepareStatement("select payload->>'title',version,public_revision,public_updated_at,draft_component_type,draft_payload,draft_updated_at,status from cms_contents where id=?")) {
                         sql.setObject(1, published);
                         try (var result = sql.executeQuery()) {
@@ -96,6 +110,14 @@ class CmsSnapshotMigrationIntegrationTest extends AbstractIntegrationTest {
                 connection.setSchema("public");
                 connection.createStatement().execute("drop schema if exists \"" + ownedSchema + "\" cascade");
             }
+        }
+    }
+
+    private void audit(Connection connection, String target, String action) throws SQLException {
+        try (var statement = connection.prepareStatement("insert into clinical_access_audit(id,actor_email,actor_role,target_type,target_id,action,decision) values (?,?,'ADMIN',?,?,?,'ALLOW')")) {
+            statement.setObject(1, UUID.randomUUID()); statement.setString(2, "migration-fixture@fixture.invalid");
+            statement.setString(3, target); statement.setString(4, UUID.randomUUID().toString()); statement.setString(5, action);
+            statement.executeUpdate();
         }
     }
 

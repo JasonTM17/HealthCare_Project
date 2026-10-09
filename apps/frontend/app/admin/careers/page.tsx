@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { adminListJobApplications, adminUpdateJobApplicationStatus, type JobApplicationAdminSummary } from "../../../lib/api-client";
 import { formatBusinessDateTime } from "../../../lib/business-time";
 import AdminState from "../_components/AdminState";
@@ -29,9 +30,16 @@ function statusTone(status: string): string {
   return "bg-teal-100 text-teal-900";
 }
 
-export default function AdminCareersPage() {
+function AdminCareersWorkspace() {
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<JobApplicationAdminSummary[]>([]);
-  const [status, setStatus] = useState("SUBMITTED");
+  // Default "Tất cả": applications keep moving to other statuses, so landing on
+  // a single-status filter reads as an empty queue even when work exists. A
+  // valid ?status= deep link (e.g. the dashboard queue) seeds the filter.
+  const [status, setStatus] = useState(() => {
+    const requested = searchParams.get("status");
+    return requested && APPLICATION_STATUSES.some(([value]) => value === requested) ? requested : "";
+  });
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
@@ -141,5 +149,13 @@ export default function AdminCareersPage() {
         title={pendingStatus?.next === "REJECTED" ? "Đánh dấu hồ sơ không phù hợp?" : "Chuyển trạng thái hồ sơ?"}
       />
     </div>
+  );
+}
+
+export default function AdminCareersPage() {
+  return (
+    <Suspense fallback={<AdminState tone="loading" title="Đang mở trang tuyển dụng" description="Vui lòng chờ trong giây lát." />}>
+      <AdminCareersWorkspace />
+    </Suspense>
   );
 }

@@ -59,18 +59,29 @@ test("health question moderation reasons stay inside the stored moderation_reaso
   }
 });
 
-test("doctor admin form validates optional linked userId and sends it only when present", async () => {
+test("doctor admin form links an account via picker and writes branch/specialty assignments", async () => {
   const doctors = await source("doctors/page.tsx");
 
+  // The linked account is chosen from the DOCTOR-role account inventory, not
+  // a raw UUID paste — malformed ids are impossible by construction and the
+  // backend still enforces the role + uniqueness checks.
   assert.match(doctors, /userId: string/);
-  assert.match(doctors, /USER_ID_UUID_PATTERN = \/\^\[0-9a-f\]\{8\}-/);
-  assert.match(doctors, /const linkedUserId = form\.userId\.trim\(\)/);
-  assert.match(doctors, /linkedUserId && !USER_ID_UUID_PATTERN\.test\(linkedUserId\)/);
-  assert.match(doctors, /setFormError\("User ID liên kết phải là UUID hợp lệ\."\)/);
+  assert.match(doctors, /adminListUsers\(\{ role: "DOCTOR", status: "ACTIVE"/);
+  assert.match(doctors, /id="doctor-user-id"/);
+  assert.match(doctors, /<option value="">Không liên kết tài khoản<\/option>/);
+  assert.match(doctors, /doctorAccounts\.map\(\(account\)/);
+  assert.match(doctors, /setForm\(\{ \.\.\.form, userId: event\.target\.value \}\)/);
   assert.match(doctors, /const userId = form\.userId\.trim\(\)/);
   assert.match(doctors, /\.\.\.\(userId \? \{ userId \} : \{\}\)/);
-  assert.match(doctors, /htmlFor="doctor-user-id">User ID liên kết \(tùy chọn\)<\/label>/);
-  assert.match(doctors, /setForm\(\{ \.\.\.form, userId: event\.target\.value \}\)/);
+
+  // Branch/specialty assignment is a first-class form field whose value ships
+  // in the payload, closing the "doctor can never be scheduled" gap.
+  assert.match(doctors, /branchIds: string\[\]/);
+  assert.match(doctors, /specialtyIds: string\[\]/);
+  assert.match(doctors, /branchIds: form\.branchIds/);
+  assert.match(doctors, /specialtyIds: form\.specialtyIds/);
+  assert.match(doctors, /Cơ sở trực thuộc/);
+  assert.match(doctors, /Chuyên khoa phụ trách/);
 });
 
 test("specialty admin form maps clinical fields accepted by the backend", async () => {

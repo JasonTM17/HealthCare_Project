@@ -8,6 +8,6 @@ import java.util.UUID;
 public record AdminAccountResponse(UUID id, String email, String displayName, String status,
     List<String> roles, boolean emailVerified, OffsetDateTime emailVerifiedAt, boolean demo,
     OffsetDateTime createdAt, OffsetDateTime updatedAt, long version, DoctorProfile doctorProfile,
-    UUID patientProfileId, boolean googleLinked) {
+    UUID patientProfileId, boolean googleLinked, String phone, UUID doctorProfileId) {
     public record DoctorProfile(UUID id, String slug, String fullName, boolean active) { }
 }

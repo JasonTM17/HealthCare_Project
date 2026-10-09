@@ -1562,6 +1562,26 @@ def public_chat_mode_for_query(query: str) -> ChatMode:
     )
 
 
+# Treatment, diagnosis and medication asks belong behind the approved
+# clinical source contract; general knowledge must not answer them. Shared by
+# the public floor below and the patient-chat uncited clinical lane.
+_TREATMENT_DIAGNOSIS_MEDICATION_PATTERN = re.compile(
+    r"\b(?:"
+    r"dieu\s+tri"
+    r"|chua\s+(?:benh|ung\s+thu|hoi)"
+    r"|benh\s+(?:gi|ly\s+gi|nao)"
+    r"|hoi\s+benh"
+    r"|mac\s+benh\s+gi"
+    r"|co\s+benh\s+khong"
+    r"|chan\s+doan"
+    r"|ke\s+don"
+    r"|lieu\s+thuoc"
+    r"|uong\s+thuoc\s+gi"
+    r"|thuoc\s+(?:gi|nao|loai\s+nao)"
+    r")\b"
+)
+
+
 def public_no_context_query_allowed(query: str) -> bool:
     """Return whether a public query is safe to answer without catalog facts.
 
@@ -1582,24 +1602,28 @@ def public_no_context_query_allowed(query: str) -> bool:
     # present in the question.
     if public_chat_mode_for_query(normalized) is ChatMode.HEALTH_EDUCATION:
         return False
-    # Treatment, diagnosis and medication asks belong behind the approved
-    # clinical source contract; general knowledge must not answer them.
-    if re.search(
-        r"\b(?:"
-        r"dieu\s+tri"
-        r"|chua\s+(?:benh|ung\s+thu|hoi)"
-        r"|benh\s+(?:gi|ly\s+gi|nao)"
-        r"|hoi\s+benh"
-        r"|mac\s+benh\s+gi"
-        r"|co\s+benh\s+khong"
-        r"|chan\s+doan"
-        r"|ke\s+don"
-        r"|lieu\s+thuoc"
-        r"|uong\s+thuoc\s+gi"
-        r"|thuoc\s+(?:gi|nao|loai\s+nao)"
-        r")\b",
-        normalized,
-    ):
+    if _TREATMENT_DIAGNOSIS_MEDICATION_PATTERN.search(normalized):
+        return False
+    return True
+
+
+def clinical_uncited_query_allowed(query: str) -> bool:
+    """Return whether a patient-chat clinical question may fall back to
+    uncited remote guidance.
+
+    Used by HEALTH_EDUCATION and SYMPTOM_TRIAGE conversations whose retrieval
+    returned no authorized source. Unlike ``public_no_context_query_allowed``
+    this lane must not deny the education classification itself — answering a
+    general health-education question is the lane's purpose — while the
+    treatment/diagnosis/medication floor stays identical. A question that
+    asks for a personal diagnosis, a prescription or a treatment plan still
+    fails closed to insufficient evidence.
+    """
+
+    normalized = _normalize_sensitive_text(query).strip(" .,!?:;-")
+    if not normalized:
+        return False
+    if _TREATMENT_DIAGNOSIS_MEDICATION_PATTERN.search(normalized):
         return False
     return True
 
