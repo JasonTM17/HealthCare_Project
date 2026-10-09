@@ -545,6 +545,12 @@ export function CmsEditor({
   const editableSlot = loadedSelection?.slot ?? selectedSlot;
   const allowedComponentTypes = cmsComponentTypesForSlot(editableSlot);
   const sidebarlessRoute = CMS_SIDEBARLESS_ROUTE_SLUGS.has(slug.trim().toLowerCase());
+  // Live slotKey preview: the hint under "Slug trang" must reflect the slot
+  // currently chosen in the dropdown, not a stale "hero" example.
+  const previewSlug = slug.trim().toLowerCase();
+  const slotKeyPreview = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(previewSlug)
+    ? resolveCmsSlotKey(previewSlug, selectedSlot)
+    : `${previewSlug || "slug"}.${selectedSlot}`;
 
   const handleSlugChange = (nextSlug: string): void => {
     setSlug(nextSlug);
@@ -732,7 +738,7 @@ export function CmsEditor({
             disabled={isBusy}
             value={slug}
           />
-          <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">home + hero → homepage.hero</span>
+          <span className="mt-1 block text-xs font-normal text-slate-500" id="cms-slug-help">{previewSlug || "slug"} + {selectedSlot} → {slotKeyPreview}</span>
         </label>
         <label className="text-sm font-semibold text-slate-700">
           Slot

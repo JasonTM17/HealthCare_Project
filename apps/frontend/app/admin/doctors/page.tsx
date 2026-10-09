@@ -303,10 +303,13 @@ export default function AdminDoctorsPage() {
           {!loading && !loadError && doctors.length > 0 ? (
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
               <div aria-label="Bảng bác sĩ, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}>
-                <table className="min-w-[920px] w-full text-left text-sm">
+                <table className="min-w-[1100px] w-full table-fixed text-left text-sm">
                   <caption className="sr-only">Bác sĩ trong admin catalog</caption>
+                  <colgroup>
+                    <col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[22%]" /><col className="w-[20%]" /><col className="w-[11%]" /><col className="w-[12%]" />
+                  </colgroup>
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th scope="col" className="px-4 py-3 font-bold">Họ tên</th><th scope="col" className="px-4 py-3 font-bold">Tài khoản</th><th scope="col" className="px-4 py-3 font-bold">Cơ sở</th><th scope="col" className="px-4 py-3 font-bold">Chuyên khoa</th><th scope="col" className="px-4 py-3 font-bold">Trạng thái</th><th scope="col" className="px-4 py-3 text-right font-bold">Thao tác</th></tr>
+                    <tr><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Họ tên</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Tài khoản</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Cơ sở</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Chuyên khoa</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Trạng thái</th><th scope="col" className="whitespace-nowrap px-4 py-3 text-right font-bold">Thao tác</th></tr>
                   </thead>
                   <tbody>
                     {doctors.map((doctor) => {
@@ -317,16 +320,20 @@ export default function AdminDoctorsPage() {
                         .map((id) => specialties.find((specialty) => specialty.id === id)?.name ?? null)
                         .filter((name): name is string => name !== null);
                       return (
-                      <tr className="border-b border-slate-100 last:border-0" key={doctor.id}>
-                        <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}<br /><span className="font-mono text-xs font-normal text-slate-500">{doctor.slug}</span></td>
+                      <tr className="border-b border-slate-100 align-top last:border-0" key={doctor.id}>
+                        <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}<br /><span className="font-mono text-xs font-normal text-slate-500 break-all">{doctor.slug}</span></td>
                         <td className="px-4 py-4 text-xs text-slate-700">
-                          {doctor.linkedUser ? doctor.linkedUser.email : <span className="text-slate-400">—</span>}
+                          {doctor.linkedUser ? <span className="break-all">{doctor.linkedUser.email}</span> : <span className="text-slate-400">—</span>}
                         </td>
-                        <td className="px-4 py-4 text-xs text-slate-700">
-                          {branchNames.length > 0 ? branchNames.join(", ") : <span className="text-amber-800">Chưa gán cơ sở</span>}
+                        <td className="px-4 py-4">
+                          {branchNames.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">{branchNames.map((name) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={name}>{name}</span>)}</div>
+                          ) : <span className="text-xs text-amber-800">Chưa gán cơ sở</span>}
                         </td>
-                        <td className="px-4 py-4 text-xs text-slate-700">
-                          {specialtyNames.length > 0 ? specialtyNames.join(", ") : <span className="text-amber-800">Chưa gán chuyên khoa</span>}
+                        <td className="px-4 py-4">
+                          {specialtyNames.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">{specialtyNames.map((name) => <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-900" key={name}>{name}</span>)}</div>
+                          ) : <span className="text-xs text-amber-800">Chưa gán chuyên khoa</span>}
                         </td>
                         <td className="px-4 py-4">
                           <span className={doctor.active ?? true ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
