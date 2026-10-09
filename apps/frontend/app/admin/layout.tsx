@@ -37,6 +37,7 @@ const NAV = [
   { href: "/admin/content", label: "CMS live" },
   { href: "/admin/ai-content-reviews", label: "AI review" },
   { href: "/admin/ai-credits", label: "AI credits" },
+  { href: "/admin/users", label: "Tài khoản" },
   { href: "/admin/health-questions", label: "Hỏi đáp sức khỏe" },
   { href: "/admin/consultations", label: "Tư vấn bệnh nhân" },
   { href: "/admin/careers", label: "Hồ sơ ứng tuyển" },

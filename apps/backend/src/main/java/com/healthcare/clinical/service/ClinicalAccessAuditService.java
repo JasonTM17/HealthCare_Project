@@ -36,6 +36,14 @@ public class ClinicalAccessAuditService {
      * two authorities stay separable in an audit query.
      */
     public static final String ACTION_ADMIN_CANCEL_APPOINTMENT = "ADMIN_CANCEL_APPOINTMENT";
+    /**
+     * User-account governance from {@code /api/v1/admin/users/**} (status
+     * flips and role rewrites). TARGET_USER keeps those rows separable from
+     * clinical-artifact touches in one ordered audit table.
+     */
+    public static final String TARGET_USER = "USER";
+    public static final String ACTION_ADMIN_UPDATE_USER_STATUS = "ADMIN_UPDATE_USER_STATUS";
+    public static final String ACTION_ADMIN_UPDATE_USER_ROLES = "ADMIN_UPDATE_USER_ROLES";
     public static final String DECISION_ALLOW = "ALLOW";
     public static final String DECISION_DENY = "DENY";
 

@@ -6,8 +6,11 @@ import com.healthcare.hospital.dto.DoctorRequest;
 import com.healthcare.hospital.entity.Branch;
 import com.healthcare.hospital.entity.Doctor;
 import com.healthcare.hospital.entity.DoctorBranch;
+import com.healthcare.hospital.repository.BranchRepository;
 import com.healthcare.hospital.repository.DoctorBranchRepository;
 import com.healthcare.hospital.repository.DoctorRepository;
+import com.healthcare.hospital.repository.DoctorSpecialtyRepository;
+import com.healthcare.hospital.repository.SpecialtyRepository;
 import com.healthcare.hospital.service.AdminDoctorService;
 import com.healthcare.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -47,9 +50,13 @@ class AdminDoctorListBranchIdsTest {
 
     private final DoctorRepository doctorRepository = mock(DoctorRepository.class);
     private final DoctorBranchRepository doctorBranchRepository = mock(DoctorBranchRepository.class);
+    private final DoctorSpecialtyRepository doctorSpecialtyRepository = mock(DoctorSpecialtyRepository.class);
+    private final BranchRepository branchRepository = mock(BranchRepository.class);
+    private final SpecialtyRepository specialtyRepository = mock(SpecialtyRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final AdminDoctorService service =
-        new AdminDoctorService(doctorRepository, userRepository, doctorBranchRepository);
+        new AdminDoctorService(doctorRepository, userRepository, doctorBranchRepository,
+            doctorSpecialtyRepository, branchRepository, specialtyRepository);
 
     private static Doctor doctor(String fullName, String slug, UUID id) {
         Doctor doctor = new Doctor();
@@ -97,6 +104,7 @@ class AdminDoctorListBranchIdsTest {
             link(d1, branchA),
             link(d1, branchB),
             link(d2, branchC)));
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         Page<AdminDoctorResponse> result = service.list(pageable);
 
@@ -120,6 +128,7 @@ class AdminDoctorListBranchIdsTest {
         Pageable pageable = PageRequest.of(0, 20, Sort.by("fullName"));
         when(doctorRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(d), pageable, 1));
         when(doctorBranchRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of(link(d, branch)));
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         AdminDoctorResponse dto = service.list(pageable).getContent().get(0);
 
@@ -135,6 +144,7 @@ class AdminDoctorListBranchIdsTest {
         Pageable pageable = PageRequest.of(0, 20, Sort.by("fullName"));
         when(doctorRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(d), pageable, 1));
         when(doctorBranchRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         AdminDoctorResponse dto = service.list(pageable).getContent().get(0);
 
@@ -166,6 +176,7 @@ class AdminDoctorListBranchIdsTest {
         Page<Doctor> raw = new PageImpl<>(List.of(d1, d2), pageable, 12);
         when(doctorRepository.findAll(pageable)).thenReturn(raw);
         when(doctorBranchRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
+        when(doctorSpecialtyRepository.findByDoctorIdIn(anyCollection())).thenReturn(List.of());
 
         Page<AdminDoctorResponse> result = service.list(pageable);
 
@@ -214,7 +225,7 @@ class AdminDoctorListBranchIdsTest {
         when(userRepository.findById(linkedUserId)).thenReturn(java.util.Optional.of(account));
 
         service.update("bs-cu", new DoctorRequest(
-            "BS Mới Tên", "bs-cu", "bio", null, true, null));
+            "BS Mới Tên", "bs-cu", "bio", null, true, null, false, null, null));
 
         verify(userRepository).save(org.mockito.ArgumentMatchers.argThat(
             user -> "BS Mới Tên".equals(user.getDisplayName())));
@@ -229,7 +240,7 @@ class AdminDoctorListBranchIdsTest {
         when(doctorRepository.save(any(Doctor.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.update("bs-khong-link", new DoctorRequest(
-            "BS Đổi Tên", "bs-khong-link", "bio", null, true, null));
+            "BS Đổi Tên", "bs-khong-link", "bio", null, true, null, false, null, null));
 
         verify(userRepository, never()).findById(any());
         verify(userRepository, never()).save(any());
