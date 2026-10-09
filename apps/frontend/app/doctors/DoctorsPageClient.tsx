@@ -15,6 +15,7 @@ import {
 } from "../../components/PublicPageShell";
 import ClinicalIcon from "../../components/ClinicalIcon";
 import { specialtyIdForDoctor } from "../../components/BookingModal";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 interface DoctorsPageClientProps {
   specialtySlug?: string;
@@ -129,173 +130,183 @@ export default function DoctorsPageClient({ specialtySlug, branchSlug }: Doctors
       <div className="catalog-page catalog-page--directory section-inner">
         {/* Breadcrumb above already links home; a duplicate back-link here
             stacked two home paths within one screen. */}
-        <header className="resource-page__header">
-          <p className="section-note">Đội ngũ bác sĩ</p>
-          <h1>Bác sĩ đồng hành cùng bạn</h1>
-          <p>
-            Tìm hiểu chuyên môn và kinh nghiệm để lựa chọn bác sĩ phù hợp với nhu cầu chăm sóc.
-          </p>
-        </header>
+        <CmsNativeSection sectionId="intro">
+          <header className="resource-page__header">
+            <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Đội ngũ bác sĩ"} className="section-note">Đội ngũ bác sĩ</CmsNativeText>
+            <CmsNativeText fieldId="intro.title" as="h1" value={"Bác sĩ đồng hành cùng bạn"}>Bác sĩ đồng hành cùng bạn</CmsNativeText>
+            <CmsNativeText fieldId="intro.body" as="p" value={"Tìm hiểu chuyên môn và kinh nghiệm để lựa chọn bác sĩ phù hợp với nhu cầu chăm sóc."}>
+              Tìm hiểu chuyên môn và kinh nghiệm để lựa chọn bác sĩ phù hợp với nhu cầu chăm sóc.
+            </CmsNativeText>
+          </header>
+        </CmsNativeSection>
 
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
-            <ClinicalIcon name="specialty" />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Đội ngũ chuyên gia</p>
-            <h2>Tìm bác sĩ theo nhu cầu thăm khám</h2>
-            <p className="resource-lead">
-              Xem chuyên môn, chọn cơ sở và chủ động đặt lịch hẹn trực tuyến.
-            </p>
-            <div className="resource-actions">
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>
-              <PublicBookingButton
-                selection={
-                  featuredDoctor
-                    ? {
-                        doctorId: featuredDoctor.id,
-                        specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || selectedSpecialty?.id || undefined,
-                        branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
-                      }
-                    : selectedSpecialty
-                      ? { specialtyId: selectedSpecialty.id }
-                      : undefined
-                }
-              >
-                Đặt lịch với bác sĩ
-              </PublicBookingButton>
-              <Link className="outline-button outline-button--light" href="/specialties">
-                Xem chuyên khoa
-              </Link>
-            </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Tổng bác sĩ</dt>
-                <dd>{loading && !page ? "Đang tải…" : error && !page ? "Chưa tải được" : doctorCount || "Chưa có bác sĩ công khai"}</dd>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal">
+              <div className="resource-icon" aria-hidden="true">
+                <ClinicalIcon name="specialty" />
               </div>
-              <div>
-                <dt>Bộ lọc hiện tại</dt>
-                <dd>{filterLabel ?? "Tất cả bác sĩ"}</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <details className="catalog-guidance">
-          <summary>Cách chọn phù hợp</summary>
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Cách chọn bác sĩ</p>
-            <h2>Ba bước để chọn nhanh</h2>
-            <div className="resource-steps resource-steps--grid">
-              {[
-                ["01", "Xem hồ sơ", "Đọc chuyên môn, kinh nghiệm và chuyên khoa của bác sĩ."],
-                ["02", "Kiểm tra bộ lọc", "Lọc theo chuyên khoa hoặc cơ sở nếu bạn đã có điểm đến cụ thể."],
-                ["03", "Đặt lịch", "Mở form đặt lịch ngay khi đã chọn được bác sĩ phù hợp."],
-              ].map(([number, title, description]) => (
-                <div className="resource-step-card" key={number}>
-                  <span>{number}</span>
-                  <strong>{title}</strong>
-                  <p>{description}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="resource-panel">
-            <p className="section-note">Bác sĩ nổi bật</p>
-            <h2>Bác sĩ chuyên khoa tiêu biểu</h2>
-            {loading && !page ? (
-              <p className="resource-muted" role="status">Đang tải hồ sơ bác sĩ…</p>
-            ) : error && !page ? (
-              <p className="resource-muted" role="status">Chưa thể tải hồ sơ lúc này. Vui lòng thử lại sau.</p>
-            ) : featuredDoctor ? (
-              <>
-                <p className="catalog-card__summary">{featuredDoctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Đội ngũ chuyên gia"} className="resource-chip">Đội ngũ chuyên gia</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Tìm bác sĩ theo nhu cầu thăm khám"}>Tìm bác sĩ theo nhu cầu thăm khám</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Xem chuyên môn, chọn cơ sở và chủ động đặt lịch hẹn trực tuyến."} className="resource-lead">
+                  Xem chuyên môn, chọn cơ sở và chủ động đặt lịch hẹn trực tuyến.
+                </CmsNativeText>
                 <div className="resource-actions">
-                  <Link className="text-button" href={`/doctors/${featuredDoctor.slug}`}>
-                    Xem hồ sơ →
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý chọn chuyên khoa</PublicAiButton>
+                  <PublicBookingButton
+                    selection={
+                      featuredDoctor
+                        ? {
+                          doctorId: featuredDoctor.id,
+                          specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || selectedSpecialty?.id || undefined,
+                          branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
+                        }
+                        : selectedSpecialty
+                          ? { specialtyId: selectedSpecialty.id }
+                          : undefined
+                    }
+                  >
+                    Đặt lịch với bác sĩ
+                  </PublicBookingButton>
+                  <Link className="outline-button outline-button--light" href="/specialties">
+                    Xem chuyên khoa
                   </Link>
-                    <PublicBookingButton
-                      ariaLabel={`Đặt lịch với bác sĩ ${featuredDoctor.fullName}`}
-                      className="outline-button outline-button--small"
-                      selection={{
-                        doctorId: featuredDoctor.id,
-                        specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || selectedSpecialty?.id || undefined,
-                        branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
-                      }}
-                    >
-                      Đặt lịch
-                    </PublicBookingButton>
                 </div>
-              </>
-            ) : (
-              <p className="resource-muted">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p>
-            )}
-          </section>
-        </div>
-        </details>
-
-        {filterLabel ? (
-          <div className="resource-chip-row" aria-label="Bộ lọc hiện tại">
-            <span className="resource-chip">Chuyên khoa: {filterLabel}</span>
-            <Link className="text-button" href="/doctors">Xóa bộ lọc</Link>
-          </div>
-        ) : null}
-
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
-        {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
-        {!loading && !error && page && (page.empty || visibleDoctors.length === 0) ? <p className="catalog-status" role="status">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p> : null}
-
-        {page && !page.empty && visibleDoctors.length > 0 ? (
-          <>
-            <p className="catalog-meta">{page.totalElements} bác sĩ · Trang {page.number + 1}/{page.totalPages}</p>
-            <div className="catalog-grid catalog-grid--doctors">
-              {visibleDoctors.map((doctor) => (
-                <article className="catalog-card" key={doctor.id}>
-                  <div className="resource-avatar">
-                    {getDoctorPhoto(doctor) ? (
-                      <Image
-                        src={getDoctorPhoto(doctor) as string}
-                        alt={`Ảnh bác sĩ ${doctor.fullName}`}
-                        width={400}
-                        height={300}
-                        sizes="(max-width: 768px) 100vw, 360px"
-                        className="resource-avatar__img"
-                      />
-                    ) : (
-                      <span className="resource-avatar__initials" aria-hidden="true">
-                        {getDoctorInitials(doctor.fullName)}
-                      </span>
-                    )}
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Tổng bác sĩ</dt>
+                    <dd>{loading && !page ? "Đang tải…" : error && !page ? "Chưa tải được" : doctorCount || "Chưa có bác sĩ công khai"}</dd>
                   </div>
-                  {doctor.demo || doctor.slug.startsWith("demo-bs-")
-                    ? <span className="resource-chip resource-chip--muted">Hồ sơ minh họa</span>
-                    : null}
-                  {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
-                  <h2>{doctor.fullName}</h2>
-                  <p className="catalog-card__summary">{doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
-                  <div className="catalog-card__actions">
-                    <Link className="text-button" href={`/doctors/${doctor.slug}`}>Xem hồ sơ →</Link>
-                    <PublicBookingButton
-                      ariaLabel={`Đặt lịch với bác sĩ ${doctor.fullName}`}
-                      className="outline-button outline-button--small"
-                      selection={{
-                        doctorId: doctor.id,
-                        specialtyId: specialtyIdForDoctor(doctor, specialties) || selectedSpecialty?.id || undefined,
-                        branchId: doctor.branchId || doctor.branchIds?.[0],
-                      }}
-                    >
-                      Đặt lịch
-                    </PublicBookingButton>
+                  <div>
+                    <dt>Bộ lọc hiện tại</dt>
+                    <dd>{filterLabel ?? "Tất cả bác sĩ"}</dd>
                   </div>
-                </article>
-              ))}
+                </dl>
+              </div>
+            </section>
+          </CmsNativeSection>
+
+          <CmsNativeSection sectionId="guide">
+            <details className="catalog-guidance">
+              <summary>Cách chọn phù hợp</summary>
+              <div className="resource-grid resource-grid--two">
+                <section className="resource-panel resource-panel--accent">
+                  <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Cách chọn bác sĩ"} className="section-note">Cách chọn bác sĩ</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title" as="h2" value={"Ba bước để chọn nhanh"}>Ba bước để chọn nhanh</CmsNativeText>
+                  <div className="resource-steps resource-steps--grid">
+                    {[
+                      ["01", "Xem hồ sơ", "Đọc chuyên môn, kinh nghiệm và chuyên khoa của bác sĩ."],
+                      ["02", "Kiểm tra bộ lọc", "Lọc theo chuyên khoa hoặc cơ sở nếu bạn đã có điểm đến cụ thể."],
+                      ["03", "Đặt lịch", "Mở form đặt lịch ngay khi đã chọn được bác sĩ phù hợp."],
+                    ].map(([number, title, description]) => (
+                      <div className="resource-step-card" key={number}>
+                        <span>{number}</span>
+                        <CmsNativeText fieldId={`guide.step${number}.title`} as="strong" value={title}>{title}</CmsNativeText>
+                        <CmsNativeText fieldId={`guide.step${number}.body`} as="p" value={description}>{description}</CmsNativeText>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="resource-panel">
+                  <CmsNativeText fieldId="guide.eyebrow2" as="p" value={"Bác sĩ nổi bật"} className="section-note">Bác sĩ nổi bật</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title2" as="h2" value={"Bác sĩ chuyên khoa tiêu biểu"}>Bác sĩ chuyên khoa tiêu biểu</CmsNativeText>
+                  {loading && !page ? (
+                    <p className="resource-muted" role="status">Đang tải hồ sơ bác sĩ…</p>
+                  ) : error && !page ? (
+                    <p className="resource-muted" role="status">Chưa thể tải hồ sơ lúc này. Vui lòng thử lại sau.</p>
+                  ) : featuredDoctor ? (
+                    <>
+                      <p className="catalog-card__summary">{featuredDoctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
+                      <div className="resource-actions">
+                        <Link className="text-button" href={`/doctors/${featuredDoctor.slug}`}>
+                          Xem hồ sơ →
+                        </Link>
+                        <PublicBookingButton
+                          ariaLabel={`Đặt lịch với bác sĩ ${featuredDoctor.fullName}`}
+                          className="outline-button outline-button--small"
+                          selection={{
+                            doctorId: featuredDoctor.id,
+                            specialtyId: specialtyIdForDoctor(featuredDoctor, specialties) || selectedSpecialty?.id || undefined,
+                            branchId: featuredDoctor.branchId || featuredDoctor.branchIds?.[0],
+                          }}
+                        >
+                          Đặt lịch
+                        </PublicBookingButton>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="resource-muted">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p>
+                  )}
+                </section>
+              </div>
+            </details>
+          </CmsNativeSection>
+        </CmsNativeSections>
+
+        <CmsNativeSection sectionId="directory">
+          {filterLabel ? (
+            <div className="resource-chip-row" aria-label="Bộ lọc hiện tại">
+              <span className="resource-chip">Chuyên khoa: {filterLabel}</span>
+              <Link className="text-button" href="/doctors">Xóa bộ lọc</Link>
             </div>
+          ) : null}
 
-            <CatalogPagination label="Phân trang bác sĩ" onPageChange={handlePageChange} page={page} />
-          </>
-        ) : null}
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">Đang tải hồ sơ bác sĩ…</p> : null}
+          {error ? <p className="catalog-status catalog-status--error" role="alert">{error}</p> : null}
+          {!loading && !error && page && (page.empty || visibleDoctors.length === 0) ? <p className="catalog-status" role="status">Chưa tìm thấy bác sĩ phù hợp với lựa chọn này.</p> : null}
+
+          {page && !page.empty && visibleDoctors.length > 0 ? (
+            <>
+              <p className="catalog-meta">{page.totalElements} bác sĩ · Trang {page.number + 1}/{page.totalPages}</p>
+              <div className="catalog-grid catalog-grid--doctors">
+                {visibleDoctors.map((doctor) => (
+                  <article className="catalog-card" key={doctor.id}>
+                    <div className="resource-avatar">
+                      {getDoctorPhoto(doctor) ? (
+                        <Image
+                          src={getDoctorPhoto(doctor) as string}
+                          alt={`Ảnh bác sĩ ${doctor.fullName}`}
+                          width={400}
+                          height={300}
+                          sizes="(max-width: 768px) 100vw, 360px"
+                          className="resource-avatar__img"
+                        />
+                      ) : (
+                        <span className="resource-avatar__initials" aria-hidden="true">
+                          {getDoctorInitials(doctor.fullName)}
+                        </span>
+                      )}
+                    </div>
+                    {doctor.demo || doctor.slug.startsWith("demo-bs-")
+                      ? <span className="resource-chip resource-chip--muted">Hồ sơ minh họa</span>
+                      : null}
+                    {doctor.specialtyName ? <span className="resource-chip">{doctor.specialtyName}</span> : null}
+                    <h2>{doctor.fullName}</h2>
+                    <p className="catalog-card__summary">{doctor.bio || "Bác sĩ chuyên khoa giàu kinh nghiệm, tận tâm đồng hành chăm sóc người bệnh."}</p>
+                    <div className="catalog-card__actions">
+                      <Link className="text-button" href={`/doctors/${doctor.slug}`}>Xem hồ sơ →</Link>
+                      <PublicBookingButton
+                        ariaLabel={`Đặt lịch với bác sĩ ${doctor.fullName}`}
+                        className="outline-button outline-button--small"
+                        selection={{
+                          doctorId: doctor.id,
+                          specialtyId: specialtyIdForDoctor(doctor, specialties) || selectedSpecialty?.id || undefined,
+                          branchId: doctor.branchId || doctor.branchIds?.[0],
+                        }}
+                      >
+                        Đặt lịch
+                      </PublicBookingButton>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <CatalogPagination label="Phân trang bác sĩ" onPageChange={handlePageChange} page={page} />
+            </>
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

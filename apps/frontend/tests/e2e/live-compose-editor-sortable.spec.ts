@@ -21,8 +21,10 @@ import path from "node:path";
  */
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3330";
-const DEMO_PASSWORD = "LocalDemo!2026";
-const ADMIN_EMAIL = "admin@healthcare.local";
+// CMS/account phase-4 uses a real, verified, non-demo local administrator.
+// Reuse its test-only credentials without exposing them to browser storage.
+const DEMO_PASSWORD = process.env.PLAYWRIGHT_CMS_ADMIN_PASSWORD ?? "LocalDemo!2026";
+const ADMIN_EMAIL = process.env.PLAYWRIGHT_CMS_ADMIN_EMAIL ?? "admin@healthcare.local";
 const ADMIN_STATE = path.join(__dirname, ".auth", "admin.json");
 
 test.use({ storageState: ADMIN_STATE });

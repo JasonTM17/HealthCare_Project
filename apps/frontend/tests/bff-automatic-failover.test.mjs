@@ -53,6 +53,47 @@ async function loadBff(env = {}) {
   return compiledModule.exports;
 }
 
+test("production routing stays on the selected backend without an explicit alternate", async () => {
+  const bff = await loadBff({
+    NODE_ENV: "production",
+    BACKEND_INTERNAL_URL: "https://healthcare-backup-backend.onrender.com",
+    BACKEND_BFF_SERVICE_TOKEN: "synthetic-bff-service-token-at-least-32-bytes",
+  });
+  const runtime = bff.readHealthcareBffRuntimeConfig();
+  assert.equal(runtime.backendOrigin, "https://healthcare-backup-backend.onrender.com");
+  assert.equal(runtime.backupBackendOrigin, undefined);
+  bff.markPrimaryBackendDown(10_000);
+  const calls = [];
+  const response = await bff.proxyHealthcareRequest(new Request("https://healthcare.id.vn/api/v1/hospital/branches"), ["hospital", "branches"], {
+    runtimeConfig: runtime,
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return new Response("Bad Gateway", { status: 502 });
+    },
+  });
+  assert.equal(response.status, 502);
+  assert.equal(calls.length, 2, "the existing bounded GET retry remains on the selected backend");
+  assert.ok(calls.every((url) => new URL(url).origin === runtime.backendOrigin));
+});
+
+test("a duplicate alternate does not retry the same selected backend", async () => {
+  const bff = await loadBff({
+    BACKEND_INTERNAL_URL: "https://healthcare-backup-backend.onrender.com/",
+    BACKEND_BACKUP_URL: "https://healthcare-backup-backend.onrender.com",
+    BACKEND_BFF_SERVICE_TOKEN: "synthetic-bff-service-token-at-least-32-bytes",
+  });
+  assert.equal(bff.readHealthcareBffRuntimeConfig().backupBackendOrigin, undefined);
+});
+
+test("a deliberately configured alternate remains supported", async () => {
+  const bff = await loadBff({
+    BACKEND_INTERNAL_URL: "https://selected-backend.example.com",
+    BACKEND_FALLBACK_URL: "https://explicit-alternate.example.com",
+    BACKEND_BFF_SERVICE_TOKEN: "synthetic-bff-service-token-at-least-32-bytes",
+  });
+  assert.equal(bff.readHealthcareBffRuntimeConfig().backupBackendOrigin, "https://explicit-alternate.example.com");
+});
+
 test("BFF automatically fails over to backup backend when primary returns 502", async () => {
   const bff = await loadBff();
   bff.markPrimaryBackendUp();

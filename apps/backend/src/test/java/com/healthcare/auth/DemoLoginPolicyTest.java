@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -105,8 +106,8 @@ class DemoLoginPolicyTest {
             .thenReturn(Optional.of(ordinaryUser));
         when(authenticationManager.authenticate(any()))
             .thenReturn(new UsernamePasswordAuthenticationToken("operator@example.com", "unused"));
-        when(tokenProvider.generateAccessToken(any(), anyString())).thenReturn("access");
-        when(tokenProvider.generateRefreshToken(any())).thenReturn("refresh");
+        when(tokenProvider.generateAccessToken(any(), anyString(), eq(0L))).thenReturn("access");
+        when(tokenProvider.generateRefreshToken(any(), eq(0L))).thenReturn("refresh");
 
         var response = authService.login(new LoginRequest("operator@example.com", "whatever"));
 
@@ -121,8 +122,8 @@ class DemoLoginPolicyTest {
         when(userSecurityLock.findByEmailForUpdate("admin@healthcare.com")).thenReturn(Optional.of(demoUser));
         when(authenticationManager.authenticate(any()))
             .thenReturn(new UsernamePasswordAuthenticationToken("admin@healthcare.com", "unused"));
-        when(tokenProvider.generateAccessToken(any(), anyString())).thenReturn("access");
-        when(tokenProvider.generateRefreshToken(any())).thenReturn("refresh");
+        when(tokenProvider.generateAccessToken(any(), anyString(), eq(0L))).thenReturn("access");
+        when(tokenProvider.generateRefreshToken(any(), eq(0L))).thenReturn("refresh");
 
         var response = authService.login(new LoginRequest("admin@healthcare.com", "whatever"));
 

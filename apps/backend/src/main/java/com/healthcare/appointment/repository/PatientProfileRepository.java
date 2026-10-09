@@ -18,6 +18,7 @@ public interface PatientProfileRepository extends JpaRepository<PatientProfile, 
 
     Optional<PatientProfile> findByUserId(UUID userId);
 
+    java.util.List<PatientProfile> findByUserIdIn(java.util.Collection<UUID> userIds);
     List<PatientProfile> findAllByUserIdIn(Collection<UUID> userIds);
 
     /**

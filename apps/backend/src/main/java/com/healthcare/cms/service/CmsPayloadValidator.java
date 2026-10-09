@@ -21,8 +21,8 @@ public class CmsPayloadValidator {
 
     private static final Pattern FIELD_NAME = Pattern.compile("[a-z][A-Za-z0-9]{0,39}");
     private static final Pattern UNSAFE_TEXT = Pattern.compile("(?i)(<|>|javascript\\s*:|data\\s*:)");
-    // Hotline CTAs ("Gọi 115") are legitimate content: strict RFC 3966 shape.
-    private static final Pattern TEL_URI = Pattern.compile("(?i)^tel:\\+?[0-9][0-9().\\-\\s]{1,24}$");
+    private static final Pattern TELEPHONE_ACTION = Pattern.compile("tel:\\+?[0-9]{6,15}");
+    private static final Pattern FORMATTED_TELEPHONE_ACTION = Pattern.compile("tel:\\+?[0-9][0-9(). -]{1,40}");
     private static final int MAX_FIELDS = 12;
     private static final int MAX_TEXT_LENGTH = 4_000;
     private static final int MAX_PAYLOAD_BYTES = 32_768;
@@ -64,6 +64,9 @@ public class CmsPayloadValidator {
         }
 
         PayloadSchema schema = schemas.get(componentType);
+        if (schema == null) {
+            throw new CmsPayloadValidationException("structured layout requires its page-specific validator");
+        }
         if (payload.size() > MAX_FIELDS) {
             throw new CmsPayloadValidationException("payload has too many fields");
         }
@@ -87,8 +90,8 @@ public class CmsPayloadValidator {
             if (containsControlCharacter(text) || UNSAFE_TEXT.matcher(text).find()) {
                 throw new CmsPayloadValidationException("payload field contains unsafe markup or scheme: " + fieldName);
             }
-            if (isLinkField(fieldName) && !isSafeLink(text)) {
-                throw new CmsPayloadValidationException("payload link must be a relative path or HTTPS URL: " + fieldName);
+            if (isLinkField(fieldName) && !isSafeActionLink(value.textValue())) {
+                throw new CmsPayloadValidationException("payload link must be a relative path, HTTPS URL or valid telephone action: " + fieldName);
             }
             if (isImageField(fieldName) && !isSafeImageSource(text)) {
                 throw new CmsPayloadValidationException("payload image must be a root-relative path or an HTTPS URL on an allowed image host: " + fieldName);
@@ -108,15 +111,18 @@ public class CmsPayloadValidator {
     }
 
     private boolean isLinkField(String fieldName) {
-        return fieldName.equals("ctaHref") || fieldName.equals("href") || fieldName.equals("imageUrl");
+        return fieldName.equals("ctaHref") || fieldName.equals("href");
     }
 
-    private boolean isSafeLink(String value) {
+    static boolean isSafeActionLink(String value) {
+        return isSafeLink(value.trim()) || value.equals("tel:115")
+            || (value.equals(value.trim()) && FORMATTED_TELEPHONE_ACTION.matcher(value).matches()
+                && TELEPHONE_ACTION.matcher(value.replaceAll("[(). -]", "")).matches());
+    }
+
+    static boolean isSafeLink(String value) {
         if (value.startsWith("/")) {
             return !value.startsWith("//") && !value.contains("\\");
-        }
-        if (TEL_URI.matcher(value).matches()) {
-            return true;
         }
         try {
             URI uri = new URI(value);
@@ -137,7 +143,7 @@ public class CmsPayloadValidator {
      * only allows same-origin and a few HTTPS image hosts, so an external
      * host that passes isSafeLink would still render as a broken image.
      */
-    private boolean isSafeImageSource(String value) {
+    static boolean isSafeImageSource(String value) {
         if (value.startsWith("/")) {
             return !value.startsWith("//") && !value.contains("\\");
         }

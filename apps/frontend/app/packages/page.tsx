@@ -10,6 +10,8 @@ import type { HealthPackage } from "../../types/hospital";
 import CatalogPagination from "../../components/CatalogPagination";
 import PackageVisualCard, { packageVisualStyles } from "../../components/PackageVisualCard";
 import PackageBookingModal from "../../components/PackageBookingModal";
+import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
+import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 const PACKAGE_STEPS = [
   {
@@ -95,144 +97,156 @@ export default function PackagesPage() {
   return (
     <PublicPageShell packages={page?.content ?? []}>
       <div className="catalog-page catalog-page--directory section-inner">
-        <header className={packageVisualStyles.catalogIntro}>
-          <div>
-            <p className="section-note">Gói khám sức khỏe</p>
-            <h1>Gói Khám & Tầm Soát Sức Khỏe Định Kỳ</h1>
-            <p>
-              Minh bạch chi phí, danh mục xét nghiệm và các bước chuẩn bị trước khi thăm khám.
-            </p>
-          </div>
-          <aside className={packageVisualStyles.catalogGuide} aria-label="Hướng dẫn chọn gói khám">
-            <strong>Lựa chọn phù hợp cho bạn</strong>
-            <p>Xem chi tiết từng gói khám để chuẩn bị tốt nhất trước khi đến bệnh viện.</p>
-          </aside>
-        </header>
-
-        <section className="resource-hero-card resource-hero-card--teal">
-          <div className="resource-icon" aria-hidden="true">
-            <ClinicalIcon name="service" />
-          </div>
-          <div className="resource-hero-card__body">
-            <p className="resource-chip">Danh mục gói khám</p>
-            <h2>Tra cứu và so sánh các gói khám toàn diện</h2>
-            <p className="resource-lead">
-              Duyệt theo nhu cầu tầm soát cá nhân hoặc gia đình và đặt lịch nhanh chóng tại cơ sở thuận tiện.
-            </p>
-            <div className="resource-actions">
-              <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
-              <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
-              <Link className="outline-button outline-button--light" href="/specialties">
-                Xem chuyên khoa
-              </Link>
+        <CmsNativeSection sectionId="intro">
+          <header className={packageVisualStyles.catalogIntro}>
+            <div>
+              <CmsNativeText fieldId="intro.eyebrow" as="p" value={"Gói khám sức khỏe"} className="section-note">Gói khám sức khỏe</CmsNativeText>
+              <CmsNativeText fieldId="intro.title" as="h1" value={"Gói Khám & Tầm Soát Sức Khỏe Định Kỳ"}>Gói Khám & Tầm Soát Sức Khỏe Định Kỳ</CmsNativeText>
+              <CmsNativeText fieldId="intro.body" as="p" value={"Minh bạch chi phí, danh mục xét nghiệm và các bước chuẩn bị trước khi thăm khám."}>
+                Minh bạch chi phí, danh mục xét nghiệm và các bước chuẩn bị trước khi thăm khám.
+              </CmsNativeText>
             </div>
-            <dl className="resource-meta-grid">
-              <div>
-                <dt>Tổng gói</dt>
-                <dd aria-live="polite">{packageCountLabel}</dd>
-              </div>
-              <div>
-                <dt>Gói nổi bật</dt>
-                <dd aria-live="polite">{featuredPackageLabel}</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
+            <aside className={packageVisualStyles.catalogGuide} aria-label="Hướng dẫn chọn gói khám">
+              <CmsNativeText fieldId="intro.title2" as="strong" value={"Lựa chọn phù hợp cho bạn"}>Lựa chọn phù hợp cho bạn</CmsNativeText>
+              <CmsNativeText fieldId="intro.body2" as="p" value={"Xem chi tiết từng gói khám để chuẩn bị tốt nhất trước khi đến bệnh viện."}>Xem chi tiết từng gói khám để chuẩn bị tốt nhất trước khi đến bệnh viện.</CmsNativeText>
+            </aside>
+          </header>
+        </CmsNativeSection>
 
-        <details className="catalog-guidance">
-          <summary>Cách chọn phù hợp</summary>
-        <div className="resource-grid resource-grid--two">
-          <section className="resource-panel resource-panel--accent">
-            <p className="section-note">Cách chọn gói</p>
-            <h2>Ba mốc để đọc nhanh</h2>
-            <div className="resource-steps resource-steps--grid">
-              {PACKAGE_STEPS.map((step) => (
-                <div className="resource-step-card" key={step.number}>
-                  <span>{step.number}</span>
-                  <strong>{step.title}</strong>
-                  <p>{step.description}</p>
+        <CmsNativeSections>
+          <CmsNativeSection sectionId="overview">
+            <section className="resource-hero-card resource-hero-card--teal">
+              <div className="resource-icon" aria-hidden="true">
+                <ClinicalIcon name="service" />
+              </div>
+              <div className="resource-hero-card__body">
+                <CmsNativeText fieldId="overview.eyebrow" as="p" value={"Danh mục gói khám"} className="resource-chip">Danh mục gói khám</CmsNativeText>
+                <CmsNativeText fieldId="overview.title" as="h2" value={"Tra cứu và so sánh các gói khám toàn diện"}>Tra cứu và so sánh các gói khám toàn diện</CmsNativeText>
+                <CmsNativeText fieldId="overview.body" as="p" value={"Duyệt theo nhu cầu tầm soát cá nhân hoặc gia đình và đặt lịch nhanh chóng tại cơ sở thuận tiện."} className="resource-lead">
+                  Duyệt theo nhu cầu tầm soát cá nhân hoặc gia đình và đặt lịch nhanh chóng tại cơ sở thuận tiện.
+                </CmsNativeText>
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch khám</PublicBookingButton>
+                  <PublicAiButton className="outline-button outline-button--light">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  <Link className="outline-button outline-button--light" href="/specialties">
+                    Xem chuyên khoa
+                  </Link>
                 </div>
-              ))}
-            </div>
-          </section>
+                <dl className="resource-meta-grid">
+                  <div>
+                    <dt>Tổng gói</dt>
+                    <dd aria-live="polite">{packageCountLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>Gói nổi bật</dt>
+                    <dd aria-live="polite">{featuredPackageLabel}</dd>
+                  </div>
+                </dl>
+              </div>
+            </section>
+          </CmsNativeSection>
 
-          <section className="resource-panel">
-            <p className="section-note">Mẹo trước khi đặt</p>
-            <h2>Đọc thêm trước khi mở form</h2>
-            <ul className="resource-list">
-              <li>
-                <strong>So sánh đối tượng phù hợp</strong>
-                <span>Gói dành cho cá nhân, gia đình hoặc tầm soát khác nhau về ưu tiên khám.</span>
-              </li>
-              <li>
-                <strong>Xem chuẩn bị trước buổi khám</strong>
-                <span>Một vài gói cần nhịn ăn, mang hồ sơ cũ hoặc sắp xếp thời gian riêng.</span>
-              </li>
-              <li>
-                <strong>Đặt lịch theo gói đã chọn</strong>
-                <span>Mỗi gói đều có thể đi thẳng sang form đặt lịch để giữ khung giờ phù hợp.</span>
-              </li>
-            </ul>
-          </section>
-        </div>
-        </details>
+          <CmsNativeSection sectionId="guide">
+            <details className="catalog-guidance">
+              <summary>Cách chọn phù hợp</summary>
+              <div className="resource-grid resource-grid--two">
+                <section className="resource-panel resource-panel--accent">
+                  <CmsNativeText fieldId="guide.eyebrow" as="p" value={"Cách chọn gói"} className="section-note">Cách chọn gói</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title" as="h2" value={"Ba mốc để đọc nhanh"}>Ba mốc để đọc nhanh</CmsNativeText>
+                  <div className="resource-steps resource-steps--grid">
+                    {PACKAGE_STEPS.map((step, cmsItemIndex) => (
+                      <div className="resource-step-card" key={step.number}>
+                        <span>{step.number}</span>
+                        <CmsNativeText fieldId={`guide.step${step.number}.title`} as="strong" value={step.title}>{step.title}</CmsNativeText>
+                        <CmsNativeText fieldId={`guide.step${step.number}.body`} as="p" value={step.description}>{step.description}</CmsNativeText>
+                      </div>
+                    ))}
+                  </div>
+                </section>
 
-        {loading ? (
-          <p className="catalog-status catalog-status--loading" role="status">
-            Đang tải danh mục gói khám…
-          </p>
-        ) : null}
-        {error ? (
-          <p className="catalog-status catalog-status--error" role="alert">
-            {error} Bạn có thể thử lại sau hoặc liên hệ bệnh viện để được tư vấn.
-          </p>
-        ) : null}
-        {!loading && !error && page?.empty ? (
-          <div className="catalog-status" role="status">
-            <p>Chưa có gói khám công khai. Bạn vẫn có thể đặt lịch khám hoặc xem chuyên khoa phù hợp.</p>
-            <div className="resource-actions">
-              <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
-              <Link className="outline-button outline-button--small" href="/specialties">Xem chuyên khoa</Link>
-            </div>
-          </div>
-        ) : null}
+                <section className="resource-panel">
+                  <CmsNativeText fieldId="guide.eyebrow2" as="p" value={"Mẹo trước khi đặt"} className="section-note">Mẹo trước khi đặt</CmsNativeText>
+                  <CmsNativeText fieldId="guide.title2" as="h2" value={"Đọc thêm trước khi mở form"}>Đọc thêm trước khi mở form</CmsNativeText>
+                  <ul className="resource-list">
+                    <li>
+                      <CmsNativeText fieldId="guide.title3" as="strong" value={"So sánh đối tượng phù hợp"}>So sánh đối tượng phù hợp</CmsNativeText>
+                      <CmsNativeText fieldId="guide.label" as="span" value={"Gói dành cho cá nhân, gia đình hoặc tầm soát khác nhau về ưu tiên khám."}>Gói dành cho cá nhân, gia đình hoặc tầm soát khác nhau về ưu tiên khám.</CmsNativeText>
+                    </li>
+                    <li>
+                      <CmsNativeText fieldId="guide.title4" as="strong" value={"Xem chuẩn bị trước buổi khám"}>Xem chuẩn bị trước buổi khám</CmsNativeText>
+                      <span>Một vài gói cần nhịn ăn, mang hồ sơ cũ hoặc sắp xếp thời gian riêng.</span>
+                    </li>
+                    <li>
+                      <CmsNativeText fieldId="guide.title5" as="strong" value={"Đặt lịch theo gói đã chọn"}>Đặt lịch theo gói đã chọn</CmsNativeText>
+                      <CmsNativeText fieldId="guide.label2" as="span" value={"Mỗi gói đều có thể đi thẳng sang form đặt lịch để giữ khung giờ phù hợp."}>Mỗi gói đều có thể đi thẳng sang form đặt lịch để giữ khung giờ phù hợp.</CmsNativeText>
+                    </li>
+                  </ul>
+                </section>
+              </div>
+            </details>
+          </CmsNativeSection>
+        </CmsNativeSections>
 
-        {page && !page.empty ? (
-          <>
-            <p className="catalog-meta">
-              {page.totalElements} gói khám · Trang {page.number + 1}/{page.totalPages}
+        <CmsNativeSection sectionId="directory">
+          {loading ? (
+            <p className="catalog-status catalog-status--loading" role="status">
+              Đang tải danh mục gói khám…
             </p>
-            <div className={packageVisualStyles.catalogGrid}>
-              {page.content.map((item, index) => (
-                <PackageVisualCard
-                  bookingAction={
-                    <button
-                      aria-label={`Đặt lịch với gói này: ${item.name}`}
-                      type="button"
-                      className={packageVisualStyles.bookButton}
-                      onClick={() => setSelectedPackageForModal(item)}
-                    >
-                      Đặt lịch với gói này
-                    </button>
-                  }
-                  headingLevel="h2"
-                  key={item.id}
-                  packageItem={item}
-                  priority={index < 2}
-                />
-              ))}
+          ) : null}
+          {error ? (
+            <p className="catalog-status catalog-status--error" role="alert">
+              {error} Bạn có thể thử lại sau hoặc liên hệ bệnh viện để được tư vấn.
+            </p>
+          ) : null}
+          {!loading && !error && page?.empty ? (
+            <div className="catalog-status" role="status">
+              <p>Chưa có gói khám công khai. Bạn vẫn có thể đặt lịch khám hoặc xem chuyên khoa phù hợp.</p>
+              <div className="resource-actions">
+                <PublicBookingButton className="button button--amber">Đặt lịch khám</PublicBookingButton>
+                <Link className="outline-button outline-button--small" href="/specialties">Xem chuyên khoa</Link>
+              </div>
             </div>
-            <CatalogPagination label="Phân trang gói khám" onPageChange={setCurrentPage} page={page} />
-          </>
-        ) : null}
+          ) : null}
 
-        {selectedPackageForModal ? (
-          <PackageBookingModal
-            isOpen={Boolean(selectedPackageForModal)}
-            onClose={() => setSelectedPackageForModal(null)}
-            packageItem={selectedPackageForModal}
-          />
-        ) : null}
+          {page && !page.empty ? (
+            <>
+              <p className="catalog-meta">
+                {page.totalElements} gói khám · Trang {page.number + 1}/{page.totalPages}
+              </p>
+              <div className={packageVisualStyles.catalogGrid}>
+                {page.content.map((item, index) => (
+                  <PackageVisualCard
+                    bookingAction={
+                      <button
+                        aria-label={`Đặt lịch với gói này: ${item.name}`}
+                        type="button"
+                        className={packageVisualStyles.bookButton}
+                        onClick={() => { if (!isCmsPreviewRequested()) setSelectedPackageForModal(item); }}
+                      >
+                        Đặt lịch với gói này
+                      </button>
+                    }
+                    headingLevel="h2"
+                    key={item.id}
+                    packageItem={item}
+                    priority={index < 2}
+                  />
+                ))}
+              </div>
+              <CatalogPagination label="Phân trang gói khám" onPageChange={setCurrentPage} page={page} />
+            </>
+          ) : null}
+        </CmsNativeSection>
+
+        <CmsNativeSection sectionId="booking">
+          {selectedPackageForModal ? (
+            <PackageBookingModal
+              isOpen={Boolean(selectedPackageForModal)}
+              onClose={() => setSelectedPackageForModal(null)}
+              packageItem={selectedPackageForModal}
+            />
+          ) : null}
+        </CmsNativeSection>
       </div>
     </PublicPageShell>
   );

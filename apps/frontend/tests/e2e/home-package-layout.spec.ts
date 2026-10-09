@@ -159,7 +159,9 @@ test('homepage hero recovers after image replacement without clearing the search
     expect(response.status()).toBe(200);
     expect(await response.json()).toMatchObject({ version, payload: { imageUrl } });
     await expect(heroSlot).toHaveAttribute('data-cms-version', String(version));
-    await expect(heroImage).toHaveAttribute('src', imageUrl);
+    // Native CMS resolves allowed relative images against the page origin.
+    await expect.poll(async () => new URL((await heroImage.getAttribute('src'))!, page.url()).href)
+      .toBe(new URL(imageUrl, page.url()).href);
     await expect.poll(() => heroImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThanOrEqual(32);
     await expect.poll(() => heroImage.evaluate((image: HTMLImageElement) => image.naturalHeight)).toBeGreaterThanOrEqual(32);
     await expect(searchInput).toHaveValue(searchDraft);

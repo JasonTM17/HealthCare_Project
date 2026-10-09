@@ -147,6 +147,7 @@ class AuthServiceGoogleGrantTest {
         assertThat(existing.isEmailVerified()).isTrue();
         assertThat(existing.getPasswordHash()).isNotEqualTo("untrusted-reservation-hash");
         assertThat(existing.getGoogleSubject()).isEqualTo("sub-1");
+        assertThat(existing.getSecurityVersion()).isEqualTo(1L);
         verify(authOtpService).invalidateAll(existing);
         verify(browserSessionService).revokeAllForUser(any(), anyString());
         verify(roleRepository, never()).findByCode("PATIENT");

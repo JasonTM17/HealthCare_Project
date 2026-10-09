@@ -24,7 +24,7 @@ import UiIcon from "../../components/UiIcon";
 
 type Snapshot =
   | { status: "loading" }
-  | { status: "success"; count: number }
+  | { status: "success"; count: number; minimum?: boolean }
   | { status: "error"; description: string };
 
 type SnapshotMap = {
@@ -122,14 +122,11 @@ export default function AdminDashboard() {
       adminListUsers({ status: "DISABLED", page: 0, size: 1 }),
     ]);
 
-    const toSnapshot = (result: PromiseSettledResult<{ totalElements?: number }>): Snapshot => {
-      if (result.status === "fulfilled" && typeof result.value?.totalElements === "number") {
-        return { status: "success", count: result.value.totalElements };
-      }
-      if (result.status === "fulfilled") {
-        return { status: "error", description: "Dịch vụ trả về dữ liệu không đúng định dạng." };
-      }
-      return { status: "error", description: describeAdminError(result.reason).description };
+    const unavailable: Snapshot = { status: "error", description: "Chưa thể xác định số lượng. Hãy mở danh sách hoặc thử làm mới." };
+    const toSnapshot = (result: PromiseSettledResult<unknown>): Snapshot => {
+      if (result.status === "rejected") return { status: "error", description: describeAdminError(result.reason).description };
+      const count = result.value && typeof result.value === "object" && "totalElements" in result.value ? result.value.totalElements : undefined;
+      return typeof count === "number" && Number.isSafeInteger(count) && count >= 0 ? { status: "success", count } : unavailable;
     };
 
     if (loadRun.current !== runId) return;
@@ -143,23 +140,25 @@ export default function AdminDashboard() {
       articles: toSnapshot(results[6]),
       appointments: toSnapshot(results[7]),
     });
-    // The health-questions endpoint returns a bare array, not a Page — count
-    // the bounded window (size=100) instead of totalElements.
+    // Older AI responses and question lists expose only a bounded window.
+    // Prefer a validated server total when supplied; never fabricate zero.
     const queueResults = [results[8], results[9], results[10], results[11], results[12]];
     setQueue(queueResults.map((result, index) => {
       if (result.status !== "fulfilled") {
         return { status: "error", description: describeAdminError(result.reason).description };
       }
-      const value = result.value;
-      // Prefer the server total; when an endpoint answers a bounded Map shape
-      // ({content, hasMore}) without totalElements, fall back to the visible
-      // row count so a missing field can never crash the dashboard.
-      const count = Array.isArray(value)
-        ? value.length
-        : typeof value?.totalElements === "number"
-          ? value.totalElements
-          : Array.isArray(value?.content) ? value.content.length : 0;
-      return { status: "success", count };
+      const value: unknown = result.value;
+      if (index === 2) {
+        return Array.isArray(value) ? { status: "success", count: value.length, minimum: value.length >= 100 } : unavailable;
+      }
+      if (index === 3) {
+        if (value && typeof value === "object" && !Array.isArray(value) && "totalElements" in value) return toSnapshot({ status: "fulfilled", value });
+        if (!value || typeof value !== "object" || Array.isArray(value) || !("content" in value) || !Array.isArray(value.content) || !("hasMore" in value) || typeof value.hasMore !== "boolean") return unavailable;
+        if (value.hasMore && value.content.length === 0) return unavailable;
+        return { status: "success", count: value.content.length, minimum: value.hasMore };
+      }
+      if (!value || Array.isArray(value)) return unavailable;
+      return toSnapshot({ status: "fulfilled", value });
     }));
   }, []);
 
@@ -203,10 +202,10 @@ export default function AdminDashboard() {
               >
                 <p className="text-sm font-bold text-slate-700">{item.label}</p>
                 <p className={`mt-2 text-2xl font-bold ${snapshot.status === "error" ? "text-red-700" : needsWork ? "text-amber-900" : "text-teal-800"}`}>
-                  {snapshot.status === "loading" ? "--" : snapshot.status === "error" ? "—" : snapshot.count.toLocaleString("vi-VN")}
+                  {snapshot.status === "loading" ? "--" : snapshot.status === "error" ? "—" : `${snapshot.count.toLocaleString("vi-VN")}${snapshot.minimum ? "+" : ""}`}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  {snapshot.status === "error" ? snapshot.description : needsWork ? "Có việc đang chờ" : "Không có việc chờ"}
+                  {snapshot.status === "loading" ? "Đang cập nhật dữ liệu" : snapshot.status === "error" ? snapshot.description : snapshot.minimum ? "Có thêm bản ghi; mở danh sách để xem" : needsWork ? "Có việc đang chờ" : "Không có việc chờ"}
                 </p>
               </Link>
             );

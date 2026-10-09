@@ -19,6 +19,10 @@ type AdminUserRow = {
   doctorProfileId: string | null;
   createdAt: string;
   updatedAt: string;
+  emailVerifiedAt: string | null;
+  version: number;
+  googleLinked: boolean;
+  doctorProfile: { id: string; slug: string; fullName: string; active: boolean } | null;
 };
 
 const PATIENT_USER: AdminUserRow = {
@@ -34,6 +38,7 @@ const PATIENT_USER: AdminUserRow = {
   doctorProfileId: null,
   createdAt: "2026-01-15T08:30:00Z",
   updatedAt: "2026-01-15T08:30:00Z",
+  emailVerifiedAt: "2026-01-15T08:30:00Z", version: 0, googleLinked: false, doctorProfile: null,
 };
 
 const ADMIN_USER: AdminUserRow = {
@@ -49,7 +54,12 @@ const ADMIN_USER: AdminUserRow = {
   doctorProfileId: null,
   createdAt: "2025-11-02T10:00:00Z",
   updatedAt: "2026-02-01T09:00:00Z",
+  emailVerifiedAt: "2025-11-02T10:00:00Z", version: 0, googleLinked: false, doctorProfile: null,
 };
+
+const ACTOR_ID = "44444444-4444-4444-8444-444444444444";
+const ACTOR_USER = { ...ADMIN_USER, id: ACTOR_ID, status: "ACTIVE", displayName: "Quản trị tài khoản" };
+const DOCTOR_ID = "55555555-5555-4555-8555-555555555555";
 
 function pageEnvelope(content: AdminUserRow[]) {
   return {
@@ -64,8 +74,36 @@ function pageEnvelope(content: AdminUserRow[]) {
 async function installAdminSession(context: BrowserContext): Promise<void> {
   await installMockBrowserSession(
     context,
-    browserSessionFixture("ADMIN", "admin-users-e2e", "Quản trị tài khoản"),
+    browserSessionFixture("ADMIN", ACTOR_ID, "Quản trị tài khoản"),
   );
+}
+
+for (const width of [375, 1440]) {
+  test(`admin dashboard stays usable with a real AI slice and missing payment total at ${width}`, async ({ context, page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await installAdminSession(context);
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await context.route("**/api/v1/**", async (route) => {
+      if (await fulfillBackendWarmup(route)) return;
+      if (await fulfillNotificationBell(route)) return;
+      const path = new URL(route.request().url()).pathname;
+      if (!path.startsWith("/api/v1/admin/")) { await route.fallback(); return; }
+      expect(route.request().method()).toBe("GET");
+      await route.fulfill({ json: path.endsWith("/ai-content")
+        ? { content: [], page: 0, size: 1, hasMore: false }
+        : path.endsWith("/health-questions") ? []
+          : path.endsWith("/payments") ? { content: [] }
+            : { ...pageEnvelope([]), totalElements: 12, totalPages: 1 } });
+    });
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { name: "Điều hành bệnh viện" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Nội dung AI chờ duyệt/ })).toContainText("Không có việc chờ");
+    await expect(page.getByRole("link", { name: /Thanh toán chờ đối soát/ })).toContainText("Chưa thể xác định số lượng");
+    await expect(page.getByRole("heading", { name: "Chưa thể hiển thị trang này" })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    expect(errors).toEqual([]);
+  });
 }
 
 test("admin users page lists accounts with creation date and locks an account via dialog", async ({ context, page }) => {
@@ -82,12 +120,16 @@ test("admin users page lists accounts with creation date and locks an account vi
       return;
     }
     if (request.method() === "GET") {
+      if (url.pathname === `/api/v1/admin/users/${ACTOR_ID}` || url.pathname === `/api/v1/admin/users/${PATIENT_USER.id}`) {
+        await route.fulfill({ json: url.pathname.endsWith(ACTOR_ID) ? ACTOR_USER : PATIENT_USER }); return;
+      }
       const rows = url.searchParams.get("status") === "DISABLED" ? [ADMIN_USER] : [PATIENT_USER, ADMIN_USER];
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope(rows)) });
       return;
     }
-    if (request.method() === "PATCH" && url.pathname.endsWith("/status")) {
-      const body = JSON.parse(request.postData() ?? "{}") as { status: string };
+    if (request.method() === "PUT" && url.pathname === `/api/v1/admin/users/${PATIENT_USER.id}`) {
+      const body = request.postDataJSON();
+      expect(body).toMatchObject({ expectedVersion: 0, expectedUpdatedAt: PATIENT_USER.updatedAt, roles: ["PATIENT"], email: PATIENT_USER.email });
       patchedStatuses.push(body.status);
       await route.fulfill({
         status: 200,
@@ -101,23 +143,25 @@ test("admin users page lists accounts with creation date and locks an account vi
 
   await page.goto("/admin/users");
 
-  await expect(page.getByRole("heading", { name: "Tài khoản người dùng" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tài khoản", exact: true })).toBeVisible();
   await expect(page.getByText("Nguyễn Văn An")).toBeVisible();
   // The creation-date column the portal was missing.
   await expect(page.getByRole("columnheader", { name: "Ngày tạo" })).toBeVisible();
   const table = page.getByRole("table", { name: /Danh sách tài khoản/ });
   await expect(table.getByText("Đã khóa")).toBeVisible();
-  await expect(table.getByText("Quản trị", { exact: true })).toBeVisible();
+  await expect(table.getByText("Quản trị viên", { exact: true })).toBeVisible();
 
   // Filter wiring: status=DISABLED reaches the backend query.
-  await page.getByLabel("Trạng thái").selectOption("DISABLED");
+  await page.getByTestId("account-status-filter").selectOption("DISABLED");
   await expect(page.getByText("Nguyễn Văn An")).toBeHidden();
   await expect(page.getByText("Quản trị viên Hai")).toBeVisible();
-  await page.getByLabel("Trạng thái").selectOption("");
+  await page.getByTestId("account-status-filter").selectOption("");
 
   // Disable flow is dialog-gated and single-submit.
+  await page.getByTestId(`account-row-${PATIENT_USER.id}`).getByRole("button", { name: "Xem chi tiết" }).click();
+  await expect(page.getByTestId("account-detail").locator("time").first()).toHaveAttribute("datetime", PATIENT_USER.createdAt);
   await page.getByRole("button", { name: "Khóa tài khoản" }).click();
-  const dialog = page.getByRole("dialog", { name: "Khóa tài khoản này?" });
+  const dialog = page.getByRole("dialog", { name: "Khóa tài khoản: Nguyễn Văn An?" });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText("patient.a@example.test")).toBeVisible();
   await dialog.getByRole("button", { name: "Khóa tài khoản" }).click();
@@ -125,7 +169,7 @@ test("admin users page lists accounts with creation date and locks an account vi
   expect(patchedStatuses).toEqual(["DISABLED"]);
 });
 
-test("admin users page edits roles through checkbox dialog and rejects an empty set", async ({ context, page }) => {
+test("admin users page edits roles with a real doctor profile through confirmation and rejects an empty set", async ({ context, page }) => {
   await installAdminSession(context);
 
   const patchedRoleSets: string[][] = [];
@@ -134,21 +178,28 @@ test("admin users page edits roles through checkbox dialog and rejects an empty 
     if (await fulfillNotificationBell(route)) return;
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname === "/api/v1/admin/doctors") {
+      await route.fulfill({ json: { ...pageEnvelope([]), content: [{ id: DOCTOR_ID, slug: "doctor-fixture", fullName: "Bác sĩ fixture", active: true }], totalElements: 1 } }); return;
+    }
     if (!url.pathname.startsWith("/api/v1/admin/users")) {
       await route.fallback();
       return;
     }
     if (request.method() === "GET") {
+      if (url.pathname === `/api/v1/admin/users/${ACTOR_ID}` || url.pathname === `/api/v1/admin/users/${PATIENT_USER.id}`) {
+        await route.fulfill({ json: url.pathname.endsWith(ACTOR_ID) ? ACTOR_USER : PATIENT_USER }); return;
+      }
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(pageEnvelope([PATIENT_USER])) });
       return;
     }
-    if (request.method() === "PATCH" && url.pathname.endsWith("/roles")) {
-      const body = JSON.parse(request.postData() ?? "{}") as { roles: string[] };
+    if (request.method() === "PUT" && url.pathname === `/api/v1/admin/users/${PATIENT_USER.id}`) {
+      const body = request.postDataJSON();
+      expect(body).toMatchObject({ expectedVersion: 0, expectedUpdatedAt: PATIENT_USER.updatedAt, doctorProfileId: DOCTOR_ID });
       patchedRoleSets.push(body.roles);
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ...PATIENT_USER, roles: body.roles }),
+        body: JSON.stringify({ ...PATIENT_USER, roles: body.roles, version: 1, doctorProfile: { id: DOCTOR_ID, slug: "doctor-fixture", fullName: "Bác sĩ fixture", active: true } }),
       });
       return;
     }
@@ -158,18 +209,22 @@ test("admin users page edits roles through checkbox dialog and rejects an empty 
   await page.goto("/admin/users");
   await expect(page.getByText("Nguyễn Văn An")).toBeVisible();
 
-  await page.getByRole("button", { name: "Vai trò" }).click();
-  const dialog = page.getByRole("dialog", { name: "Chỉnh sửa vai trò" });
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel(/Bác sĩ/).check();
+  await page.getByTestId(`account-row-${PATIENT_USER.id}`).getByRole("button", { name: "Xem chi tiết" }).click();
+  await page.getByRole("checkbox", { name: /Bác sĩ/ }).check();
 
   // Empty role set is blocked client-side before any request leaves.
-  await dialog.getByLabel(/Bác sĩ/).uncheck();
-  await dialog.getByLabel(/Bệnh nhân/).uncheck();
-  await expect(dialog.getByRole("button", { name: "Lưu vai trò" })).toBeDisabled();
-  await dialog.getByLabel(/Bệnh nhân/).check();
-  await dialog.getByLabel(/Bác sĩ/).check();
-  await dialog.getByRole("button", { name: "Lưu vai trò" }).click();
+  await page.getByRole("checkbox", { name: /Bác sĩ/ }).uncheck();
+  await page.getByRole("checkbox", { name: /Bệnh nhân/ }).uncheck();
+  await expect(page.getByTestId("account-save")).toBeDisabled();
+  expect(patchedRoleSets).toEqual([]);
+  await page.getByRole("checkbox", { name: /Bệnh nhân/ }).check();
+  await page.getByRole("checkbox", { name: /Bác sĩ/ }).check();
+  await page.getByLabel("Chọn hồ sơ đang hoạt động").selectOption(DOCTOR_ID);
+  await page.getByTestId("account-save").click();
+  const dialog = page.getByRole("dialog", { name: "Lưu thay đổi: Nguyễn Văn An?" });
+  await expect(dialog).toBeVisible();
+  expect(patchedRoleSets).toEqual([]);
+  await dialog.getByRole("button", { name: "Lưu thay đổi", exact: true }).click();
   await expect(dialog).toBeHidden();
   expect(patchedRoleSets).toEqual([["PATIENT", "DOCTOR"]]);
 });

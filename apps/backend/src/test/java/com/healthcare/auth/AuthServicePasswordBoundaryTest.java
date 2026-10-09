@@ -205,9 +205,11 @@ class AuthServicePasswordBoundaryTest {
     @Test
     void changePasswordRejectsOver72CurrentBeforeMatches() {
         User user = new User();
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
         user.setEmail("boundary@example.test");
         user.setPasswordHash("hash");
-        when(userRepository.findByEmail("boundary@example.test")).thenReturn(Optional.of(user));
+        when(userSecurityLock.findByEmailForUpdate("boundary@example.test")).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> service().changePassword(
             "boundary@example.test", PASSWORD_73_ASCII, "NewStr0ng!Pass", null))
@@ -219,9 +221,11 @@ class AuthServicePasswordBoundaryTest {
     @Test
     void changePasswordRejectsOver72NewBeforeEncode() {
         User user = new User();
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
         user.setEmail("boundary@example.test");
         user.setPasswordHash("hash");
-        when(userRepository.findByEmail("boundary@example.test")).thenReturn(Optional.of(user));
+        when(userSecurityLock.findByEmailForUpdate("boundary@example.test")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("Curr3nt!Pass", "hash")).thenReturn(true);
 
         assertThatThrownBy(() -> service().changePassword(
@@ -235,10 +239,12 @@ class AuthServicePasswordBoundaryTest {
     @Test
     void changePasswordAcceptsWhitespacePaddedEightCharacterNewPassword() {
         User user = new User();
+        user.setStatus("ACTIVE");
+        user.setEmailVerified(true);
         user.setId(UUID.randomUUID());
         user.setEmail("boundary@example.test");
         user.setPasswordHash("hash");
-        when(userRepository.findByEmail("boundary@example.test")).thenReturn(Optional.of(user));
+        when(userSecurityLock.findByEmailForUpdate("boundary@example.test")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("Curr3nt!Pass", "hash")).thenReturn(true);
         when(passwordEncoder.encode(" Aa1!xx ")).thenReturn("hashed");
 

@@ -27,11 +27,11 @@ const editorSource = await readFile(
 
 /** The toolbar template literal, anchored at its own line so the quickbars
  * toolbars above and below it cannot be mistaken for it. */
-function toolbarTokens() {
-  const match = editorSource.match(/^\s*toolbar:\s*`([\s\S]*?)`/m);
-  assert.ok(match, "the toolbar template literal must be present");
+function toolbarTokens(mode = "article") {
+  const match = editorSource.match(/^\s*toolbar:\s*contentMode === "cms"\s*\?\s*`([\s\S]*?)`\s*:\s*`([\s\S]*?)`/m);
+  assert.ok(match, "both CMS and article toolbar template literals must be present");
   return new Set(
-    match[1]
+    match[mode === "cms" ? 1 : 2]
       // Interpolations are removed whole, so a gated token is asserted through
       // its own pattern instead of through its name.
       .replace(/\$\{[^}]*\}/g, " ")
@@ -67,7 +67,7 @@ function grabFunction(source, name) {
 // -- toolbar honesty ------------------------------------------------------------
 
 test("the toolbar no longer advertises commands the markdown pipeline loses", () => {
-  const tokens = toolbarTokens();
+  const tokens = new Set([...toolbarTokens(), ...toolbarTokens("cms")]);
 
   // Each of these was verified lossy on the editor -> markdown -> render round
   // trip: table cell props drop colspan/rowspan (and shifted a rowspan into the
@@ -150,7 +150,7 @@ test("the toolbar is backed by plugins that are registered and bundled", async (
     visualblocks: "visualblocks",
     nonbreaking: "nonbreaking",
   };
-  const tokens = toolbarTokens();
+  const tokens = new Set([...toolbarTokens(), ...toolbarTokens("cms")]);
   for (const [token, plugin] of Object.entries(needsPlugin)) {
     if (!tokens.has(token)) continue;
     assert.ok(plugins.includes(plugin), `"${token}" needs plugin "${plugin}", which is not registered`);

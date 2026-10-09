@@ -18,6 +18,7 @@ import { ReadingToolbar } from "../../../components/articles/ReadingToolbar";
 import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
 import { ArticleComments } from "../../../components/articles/ArticleComments";
 import { JsonLd } from "../../../components/JsonLd";
+import { CmsNativeSection, CmsNativeText } from "../../../components/cms/cms-page-layout-provider";
 
 const ARTICLE_STEPS = [
   ["01", "Đọc phần tóm tắt", "Xác nhận bài viết có đúng chủ đề bạn đang tìm không."],
@@ -68,7 +69,7 @@ function stringList(value: unknown): string[] {
 }
 
 export default function ArticleDetailPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug } = useParams<{ slug: string; }>();
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,8 +142,8 @@ export default function ArticleDetailPage() {
   const readingMinutesLabel = article?.readingMinutes
     ? `${article.readingMinutes} phút đọc`
     : wordCount > 30
-    ? `${dynamicMinutes} phút đọc`
-    : "Thời lượng chưa cập nhật";
+      ? `${dynamicMinutes} phút đọc`
+      : "Thời lượng chưa cập nhật";
 
   const takeaways = stringList(article?.keyTakeaways);
   const warningSigns = stringList(article?.warningSigns);
@@ -151,491 +152,505 @@ export default function ArticleDetailPage() {
 
   const articleJsonLd = article
     ? {
-        "@context": "https://schema.org",
-        "@type": "MedicalWebPage",
-        name: article.title,
-        headline: article.title,
-        description: article.summary,
-        url: `${safeSiteOrigin()}/articles/${article.slug}`,
-        image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
-        datePublished: article.publishedAt,
-        dateModified: article.updatedAt || article.publishedAt,
-        author: {
-          "@type": "Person",
-          name: article.authorName || "Đội ngũ Bác sĩ Chuyên khoa HealthCare",
-        },
-        publisher: {
-          "@type": "MedicalOrganization",
-          name: "Hệ thống Y tế Đa khoa HealthCare",
-          url: safeSiteOrigin(),
-        },
-      }
+      "@context": "https://schema.org",
+      "@type": "MedicalWebPage",
+      name: article.title,
+      headline: article.title,
+      description: article.summary,
+      url: `${safeSiteOrigin()}/articles/${article.slug}`,
+      image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+      datePublished: article.publishedAt,
+      dateModified: article.updatedAt || article.publishedAt,
+      author: {
+        "@type": "Person",
+        name: article.authorName || "Đội ngũ Bác sĩ Chuyên khoa HealthCare",
+      },
+      publisher: {
+        "@type": "MedicalOrganization",
+        name: "Hệ thống Y tế Đa khoa HealthCare",
+        url: safeSiteOrigin(),
+      },
+    }
     : null;
 
   return (
-    <PublicPageShell>
+    <PublicPageShell cmsEntityId={article?.id}>
       {articleJsonLd ? <JsonLd data={articleJsonLd} id="article-jsonld" /> : null}
       <ReadingProgressBar />
       <ToastContainer toasts={toasts} onClose={removeToast} />
       <div aria-busy={loading} className="resource-page section-inner">
-        {!article ? (
-          <>
-            <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
-            <header className="resource-page__header">
-              <p className="section-note">Cẩm nang sức khỏe</p>
-              <h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1>
-              <p>Thông tin tham khảo giúp bạn chủ động chuẩn bị câu hỏi và chăm sóc sức khỏe tốt hơn.</p>
-            </header>
-          </>
-        ) : (
-          <div className="article-editorial-nav-bar flex items-center justify-between flex-wrap gap-3 mb-5">
-            <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
-            <ReadingToolbar
-              slug={article.slug}
-              title={article.title}
-              fontSize={fontSize}
-              onFontSizeChange={setFontSize}
-              onToastMessage={(msg) => addToast({ tone: "info", title: "Cẩm nang sức khỏe", message: msg })}
-            />
-          </div>
-        )}
-
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">{article ? "Đang cập nhật bài viết…" : "Đang tải bài viết…"}</p> : null}
-        {error ? (
-          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-            <span>{article ? `Chưa thể cập nhật bài viết mới. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
-            <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
-              Thử tải lại
-            </button>
-          </div>
-        ) : null}
-        {!loading && !error && !article ? (
-          <div className="catalog-status" role="status">
-            <p>Không tìm thấy bài viết này trong cẩm nang công khai. Nếu bạn đang tìm hướng dẫn bệnh, hãy mở kho bệnh phổ biến.</p>
-            <div className="resource-actions">
-              <Link className="outline-button outline-button--small" href="/articles">Về cẩm nang sức khỏe</Link>
-              <Link className="text-button" href="/benh-pho-bien">Mở kho bệnh phổ biến →</Link>
+        <CmsNativeSection sectionId="states">
+          {!article ? (
+            <>
+              <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
+              <header className="resource-page__header">
+                <p className="section-note">Cẩm nang sức khỏe</p>
+                <h1>Kiến thức y khoa trong nhịp sống hằng ngày</h1>
+                <p>Thông tin tham khảo giúp bạn chủ động chuẩn bị câu hỏi và chăm sóc sức khỏe tốt hơn.</p>
+              </header>
+            </>
+          ) : (
+            <div className="article-editorial-nav-bar flex items-center justify-between flex-wrap gap-3 mb-5">
+              <PublicBackLink href="/articles">← Quay lại cẩm nang sức khỏe</PublicBackLink>
+              <ReadingToolbar
+                slug={article.slug}
+                title={article.title}
+                fontSize={fontSize}
+                onFontSizeChange={setFontSize}
+                onToastMessage={(msg) => addToast({ tone: "info", title: "Cẩm nang sức khỏe", message: msg })}
+              />
             </div>
-          </div>
-        ) : null}
+          )}
+
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">{article ? "Đang cập nhật bài viết…" : "Đang tải bài viết…"}</p> : null}
+          {error ? (
+            <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+              <span>{article ? `Chưa thể cập nhật bài viết mới. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
+              <button className="outline-button outline-button--small" onClick={() => setRetryCount((count) => count + 1)} type="button">
+                Thử tải lại
+              </button>
+            </div>
+          ) : null}
+          {!loading && !error && !article ? (
+            <div className="catalog-status" role="status">
+              <p>Không tìm thấy bài viết này trong cẩm nang công khai. Nếu bạn đang tìm hướng dẫn bệnh, hãy mở kho bệnh phổ biến.</p>
+              <div className="resource-actions">
+                <Link className="outline-button outline-button--small" href="/articles">Về cẩm nang sức khỏe</Link>
+                <Link className="text-button" href="/benh-pho-bien">Mở kho bệnh phổ biến →</Link>
+              </div>
+            </div>
+          ) : null}
+        </CmsNativeSection>
         {article ? (
           <div className="article-news-layout">
             {/* Not <main>: this sits inside the app shell's top-level <main>,
                 and nested main landmarks fail axe landmark-one-main. */}
-            <div className="article-news-main">
-              <article className="resource-hero-card resource-hero-card--teal article-editorial-header">
-                <div className="article-editorial-header__badges">
-                  <div className="resource-icon article-editorial-header__emblem" aria-hidden="true">
-                    <ClinicalIcon name="article" />
-                  </div>
-                  {article.category ? (
-                    <span className="article-editorial-header__cat-tag">{resolveArticleCategoryLabel(article.category, "Chuyên đề")}</span>
-                  ) : null}
-                  <span className="article-editorial-header__trust-tag">
-                    <span aria-hidden="true">🛡️</span> Tham vấn y khoa chuyên khoa
-                  </span>
-                  <span className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</span>
-                </div>
-
-                <h1 className="article-editorial-header__title">{article.title}</h1>
-
-                <div className="article-editorial-header__byline">
-                  <div className="article-editorial-header__author">
-                    <div className="article-editorial-header__avatar">
-                      <span>{authorInitials(article.authorName)}</span>
+            <CmsNativeSection sectionId="editorial">
+              <div className="article-news-main">
+                <article className="resource-hero-card resource-hero-card--teal article-editorial-header">
+                  <div className="article-editorial-header__badges">
+                    <div className="resource-icon article-editorial-header__emblem" aria-hidden="true">
+                      <ClinicalIcon name="article" />
                     </div>
-                    <div>
-                      <div className="article-editorial-header__author-name">
-                        {article.authorName || "Hội đồng Cố vấn Y khoa"}
-                      </div>
-                      <div className="article-editorial-header__author-role">
-                        {article.category ? `Bác sĩ Chuyên khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bác sĩ Chuyên khoa Bệnh viện"}
-                      </div>
-                    </div>
+                    {article.category ? (
+                      <span className="article-editorial-header__cat-tag">{resolveArticleCategoryLabel(article.category, "Chuyên đề")}</span>
+                    ) : null}
+                    <span className="article-editorial-header__trust-tag">
+                      <span aria-hidden="true">🛡️</span> Tham vấn y khoa chuyên khoa
+                    </span>
+                    <span className="resource-chip">Nội dung tham khảo · không thay thế chẩn đoán</span>
                   </div>
 
-                  <dl className="resource-meta-grid article-editorial-header__meta">
-                    <div className="article-editorial-header__meta-item">
-                      <dt>Xuất bản</dt>
-                      <dd>{formatBusinessDate(article.publishedAt)}</dd>
-                    </div>
-                    <div className="article-editorial-header__meta-item">
-                      <dt>Cập nhật phác đồ</dt>
-                      <dd>{article.updatedAt ? formatBusinessDate(article.updatedAt) : "Đang cập nhật"}</dd>
-                    </div>
-                    <div className="article-editorial-header__meta-item">
-                      <dt>Thời lượng đọc</dt>
-                      <dd>{readingMinutesLabel}</dd>
-                    </div>
-                  </dl>
-                </div>
+                  <h1 className="article-editorial-header__title">{article.title}</h1>
 
-                <div className="article-editorial-header__sapo">
-                  <p className="resource-lead">{article.summary}</p>
-                </div>
-
-                <figure className="article-editorial-header__featured-image">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    alt={resolveArticleAlt(article)}
-                    className="article-editorial-header__img"
-                    src={resolveArticleCoverImage(article)}
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      if (!target.src.endsWith("/media/articles/cham-soc-suc-khoe-tong-quat.jpg")) {
-                        target.src = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
-                      }
-                    }}
-                  />
-                  <figcaption className="article-editorial-header__img-caption">
-                    Hình ảnh y khoa minh họa · Nguồn: Bệnh viện đa khoa HealthCare
-                  </figcaption>
-                </figure>
-              </article>
-
-              {structuredSections.length || article?.body || takeaways.length || warningSigns.length || article?.whenToSeekCare ? (
-                <nav aria-label="Mục lục bài viết" className="article-toc">
-                  <div className="article-toc__heading">
-                    <span className="article-toc__icon">📑</span>
-                    <strong>Mục lục bài viết</strong>
-                  </div>
-                  <ol className="article-toc__list">
-                    {warningSigns.length ? (
-                      <li>
-                        <a href="#section-emergency" className="article-toc__link article-toc__link--emergency">
-                          🚨 Dấu hiệu cấp cứu 115 (Quy tắc giờ vàng)
-                        </a>
-                      </li>
-                    ) : null}
-                    {takeaways.length ? (
-                      <li>
-                        <a href="#section-takeaways" className="article-toc__link">
-                          <span aria-hidden="true">💡</span> Điểm cốt lõi cần nhớ
-                        </a>
-                      </li>
-                    ) : null}
-                    {article?.body ? (
-                      <li>
-                        <a href="#section-overview" className="article-toc__link">
-                          Tổng quan lâm sàng &amp; Nội dung chính
-                        </a>
-                      </li>
-                    ) : null}
-                    {structuredSections.map((sec, idx) => (
-                      <li key={`toc-${idx}`}>
-                        <a href={`#section-${idx + 1}`} className="article-toc__link">
-                          {sec.heading}
-                        </a>
-                      </li>
-                    ))}
-                    {article?.whenToSeekCare ? (
-                      <li>
-                        <a href="#section-when-to-seek-care" className="article-toc__link">
-                          🩺 Khi nào nên đi khám bác sĩ
-                        </a>
-                      </li>
-                    ) : null}
-                    {preventionTips.length ? (
-                      <li>
-                        <a href="#section-prevention" className="article-toc__link">
-                          Hướng dẫn phòng bệnh &amp; lối sống lành mạnh
-                        </a>
-                      </li>
-                    ) : null}
-                    {sources.length ? (
-                      <li>
-                        <a href="#section-sources" className="article-toc__link">
-                          Tài liệu y văn tham khảo chính thống
-                        </a>
-                      </li>
-                    ) : null}
-                    <li>
-                      <a href="#section-discussion" className="article-toc__link">
-                        💬 Hỏi đáp &amp; Thảo luận y khoa
-                      </a>
-                    </li>
-                  </ol>
-                </nav>
-              ) : null}
-
-              <div
-                className="article-detail-card__body article-news-content"
-                style={{
-                  fontSize: fontSize === "sm" ? "0.9375rem" : fontSize === "lg" ? "1.1875rem" : "1.0625rem",
-                  lineHeight: 1.8,
-                }}
-              >
-                {/* Emergency Warning Signs - Prioritized for Mobile Reading Safety */}
-                {warningSigns.length ? (
-                  <section id="section-emergency" className="article-news-alert-box article-news-alert-box--danger" role="alert">
-                    <div className="article-news-alert-box__header">
-                      <span className="article-news-alert-box__icon">🚨</span>
-                      <strong>DẤU HIỆU CẦN ĐI CẤP CỨU NGAY (QUY TẮC GIỜ VÀNG)</strong>
-                    </div>
-                    <p className="article-news-alert-box__sub">
-                      Nếu xuất hiện bất kỳ triệu chứng nào sau đây, hãy ngừng gắng sức và liên hệ cơ sở y tế gần nhất:
-                    </p>
-                    <ul className="article-news-alert-box__list">
-                      {warningSigns.map((sign) => (
-                        <li key={sign}>
-                          <span className="article-news-alert-box__bullet">⚠</span>
-                          <span>{sign}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    <div className="article-news-alert-box__actions">
-                      <a className="article-news-alert-box__call-115" href="tel:115">
-                        <span aria-hidden="true">📞</span> Gọi cấp cứu 115 ngay (Quy tắc giờ vàng)
-                      </a>
-                    </div>
-                  </section>
-                ) : null}
-
-                {/* Key Takeaways Box (At a Glance) */}
-                {takeaways.length ? (
-                  <section id="section-takeaways" className="article-news-summary-box">
-                    <div className="article-news-summary-box__title">
-                      <span aria-hidden="true">💡</span>
-                      <strong>Điểm cốt lõi cần nhớ</strong>
-                    </div>
-                    <ul className="article-news-summary-box__list">
-                      {takeaways.map((point) => (
-                        <li key={point}>
-                          <span className="article-news-summary-box__dot">•</span>
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                ) : null}
-
-                {/* Primary Long-form Clinical Body */}
-                {article?.body ? (
-                  <section id="section-overview" className="article-news-section article-news-overview">
-                    <div className="article-detail-card__body">
-                      <RichContentRenderer
-                        content={article.body}
-                        fallback={bodyParagraphs.map((paragraph, index) => (
-                          <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
-                        ))}
-                      />
-                    </div>
-                  </section>
-                ) : null}
-
-                {/* Structured In-Depth Sections (skipped when they are just
-                    the derived copy of the body already rendered above) */}
-                {structuredSections.length && !sectionsAreDerived ? (
-                  <div className="article-detail-card__sections">
-                    {structuredSections.map((section, index) => (
-                      <section id={`section-${index + 1}`} key={`${section.heading}-${index}`} className="article-news-section">
-                        <h2 className="article-news-section__heading">{section.heading}</h2>
-                        <RichContentRenderer
-                          content={section.body}
-                          fallback={<p>{section.body}</p>}
-                        />
-                      </section>
-                    ))}
-                  </div>
-                ) : null}
-
-                {!article?.body && !structuredSections.length ? (
-                  <div className="article-detail-card__notice">
-                    <strong>Nội dung chi tiết đang chờ biên tập</strong>
-                    <p>Bạn vẫn có thể đọc phần tóm tắt, mở chuyên khoa liên quan hoặc đặt lịch nếu cần bác sĩ đánh giá trực tiếp.</p>
-                  </div>
-                ) : null}
-
-                {/* Clinical Callout: When to Seek Care ("Khi nào nên đi khám bác sĩ") */}
-                {article.whenToSeekCare ? (
-                  <section id="section-when-to-seek-care" className="article-news-seek-care">
-                    <div className="article-news-seek-care__header">
-                      <span className="article-news-seek-care__icon" aria-hidden="true">🩺</span>
-                      <div>
-                        <h3 className="article-news-seek-care__title">Khi nào nên đi khám bác sĩ</h3>
-                        <p className="article-news-seek-care__sub">
-                          Chỉ định lâm sàng và thời điểm thích hợp để thăm khám chuyên khoa
-                        </p>
-                      </div>
-                    </div>
-                    <div className="article-news-seek-care__body">
-                      <p>{article.whenToSeekCare}</p>
-                    </div>
-                    <div className="article-news-seek-care__actions">
-                      <PublicBookingButton className="button button--primary button--small">
-                        Đặt lịch tư vấn chuyên khoa
-                      </PublicBookingButton>
-                      {article.relatedSpecialtySlug ? (
-                        <Link
-                          className="outline-button outline-button--small"
-                          href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
-                        >
-                          Tìm hiểu chuyên khoa {resolveArticleCategoryLabel(article.category, "")} →
-                        </Link>
-                      ) : null}
-                    </div>
-                  </section>
-                ) : null}
-
-                {preventionTips.length ? (
-                  <section id="section-prevention" className="article-news-section article-news-prevention">
-                    <h2 className="article-news-section__heading">Hướng dẫn phòng bệnh &amp; lối sống lành mạnh</h2>
-                    <div className="article-news-prevention__box">
-                      <ul className="article-news-prevention__list">
-                        {preventionTips.map((tip) => (
-                          <li key={tip}>
-                            <span className="article-news-prevention__check">✓</span>
-                            <span>{tip}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </section>
-                ) : null}
-
-                {/* E-E-A-T Medical Reviewer Card (Mayo Clinic Style) */}
-                <div className="article-news-eatt-card">
-                  <div className="article-news-eatt-card__badge">QUY TRÌNH KIỂM DUYỆT Y KHOA HEALTHCARE</div>
-                  <div className="article-news-eatt-card__content">
-                    <div className="article-news-eatt-card__doctor">
-                      <div className="article-news-eatt-card__avatar">
+                  <div className="article-editorial-header__byline">
+                    <div className="article-editorial-header__author">
+                      <div className="article-editorial-header__avatar">
                         <span>{authorInitials(article.authorName)}</span>
                       </div>
                       <div>
-                        <h4 className="article-news-eatt-card__name">{article.authorName || "Hội đồng Cố vấn Y khoa Chuyên sâu"}</h4>
-                        <p className="article-news-eatt-card__title">
-                          {article.category ? `Bác sĩ Chuyên khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Bệnh viện đa khoa HealthCare
-                        </p>
+                        <div className="article-editorial-header__author-name">
+                          {article.authorName || "Hội đồng Cố vấn Y khoa"}
+                        </div>
+                        <div className="article-editorial-header__author-role">
+                          {article.category ? `Bác sĩ Chuyên khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bác sĩ Chuyên khoa Bệnh viện"}
+                        </div>
                       </div>
                     </div>
-                    <p className="article-news-eatt-card__desc">
-                      Nội dung được thẩm định lâm sàng độc lập theo phác đồ hiện hành của Bộ Y tế và khuyến cáo chuyên môn quốc tế (WHO, AHA, ESC). Thông tin được rà soát định kỳ nhằm phản ánh những tiến bộ điều trị mới nhất.
-                    </p>
-                    {article.relatedSpecialtySlug ? (
-                      <div className="article-news-eatt-card__actions">
-                        <Link
-                          className="outline-button outline-button--small"
-                          href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
-                        >
-                          Tìm hiểu chuyên khoa {resolveArticleCategoryLabel(article.category, "")} →
-                        </Link>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
 
-                {sources.length ? (
-                  <section id="section-sources" className="article-news-section article-news-sources">
-                    <h3 className="article-news-sources__heading">Tài liệu y văn tham khảo</h3>
-                    <ul className="article-news-sources__list">
-                      {sources.map((src) => (
-                        <li key={src}>
-                          <span className="article-news-sources__bullet">•</span>
-                          <span>{src}</span>
+                    <dl className="resource-meta-grid article-editorial-header__meta">
+                      <div className="article-editorial-header__meta-item">
+                        <dt>Xuất bản</dt>
+                        <dd>{formatBusinessDate(article.publishedAt)}</dd>
+                      </div>
+                      <div className="article-editorial-header__meta-item">
+                        <dt>Cập nhật phác đồ</dt>
+                        <dd>{article.updatedAt ? formatBusinessDate(article.updatedAt) : "Đang cập nhật"}</dd>
+                      </div>
+                      <div className="article-editorial-header__meta-item">
+                        <dt>Thời lượng đọc</dt>
+                        <dd>{readingMinutesLabel}</dd>
+                      </div>
+                    </dl>
+                  </div>
+
+                  <div className="article-editorial-header__sapo">
+                    <p className="resource-lead">{article.summary}</p>
+                  </div>
+
+                  <figure className="article-editorial-header__featured-image">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      alt={resolveArticleAlt(article)}
+                      className="article-editorial-header__img"
+                      src={resolveArticleCoverImage(article)}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (!target.src.endsWith("/media/articles/cham-soc-suc-khoe-tong-quat.jpg")) {
+                          target.src = "/media/articles/cham-soc-suc-khoe-tong-quat.jpg";
+                        }
+                      }}
+                    />
+                    <figcaption className="article-editorial-header__img-caption">
+                      Hình ảnh y khoa minh họa · Nguồn: Bệnh viện đa khoa HealthCare
+                    </figcaption>
+                  </figure>
+                </article>
+
+                {structuredSections.length || article?.body || takeaways.length || warningSigns.length || article?.whenToSeekCare ? (
+                  <nav aria-label="Mục lục bài viết" className="article-toc">
+                    <div className="article-toc__heading">
+                      <span className="article-toc__icon">📑</span>
+                      <strong>Mục lục bài viết</strong>
+                    </div>
+                    <ol className="article-toc__list">
+                      {warningSigns.length ? (
+                        <li>
+                          <a href="#section-emergency" className="article-toc__link article-toc__link--emergency">
+                            🚨 Dấu hiệu cấp cứu 115 (Quy tắc giờ vàng)
+                          </a>
+                        </li>
+                      ) : null}
+                      {takeaways.length ? (
+                        <li>
+                          <a href="#section-takeaways" className="article-toc__link">
+                            <span aria-hidden="true">💡</span> Điểm cốt lõi cần nhớ
+                          </a>
+                        </li>
+                      ) : null}
+                      {article?.body ? (
+                        <li>
+                          <a href="#section-overview" className="article-toc__link">
+                            Tổng quan lâm sàng &amp; Nội dung chính
+                          </a>
+                        </li>
+                      ) : null}
+                      {structuredSections.map((sec, idx) => (
+                        <li key={`toc-${idx}`}>
+                          <a href={`#section-${idx + 1}`} className="article-toc__link">
+                            {sec.heading}
+                          </a>
                         </li>
                       ))}
-                    </ul>
-                  </section>
+                      {article?.whenToSeekCare ? (
+                        <li>
+                          <a href="#section-when-to-seek-care" className="article-toc__link">
+                            🩺 Khi nào nên đi khám bác sĩ
+                          </a>
+                        </li>
+                      ) : null}
+                      {preventionTips.length ? (
+                        <li>
+                          <a href="#section-prevention" className="article-toc__link">
+                            Hướng dẫn phòng bệnh &amp; lối sống lành mạnh
+                          </a>
+                        </li>
+                      ) : null}
+                      {sources.length ? (
+                        <li>
+                          <a href="#section-sources" className="article-toc__link">
+                            Tài liệu y văn tham khảo chính thống
+                          </a>
+                        </li>
+                      ) : null}
+                      <li>
+                        <a href="#section-discussion" className="article-toc__link">
+                          💬 Hỏi đáp &amp; Thảo luận y khoa
+                        </a>
+                      </li>
+                    </ol>
+                  </nav>
                 ) : null}
 
-                <div className="article-news-disclaimer" role="note">
-                  <p>{article.clinicalDisclaimer ?? "Thông tin trong bài viết chỉ mang tính chất giáo dục y tế và tham khảo, không thay thế cho chẩn đoán hay phác đồ điều trị chuyên khoa của bác sĩ."}</p>
-                </div>
+                <div
+                  className="article-detail-card__body article-news-content"
+                  style={{
+                    fontSize: fontSize === "sm" ? "0.9375rem" : fontSize === "lg" ? "1.1875rem" : "1.0625rem",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {/* Emergency Warning Signs - Prioritized for Mobile Reading Safety */}
+                  {warningSigns.length ? (
+                    <section id="section-emergency" className="article-news-alert-box article-news-alert-box--danger" role="alert">
+                      <div className="article-news-alert-box__header">
+                        <span className="article-news-alert-box__icon">🚨</span>
+                        <strong>DẤU HIỆU CẦN ĐI CẤP CỨU NGAY (QUY TẮC GIỜ VÀNG)</strong>
+                      </div>
+                      <p className="article-news-alert-box__sub">
+                        Nếu xuất hiện bất kỳ triệu chứng nào sau đây, hãy ngừng gắng sức và liên hệ cơ sở y tế gần nhất:
+                      </p>
+                      <ul className="article-news-alert-box__list">
+                        {warningSigns.map((sign) => (
+                          <li key={sign}>
+                            <span className="article-news-alert-box__bullet">⚠</span>
+                            <span>{sign}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="article-news-alert-box__actions">
+                        <a className="article-news-alert-box__call-115" href="tel:115">
+                          <span aria-hidden="true">📞</span> Gọi cấp cứu 115 ngay (Quy tắc giờ vàng)
+                        </a>
+                      </div>
+                    </section>
+                  ) : null}
 
-                <div id="section-discussion" className="article-discussion-container">
-                  <ArticleComments slug={article.slug} category={article.category} />
+                  {/* Key Takeaways Box (At a Glance) */}
+                  {takeaways.length ? (
+                    <section id="section-takeaways" className="article-news-summary-box">
+                      <div className="article-news-summary-box__title">
+                        <span aria-hidden="true">💡</span>
+                        <strong>Điểm cốt lõi cần nhớ</strong>
+                      </div>
+                      <ul className="article-news-summary-box__list">
+                        {takeaways.map((point) => (
+                          <li key={point}>
+                            <span className="article-news-summary-box__dot">•</span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+
+                  {/* Primary Long-form Clinical Body */}
+                  {article?.body ? (
+                    <section id="section-overview" className="article-news-section article-news-overview">
+                      <div className="article-detail-card__body">
+                        <RichContentRenderer
+                          content={article.body}
+                          fallback={bodyParagraphs.map((paragraph, index) => (
+                            <p key={`${paragraph.slice(0, 24)}-${index}`}>{paragraph}</p>
+                          ))}
+                        />
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {/* Structured In-Depth Sections (skipped when they are just
+                    the derived copy of the body already rendered above) */}
+                  {structuredSections.length && !sectionsAreDerived ? (
+                    <div className="article-detail-card__sections">
+                      {structuredSections.map((section, index) => (
+                        <section id={`section-${index + 1}`} key={`${section.heading}-${index}`} className="article-news-section">
+                          <h2 className="article-news-section__heading">{section.heading}</h2>
+                          <RichContentRenderer
+                            content={section.body}
+                            fallback={<p>{section.body}</p>}
+                          />
+                        </section>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {!article?.body && !structuredSections.length ? (
+                    <div className="article-detail-card__notice">
+                      <strong>Nội dung chi tiết đang chờ biên tập</strong>
+                      <p>Bạn vẫn có thể đọc phần tóm tắt, mở chuyên khoa liên quan hoặc đặt lịch nếu cần bác sĩ đánh giá trực tiếp.</p>
+                    </div>
+                  ) : null}
+
+                  {/* Clinical Callout: When to Seek Care ("Khi nào nên đi khám bác sĩ") */}
+                  {article.whenToSeekCare ? (
+                    <section id="section-when-to-seek-care" className="article-news-seek-care">
+                      <div className="article-news-seek-care__header">
+                        <span className="article-news-seek-care__icon" aria-hidden="true">🩺</span>
+                        <div>
+                          <h3 className="article-news-seek-care__title">Khi nào nên đi khám bác sĩ</h3>
+                          <p className="article-news-seek-care__sub">
+                            Chỉ định lâm sàng và thời điểm thích hợp để thăm khám chuyên khoa
+                          </p>
+                        </div>
+                      </div>
+                      <div className="article-news-seek-care__body">
+                        <p>{article.whenToSeekCare}</p>
+                      </div>
+                      <div className="article-news-seek-care__actions">
+                        <PublicBookingButton className="button button--primary button--small">
+                          Đặt lịch tư vấn chuyên khoa
+                        </PublicBookingButton>
+                        {article.relatedSpecialtySlug ? (
+                          <Link
+                            className="outline-button outline-button--small"
+                            href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
+                          >
+                            Tìm hiểu chuyên khoa {resolveArticleCategoryLabel(article.category, "")} →
+                          </Link>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {preventionTips.length ? (
+                    <section id="section-prevention" className="article-news-section article-news-prevention">
+                      <h2 className="article-news-section__heading">Hướng dẫn phòng bệnh &amp; lối sống lành mạnh</h2>
+                      <div className="article-news-prevention__box">
+                        <ul className="article-news-prevention__list">
+                          {preventionTips.map((tip) => (
+                            <li key={tip}>
+                              <span className="article-news-prevention__check">✓</span>
+                              <span>{tip}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {/* E-E-A-T Medical Reviewer Card (Mayo Clinic Style) */}
+                  <div className="article-news-eatt-card">
+                    <div className="article-news-eatt-card__badge">QUY TRÌNH KIỂM DUYỆT Y KHOA HEALTHCARE</div>
+                    <div className="article-news-eatt-card__content">
+                      <div className="article-news-eatt-card__doctor">
+                        <div className="article-news-eatt-card__avatar">
+                          <span>{authorInitials(article.authorName)}</span>
+                        </div>
+                        <div>
+                          <h4 className="article-news-eatt-card__name">{article.authorName || "Hội đồng Cố vấn Y khoa Chuyên sâu"}</h4>
+                          <p className="article-news-eatt-card__title">
+                            {article.category ? `Bác sĩ Chuyên khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bác sĩ Chuyên khoa Nội tổng quát"} · Bệnh viện đa khoa HealthCare
+                          </p>
+                        </div>
+                      </div>
+                      <p className="article-news-eatt-card__desc">
+                        Nội dung được thẩm định lâm sàng độc lập theo phác đồ hiện hành của Bộ Y tế và khuyến cáo chuyên môn quốc tế (WHO, AHA, ESC). Thông tin được rà soát định kỳ nhằm phản ánh những tiến bộ điều trị mới nhất.
+                      </p>
+                      {article.relatedSpecialtySlug ? (
+                        <div className="article-news-eatt-card__actions">
+                          <Link
+                            className="outline-button outline-button--small"
+                            href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
+                          >
+                            Tìm hiểu chuyên khoa {resolveArticleCategoryLabel(article.category, "")} →
+                          </Link>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {sources.length ? (
+                    <section id="section-sources" className="article-news-section article-news-sources">
+                      <h3 className="article-news-sources__heading">Tài liệu y văn tham khảo</h3>
+                      <ul className="article-news-sources__list">
+                        {sources.map((src) => (
+                          <li key={src}>
+                            <span className="article-news-sources__bullet">•</span>
+                            <span>{src}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ) : null}
+
+                  <div className="article-news-disclaimer" role="note">
+                    <p>{article.clinicalDisclaimer ?? "Thông tin trong bài viết chỉ mang tính chất giáo dục y tế và tham khảo, không thay thế cho chẩn đoán hay phác đồ điều trị chuyên khoa của bác sĩ."}</p>
+                  </div>
+
+                  <div id="section-discussion" className="article-discussion-container">
+                    <ArticleComments slug={article.slug} category={article.category} />
+                  </div>
                 </div>
               </div>
-            </div>
+            </CmsNativeSection>
 
             {/* Named complementary landmark — two unnamed <aside> on one page
                 share one accessible name and fail axe landmark-unique. */}
             <aside aria-label="Tác giả và bài viết liên quan" className="article-news-sidebar">
-              <div className="article-news-sidebar__card article-news-sidebar__doctor">
-                <div className="article-news-sidebar__doctor-header">
-                  <div className="article-news-sidebar__doctor-avatar">
-                    <span>{authorInitials(article.authorName)}</span>
+              <CmsNativeSection sectionId="support">
+                <div className="article-news-sidebar__card article-news-sidebar__doctor">
+                  <div className="article-news-sidebar__doctor-header">
+                    <div className="article-news-sidebar__doctor-avatar">
+                      <span>{authorInitials(article.authorName)}</span>
+                    </div>
+                    <div>
+                      <span className="article-news-sidebar__doctor-badge">BÁC SĨ THAM VẤN</span>
+                      <h3 className="article-news-sidebar__doctor-name">{article.authorName || "BS.CKI Đội ngũ Y khoa"}</h3>
+                      <p className="article-news-sidebar__doctor-sub">
+                        {article.category ? `Khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bệnh viện Đa khoa"}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <span className="article-news-sidebar__doctor-badge">BÁC SĨ THAM VẤN</span>
-                    <h3 className="article-news-sidebar__doctor-name">{article.authorName || "BS.CKI Đội ngũ Y khoa"}</h3>
-                    <p className="article-news-sidebar__doctor-sub">
-                      {article.category ? `Khoa ${resolveArticleCategoryLabel(article.category, "")}` : "Bệnh viện Đa khoa"}
-                    </p>
+                  <p className="article-news-sidebar__doctor-desc">
+                    Bạn đang gặp phải các dấu hiệu bệnh tương tự? Đặt lịch trực tiếp để được bác sĩ chuyên khoa thăm khám và tư vấn phác đồ phù hợp.
+                  </p>
+                  <div className="resource-actions article-news-sidebar__actions">
+                    <PublicBookingButton>Đặt lịch khám với bác sĩ</PublicBookingButton>
+                    <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
                   </div>
                 </div>
-                <p className="article-news-sidebar__doctor-desc">
-                  Bạn đang gặp phải các dấu hiệu bệnh tương tự? Đặt lịch trực tiếp để được bác sĩ chuyên khoa thăm khám và tư vấn phác đồ phù hợp.
-                </p>
-                <div className="resource-actions article-news-sidebar__actions">
-                  <PublicBookingButton>Đặt lịch khám với bác sĩ</PublicBookingButton>
-                  <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
-                </div>
-              </div>
+              </CmsNativeSection>
 
               {article.relatedSpecialtySlug ? (
-                <div className="article-news-sidebar__card article-news-sidebar__specialty">
-                  <span className="article-news-sidebar__card-tag">CHUYÊN KHOA LIÊN QUAN</span>
-                  <h3>Khoa {resolveArticleCategoryLabel(article.category, "Chuyên môn")}</h3>
-                  <p>Tìm hiểu các dịch vụ khám, trang thiết bị chẩn đoán và đội ngũ bác sĩ chuyên khoa.</p>
-                  <Link
-                    className="outline-button outline-button--small"
-                    href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
-                  >
-                    Xem chuyên khoa liên quan →
-                  </Link>
-                </div>
+                <CmsNativeSection sectionId="related">
+                  <div className="article-news-sidebar__card article-news-sidebar__specialty">
+                    <span className="article-news-sidebar__card-tag">CHUYÊN KHOA LIÊN QUAN</span>
+                    <h3>Khoa {resolveArticleCategoryLabel(article.category, "Chuyên môn")}</h3>
+                    <p>Tìm hiểu các dịch vụ khám, trang thiết bị chẩn đoán và đội ngũ bác sĩ chuyên khoa.</p>
+                    <Link
+                      className="outline-button outline-button--small"
+                      href={`/specialties/${encodeURIComponent(article.relatedSpecialtySlug)}`}
+                    >
+                      Xem chuyên khoa liên quan →
+                    </Link>
+                  </div>
+                </CmsNativeSection>
               ) : null}
 
               {takeaways.length ? (
-                <div className="article-news-sidebar__card article-news-sidebar__takeaways">
-                  <span className="article-news-sidebar__card-tag">💡 THÔNG ĐIỆP CHÍNH</span>
-                  <h3>Điểm cốt lõi cần nhớ</h3>
-                  <ul className="article-news-sidebar__takeaways-list">
-                    {takeaways.map((item) => (
-                      <li key={item}>
-                        <span className="text-teal-700 font-bold">•</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <CmsNativeSection sectionId="takeaways">
+                  <div className="article-news-sidebar__card article-news-sidebar__takeaways">
+                    <span className="article-news-sidebar__card-tag">💡 THÔNG ĐIỆP CHÍNH</span>
+                    <h3>Điểm cốt lõi cần nhớ</h3>
+                    <ul className="article-news-sidebar__takeaways-list">
+                      {takeaways.map((item) => (
+                        <li key={item}>
+                          <span className="text-teal-700 font-bold">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </CmsNativeSection>
               ) : null}
 
               {warningSigns.length ? (
-                <div className="article-news-sidebar__card article-news-sidebar__warning">
-                  <span className="article-news-sidebar__warning-tag">⚠ CẢNH BÁO Y TẾ</span>
-                  <h3>Dấu hiệu cần đi cấp cứu ngay</h3>
-                  <p className="text-xs text-rose-800 mb-2">Nếu triệu chứng xuất hiện đột ngột hoặc nặng lên nhanh chóng, hãy gọi 115.</p>
-                  <ul className="article-news-sidebar__warning-list">
-                    {warningSigns.map((item) => (
-                      <li key={item}>
-                        <span className="text-rose-600 font-bold">⚠</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <a className="outline-button outline-button--small outline-button--danger" href="tel:115">
-                    Gọi cấp cứu 115
-                  </a>
-                </div>
+                <CmsNativeSection sectionId="warning">
+                  <div className="article-news-sidebar__card article-news-sidebar__warning">
+                    <span className="article-news-sidebar__warning-tag">⚠ CẢNH BÁO Y TẾ</span>
+                    <h3>Dấu hiệu cần đi cấp cứu ngay</h3>
+                    <p className="text-xs text-rose-800 mb-2">Nếu triệu chứng xuất hiện đột ngột hoặc nặng lên nhanh chóng, hãy gọi 115.</p>
+                    <ul className="article-news-sidebar__warning-list">
+                      {warningSigns.map((item) => (
+                        <li key={item}>
+                          <span className="text-rose-600 font-bold">⚠</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <a className="outline-button outline-button--small outline-button--danger" href="tel:115">
+                      Gọi cấp cứu 115
+                    </a>
+                  </div>
+                </CmsNativeSection>
               ) : null}
 
-              <div className="article-news-sidebar__card article-news-sidebar__steps">
-                <span className="article-news-sidebar__card-tag">HƯỚNG DẪN</span>
-                <h3>Ba bước để dùng thông tin an toàn</h3>
-                <div className="article-news-sidebar__step-items">
-                  {ARTICLE_STEPS.map(([number, title, description]) => (
-                    <div className="resource-step-card article-news-sidebar__step-card" key={number}>
-                      <span className="article-news-sidebar__step-num">{number}</span>
-                      <div>
-                        <strong>{title}</strong>
-                        <p>{description}</p>
+              <CmsNativeSection sectionId="reading">
+                <div className="article-news-sidebar__card article-news-sidebar__steps">
+                  <CmsNativeText fieldId="reading.label" as="span" value={"HƯỚNG DẪN"} className="article-news-sidebar__card-tag">HƯỚNG DẪN</CmsNativeText>
+                  <CmsNativeText fieldId="reading.title" as="h3" value={"Ba bước để dùng thông tin an toàn"}>Ba bước để dùng thông tin an toàn</CmsNativeText>
+                  <div className="article-news-sidebar__step-items">
+                    {ARTICLE_STEPS.map(([number, title, description]) => (
+                      <div className="resource-step-card article-news-sidebar__step-card" key={number}>
+                        <span className="article-news-sidebar__step-num">{number}</span>
+                        <div>
+                          <CmsNativeText fieldId={`reading.step${number}.title`} as="strong" value={title}>{title}</CmsNativeText>
+                          <CmsNativeText fieldId={`reading.step${number}.body`} as="p" value={description}>{description}</CmsNativeText>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </CmsNativeSection>
             </aside>
           </div>
         ) : null}

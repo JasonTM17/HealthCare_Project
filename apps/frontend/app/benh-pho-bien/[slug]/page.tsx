@@ -9,6 +9,7 @@ import { presentApiError } from "../../../lib/present-api-error";
 import type { Article, ArticleSection } from "../../../types/hospital";
 import { RichContentRenderer } from "../../../components/editor";
 import { safeSiteOrigin } from "../../../lib/site-url";
+import { CmsNativeSection, CmsNativeText } from "../../../components/cms/cms-page-layout-provider";
 
 const CATEGORY_LABELS: Record<string, string> = {
   CARDIOLOGY: "Tim mạch",
@@ -75,7 +76,7 @@ function safeJsonLdStringify(data: unknown): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
-export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: string }> }) {
+export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: string; }>; }) {
   const { slug } = use(params);
   const [article, setArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,101 +161,113 @@ export default function DiseaseGuidePage({ params }: { params: Promise<{ slug: s
   }, [article]);
 
   return (
-    <PublicPageShell>
+    <PublicPageShell cmsEntityId={article?.id}>
       <div aria-busy={loading} className="article-page section-inner">
-        <Link className="portal-context-link" href="/benh-pho-bien">← Kho bệnh phổ biến</Link>
-        {loading ? <p className="catalog-status catalog-status--loading" role="status">{article ? "Đang cập nhật bài viết…" : "Đang tải bài viết…"}</p> : null}
-        {error ? (
-          <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
-            <span>{article ? `Chưa thể cập nhật bài viết mới. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
-            <button className="outline-button outline-button--small" onClick={() => setRetryCount((value) => value + 1)} type="button">Thử tải lại</button>
-          </div>
-        ) : null}
-        {!loading && !error && !article ? (
-          <div className="catalog-status" role="status">
-            <p>Không tìm thấy hướng dẫn này trong kho nội dung đã được kiểm duyệt.</p>
-            <div className="resource-actions">
-              <Link className="outline-button outline-button--small" href="/benh-pho-bien">Xem kho bệnh phổ biến</Link>
-              <PublicBookingButton className="button button--amber">Đặt lịch với bác sĩ</PublicBookingButton>
+        <CmsNativeSection sectionId="states">
+          <Link className="portal-context-link" href="/benh-pho-bien">← Kho bệnh phổ biến</Link>
+          {loading ? <p className="catalog-status catalog-status--loading" role="status">{article ? "Đang cập nhật bài viết…" : "Đang tải bài viết…"}</p> : null}
+          {error ? (
+            <div aria-live="assertive" className="catalog-status catalog-status--error" role="alert">
+              <span>{article ? `Chưa thể cập nhật bài viết mới. ${error} Đang hiển thị nội dung đã tải trước đó.` : error}</span>
+              <button className="outline-button outline-button--small" onClick={() => setRetryCount((value) => value + 1)} type="button">Thử tải lại</button>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+          {!loading && !error && !article ? (
+            <div className="catalog-status" role="status">
+              <p>Không tìm thấy hướng dẫn này trong kho nội dung đã được kiểm duyệt.</p>
+              <div className="resource-actions">
+                <Link className="outline-button outline-button--small" href="/benh-pho-bien">Xem kho bệnh phổ biến</Link>
+                <PublicBookingButton className="button button--amber">Đặt lịch với bác sĩ</PublicBookingButton>
+              </div>
+            </div>
+          ) : null}
+        </CmsNativeSection>
         {article ? (
           <article>
             <script
               type="application/ld+json"
               dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(structuredData) }}
             />
-            <header className="resource-page__header">
-              <p className="section-note">{categoryLabel(article.category)} · Nguồn bệnh viện được bác sĩ nội bộ duyệt</p>
-              <h1>{article.title}</h1>
-              <p>{article.summary}</p>
-              <dl className="resource-meta-grid">
-                <div><dt>Xuất bản</dt><dd>{formatBusinessDate(article.publishedAt)}</dd></div>
-                <div><dt>Cập nhật</dt><dd>{formatBusinessDate(article.updatedAt ?? article.publishedAt)}</dd></div>
-                <div><dt>Đọc ước tính</dt><dd>{article.readingMinutes ?? 5} phút</dd></div>
-                <div><dt>Đánh giá nội dung</dt><dd>Bác sĩ nội bộ duyệt</dd></div>
-              </dl>
-              <div className="resource-actions">
-                <PublicBookingButton>Đặt lịch thăm khám</PublicBookingButton>
-                <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
-                {relatedSpecialtyHref ? <Link className="outline-button" href={relatedSpecialtyHref}>Xem chuyên khoa liên quan</Link> : null}
-              </div>
-            </header>
+            <CmsNativeSection sectionId="profile">
+              <header className="resource-page__header">
+                <p className="section-note">{categoryLabel(article.category)} · Nguồn bệnh viện được bác sĩ nội bộ duyệt</p>
+                <h1>{article.title}</h1>
+                <p>{article.summary}</p>
+                <dl className="resource-meta-grid">
+                  <div><dt>Xuất bản</dt><dd>{formatBusinessDate(article.publishedAt)}</dd></div>
+                  <div><dt>Cập nhật</dt><dd>{formatBusinessDate(article.updatedAt ?? article.publishedAt)}</dd></div>
+                  <div><dt>Đọc ước tính</dt><dd>{article.readingMinutes ?? 5} phút</dd></div>
+                  <div><dt>Đánh giá nội dung</dt><dd>Bác sĩ nội bộ duyệt</dd></div>
+                </dl>
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch thăm khám</PublicBookingButton>
+                  <PublicAiButton className="outline-button">Hỏi trợ lý triệu chứng</PublicAiButton>
+                  {relatedSpecialtyHref ? <Link className="outline-button" href={relatedSpecialtyHref}>Xem chuyên khoa liên quan</Link> : null}
+                </div>
+              </header>
+            </CmsNativeSection>
 
             {tocSections.length ? (
-              <nav aria-label="Mục lục bài viết" className="resource-panel resource-panel--accent">
-                <p className="section-note">Mục lục</p>
-                <ol>
-                  {tocSections.map((section) => <li key={section.id}><a href={`#${section.id}`}>{section.heading || "Nội dung"}</a></li>)}
-                </ol>
-              </nav>
+              <CmsNativeSection sectionId="toc">
+                <nav aria-label="Mục lục bài viết" className="resource-panel resource-panel--accent">
+                  <p className="section-note">Mục lục</p>
+                  <ol>
+                    {tocSections.map((section) => <li key={section.id}><a href={`#${section.id}`}>{section.heading || "Nội dung"}</a></li>)}
+                  </ol>
+                </nav>
+              </CmsNativeSection>
             ) : null}
 
-            <div className="article-body article-detail-card__body">
-              {sections.length ? null : article?.body ? (
-                <RichContentRenderer
-                  content={article.body}
-                  fallback={bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 32)}-${index}`}>{paragraph}</p>)}
-                />
-              ) : null}
-              {!bodyParagraphs.length && !sections.length ? <p className="resource-muted">Nội dung chi tiết đang được cập nhật.</p> : null}
-              {takeaways.length ? <section className="resource-panel"><h2>Điểm cần nhớ</h2><ul>{takeaways.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
-              {warningSigns.length ? (
-                <section className="resource-panel resource-panel--warning" aria-labelledby="warning-signs-title">
-                  <h2 id="warning-signs-title">Dấu hiệu cần được đánh giá sớm</h2>
-                  <p className="section-note">Nếu triệu chứng xuất hiện đột ngột, nặng lên nhanh hoặc bạn thấy không an toàn, hãy gọi 115.</p>
-                  <ul>{warningSigns.map((item) => <li key={item}>{item}</li>)}</ul>
-                  <a className="outline-button outline-button--small" href="tel:115">Gọi 115</a>
-                </section>
-              ) : null}
-              {article.whenToSeekCare ? <section className="resource-panel"><h2>Khi nào nên đi khám?</h2><p>{article.whenToSeekCare}</p></section> : null}
-              {preventionTips.length ? <section className="resource-panel"><h2>Chủ động chăm sóc</h2><ul>{preventionTips.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
-              {tocSections.map((section) => (
-                <section id={section.id} key={section.id}>
-                  <h2>{section.heading || "Nội dung"}</h2>
-                  {section.body ? (
-                    <RichContentRenderer
-                      content={section.body}
-                      fallback={<p>{section.body}</p>}
-                    />
-                  ) : (
-                    <p className="resource-muted">Nội dung chi tiết đang chờ biên tập. Nếu triệu chứng kéo dài hoặc nặng lên, hãy đặt lịch để được bác sĩ đánh giá.</p>
-                  )}
-                </section>
-              ))}
-              {sources.length ? <section className="resource-panel"><h2>Nguồn tham khảo</h2><ul>{sources.map((source) => <li key={source}>{source}</li>)}</ul></section> : null}
-            </div>
-
-            <aside className="resource-panel resource-panel--accent" aria-label="Bước tiếp theo">
-              <h2>Muốn được tư vấn riêng?</h2>
-              <p>Hãy dùng bài viết để chuẩn bị câu hỏi, sau đó đặt lịch với chuyên khoa phù hợp. Nội dung này chỉ giáo dục sức khỏe, không phải chẩn đoán hay đơn thuốc.</p>
-              <div className="resource-actions">
-                <PublicBookingButton>Đặt lịch với bác sĩ</PublicBookingButton>
-                {relatedSpecialtyHref ? <Link className="text-button" href={relatedSpecialtyHref}>Mở chuyên khoa liên quan →</Link> : null}
+            <CmsNativeSection sectionId="editorial">
+              <div className="article-body article-detail-card__body">
+                {sections.length ? null : article?.body ? (
+                  <RichContentRenderer
+                    content={article.body}
+                    fallback={bodyParagraphs.map((paragraph, index) => <p key={`${paragraph.slice(0, 32)}-${index}`}>{paragraph}</p>)}
+                  />
+                ) : null}
+                {!bodyParagraphs.length && !sections.length ? <p className="resource-muted">Nội dung chi tiết đang được cập nhật.</p> : null}
+                {takeaways.length ? <section className="resource-panel"><h2>Điểm cần nhớ</h2><ul>{takeaways.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
+                {warningSigns.length ? (
+                  <section className="resource-panel resource-panel--warning" aria-labelledby="warning-signs-title">
+                    <h2 id="warning-signs-title">Dấu hiệu cần được đánh giá sớm</h2>
+                    <p className="section-note">Nếu triệu chứng xuất hiện đột ngột, nặng lên nhanh hoặc bạn thấy không an toàn, hãy gọi 115.</p>
+                    <ul>{warningSigns.map((item) => <li key={item}>{item}</li>)}</ul>
+                    <a className="outline-button outline-button--small" href="tel:115">Gọi 115</a>
+                  </section>
+                ) : null}
+                {article.whenToSeekCare ? <section className="resource-panel"><h2>Khi nào nên đi khám?</h2><p>{article.whenToSeekCare}</p></section> : null}
+                {preventionTips.length ? <section className="resource-panel"><h2>Chủ động chăm sóc</h2><ul>{preventionTips.map((item) => <li key={item}>{item}</li>)}</ul></section> : null}
+                {tocSections.map((section) => (
+                  <section id={section.id} key={section.id}>
+                    <h2>{section.heading || "Nội dung"}</h2>
+                    {section.body ? (
+                      <RichContentRenderer
+                        content={section.body}
+                        fallback={<p>{section.body}</p>}
+                      />
+                    ) : (
+                      <p className="resource-muted">Nội dung chi tiết đang chờ biên tập. Nếu triệu chứng kéo dài hoặc nặng lên, hãy đặt lịch để được bác sĩ đánh giá.</p>
+                    )}
+                  </section>
+                ))}
+                {sources.length ? <section className="resource-panel"><h2>Nguồn tham khảo</h2><ul>{sources.map((source) => <li key={source}>{source}</li>)}</ul></section> : null}
               </div>
-            </aside>
-            <p className="clinical-disclaimer">{article.clinicalDisclaimer ?? "Thông tin này chỉ nhằm giáo dục sức khỏe, không phải chẩn đoán hay đơn thuốc."} Nếu có dấu hiệu khẩn cấp, gọi 115.</p>
+            </CmsNativeSection>
+
+            <CmsNativeSection sectionId="support">
+              <aside className="resource-panel resource-panel--accent" aria-label="Bước tiếp theo">
+                <CmsNativeText fieldId="support.title" as="h2" value={"Muốn được tư vấn riêng?"}>Muốn được tư vấn riêng?</CmsNativeText>
+                <p>Hãy dùng bài viết để chuẩn bị câu hỏi, sau đó đặt lịch với chuyên khoa phù hợp. Nội dung này chỉ giáo dục sức khỏe, không phải chẩn đoán hay đơn thuốc.</p>
+                <div className="resource-actions">
+                  <PublicBookingButton>Đặt lịch với bác sĩ</PublicBookingButton>
+                  {relatedSpecialtyHref ? <Link className="text-button" href={relatedSpecialtyHref}>Mở chuyên khoa liên quan →</Link> : null}
+                </div>
+              </aside>
+            </CmsNativeSection>
+            <CmsNativeSection sectionId="disclaimer">
+              <p className="clinical-disclaimer">{article.clinicalDisclaimer ?? "Thông tin này chỉ nhằm giáo dục sức khỏe, không phải chẩn đoán hay đơn thuốc."} Nếu có dấu hiệu khẩn cấp, gọi 115.</p>
+            </CmsNativeSection>
           </article>
         ) : null}
       </div>

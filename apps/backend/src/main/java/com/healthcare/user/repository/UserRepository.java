@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,7 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, UUID> {
+public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificationExecutor<User> {
 
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     Optional<User> findWithRolesByEmail(String email);
@@ -39,6 +40,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByGoogleSubjectForUpdate(@Param("subject") String subject);
 
     boolean existsByEmail(String email);
+
+    @Query("select u.email from User u where u.id = :id")
+    Optional<String> findEmailById(@Param("id") UUID id);
+
+    @Query("select count(distinct u) from User u join u.roles r where u.status = 'ACTIVE' "
+        + "and u.emailVerified = true and u.demo = false and r.code = 'ADMIN'")
+    long countEligibleAdministrators();
 
     /** Active shared demo personas (V70); non-demo deployments must have none. */
     long countByDemoTrueAndStatus(String status);

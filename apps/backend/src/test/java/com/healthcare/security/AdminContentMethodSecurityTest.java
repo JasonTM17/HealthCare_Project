@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.healthcare.cms.controller.AdminCmsContentController;
 import com.healthcare.cms.service.CmsContentService;
+import com.healthcare.cms.service.CmsDraftService;
 import com.healthcare.hospital.controller.AdminArticleController;
 import com.healthcare.hospital.service.AdminArticleService;
 import java.util.List;
@@ -61,9 +62,14 @@ class AdminContentMethodSecurityTest {
             assertDenied(() -> cms.upsert("HOME_HERO", null, null));
             assertDenied(() -> cms.history("HOME_HERO", 20));
             assertDenied(() -> cms.rollback("HOME_HERO", null, null));
+            assertDenied(() -> cms.draft("homepage.layout"));
+            assertDenied(() -> cms.saveDraft("homepage.layout", null, null));
+            assertDenied(() -> cms.publish("homepage.layout", null, null));
+            assertDenied(() -> cms.restoreDraft("homepage.layout", null, null));
 
             verifyNoInteractions(context.getBean(AdminArticleService.class));
             verifyNoInteractions(context.getBean(CmsContentService.class));
+            verifyNoInteractions(context.getBean(CmsDraftService.class));
         }
     }
 
@@ -91,13 +97,18 @@ class AdminContentMethodSecurityTest {
         }
 
         @Bean
+        CmsDraftService cmsDraftService() {
+            return mock(CmsDraftService.class);
+        }
+
+        @Bean
         AdminArticleController adminArticleController(AdminArticleService service) {
             return new AdminArticleController(service);
         }
 
         @Bean
-        AdminCmsContentController adminCmsContentController(CmsContentService service) {
-            return new AdminCmsContentController(service);
+        AdminCmsContentController adminCmsContentController(CmsContentService service, CmsDraftService drafts) {
+            return new AdminCmsContentController(service, drafts);
         }
     }
 }
