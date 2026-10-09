@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import AdminState from "./_components/AdminState";
+import AdminNotificationDetail from "./_components/AdminNotificationDetail";
 import {
   AUTH_SESSION_INDETERMINATE_MESSAGE,
   fetchNotifications,
@@ -172,6 +173,12 @@ function AdminNotificationBell() {
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Notification | null>(null);
+  const [readingIds, setReadingIds] = useState<Set<string>>(() => new Set());
+  const [readError, setReadError] = useState<string | null>(null);
+  const inFlightReads = useRef(new Set<string>());
+  const selectedIdRef = useRef<string | null>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Returns the request promise so the shared poll can measure the in-flight
@@ -241,15 +248,36 @@ function AdminNotificationBell() {
     };
   }, [open]);
 
-  const handleSelect = async (notification: Notification): Promise<void> => {
-    if (notification.read) return;
+  const handleRead = async (notification: Notification): Promise<void> => {
+    if (notification.read || inFlightReads.current.has(notification.id)) return;
+    inFlightReads.current.add(notification.id);
+    setReadingIds((current) => new Set(current).add(notification.id));
+    setReadError(null);
     try {
       await markNotificationAsRead(notification.id);
       setItems((current) => current.map((item) => (item.id === notification.id ? { ...item, read: true } : item)));
       setUnread((current) => Math.max(0, current - 1));
+      setSelected((current) => current?.id === notification.id ? { ...current, read: true } : current);
     } catch {
-      // A failed mark-read must not break the dropdown.
+      if (selectedIdRef.current === notification.id) setReadError("Chưa thể đánh dấu đã đọc. Nội dung vẫn hiển thị; bạn có thể thử lại.");
+    } finally {
+      inFlightReads.current.delete(notification.id);
+      setReadingIds((current) => { const next = new Set(current); next.delete(notification.id); return next; });
     }
+  };
+
+  const handleSelect = (notification: Notification): void => {
+    selectedIdRef.current = notification.id;
+    setSelected(notification);
+    setReadError(null);
+    setOpen(false);
+    void handleRead(notification);
+  };
+
+  const closeDetail = (): void => {
+    selectedIdRef.current = null;
+    setSelected(null);
+    bellRef.current?.focus();
   };
 
   const handleMarkAll = async (): Promise<void> => {
@@ -276,6 +304,7 @@ function AdminNotificationBell() {
           });
         }}
         title="Thông báo hệ thống"
+        ref={bellRef}
         type="button"
       >
         <UiIcon name="bell" size={20} />
@@ -329,6 +358,7 @@ function AdminNotificationBell() {
           </div>
         </div>
       ) : null}
+      {selected ? <AdminNotificationDetail item={selected} pending={readingIds.has(selected.id)} error={readError} onRead={() => void handleRead(selected)} onClose={closeDetail} /> : null}
     </div>
   );
 }
