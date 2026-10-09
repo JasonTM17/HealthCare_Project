@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import vm from "node:vm";
 import test from "node:test";
+import { loadCatalogueIllustration } from "./helpers/catalogue-illustration-loader.mjs";
 
 const requireFromTest = createRequire(import.meta.url);
 const ts = requireFromTest("typescript");
@@ -57,6 +58,8 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     useState: (value) => [typeof value === "function" ? value() : value, () => undefined],
   };
   const requireStub = (specifier) => {
+    if (specifier === "../lib/catalogue-illustration" || specifier === "./catalogue-illustration") return loadCatalogueIllustration();
+    if (specifier === "./IllustrativeBookingNotice") return () => null;
     if (specifier in stubs) return stubs[specifier];
     if (specifier === "react") return reactStub;
     if (specifier === "react/jsx-runtime") {
@@ -169,7 +172,9 @@ test("normalized slot identity and upstream reselects cannot clear a committed s
       `${handlerNames[index]} must leave slot-query state to the owner`,
     );
   }
-  assert.match(source, /useMemo\(\s*\(\) => normalizeBookingSlotQueryIdentity/);
+  // Keep normalization for real selections and suppress all slot-query identity
+  // for an illustrative initial selection, even behind its unavailable notice.
+  assert.match(source, /useMemo\(\s*\(\) => illustrativeInitialSelection \? null : normalizeBookingSlotQueryIdentity\(selectedDoctor, selectedBranch, selectedDate\),\s*\[illustrativeInitialSelection, selectedBranch, selectedDate, selectedDoctor\]/);
   assert.match(source, /\[active, slotQueryIdentity, slotRefreshNonce, slotQueryOwner\]/);
 });
 

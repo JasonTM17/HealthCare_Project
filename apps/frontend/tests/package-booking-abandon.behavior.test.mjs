@@ -37,6 +37,11 @@ function addComponent(relative) {
       ["UiIcon", "fixture-icon"], ["types/hospital", "fixture-types"],
     ]) if (specifier.endsWith(suffix)) return `require(${JSON.stringify(stub)})`;
     const target = path.resolve(path.dirname(filename), specifier);
+    if (specifier.endsWith(".json")) {
+      const dependency = path.relative(sourceRoot, target).replaceAll("\\", "/");
+      sources[dependency] = `module.exports = ${JSON.stringify(JSON.parse(readFileSync(target, "utf8")))};`;
+      return `require(${JSON.stringify(dependency)})`;
+    }
     const resolved = [target + ".tsx", target + ".ts"].find(existsSync);
     assert.ok(resolved, `fixture dependency not mapped: ${specifier}`);
     const dependency = path.relative(sourceRoot, resolved).replaceAll("\\", "/");
@@ -46,6 +51,7 @@ function addComponent(relative) {
   sources[relative] = compiled;
 }
 addComponent("components/PackageBookingModal.tsx");
+addComponent("components/BookingModal.tsx");
 
 const fixture = `
 globalThis.process = { env: { NODE_ENV: "development" } };
@@ -78,7 +84,7 @@ const SLOT = { branchId: "br-1", startTime: "08:00:00", endTime: "08:30:00", ava
 const control = window.pkgFixture = {
   open: true, closed: 0,
   holds: [], confirms: [], cancels: [], resends: [],
-  slotCalls: 0,
+  slotCalls: 0, slotDoctors: [], catalogueCalls: [],
   holdMode: "resolve", confirmMode: "resolve", cancelMode: "resolve",
   resolveHold: null, resolveConfirm: null, rejectConfirm: null,
   resolveCancel: null, rejectCancel: null,
@@ -94,6 +100,7 @@ function holdResult(bookingCode) {
 stubs["fixture-booking-api"] = {
   fetchDoctorSlots: async (doctorId, branchId, date, signal) => {
     control.slotCalls += 1;
+    control.slotDoctors.push(doctorId);
     return [SLOT];
   },
   holdAppointmentSlot: (payload) => {
@@ -132,8 +139,11 @@ function confirmResult(bookingCode) {
 }
 stubs["fixture-api"] = {
   ApiError,
-  fetchBranches: async () => ({ content: [BRANCH] }),
-  fetchDoctors: async () => ({ content: [] }),
+  fetchBranches: async () => { control.catalogueCalls.push("branches"); return { content: control.catalogueBranches ?? [BRANCH] }; },
+  fetchDoctors: async () => { control.catalogueCalls.push("doctors"); return { content: control.catalogueDoctors ?? [] }; },
+  fetchDoctorCatalog: async () => { control.catalogueCalls.push("doctor-catalogue"); return control.catalogueDoctors ?? []; },
+  fetchSpecialties: async () => { control.catalogueCalls.push("specialties"); return { content: [{ id: "spec-1", slug: "tim-mach", name: "Tim mạch local", active: true }] }; },
+  hydrateAuthSession: async () => null,
   getAuthSessionSnapshot: () => null,
   resendAppointmentOtp: async (bookingCode, phone, signal) => {
     control.resends.push({ bookingCode, phone });
@@ -159,13 +169,19 @@ stubs["fixture-icon"] = { __esModule: true, default: (props) => React.createElem
 stubs["fixture-types"] = {};
 stubs["fixture-css"] = {};
 stubs["next/link"] = { __esModule: true, default: ({ children, ...props }) => React.createElement("a", props, children) };
+stubs["next/image"] = { __esModule: true, default: ({ fill, priority, ...props }) => React.createElement("img", props) };
 control.render = () => {
-  const Modal = require("components/PackageBookingModal.tsx").default;
+  const Modal = require(control.mode === "generic" ? "components/BookingModal.tsx" : "components/PackageBookingModal.tsx").default;
   ReactDOM.flushSync(() => root.render(React.createElement(Modal, {
     isOpen: control.open,
     onClose: () => { control.closed += 1; control.open = false; control.render(); },
-    packageItem: PKG,
-    branches: [BRANCH],
+    packageItem: control.packageItem ?? PKG,
+    branches: control.branches ?? [BRANCH],
+    initialDoctorId: control.initialDoctorId,
+    initialBranchId: control.initialBranchId,
+    initialPackageId: control.initialPackageId,
+    doctors: control.doctors ?? [],
+    packages: control.packages ?? [],
   })));
 };
 control.unmount = () => {
@@ -201,11 +217,61 @@ async function mount(setup = {}) {
   });
   await page.addScriptTag({ content: fixture });
   await page.evaluate((setup) => { Object.assign(pkgFixture, setup); pkgFixture.render(); }, setup);
-  await page.locator(".booking-panel").waitFor();
+  await page.getByRole("dialog").waitFor();
   return { page, errors };
 }
 
 const RELEASE_REASON = "Bệnh nhân rời luồng đặt lịch trước khi xác nhận";
+
+test("general booking: stale illustrative doctor, branch and package props require explicit dismissal", async () => {
+  for (const selection of [
+    { initialDoctorId: "f13b9e7b-0ebc-56cb-916c-e5740179c146" },
+    { initialBranchId: "b14a8b67-ae9f-5d55-b1bc-616d6e053abc" },
+    { initialPackageId: "43122ce2-e3c6-5421-a416-d7de4ea003d3" },
+  ]) {
+    const { page } = await mount({ mode: "generic", initialDoctorId: "doc-1", initialBranchId: "br-1", ...selection });
+    try {
+      await page.getByText("Dữ liệu minh họa không nhận đặt lịch khám. Vui lòng chọn thông tin thực tế.", { exact: true }).waitFor();
+      assert.equal(await page.locator("#booking-full-name").count(), 0);
+      assert.equal(await page.evaluate(() => pkgFixture.holds.length), 0);
+      assert.deepEqual(await page.evaluate(() => pkgFixture.catalogueCalls), []);
+      assert.equal(await page.evaluate(() => pkgFixture.slotCalls), 0);
+      await page.getByRole("button", { name: "Đóng cửa sổ đặt lịch", exact: true }).click();
+      await page.waitForFunction(() => pkgFixture.closed === 1);
+    } finally { await page.close(); }
+  }
+});
+
+test("package booking: renamed illustrative package rejects without advancing or holding", async () => {
+  const { page } = await mount({ branches: [], packageItem: { id: "43122ce2-e3c6-5421-a416-d7de4ea003d3", slug: "renamed", name: "Gói đổi tên", price: 1 } });
+  try {
+    await page.getByText("Dữ liệu minh họa không nhận đặt lịch khám. Vui lòng chọn thông tin thực tế.", { exact: true }).waitFor();
+    assert.equal(await page.locator("#package-patient-name").count(), 0);
+    assert.equal(await page.evaluate(() => pkgFixture.holds.length), 0);
+    assert.deepEqual(await page.evaluate(() => pkgFixture.catalogueCalls), []);
+    assert.equal(await page.evaluate(() => pkgFixture.slotCalls), 0);
+    await page.getByRole("button", { name: "Đóng cửa sổ đặt lịch", exact: true }).press("Escape");
+    await page.waitForFunction(() => pkgFixture.closed === 1);
+  } finally { await page.close(); }
+});
+
+test("package booking: fallback catalogues and nested summaries select only real identities", async () => {
+  const sampleBranch = { id: "b14a8b67-ae9f-5d55-b1bc-616d6e053abc", name: "Cơ sở đổi tên", slug: "renamed-branch", doctors: [] };
+  const sampleDoctor = { id: "f13b9e7b-0ebc-56cb-916c-e5740179c146", fullName: "Tên đổi", slug: "renamed-doctor" };
+  const realDoctor = { id: "doc-1", fullName: "Bác sĩ thực tế", slug: "real-doctor", branchId: "br-1" };
+  const realBranch = { id: "br-1", name: "Cơ sở thực tế", slug: "real-branch", address: "Địa chỉ local", doctors: [sampleDoctor, realDoctor] };
+  const { page } = await mount({ branches: [], catalogueBranches: [sampleBranch, realBranch], catalogueDoctors: [sampleDoctor, realDoctor] });
+  try {
+    await page.getByText("Cơ sở thực tế", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Cơ sở đổi tên", { exact: true }).count(), 0);
+    await page.getByRole("button", { name: /Tiếp tục: Chọn ngày/ }).click();
+    await page.waitForFunction(() => pkgFixture.slotCalls > 0);
+    const slotDoctors = await page.evaluate(() => pkgFixture.slotDoctors);
+    assert.ok(slotDoctors.length > 0);
+    assert.ok(slotDoctors.every((id) => id === "doc-1"));
+    assert.equal(await page.evaluate(() => pkgFixture.holds.length), 0);
+  } finally { await page.close(); }
+});
 
 async function reachOtpStep(page) {
   await page.getByRole("button", { name: /Tiếp tục: Chọn ngày/ }).click();

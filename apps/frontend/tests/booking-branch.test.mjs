@@ -330,8 +330,10 @@ test("booking page reuses the engine inline without mounting a second dialog", a
   assert.match(source, /min=\{minimumAppointmentDate\}/);
   assert.doesNotMatch(source, /min=\{selectedDate\}/);
   assert.match(shell, /onBookingRequest\?: \(selection\?: BookingSelection\) => void/);
-  assert.match(shell, /if \(onBookingRequest\)/);
-  assert.match(shell, /!onBookingRequest && bookingOpen/);
+  // Real pages delegate to their inline/custom engine; an illustrative page's
+  // generic navigation CTA must still open the filtered real-catalogue wizard.
+  assert.match(shell, /if \(onBookingRequest && !illustrativePage\) \{\s*onBookingRequest\(nextSelection\);\s*return;/);
+  assert.match(shell, /\(!onBookingRequest \|\| illustrativePage\) && bookingOpen/);
   assert.match(route, /<PublicPageShell onBookingRequest=\{handleBookingRequest\}>/);
   assert.match(route, /Các cơ sở khám nổi bật/);
   assert.match(route, /fetchBranches\(0, 6\)/);

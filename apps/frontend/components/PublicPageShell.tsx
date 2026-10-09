@@ -14,6 +14,8 @@ import { routeCmsSlug, RouteCmsSlots } from "./cms";
 import { CmsPageLayoutProvider } from "./cms/cms-page-layout-provider";
 import { isCmsPreviewRequested } from "../lib/cms-preview-bridge";
 import type { Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
+import { ILLUSTRATIVE_BOOKING_NOTICE, isIllustrativeCatalogue, isIllustrativeSelection } from "../lib/catalogue-illustration";
+import IllustrativeBookingNotice from "./IllustrativeBookingNotice";
 
 interface PublicPageShellProps {
   children: ReactNode;
@@ -27,6 +29,7 @@ interface PublicPageShellProps {
 }
 
 interface PublicPageActions {
+  illustrativePage: boolean;
   openBooking: (selection?: BookingSelection) => void;
   openAi: () => void;
 }
@@ -53,14 +56,17 @@ export function PublicBookingButton({
   className = "button button--amber",
   selection,
   ariaLabel,
+  catalogueItem,
 }: {
   children?: ReactNode;
   className?: string;
   selection?: Parameters<PublicPageActions["openBooking"]>[0];
   ariaLabel?: string;
+  catalogueItem?: { id: string; slug?: string };
 }) {
-  const { openBooking } = usePublicPageActions();
-  return <button aria-label={ariaLabel} className={className} onClick={() => openBooking(selection)} type="button">{children}</button>;
+  const { openBooking, illustrativePage } = usePublicPageActions();
+  const disabled = illustrativePage || isIllustrativeSelection(selection) || isIllustrativeCatalogue(catalogueItem);
+  return <button aria-label={disabled ? "Thông tin minh họa không nhận đặt lịch" : ariaLabel} className={className} disabled={disabled} title={disabled ? ILLUSTRATIVE_BOOKING_NOTICE : undefined} onClick={() => openBooking(selection)} type="button">{disabled ? "Chỉ xem minh họa" : children}</button>;
 }
 
 export function PublicAiButton({ children = "Tư vấn triệu chứng", className = "outline-button" }: { children?: ReactNode; className?: string }) {
@@ -85,6 +91,7 @@ export function PublicPageShell({
   const pathname = usePathname();
   const [bookingOpen, setBookingOpen] = useState(bookingInitiallyOpen && !onBookingRequest);
   const [triageOpen, setTriageOpen] = useState(false);
+  const [illustrativeNoticeOpen, setIllustrativeNoticeOpen] = useState(false);
   const [selection, setSelection] = useState<Parameters<PublicPageActions["openBooking"]>[0]>();
   const [shellBranches, setShellBranches] = useState<Branch[]>(EMPTY_BRANCHES);
 
@@ -113,11 +120,14 @@ export function PublicPageShell({
   const contactBranch = hotlineBranch ?? effectiveBranches.find((branch) => branch.phone);
   const emergencyContact = hotlineBranch?.emergencyHotline ?? contactBranch?.phone ?? undefined;
   const emergencyContactIsHotline = Boolean(hotlineBranch?.emergencyHotline);
+  const illustrativePage = isIllustrativeCatalogue({ id: cmsEntityId, slug: pathname.split("/").at(-1) });
 
   const actions: PublicPageActions = {
+    illustrativePage,
     openBooking: (nextSelection) => {
       if (isCmsPreviewRequested()) return;
-      if (onBookingRequest) {
+      if (isIllustrativeSelection(nextSelection)) { setIllustrativeNoticeOpen(true); return; }
+      if (onBookingRequest && !illustrativePage) {
         onBookingRequest(nextSelection);
         return;
       }
@@ -145,7 +155,8 @@ export function PublicPageShell({
             actions.openBooking({ specialtyId });
           }}
         />
-        {!onBookingRequest && bookingOpen ? (
+        {illustrativeNoticeOpen ? <IllustrativeBookingNotice onClose={() => setIllustrativeNoticeOpen(false)} /> : null}
+        {(!onBookingRequest || illustrativePage) && bookingOpen ? (
           <BookingModal
             branches={effectiveBranches}
             doctors={doctors}
