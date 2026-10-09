@@ -34,6 +34,8 @@ import { presentApiError } from "../lib/present-api-error";
 import { buildGoogleCalendarUrl, downloadIcsFile } from "../lib/appointment-calendar";
 import Icon from "./UiIcon";
 import useDialogFocus from "./useDialogFocus";
+import { bookableBranches, ILLUSTRATIVE_BOOKING_NOTICE, isIllustrativeCatalogue, isIllustrativeSelection } from "../lib/catalogue-illustration";
+import IllustrativeBookingNotice from "./IllustrativeBookingNotice";
 
 const EMPTY_DOCTORS: Doctor[] = [];
 const EMPTY_SPECIALTIES: Specialty[] = [];
@@ -494,11 +496,15 @@ function BookingExperience({
   initialSpecialtyId,
   initialPackageId,
   initialBranchId,
-  packages = EMPTY_PACKAGES,
+  packages: providedPackages = EMPTY_PACKAGES,
   doctors: providedDoctors = EMPTY_DOCTORS,
   specialties: providedSpecialties = EMPTY_SPECIALTIES,
   branches: providedBranches = EMPTY_BRANCHES,
 }: BookingExperienceProps) {
+  const packages = useMemo(() => providedPackages.filter((item) => !isIllustrativeCatalogue(item)), [providedPackages]);
+  const illustrativeInitialSelection = isIllustrativeSelection({ doctorId: initialDoctorId, branchId: initialBranchId, packageId: initialPackageId })
+    || [...providedDoctors, ...providedBranches, ...providedPackages].some((item) => isIllustrativeCatalogue(item)
+      && [initialDoctorId, initialBranchId, initialPackageId].includes(item.id));
   const isModal = presentation === "modal";
   // The public Stitch flow is seven explicit decisions. Backend hold/OTP remain
   // the final two transitions so every selection is visible and reviewable.
@@ -512,7 +518,7 @@ function BookingExperience({
   const [fetchedDoctor, setFetchedDoctor] = useState<Doctor | null>(null);
 
   useEffect(() => {
-    if (!active || !initialDoctorId) return;
+    if (!active || illustrativeInitialSelection || !initialDoctorId) return;
     const existing = (providedDoctors.length > 0 ? providedDoctors : loadedDoctors).find(
       (d) => d.id === initialDoctorId,
     );
@@ -537,7 +543,7 @@ function BookingExperience({
     return () => {
       cancelled = true;
     };
-  }, [active, initialDoctorId, providedDoctors, loadedDoctors]);
+  }, [active, illustrativeInitialSelection, initialDoctorId, providedDoctors, loadedDoctors]);
 
   // Catalog pages pass teaser lists as providedDoctors; the booking wizard
   // always needs the full catalog, so loaded (complete) data wins once present
@@ -552,7 +558,7 @@ function BookingExperience({
     if (seedDoctor && !result.some((d) => d.id === seedDoctor.id)) {
       result.unshift(seedDoctor);
     }
-    return result;
+    return result.filter((item) => !isIllustrativeCatalogue(item));
   }, [loadedDoctors, providedDoctors, fetchedDoctor, initialDoctorId]);
   // Catalog pages pass teaser lists as providedSpecialties/providedBranches
   // (the homepage grid fetches page 0 size 12); the booking wizard always
@@ -573,7 +579,7 @@ function BookingExperience({
     for (const item of providedBranches) {
       if (!result.some((entry) => entry.id === item.id)) result.push(item);
     }
-    return result;
+    return bookableBranches(result);
   }, [loadedBranches, providedBranches]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string>("");
@@ -607,8 +613,8 @@ function BookingExperience({
   const [slotRefreshNonce, setSlotRefreshNonce] = useState<number>(0);
   const [slotQueryOwner] = useState(() => new BookingSlotQueryOwner());
   const slotQueryIdentity = useMemo(
-    () => normalizeBookingSlotQueryIdentity(selectedDoctor, selectedBranch, selectedDate),
-    [selectedBranch, selectedDate, selectedDoctor],
+    () => illustrativeInitialSelection ? null : normalizeBookingSlotQueryIdentity(selectedDoctor, selectedBranch, selectedDate),
+    [illustrativeInitialSelection, selectedBranch, selectedDate, selectedDoctor],
   );
   const slotQueryMatchesSelection = Boolean(
     active
@@ -774,7 +780,7 @@ function BookingExperience({
   }, [invalidateBookingSession, onClose, resetBookingState]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || illustrativeInitialSelection) return;
 
     // Always fetch the complete lists on open: a non-empty teaser prop must
     // not gate the load (homepage passes 12 of N specialties, and backend
@@ -815,9 +821,10 @@ function BookingExperience({
         missing.push("chuyên khoa");
       }
       if (resolvedBranch) {
-        setLoadedBranches(resolvedBranch.content);
-        setSelectedBranch((current) => current || initialBranchId || resolvedBranch.content[0]?.id || "");
-        if (resolvedBranch.content.length === 0) missing.push("cơ sở khám");
+        const realBranches = bookableBranches(resolvedBranch.content);
+        setLoadedBranches(realBranches);
+        setSelectedBranch((current) => current || initialBranchId || realBranches[0]?.id || "");
+        if (realBranches.length === 0) missing.push("cơ sở khám");
       } else {
         missing.push("cơ sở khám");
       }
@@ -832,14 +839,14 @@ function BookingExperience({
       cancelled = true;
       void task;
     };
-  }, [active, catalogRequest, initialBranchId, initialSpecialtyId, providedBranches.length, providedSpecialties.length]);
+  }, [active, illustrativeInitialSelection, catalogRequest, initialBranchId, initialSpecialtyId, providedBranches.length, providedSpecialties.length]);
 
   // Doctor options are fetched server-side per specialty+branch combo instead
   // of as a full catalog: hosted backends reject large unfiltered doctor
   // queries, and a combo-scoped query is small, exact, and refetches whenever
   // the user changes either selection.
   useEffect(() => {
-    if (!active || !selectedSpecialty || !selectedBranch) return;
+    if (!active || illustrativeInitialSelection || !selectedSpecialty || !selectedBranch) return;
     const specialtySlug = specialties.find((item) => item.id === selectedSpecialty)?.slug;
     const branchSlug = branches.find((item) => item.id === selectedBranch)?.slug;
     if (!specialtySlug || !branchSlug) return;
@@ -862,7 +869,7 @@ function BookingExperience({
     return () => {
       cancelled = true;
     };
-  }, [active, selectedSpecialty, selectedBranch, specialties, branches]);
+  }, [active, illustrativeInitialSelection, selectedSpecialty, selectedBranch, specialties, branches]);
 
   const syncSelection = useCallback(() => {
     if (!active) return;
@@ -1038,6 +1045,7 @@ function BookingExperience({
   }, [resendCooldownSeconds]);
 
   if (!active) return null;
+  if (illustrativeInitialSelection) return <IllustrativeBookingNotice onClose={closeBooking} modal={isModal} />;
 
   const minimumAppointmentDate = businessDate(1);
   const currentDoctor = doctors.find((doctor) => doctor.id === selectedDoctor);
@@ -1156,6 +1164,9 @@ function BookingExperience({
   const handleHoldSlot = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    if (isIllustrativeSelection({ doctorId: selectedDoctor, branchId: selectedBranch, packageId: selectedPackage })) {
+      setErrorMessage(ILLUSTRATIVE_BOOKING_NOTICE); return;
+    }
     if (!currentSpecialty || !selectedSpecialty) {
       setErrorMessage("Chuyên khoa không còn hợp lệ trong danh mục hiện tại. Vui lòng chọn lại trước khi giữ lịch.");
       navigateToStep(1);

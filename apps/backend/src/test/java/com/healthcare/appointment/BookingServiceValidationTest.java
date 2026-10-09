@@ -66,6 +66,68 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class BookingServiceValidationTest {
 
+    @ParameterizedTest
+    @CsvSource({"doctor,f13b9e7b-0ebc-56cb-916c-e5740179c146", "branch,b14a8b67-ae9f-5d55-b1bc-616d6e053abc", "package,43122ce2-e3c6-5421-a416-d7de4ea003d3"})
+    void illustrativeHoldRejectsBeforeReplayOrAnySideEffect(String kind, UUID sampleId) {
+        HoldFixture fixture = new HoldFixture();
+        UUID doctorId = kind.equals("doctor") ? sampleId : UUID.randomUUID();
+        UUID branchId = kind.equals("branch") ? sampleId : UUID.randomUUID();
+        UUID packageId = kind.equals("package") ? sampleId : null;
+        // A real slot does not make an illustrative package operational.
+        stubGuestHoldCatalog(fixture, doctorId, branchId, LocalDate.now().plusDays(1));
+        if (packageId != null) {
+            com.healthcare.hospital.entity.Package item = new com.healthcare.hospital.entity.Package();
+            item.setId(packageId); item.setName("Gói đã đổi tên"); item.setSlug("renamed-package"); item.setActive(true);
+            when(fixture.packages.findByIdAndActiveTrue(packageId)).thenReturn(Optional.of(item));
+        }
+        Appointment dead = ownedReplayHold(fixture, doctorId, branchId, "sample-dead-key");
+        dead.setStatus(com.healthcare.appointment.entity.AppointmentStatus.CANCELLED);
+        HoldSlotRequest request = new HoldSlotRequest(doctorId, LocalDate.now().plusDays(1), LocalTime.of(9, 0),
+            "Minh họa local", "0905550300", "owner@example.test", null, null, branchId, packageId);
+        assertThatThrownBy(() -> fixture.service().holdSlot(request, null, "sample-dead-key"))
+            .isInstanceOfSatisfying(ResponseStatusException.class, failure -> {
+                assertEquals(400, failure.getStatusCode().value());
+                assertEquals("Dữ liệu minh họa không nhận đặt lịch khám. Vui lòng chọn thông tin thực tế.", failure.getReason());
+            });
+        assertEquals("sample-dead-key", dead.getHoldIdempotencyKey());
+        verifyNoInteractions(fixture.appointments, fixture.patients, fixture.doctors, fixture.branches,
+            fixture.packages, fixture.users, fixture.schedules, fixture.slotLocker, fixture.payments,
+            fixture.notifications, fixture.emailSender, fixture.claimService, fixture.passwordEncoder);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"doctor,f13b9e7b-0ebc-56cb-916c-e5740179c146", "branch,b14a8b67-ae9f-5d55-b1bc-616d6e053abc", "package,43122ce2-e3c6-5421-a416-d7de4ea003d3"})
+    void illustrativeRescheduleRejectsAfterAuthorizationBeforeMutation(String kind, UUID sampleId) {
+        HoldFixture fixture = new HoldFixture();
+        Appointment appointment = cancellableAppointment(com.healthcare.appointment.entity.AppointmentStatus.CONFIRMED);
+        if (kind.equals("doctor")) appointment.setDoctor(activeDoctor(sampleId));
+        if (kind.equals("package")) {
+            com.healthcare.hospital.entity.Package item = new com.healthcare.hospital.entity.Package();
+            item.setId(sampleId); item.setName("Đổi tên vẫn minh họa"); appointment.setMedicalPackage(item);
+        }
+        UUID oldBranch = appointment.getBranch().getId();
+        LocalDate oldDate = appointment.getAppointmentDate();
+        when(fixture.appointments.findByBookingCodeWithDetailsForUpdate("APT-OWNER")).thenReturn(Optional.of(appointment));
+        UserDetails admin = new User("local-admin@fixture.invalid", "ignored", List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+        com.healthcare.user.entity.User actor = new com.healthcare.user.entity.User();
+        actor.setId(UUID.randomUUID()); actor.setEmail(admin.getUsername());
+        when(fixture.users.findByEmail(admin.getUsername())).thenReturn(Optional.of(actor));
+        RescheduleAppointmentRequest request = new RescheduleAppointmentRequest(LocalDate.now().plusDays(2),
+            LocalTime.of(10, 0), kind.equals("branch") ? sampleId : null, null);
+        assertThatThrownBy(() -> fixture.service().rescheduleAppointment("APT-OWNER", request, admin))
+            .isInstanceOfSatisfying(ResponseStatusException.class, failure -> {
+                assertEquals(400, failure.getStatusCode().value());
+                assertEquals("Dữ liệu minh họa không nhận đặt lịch khám. Vui lòng chọn thông tin thực tế.", failure.getReason());
+            });
+        assertEquals(oldDate, appointment.getAppointmentDate());
+        assertEquals(oldBranch, appointment.getBranch().getId());
+        verify(fixture.appointments, never()).save(any());
+        verify(fixture.appointments, never()).saveAndFlush(any());
+        verify(fixture.appointments, never()).saveAll(any());
+        verifyNoInteractions(fixture.doctors, fixture.branches, fixture.schedules, fixture.slotLocker,
+            fixture.payments, fixture.notifications, fixture.emailSender);
+    }
+
     @Test
     void resendOtpRejectsDifferentPatientWithoutMutatingHold() {
         AppointmentRepository appointments = mock(AppointmentRepository.class);

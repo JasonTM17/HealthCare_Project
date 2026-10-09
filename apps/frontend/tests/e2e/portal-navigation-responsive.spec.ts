@@ -85,7 +85,7 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
   });
 }
 
-test("admin navigation keeps a compact touch-safe rhythm when the sidebar becomes a mobile band", async ({ context, page }) => {
+test("admin navigation collapses into a toggleable band below the desktop breakpoint", async ({ context, page }) => {
   await context.route("**/api/v1/**", (route) => route.fulfill({
     status: 503,
     contentType: "application/json",
@@ -97,30 +97,118 @@ test("admin navigation keeps a compact touch-safe rhythm when the sidebar become
     "Route Matrix ADMIN",
   ));
 
-  for (const width of [375, 768, 1024, 1920]) {
-    await test.step(`${width}px`, async () => {
+  const navigation = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+  const openToggle = page.getByRole("button", { name: "Mở menu quản trị" });
+
+  for (const width of [320, 375, 768]) {
+    await test.step(`${width}px mobile`, async () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/admin", { waitUntil: "domcontentloaded" });
-      const navigation = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+
+      await expect(openToggle).toBeVisible();
+      await expect(navigation).toBeHidden();
+      const main = await page.getByRole("main").boundingBox();
+      expect(main!.y).toBeLessThanOrEqual(220);
+      await expect.poll(
+        () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      ).toBeLessThanOrEqual(1);
+
+      await openToggle.click();
+      await expect(page.getByRole("button", { name: "Đóng menu quản trị" })).toBeVisible();
+      await expect(navigation).toBeVisible();
+      const navLinks = navigation.getByRole("link");
+      await expect(navLinks).toHaveCount(16);
+      for (const link of await navLinks.all()) {
+        await link.scrollIntoViewIfNeeded();
+        await expect(link).toBeInViewport();
+        await expect(link).toHaveCSS("min-height", "44px");
+      }
+      await expect(page.getByRole("button", { name: "Đăng xuất", exact: true })).toBeVisible();
+
+      await page.keyboard.press("Escape");
+      await expect(navigation).toBeHidden();
+      await expect(openToggle).toBeFocused();
+
+      await openToggle.click();
+      await expect(navigation).toBeVisible();
+      await navigation.getByRole("link", { name: "Thanh toán" }).click();
+      await expect(page).toHaveURL(/\/admin\/payments/);
+      await expect(navigation).toBeHidden();
+    });
+  }
+
+  for (const width of [1024, 1440]) {
+    await test.step(`${width}px desktop`, async () => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/admin", { waitUntil: "domcontentloaded" });
+      await expect(openToggle).toBeHidden();
       await expect(navigation).toBeVisible();
       await expect.poll(
         () => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
       ).toBeLessThanOrEqual(1);
 
-      for (const link of await navigation.getByRole("link").all()) {
+      const navLinks = navigation.getByRole("link");
+      await expect(navLinks).toHaveCount(16);
+      for (const link of await navLinks.all()) {
         // At >=1024px the admin sidebar is a fixed h-screen column; with the
         // full 15-destination nav the tail links live below the fold and are
         // reached by scrolling the sidebar (07B will shrink the list). The
         // viewport assertion stays for the wrapped mobile bands.
-        if (width >= 1024) {
-          await expect(link).toBeVisible();
-        } else {
-          await expect(link).toBeInViewport();
-        }
+        await link.scrollIntoViewIfNeeded();
+        await expect(link).toBeInViewport();
         await expect(link).toHaveCSS("min-height", "44px");
         await link.focus();
         await expect(link).toBeFocused();
       }
     });
+  }
+});
+
+test("admin focused workspaces hide the sidebar until the outside toggle opens it", async ({ context, page }) => {
+  await context.route("**/api/v1/**", (route) => route.fulfill({
+    status: 503,
+    contentType: "application/json",
+    body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }),
+  }));
+  await installMockBrowserSession(context, browserSessionFixture(
+    "ADMIN",
+    "route-matrix-focused",
+    "Route Matrix Focused",
+  ));
+
+  const navigation = page.getByRole("navigation", { name: "Điều hướng quản trị" });
+  const workspaceToggle = page.getByRole("button", { name: "Mở điều hướng quản trị" });
+
+  for (const width of [375, 1440]) {
+    for (const path of ["/admin/content", "/admin/users"]) {
+      await test.step(`${path} at ${width}px`, async () => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(path, { waitUntil: "domcontentloaded" });
+
+        await expect(navigation).toBeHidden();
+        await expect(workspaceToggle).toBeVisible();
+        await expect(workspaceToggle).toHaveAttribute("aria-expanded", "false");
+
+        await workspaceToggle.click();
+        await expect(navigation).toBeVisible();
+        await expect(page.getByRole("button", { name: "Thu gọn điều hướng" })).toHaveAttribute("aria-expanded", "true");
+        await expect(page.getByRole("button", { name: "Đóng menu quản trị" })).toBeHidden();
+        await expect(navigation.getByRole("link")).toHaveCount(16);
+
+        await page.keyboard.press("Escape");
+        await expect(navigation).toBeHidden();
+        await expect(workspaceToggle).toBeFocused();
+
+        await workspaceToggle.click();
+        await expect(navigation).toBeVisible();
+        await navigation.getByRole("link", { name: "Tổng quan" }).click();
+        await expect(page).toHaveURL(/\/admin$/);
+        if (width < 1024) {
+          await expect(navigation).toBeHidden();
+        } else {
+          await expect(navigation).toBeVisible();
+        }
+      });
+    }
   }
 });
