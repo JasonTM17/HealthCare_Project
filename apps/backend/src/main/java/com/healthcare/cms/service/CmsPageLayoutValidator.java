@@ -115,6 +115,7 @@ public final class CmsPageLayoutValidator {
     }
 
     private static boolean safeUrl(String value, boolean image) {
+        if (!image && value.startsWith("tel:")) return CmsPayloadValidator.isSafeActionLink(value);
         if (!value.equals(value.trim()) || value.chars().anyMatch(Character::isWhitespace)
             || CONTROLS.matcher(value).find() || value.contains("\\")) return false;
         return image ? CmsPayloadValidator.isSafeImageSource(value) : CmsPayloadValidator.isSafeActionLink(value);

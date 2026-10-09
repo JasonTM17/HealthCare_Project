@@ -111,6 +111,23 @@ class CmsPageLayoutValidatorTest {
     }
 
     @Test
+    void markdownTelephoneActionsUseStrictActionRuleWithoutRelaxingOtherUrlsOrImages() {
+        ObjectNode payload = payload("homepage.layout");
+        for (String url : List.of("tel:115", "tel:1900 1234", "tel:12 3456", "tel:+84-1234-5678")) {
+            String content = "[Gọi](" + url + ")";
+            field(payload, "hero.body", "rich", content).put("format", "markdown");
+            assertThat(validator.validateAndSanitize("homepage.layout", payload).path("fields").path("hero.body").path("value").textValue()).isEqualTo(content);
+        }
+        for (String value : List.of("[Gọi](tel:12 345)", "[Gọi](tel:112)", "[Gọi](tel:1900%201234)",
+            "[Gọi](tel:1900 1234;ext=1)", "[Gọi]( tel:1900 1234)", "[Gọi](tel:1900 1234 )",
+            "[Gọi](tel:1900\n1234)", "[Web](https://example.com/a b)", "[Web](/a b)",
+            "![Ảnh](tel:1900 1234)", "![Ảnh](/media/a b.jpg)")) {
+            field(payload, "hero.body", "rich", value).put("format", "markdown");
+            rejects("homepage.layout", payload);
+        }
+    }
+
+    @Test
     void enforcesUtf8ByteSizeAndPerFieldLimitsAndControlCharacters() {
         ObjectNode payload = payload("homepage.layout");
         field(payload, "hero.title", "text", "x".repeat(4_001)); rejects("homepage.layout", payload);
