@@ -134,7 +134,7 @@ services:
       # a public health endpoint (no credentials), matching the warm cron in
       # .github/workflows/render-warm.yml.
       - key: BACKEND_WARM_URL
-        value: https://healthcare-backup-backend-oqv4.onrender.com/actuator/health
+        value: https://healthcare-backup-backend.onrender.com/actuator/health
 
   - type: web
     name: healthcare-beta-backend

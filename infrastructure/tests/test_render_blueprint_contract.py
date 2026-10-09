@@ -106,7 +106,7 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     # [L1] Cross-warmer ai→backend must stay enabled: without this key the
     # startup hook in app/main.py self-disables and the warm chain is one-way.
     assert ai_env["BACKEND_WARM_URL"]["value"] == (
-        "https://healthcare-backup-backend-oqv4.onrender.com/actuator/health"
+        "https://healthcare-backup-backend.onrender.com/actuator/health"
     )
 
 
