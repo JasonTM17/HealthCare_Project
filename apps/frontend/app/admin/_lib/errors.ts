@@ -122,9 +122,16 @@ export function describeAdminError(
         ),
       };
     }
+    // Guard rejections (e.g. "không thể khóa tài khoản của chính mình") carry
+    // the operator-facing sentence on 409 too — an opted-in call site shows it
+    // verbatim instead of the generic stale-data copy.
+    const serverMessage = options.preferServerMessage ? getServerMessage(error) : "";
     return {
-      title: "Dữ liệu vừa được cập nhật",
-      description: withFieldDetails("Hãy tải lại danh sách trước khi lưu thay đổi mới.", error),
+      title: serverMessage ? "Thao tác bị từ chối" : "Dữ liệu vừa được cập nhật",
+      description: withFieldDetails(
+        serverMessage || "Hãy tải lại danh sách trước khi lưu thay đổi mới.",
+        error,
+      ),
     };
   }
 

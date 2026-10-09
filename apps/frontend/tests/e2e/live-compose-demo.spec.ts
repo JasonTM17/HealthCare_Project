@@ -854,9 +854,9 @@ async function expectDemoAdminPaymentApprovalSucceeds(
     const approved = await reviewResponse;
     expect(approved.status()).toBe(200);
     await expect(approveDialog).toHaveCount(0);
-    // The list defaults to the PENDING_VERIFICATION status filter, so an
-    // approved payment correctly drops out of the visible rows; re-filter to
-    // the paid status before asserting the row's new state. No exact:true
+    // The list defaults to "Tất cả", so the approved payment stays visible;
+    // re-filter to the paid status anyway so the assertion proves the row
+    // lands in the PAID bucket, not merely survives. No exact:true
     // here: the select sits inside its wrapping label, and Playwright folds
     // the embedded option texts into the label's element text, so the label's
     // normalized text is "Trạng thái" plus every status option — exact can

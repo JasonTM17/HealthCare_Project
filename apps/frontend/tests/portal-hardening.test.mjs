@@ -47,12 +47,12 @@ async function collectSourceFiles(directory, files = []) {
   return files;
 }
 
-test("77 portal routes are partitioned across 4 functional portals without duplicates", async () => {
+test("78 portal routes are partitioned across 4 functional portals without duplicates", async () => {
   const pageFiles = await collectPageFiles(appRoot);
-  assert.equal(pageFiles.length, 77, "must contain exactly 77 App Router page.tsx files");
+  assert.equal(pageFiles.length, 78, "must contain exactly 78 App Router page.tsx files");
 
   const actualRoutes = pageFiles.map(routeForPage).sort();
-  assert.equal(new Set(actualRoutes).size, 77, "must contain zero duplicate route paths");
+  assert.equal(new Set(actualRoutes).size, 78, "must contain zero duplicate route paths");
 
   const isPatient = (r) => r === "/patient" || r.startsWith("/patient/");
   const isDoctor = (r) => r === "/doctor" || r.startsWith("/doctor/");
@@ -67,11 +67,11 @@ test("77 portal routes are partitioned across 4 functional portals without dupli
   assert.equal(publicRoutes.length, 34, "Public portal & auth must comprise exactly 34 routes");
   assert.equal(patientRoutes.length, 17, "Patient portal must comprise exactly 17 routes");
   assert.equal(doctorRoutes.length, 11, "Doctor portal must comprise exactly 11 routes");
-  assert.equal(adminRoutes.length, 15, "Admin portal must comprise exactly 15 routes");
+  assert.equal(adminRoutes.length, 16, "Admin portal must comprise exactly 16 routes");
   assert.equal(
     publicRoutes.length + patientRoutes.length + doctorRoutes.length + adminRoutes.length,
-    77,
-    "all 77 routes must be fully partitioned across the 4 portals",
+    78,
+    "all 78 routes must be fully partitioned across the 4 portals",
   );
 
   // Key routes verification across all portals
@@ -149,6 +149,7 @@ test("77 portal routes are partitioned across 4 functional portals without dupli
     "/admin/health-questions",
     "/admin/consultations",
     "/admin/careers",
+    "/admin/users",
   ];
 
   for (const keyRoute of expectedKeyRoutes) {

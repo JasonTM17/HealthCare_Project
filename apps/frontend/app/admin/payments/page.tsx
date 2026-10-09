@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { adminImportBankStatement, adminListBankWebhookEvents, adminListPayments, adminRefundPayment, adminReviewPayment, type BankStatementImportResult, type BankTransferPayment, type PaymentWebhookEventView } from "../../../lib/api-client";
 import { formatBusinessDate, formatBusinessDateTime } from "../../../lib/business-time";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
@@ -31,9 +32,17 @@ function money(amount: number): string {
   return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
 }
 
-export default function AdminPaymentsPage() {
+function AdminPaymentsWorkspace() {
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<BankTransferPayment[]>([]);
-  const [status, setStatus] = useState("PENDING_VERIFICATION");
+  // Default "Tất cả": paid/reconciled rows vastly outnumber pending ones, so
+  // landing on the pending filter reads as "no data" even though the ledger is
+  // full. A valid ?status= deep link (e.g. the dashboard "Cần xử lý" queue)
+  // still seeds the filter directly.
+  const [status, setStatus] = useState(() => {
+    const requested = searchParams.get("status");
+    return requested && PAYMENT_STATUSES.some(([value]) => value === requested) ? requested : "";
+  });
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
@@ -250,5 +259,13 @@ export default function AdminPaymentsPage() {
         title={decision?.kind === "VERIFY" ? "Phê duyệt thanh toán" : decision?.kind === "REJECT" ? "Từ chối đối soát giao dịch" : "Xác nhận hoàn tiền cho bệnh nhân"}
       />
     </div>
+  );
+}
+
+export default function AdminPaymentsPage() {
+  return (
+    <Suspense fallback={<AdminState tone="loading" title="Đang mở trang thanh toán" description="Vui lòng chờ trong giây lát." />}>
+      <AdminPaymentsWorkspace />
+    </Suspense>
   );
 }
