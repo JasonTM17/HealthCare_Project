@@ -63,6 +63,7 @@ test("already-read and unknown admin notifications still show complete details w
   const items = [
     { id: "safety-read", eventType: "AI_SAFETY_ALERT", title: "Cảnh báo an toàn AI", message: "Dữ liệu kiểm thử: thông báo đã đọc vẫn mở được.", read: true, createdAt: "2026-10-09T10:00:00Z" },
     { id: "future-read", eventType: "FUTURE_EVENT", title: "Thông báo mới", message: "Nội dung đầy đủ.", read: true, createdAt: "2026-10-09T10:00:00Z" },
+    ...["PAYMENT_CONFIRMED", "HEALTH_QUESTION_SUBMITTED", "HEALTH_QUESTION_ANSWERED", "CONSULTATION_MESSAGE"].map((eventType) => ({ id: eventType, eventType, title: `Thông báo ${eventType}`, message: "Dữ liệu kiểm thử loại thông báo.", read: true, createdAt: "2026-10-09T10:00:00Z" })),
   ];
   let writes = 0;
   await context.route("**/api/v1/**", async (route) => {
@@ -79,7 +80,9 @@ test("already-read and unknown admin notifications still show complete details w
     const detail = page.getByRole("dialog", { name: item.title, exact: true });
     await expect(detail).toBeVisible();
     await expect(detail.getByText(item.message)).toBeVisible();
-    await expect(detail.getByRole("link")).toHaveCount(0);
+    const actionHref = item.eventType === "PAYMENT_CONFIRMED" ? "/admin/payments" : item.eventType.startsWith("HEALTH_QUESTION_") ? "/admin/health-questions" : item.eventType === "CONSULTATION_MESSAGE" ? "/admin/consultations" : null;
+    if (actionHref) await expect(detail.getByRole("link")).toHaveAttribute("href", actionHref);
+    else await expect(detail.getByRole("link")).toHaveCount(0);
     await detail.getByRole("button", { name: "Đóng chi tiết thông báo" }).click();
     await expect(detail).toBeHidden();
   }

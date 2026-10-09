@@ -12,7 +12,7 @@ import type { Notification } from "../../../types/hospital";
 function queueAction(eventType: string): { href: string; label: string } | null {
   switch (eventType) {
     case "PAYMENT_SUBMITTED": return { href: "/admin/payments?status=PENDING_VERIFICATION", label: "Mở thanh toán chờ đối soát" };
-    case "PAYMENT_VERIFIED":
+    case "PAYMENT_CONFIRMED":
     case "PAYMENT_REJECTED":
     case "PAYMENT_REFUNDED": return { href: "/admin/payments", label: "Mở quản lý thanh toán" };
     case "APPOINTMENT_CREATED":
@@ -20,9 +20,9 @@ function queueAction(eventType: string): { href: string; label: string } | null 
     case "APPOINTMENT_CANCELLED":
     case "APPOINTMENT_RESCHEDULED":
     case "APPOINTMENT_REMINDER": return { href: "/admin/appointments", label: "Mở quản lý lịch hẹn" };
-    case "HEALTH_QUESTION_REPLIED":
-    case "HEALTH_QUESTION_ASSIGNED": return { href: "/admin/health-questions", label: "Mở hỏi đáp sức khỏe" };
-    case "CONSULTATION_ASSIGNED": return { href: "/admin/consultations", label: "Mở tư vấn bệnh nhân" };
+    case "HEALTH_QUESTION_SUBMITTED":
+    case "HEALTH_QUESTION_ANSWERED": return { href: "/admin/health-questions", label: "Mở hỏi đáp sức khỏe" };
+    case "CONSULTATION_MESSAGE": return { href: "/admin/consultations", label: "Mở tư vấn bệnh nhân" };
     // AI safety references identify private AI conversations, not consultation
     // queue records. Show details without fabricating an unsupported deep link.
     default: return null;
