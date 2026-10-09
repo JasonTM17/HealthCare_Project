@@ -43,7 +43,9 @@ test("admin layout gates access and exposes real account actions", async () => {
   assert.match(layout, /forbidden/);
   assert.match(layout, /aria-current/);
   assert.match(layout, /logoutCurrentUser/);
-  assert.match(layout, /\/auth\/login\?next=%2Fadmin/);
+  assert.match(layout, /\/auth\/login\?next=" \+ loginNext\(\)/);
+  assert.match(layout, /window\.location\.pathname}\$\{window\.location\.search}\$\{window\.location\.hash}/);
+  assert.match(layout, /encodeURIComponent/);
   assert.match(layout, /href="#main-content"/);
   assert.match(layout, /id="main-content"/);
   assert.doesNotMatch(layout, /healthcare\.auth\.session|sessionStorage|localStorage/);
