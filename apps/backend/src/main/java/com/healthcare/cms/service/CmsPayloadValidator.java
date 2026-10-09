@@ -21,6 +21,8 @@ public class CmsPayloadValidator {
 
     private static final Pattern FIELD_NAME = Pattern.compile("[a-z][A-Za-z0-9]{0,39}");
     private static final Pattern UNSAFE_TEXT = Pattern.compile("(?i)(<|>|javascript\\s*:|data\\s*:)");
+    // Hotline CTAs ("Gọi 115") are legitimate content: strict RFC 3966 shape.
+    private static final Pattern TEL_URI = Pattern.compile("(?i)^tel:\\+?[0-9][0-9().\\-\\s]{1,24}$");
     private static final int MAX_FIELDS = 12;
     private static final int MAX_TEXT_LENGTH = 4_000;
     private static final int MAX_PAYLOAD_BYTES = 32_768;
@@ -112,6 +114,9 @@ public class CmsPayloadValidator {
     private boolean isSafeLink(String value) {
         if (value.startsWith("/")) {
             return !value.startsWith("//") && !value.contains("\\");
+        }
+        if (TEL_URI.matcher(value).matches()) {
+            return true;
         }
         try {
             URI uri = new URI(value);

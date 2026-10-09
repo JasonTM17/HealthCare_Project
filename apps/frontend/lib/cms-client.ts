@@ -117,6 +117,12 @@ export type CmsContent = CmsContentBase & (
   | { componentType: "IMAGE_CARD"; payload: CmsImageCardPayload }
 );
 
+export interface CmsAdminInventory {
+  items: CmsContent[];
+  /** Slots the typed contract rejected — surfaced so admins can repair them. */
+  rejectedSlotKeys: string[];
+}
+
 export interface CmsContentHistoryEntry {
   eventId: number;
   slotKey: string;
@@ -238,6 +244,10 @@ const IMAGE_FIELDS = new Set(["imageUrl", "src"]);
 // only satisfies the generic HTTPS link rule still renders broken in public.
 const CMS_IMAGE_HOSTS = new Set(["images.unsplash.com", "images.pexels.com", "img.vietqr.io"]);
 const UNSAFE_TEXT = /(<|>|javascript\s*:|data\s*:)/i;
+// Hotline CTAs ("Gọi 115") are legitimate published content: accept a strict
+// RFC 3966-shaped tel: URI (digits, separators, optional leading +) while
+// still rejecting every other non-http scheme.
+const CMS_TEL_URI = /^tel:\+?[0-9][0-9().\-\s]{1,24}$/i;
 
 const PAYLOAD_SCHEMAS: Record<CmsComponentType, {
   allowed: readonly string[];
@@ -322,6 +332,9 @@ export function isSafeCmsUrl(value: string): boolean {
   if (candidate.startsWith("/")) {
     return !candidate.startsWith("//") && !candidate.includes("\\");
   }
+  if (CMS_TEL_URI.test(candidate)) {
+    return true;
+  }
   try {
     const url = new URL(candidate);
     return url.protocol === "https:" && Boolean(url.host) && !url.username && !url.password;
@@ -332,7 +345,7 @@ export function isSafeCmsUrl(value: string): boolean {
 
 export function assertSafeCmsUrl(value: string, field: string): void {
   if (!isSafeCmsUrl(value)) {
-    throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ hoặc HTTPS URL.`, {
+    throw new CmsValidationError(`${field} chỉ được dùng đường dẫn nội bộ, HTTPS URL hoặc tel:.`, {
       [`payload.${field}`]: "URL không an toàn hoặc không được hỗ trợ.",
     });
   }
@@ -758,17 +771,28 @@ export class CmsClient {
     return this.requestContent(this.adminContentPath(slotKey));
   }
 
-  async listAdminContent(): Promise<CmsContent[]> {
+  async listAdminContent(): Promise<CmsAdminInventory> {
     const raw = await this.request<unknown>("/admin/cms/content");
     if (!Array.isArray(raw)) {
       throw new CmsApiError("validation", 0, "CMS API không trả về danh sách slot hợp lệ.");
     }
-    try {
-      return raw.map((item) => parseCmsContent(item));
-    } catch (error) {
-      if (error instanceof CmsApiError) throw error;
-      throw new CmsApiError("validation", 0, "CMS API trả về slot sai schema.");
+    const items: CmsContent[] = [];
+    const rejectedSlotKeys: string[] = [];
+    for (const item of raw) {
+      try {
+        items.push(parseCmsContent(item));
+      } catch {
+        // One malformed row must not blank the whole directory: keep every
+        // valid slot editable and surface the rejected key so the admin can
+        // repair the offending payload instead of seeing a total failure.
+        rejectedSlotKeys.push(
+          isRecord(item) && typeof item.slotKey === "string"
+            ? item.slotKey
+            : "(hàng không đọc được)",
+        );
+      }
     }
+    return { items, rejectedSlotKeys };
   }
 
   async upsertContent(slotKey: string, input: CmsContentInput): Promise<CmsContent> {

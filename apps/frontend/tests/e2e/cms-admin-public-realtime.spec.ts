@@ -324,7 +324,7 @@ test("admin publish reaches the public homepage hero through the bounded poll wh
     );
 
     await adminPage.goto("/admin/content");
-    await expect(adminPage.getByRole("heading", { name: "Chỉnh sửa một component theo slot" })).toBeVisible();
+    await expect(adminPage.getByRole("heading", { name: "Cập nhật nội dung theo từng trang" })).toBeVisible();
     await expect(adminPage.locator("#cms-payload-title")).toHaveValue(INITIAL_TITLE);
 
     await adminPage.locator("#cms-payload-title").fill(UPDATED_TITLE);
