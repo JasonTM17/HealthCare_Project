@@ -599,8 +599,8 @@ test("Render health keeps its fail-loud aggregate exit inside a cold-start probe
   assert.match(renderJob, /exit \$failed/);
   assert.match(renderJob, /::error::Render service '\$name' is DOWN after 3 attempts/);
   assert.match(renderJob, /\$code" = "200"/, "only a 200 may be treated as healthy");
-  assert.match(renderJob, /healthcare-backup-backend\.onrender\.com\/actuator\/health/);
-  assert.match(renderJob, /healthcare-backup-ai\.onrender\.com\/livez/);
+  assert.match(renderJob, /healthcare-primary-backend\.onrender\.com\/actuator\/health/);
+  assert.match(renderJob, /healthcare-primary-ai\.onrender\.com\/livez/);
 
   // Cloudflare fronts Render, so Render's own router header never reaches this
   // job. The old `x-render-routing` gate could only ever read `absent`, which

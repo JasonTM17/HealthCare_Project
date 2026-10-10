@@ -79,6 +79,13 @@ public class DoctorScheduleService {
     }
 
     @Transactional
+    public DoctorScheduleResponse updateScheduleResponse(UUID scheduleId, DoctorScheduleRequest request, boolean force) {
+        // Build the flat HTTP response while doctor/branch relations are still attached.
+        // Mapping failure must also roll back the update rather than report a committed write as 500.
+        return DoctorScheduleResponse.from(updateSchedule(scheduleId, request, force));
+    }
+
+    @Transactional
     public DoctorSchedule updateSchedule(UUID scheduleId, DoctorScheduleRequest request, boolean force) {
         validate(request);
         lockScheduleDoctor(scheduleId);
