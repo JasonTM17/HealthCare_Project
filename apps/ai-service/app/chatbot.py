@@ -776,6 +776,34 @@ def focus_public_retrieval_hits(
     ]
 
 
+def _catalogue_category_phrases(message: str, mode: ChatMode) -> tuple[str, ...]:
+    """Recognize explicit lab/imaging catalogue questions, never clinical intent."""
+    if mode is not ChatMode.HOSPITAL_SUPPORT:
+        return ()
+    normalized = normalize_sensitive_text(message)
+    if re.search(r"\b(?:bac si|dat lich)\b", normalized):
+        return ()
+    if not re.search(r"\b(?:dich vu|danh muc|danh sach)\b|\bco nhung\b.*\bnao\b", normalized):
+        return ()
+    categories: list[str] = []
+    if re.search(r"\bxet nghiem\b", normalized):
+        categories.append("xet nghiem")
+    if re.search(r"\bchan doan hinh anh\b|\bxet nghiem va chan doan\b", normalized):
+        categories.append("chan doan hinh anh")
+    return tuple(categories)
+
+
+def _matches_catalogue_category(
+    source_type: str, title: str, categories: tuple[str, ...],
+) -> bool:
+    if not categories:
+        return True
+    normalized = normalize_sensitive_text(title)
+    return source_type in {"service", "specialty", "package"} and any(
+        re.search(rf"\b{re.escape(category)}\b", normalized) for category in categories
+    )
+
+
 def _focus_candidates_for_question(
     message: str,
     mode: ChatMode,
@@ -785,6 +813,11 @@ def _focus_candidates_for_question(
 
     if not candidates:
         return candidates
+    categories = _catalogue_category_phrases(message, mode)
+    if categories:
+        return [candidate for candidate in candidates if _matches_catalogue_category(
+            candidate.source_type, candidate.title, categories,
+        )]
     if mode is ChatMode.HEALTH_EDUCATION:
         topic_tokens = public_education_topic_tokens(message)
         if len(topic_tokens) < 2:
@@ -1450,12 +1483,15 @@ def retrieve_chat_candidates(
             hits = []
 
     threshold = _threshold(settings)
+    categories = _catalogue_category_phrases(request.message, request.mode)
     candidates: list[ChatCandidate] = []
     for document, score in hits:
         if score < threshold:
             continue
         meta = _source_metadata(document)
         if not _mode_allows(meta, request.mode) or _expired(meta):
+            continue
+        if not _matches_catalogue_category(document.source_type, document.title, categories):
             continue
         if not _context_is_safe(meta):
             # Quarantine untrusted content instead of returning it as an
@@ -1475,6 +1511,8 @@ def retrieve_chat_candidates(
         for document, score in hits:
             meta = _source_metadata(document)
             if not _mode_allows(meta, request.mode) or _expired(meta):
+                continue
+            if not _matches_catalogue_category(document.source_type, document.title, categories):
                 continue
             if not _context_is_safe(meta):
                 continue
@@ -1533,6 +1571,8 @@ def retrieve_chat_candidates(
         for document in pool:
             meta = _source_metadata(document)
             if not _mode_allows(meta, request.mode) or _expired(meta):
+                continue
+            if not _matches_catalogue_category(document.source_type, document.title, categories):
                 continue
             # Cheap gates first: the full-content safety scan costs ~100 ms
             # per document, so running it before the overlap bar multiplies a

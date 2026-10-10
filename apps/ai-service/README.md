@@ -45,6 +45,16 @@ never put its DSN or a `service_role` credential in the frontend. The legacy
 `ai_documents`/`match_documents` pair remains for the older public catalog
 index and is rejected by the patient-chat adapter.
 
+Explicit hospital-support catalogue questions about lab tests or diagnostic
+imaging keep only matching service/specialty/package titles before candidate caps and
+bounded lexical rescue. This title filter never raises a relevance score or
+changes approval, expiry, source-validation or remote-provider gates. Generic
+diagnosis, doctor/booking requests and clinical modes keep their existing routing.
+Approved illustrative catalogue answers retain their visible sample disclosure
+when displayed in chat history; historical doctor/schedule fixture cleanup still
+applies. An empty stream `404` with chunk delivery disabled uses the existing
+JSON fallback and does not indicate provider streaming support.
+
 When `RAG_STORAGE_BACKEND=supabase`, `/health` separates the three ways a
 durable-backed deployment can answer, so an operator never reads a refusal as
 fallback traffic. `rag_fallback_permitted` is static configuration: the process
