@@ -1168,6 +1168,11 @@
 }
 
 @media (max-width: 640px) {
+  /* Portal headers provide the same assistant action in normal flow. Hide
+     only the closed floating launcher so it cannot cover page controls/text. */
+  .root[data-page^="/patient"][data-open="false"] .launcher {
+    display: none;
+  }
   .root {
     --assistant-bottom-clearance: 6.5rem;
     right: max(0.75rem, env(safe-area-inset-right));

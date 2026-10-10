@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.ArrayList;
@@ -36,7 +37,8 @@ public class PaymentReceiptPdfRenderer {
     private static final float BODY_SIZE = 10f;
     private static final float BODY_LEADING = 15f;
     private static final DateTimeFormatter ISSUED_FORMAT =
-        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm 'GMT'XXX");
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm 'GMT'xxx")
+            .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
     private final byte[] regularFontBytes;
     private final byte[] boldFontBytes;
