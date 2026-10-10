@@ -93,7 +93,7 @@ public class AdminScheduleController {
             @PathVariable UUID scheduleId,
             @Valid @RequestBody DoctorScheduleRequest request,
             @RequestParam(name = "force", defaultValue = "false") boolean force) {
-        return ResponseEntity.ok(DoctorScheduleResponse.from(scheduleService.updateSchedule(scheduleId, request, force)));
+        return ResponseEntity.ok(scheduleService.updateScheduleResponse(scheduleId, request, force));
     }
 
     @Operation(summary = "Xóa ca khám làm việc", description = "Hủy bỏ ca khám định kỳ của bác sĩ")
