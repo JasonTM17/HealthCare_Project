@@ -90,7 +90,7 @@ Thumbs.db
 .gemini/sessions/
 .grok/
 project_structure_summary.txt
-plans/
+/plans/
 
 # Private AgentKit/runtime source kept on the local workspace only
 .agentkit/
@@ -104,7 +104,6 @@ plans/
 .opencode/
 OPENCODE.md
 engineer/
-plans/
 .mimosa/
 **/.mimosa/
 .video_agent/
