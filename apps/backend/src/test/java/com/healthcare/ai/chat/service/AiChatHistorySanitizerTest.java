@@ -44,6 +44,42 @@ class AiChatHistorySanitizerTest {
     }
 
     @Test
+    void preservesApprovedIllustrativeCatalogueAnswerAndItsDisclosure() {
+        String answer = "Dịch vụ xét nghiệm máu (minh họa): Dữ liệu minh họa cho website trải nghiệm; "
+            + "không phải danh sách dịch vụ thực tế. Cần cơ sở xác nhận trước khi sử dụng.";
+        AiChatSourceResolver.ResolvedSource service = new AiChatSourceResolver.ResolvedSource(
+            "service", "service-lab", "Xét nghiệm máu (minh họa)", "minh-hoa-xet-nghiem",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/services/minh-hoa-xet-nghiem", null);
+
+        assertThat(AiChatHistorySanitizer.sanitize(
+            AiMessageRole.ASSISTANT, answer, "Có dịch vụ xét nghiệm nào?", List.of(service)))
+            .isEqualTo(answer);
+    }
+
+    @Test
+    void stillSuppressesFixtureSchedulesEvenWithCatalogueSources() {
+        String legacy = "Dữ liệu minh họa: Lịch thử nghiệm 08:00-17:00.";
+        AiChatSourceResolver.ResolvedSource service = new AiChatSourceResolver.ResolvedSource(
+            "service", "service-lab", "Xét nghiệm máu (minh họa)", "minh-hoa-xet-nghiem",
+            true, true, "OPERATIONAL", null, null, null, null,
+            "/services/minh-hoa-xet-nghiem", null);
+
+        assertThat(AiChatHistorySanitizer.sanitize(
+            AiMessageRole.ASSISTANT, legacy, List.of(service)))
+            .doesNotContain("08:00", "17:00", "Lịch thử nghiệm");
+    }
+
+    @Test
+    void doesNotPreserveFixtureDisclosureWithoutCurrentCatalogueSources() {
+        String fixture = "Bác sĩ mẫu: DỮ LIỆU MINH HỌA: Hồ sơ giả lập.";
+
+        assertThat(AiChatHistorySanitizer.sanitize(
+            AiMessageRole.ASSISTANT, fixture, List.of()))
+            .doesNotContain("Bác sĩ mẫu", "DỮ LIỆU MINH HỌA", "Hồ sơ giả lập");
+    }
+
+    @Test
     void focusesHistoricalSpecialtyAnswersOnSpecialtySources() {
         AiChatSourceResolver.ResolvedSource specialty = new AiChatSourceResolver.ResolvedSource(
             "specialty", "specialty-neuro", "Thần kinh", "than-kinh", true, true,
