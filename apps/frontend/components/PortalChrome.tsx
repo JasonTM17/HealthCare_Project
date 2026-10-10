@@ -692,7 +692,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
             </Link>
             <div className="grid max-w-xs justify-items-end gap-1">
               {role === "PATIENT" && pathname !== "/patient/chat" && !pathname.startsWith("/patient/chat/") ? <button className="outline-button outline-button--small min-h-11 portal-assistant-trigger" type="button"
-                aria-controls="floating-health-assistant-panel"
+                aria-haspopup="dialog"
                 onClick={() => window.dispatchEvent(new CustomEvent("healthcare:open-assistant"))}>
                 Trợ lý AI
               </button> : null}
