@@ -104,6 +104,10 @@ with unchanged auth semantics.
 
 ## Consequences
 
+- PDF successes retain `application/pdf`. Typed business, missing-document and
+  access errors return the JSON error envelope even when the request accepts
+  only PDF; an incompatible `Accept` header returns 406 rather than 500.
+  Download callers must inspect status/content type before saving a file.
 - Generation, listing, and downloads are strictly owner-scoped and audited via
   the existing clinical access audit service.
 - Template or font changes change the template version constant, which changes
