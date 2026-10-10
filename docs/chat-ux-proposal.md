@@ -1,5 +1,12 @@
 # Đề xuất UI/UX khung chat Trợ lý HealthCare (lượt polish kế tiếp)
 
+Định dạng tin nhắn dùng chung cho khung nổi và lịch sử: các dấu `•` nằm trong
+đoạn văn trở thành từng dòng; nhãn giá, đối tượng, số ngày và dịch vụ được làm
+đậm và tách mục. Đây là cách hiển thị, không sửa nội dung đã lưu hay số tiền.
+Liên kết nguồn, Markdown và ví dụ mã vẫn được hiển thị an toàn. Trên điện thoại,
+nút Trợ lý AI trong đầu trang bệnh nhân mở cùng khung trợ lý; nút nổi khi đóng
+được ẩn để không che nội dung. Thanh điều hướng có nút cuộn và hỗ trợ bàn phím.
+
 Trạng thái đã xong trong đợt này: chữ ≥12px, tương phản AA, strip lỗi một hàng,
 pill "Gián đoạn" trong header, composer bo góc token. Đề xuất dưới đây là lớp
 "đẹp hơn" — làm sau khi bundle mới lên production, theo thứ tự ưu tiên.

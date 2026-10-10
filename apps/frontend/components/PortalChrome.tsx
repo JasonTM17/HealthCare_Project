@@ -149,6 +149,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
+  const [navEdges, setNavEdges] = useState({ previous: false, next: false });
   const notificationModalRef = useRef<HTMLDivElement>(null);
   // The notification detail opens from the (self-closing) popover, so the
   // popover Escape handler above never sees it. Treat the detail as a modal
@@ -166,6 +167,27 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
     const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     active.scrollIntoView({ block: "nearest", inline: "nearest", behavior: prefersReducedMotion ? "auto" : "smooth" });
   }, [pathname]);
+
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const sync = () => setNavEdges({
+      previous: nav.scrollLeft > 1,
+      next: nav.scrollLeft + nav.clientWidth < nav.scrollWidth - 1,
+    });
+    sync();
+    nav.addEventListener("scroll", sync, { passive: true });
+    const observer = new ResizeObserver(sync);
+    observer.observe(nav);
+    return () => { observer.disconnect(); nav.removeEventListener("scroll", sync); };
+  }, [pathname, role]);
+
+  const scrollNavigation = (direction: number) => {
+    const nav = navRef.current;
+    if (!nav) return;
+    nav.scrollBy({ left: direction * Math.max(120, nav.clientWidth * 0.75),
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
 
   // Returns the settle promise so the background poll can tell when a read is
   // still in flight and refuse to stack a second one on top of it.
@@ -480,7 +502,12 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
             <BrandMark size="compact" tagline={ROLE_LABEL[role]} />
           </Link>
 
-          <nav aria-label="Điều hướng cổng thông tin" className="portal-nav" ref={navRef}>
+          <div className="portal-nav-row">
+          <button aria-label="Xem mục điều hướng trước" aria-controls="portal-navigation" className="portal-nav-scroll"
+            disabled={!navEdges.previous} onClick={() => scrollNavigation(-1)} type="button">
+            <UiIcon name="arrow-left" size={20} />
+          </button>
+          <nav aria-label="Điều hướng cổng thông tin" id="portal-navigation" className="portal-nav" ref={navRef}>
             {links.map((link) => (
               <Link
                 aria-current={isActive(link.href) ? "page" : undefined}
@@ -502,6 +529,11 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
               </Link>
             ))}
           </nav>
+          <button aria-label="Xem mục điều hướng tiếp" aria-controls="portal-navigation" className="portal-nav-scroll"
+            disabled={!navEdges.next} onClick={() => scrollNavigation(1)} type="button">
+            <UiIcon name="chevron-right" size={20} />
+          </button>
+          </div>
 
           <div className="portal-user">
             {(() => {
@@ -659,6 +691,11 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
               </div>
             </Link>
             <div className="grid max-w-xs justify-items-end gap-1">
+              {role === "PATIENT" && pathname !== "/patient/chat" && !pathname.startsWith("/patient/chat/") ? <button className="outline-button outline-button--small min-h-11 portal-assistant-trigger" type="button"
+                aria-haspopup="dialog"
+                onClick={() => window.dispatchEvent(new CustomEvent("healthcare:open-assistant"))}>
+                Trợ lý AI
+              </button> : null}
               <button className="outline-button outline-button--small min-h-11" disabled={loggingOut} onClick={handleLogout} type="button">
                 {loggingOut ? "Đang thoát..." : "Đăng xuất"}
               </button>

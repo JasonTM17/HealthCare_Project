@@ -4420,9 +4420,35 @@ main {
   white-space: nowrap;
 }
 
-.portal-nav {
+.portal-nav-row {
   order: 3;
   width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: end;
+  gap: 0.25rem;
+}
+
+.portal-nav-scroll {
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-teal-900);
+  background: var(--color-teal-50);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+}
+
+.portal-nav-scroll:disabled { opacity: 0.35; cursor: default; }
+.portal-nav-scroll:focus-visible { outline: 2px solid var(--color-teal-600); outline-offset: 2px; }
+.portal-assistant-trigger { font-size: 0.75rem; }
+
+.portal-nav {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   /* Single scrollable tab strip at every width: wrapping pushed 13 patient
@@ -4437,7 +4463,7 @@ main {
   border-bottom: 1px solid var(--color-line);
   border-radius: 0;
   background: transparent;
-  scrollbar-width: none;
+  scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -4450,8 +4476,10 @@ main {
 }
 
 .portal-nav::-webkit-scrollbar {
-  display: none;
+  height: 3px;
 }
+
+.portal-nav::-webkit-scrollbar-thumb { background: var(--color-teal-600); border-radius: 2px; }
 
 .portal-nav__link {
   min-height: 44px;
@@ -6261,8 +6289,6 @@ main {
   }
 
   .portal-nav {
-    order: 3;
-    width: 100%;
     margin-left: 0;
   }
 

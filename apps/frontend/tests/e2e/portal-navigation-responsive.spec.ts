@@ -79,6 +79,12 @@ for (const role of ["PATIENT", "DOCTOR"] as const) {
           return (values[0] + 0.05) / (values[1] + 0.05);
         })).toBeGreaterThanOrEqual(3);
         await page.keyboard.press("Tab");
+        if (role === "PATIENT") {
+          const assistant = page.getByRole("button", { name: "Trợ lý AI", exact: true });
+          await expect(assistant).toBeFocused();
+          await expect(assistant).toHaveAttribute("aria-haspopup", "dialog");
+          await page.keyboard.press("Tab");
+        }
         await expect(page.getByRole("button", { name: "Đăng xuất", exact: true })).toBeFocused();
       });
     }

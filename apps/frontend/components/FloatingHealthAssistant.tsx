@@ -548,7 +548,7 @@ function FloatingHealthAssistantPanel({
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", handleKeyDown);
-      if (launcher?.isConnected) launcher.focus();
+      if (launcher?.isConnected && launcher.getClientRects().length > 0) launcher.focus();
       else if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, [blockedByModal, closeAssistant, hidden, open]);
@@ -933,6 +933,7 @@ function FloatingHealthAssistantPanel({
     <div
       className={`${styles.root}${isPatient ? ` ${styles.rootPatient}` : ""}`}
       data-page={pathname}
+      data-open={open}
       data-testid="floating-health-assistant"
     >
       {open && !hidden ? (

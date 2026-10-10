@@ -7,6 +7,7 @@ import com.healthcare.ai.chat.entity.FeedbackRating;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -68,7 +69,7 @@ public class GlobalExceptionHandler {
             List.of(),
             ex.getCode()
         );
-        return ResponseEntity.status(ex.getStatus()).body(error);
+        return ResponseEntity.status(ex.getStatus()).contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
     @ExceptionHandler(ValidationException.class)
@@ -92,7 +93,7 @@ public class GlobalExceptionHandler {
             ex.getMessage(),
             extractPath(request)
         );
-        return ResponseEntity.status(404).body(error);
+        return ResponseEntity.status(404).contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
@@ -203,7 +204,7 @@ public class GlobalExceptionHandler {
             List.of(),
             ErrorCodes.VALIDATION_ERROR
         );
-        return ResponseEntity.badRequest().body(error);
+        return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -353,7 +354,7 @@ public class GlobalExceptionHandler {
             List.of(),
             ErrorCodes.ACCESS_DENIED
         );
-        return ResponseEntity.status(403).body(error);
+        return ResponseEntity.status(403).contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
@@ -474,7 +475,16 @@ public class GlobalExceptionHandler {
             List.of(),
             code
         );
-        return ResponseEntity.status(status).body(error);
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(error);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiError> handleNotAcceptable(
+            org.springframework.web.HttpMediaTypeNotAcceptableException ex, WebRequest request) {
+        ApiError error = new ApiError(406, "Not Acceptable",
+            "Định dạng phản hồi yêu cầu không được hỗ trợ. Vui lòng tải lại tài liệu.",
+            extractPath(request), List.of(), ErrorCodes.REQUEST_FAILED);
+        return ResponseEntity.status(406).contentType(MediaType.APPLICATION_JSON).body(error);
     }
 
     @ExceptionHandler(Exception.class)
