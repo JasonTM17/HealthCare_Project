@@ -1,7 +1,8 @@
 .workspace { color: #1a1c1e; font-size: 16px; line-height: 1.5; }
-.workspace button, .workspace select, .workspace input, .workspace textarea { font: inherit; }
+.workspace :is(button,select,input,textarea):not(:where(.richEditor *)) { font: inherit; }
 .workspace button, .workspace select, .workspace a { min-height: 44px; }
-.workspace button { padding: 8px 12px; border: 1px solid #bac8c9; background: white; border-radius: 3px; cursor: pointer; }
+.workspace button:not(:where(.richEditor *)) { padding: 8px 12px; border: 1px solid #bac8c9; background: white; border-radius: 3px; cursor: pointer; }
+.richEditor { min-width: 0; }
 .workspace button:disabled { cursor: not-allowed; opacity: .55; }
 .workspace :is(button,a,input,textarea,select):focus-visible { outline: 3px solid #2a676c; outline-offset: 3px; }
 .workspace .primary { background: #003336; color: white; border-color: #003336; }
