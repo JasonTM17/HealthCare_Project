@@ -80,6 +80,37 @@ class SyntheticPdfRendererTest {
     }
 
     @Test
+    void emptySectionsStillLeaveReadableSpaceBetweenHeadings() throws Exception {
+        DocumentSnapshot base = visitSnapshot("Bệnh nhân thử bố cục");
+        DocumentSnapshot snapshot = new DocumentSnapshot(base.sourceType(), base.sourceRecordId(),
+            base.sourceVersion(), base.templateVersion(), base.patientName(), base.patientPhone(),
+            base.doctorName(), base.sourceFinalizedAt(),
+            new DocumentSnapshot.VisitSummaryPayload(null, null, null, null, "Mẫu thử", null,
+                null, null, null, null, null, null, null, null, null), null, null);
+        java.util.SortedSet<Float> headingRows = new java.util.TreeSet<>();
+        PDFTextStripper stripper = new PDFTextStripper() {
+            @Override
+            protected void processTextPosition(org.apache.pdfbox.text.TextPosition position) {
+                if (Math.abs(position.getFontSizeInPt() - 12f) < 0.01f) {
+                    headingRows.add(position.getYDirAdj());
+                }
+                super.processTextPosition(position);
+            }
+        };
+        try (PDDocument document = Loader.loadPDF(renderer.renderVisitSummary(snapshot, "layout-regression"))) {
+            stripper.getText(document);
+        }
+        assertThat(headingRows).hasSize(4);
+        Float previous = null;
+        for (Float row : headingRows) {
+            if (previous != null) assertThat(row - previous)
+                .as("12pt section headings need room for ascenders, descenders and a visible gap")
+                .isGreaterThanOrEqualTo(18f);
+            previous = row;
+        }
+    }
+
+    @Test
     void longContentPaginatesInsteadOfOverflowing() throws Exception {
         DocumentSnapshot snapshot = new DocumentSnapshot(
                 com.healthcare.document.entity.DocumentSourceType.VISIT_SUMMARY,
