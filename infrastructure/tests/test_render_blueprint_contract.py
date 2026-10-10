@@ -41,13 +41,13 @@ def _sql_without_line_comments(path: Path) -> str:
 def test_render_manifest_is_free_only() -> None:
     blueprint = _blueprint(ROOT / "render.yaml")
     services = _services()
-    # The live topology is the backup Render workspace: two web services only.
+    # The primary workspace blueprint declares two web services only.
     # PostgreSQL is Supabase and Redis is an external connection string — both
     # dashboard-managed secrets, so the blueprint must not declare managed
     # Render data resources that a blueprint sync would recreate.
     assert "databases" not in blueprint
     assert set(services) == {
-        "healthcare-backup-ai", "healthcare-backup-backend"
+        "healthcare-primary-ai", "healthcare-primary-backend"
     }
     assert all(service["plan"] == "free" for service in services.values())
     assert all(service["type"] == "web" for service in services.values())
@@ -59,7 +59,7 @@ def test_named_free_manifest_matches_canonical() -> None:
 
 def test_render_manifest_uses_immutable_backend_image() -> None:
     services = _services()
-    backend = services["healthcare-backup-backend"]
+    backend = services["healthcare-primary-backend"]
     assert backend["runtime"] == "image"
     assert backend["autoDeployTrigger"] == "off"
     assert backend["image"]["url"] == (
@@ -73,7 +73,7 @@ def test_render_manifest_uses_immutable_backend_image() -> None:
 
 
 def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
-    ai = _services()["healthcare-backup-ai"]
+    ai = _services()["healthcare-primary-ai"]
     assert ai["runtime"] == "python"
     assert ai["plan"] == "free"
     assert ai["region"] == "singapore"
@@ -105,13 +105,13 @@ def test_render_manifest_runs_the_deepseek_ai_service_on_free() -> None:
     # [L1] Cross-warmer ai→backend must stay enabled: without this key the
     # startup hook in app/main.py self-disables and the warm chain is one-way.
     assert ai_env["BACKEND_WARM_URL"]["value"] == (
-        "https://healthcare-backup-backend.onrender.com/actuator/health"
+        "https://healthcare-primary-backend.onrender.com/actuator/health"
     )
 
 
 def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -> None:
     services = _services()
-    backend = _env(services["healthcare-backup-backend"])
+    backend = _env(services["healthcare-primary-backend"])
     # 2026-10-07: no Render-managed Postgres exists in the live workspace and
     # stale fromDatabase materialization kept resolving to a decommissioned
     # Supabase user; DATABASE_* plus the SPRING_DATASOURCE_* relaxed-binding
@@ -122,7 +122,7 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
         "SPRING_DATASOURCE_PASSWORD",
     ):
         assert backend[key]["sync"] is False
-    # Redis lives outside this Render workspace; REDIS_URL is a
+    # The existing private Redis is in the primary workspace; REDIS_URL is a
     # dashboard/API-managed internal connection string.
     assert backend["REDIS_URL"]["sync"] is False
     for key in ("BFF_ALLOWED_ORIGINS", "JWT_SECRET", "BACKEND_BFF_SERVICE_TOKEN"):
@@ -133,7 +133,7 @@ def test_render_manifest_wires_managed_dependencies_and_fail_closed_switches() -
     assert backend["STORAGE_MIME_VALIDATION_REQUIRED"]["value"] == "true"
     assert backend["MANAGEMENT_HEALTH_MAIL_ENABLED"]["value"] == "false"
     assert backend["RAG_STORAGE_BACKEND"]["value"] == "memory"
-    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-backup-ai.onrender.com"
+    assert backend["AI_SERVICE_URL"]["value"] == "https://healthcare-primary-ai.onrender.com"
     # Shared-secret pair set verbatim on both services after the env wipe
     # (generateValue secrets could not be recovered through the API).
     assert backend["AI_SERVICE_TOKEN"]["sync"] is False

@@ -100,6 +100,7 @@ export default function DoctorCarePlansPage() {
   const session = useAuthSession();
   const [plans, setPlans] = useState<CarePlan[]>([]);
   const [appointments, setAppointments] = useState<DoctorPortalAppointment[]>([]);
+  const [appointmentDate, setAppointmentDate] = useState(() => businessDate());
   const [appointmentId, setAppointmentId] = useState("");
   const [title, setTitle] = useState("");
   const [goal, setGoal] = useState("");
@@ -121,13 +122,13 @@ export default function DoctorCarePlansPage() {
   useEffect(() => {
     if (!session || !hasRole(session.user, "DOCTOR")) return;
     let cancelled = false;
-    const today = businessDate();
     void Promise.resolve()
       .then(() => {
         if (cancelled) return undefined;
         setLoading(true);
         setError(null);
-        return Promise.all([fetchDoctorCarePlans(), fetchDoctorAppointments(today, undefined, 0, 100)]);
+        setAppointments([]);
+        return Promise.all([fetchDoctorCarePlans(), fetchDoctorAppointments(appointmentDate, undefined, 0, 100)]);
       })
       .then((value) => {
         if (!cancelled && value) {
@@ -144,7 +145,7 @@ export default function DoctorCarePlansPage() {
     return () => {
       cancelled = true;
     };
-  }, [retry, session]);
+  }, [appointmentDate, retry, session]);
 
   if (!session) return <LoginRequiredState nextPath="/doctor/care-plans" />;
   if (!hasRole(session.user, "DOCTOR")) {
@@ -310,6 +311,20 @@ export default function DoctorCarePlansPage() {
       {loading ? <LoadingState label="Đang tải kế hoạch..." /> : null}
       {error ? <ErrorState message="Không thể tải hoặc ghi kế hoạch." status={status} onRetry={() => setRetry((value) => value + 1)} /> : null}
       {notice ? <p aria-live="polite" className="rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm font-bold text-teal-950" role="status">{notice}</p> : null}
+
+      <section className="portal-panel grid gap-2" aria-labelledby="care-appointment-date-title">
+        <h2 id="care-appointment-date-title">Chọn ngày lịch hẹn</h2>
+        <label className="grid gap-1 text-sm font-bold" htmlFor="care-appointment-date">
+          Ngày lịch hẹn
+          <input id="care-appointment-date" className="min-h-11 w-full rounded-lg border border-slate-300 px-3 sm:w-fit" disabled={creating || Boolean(busy)} onChange={(event) => {
+            if (!event.target.value) return;
+            setAppointmentDate(event.target.value);
+            setAppointmentId("");
+          }} type="date" value={appointmentDate} />
+        </label>
+        <p className="text-sm text-slate-600">Chọn ngày của lịch hẹn để tạo kế hoạch, kể cả lịch hẹn ở ngày khác. Các kế hoạch đã tạo vẫn hiển thị bên dưới.</p>
+        {!loading && !error && appointments.length === 0 ? <p className="text-sm text-slate-600" role="status">Không có lịch hẹn đủ điều kiện trong ngày đã chọn. Bạn có thể chọn ngày khác.</p> : null}
+      </section>
 
       {appointments.length > 0 ? (
         <section className="portal-panel grid gap-3" aria-labelledby="create-care-plan-title">

@@ -686,16 +686,6 @@ export default function AdminSchedulesPage() {
                       </div>
                     </article>
                   ))}
-                  {schedulePaging.page + 1 < schedulePaging.totalPages ? (
-                    <button
-                      className="w-full rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-bold text-teal-900 disabled:opacity-50"
-                      disabled={loadingMore !== null}
-                      onClick={() => void loadMore("schedule")}
-                      type="button"
-                    >
-                      {loadingMore === "schedule" ? "Đang tải…" : `Tải thêm lịch (đang hiển thị ${schedules.length})`}
-                    </button>
-                  ) : null}
                   <nav aria-label="Phân trang lịch làm việc" className="admin-pagination mt-5 flex flex-wrap justify-end gap-2">
                     <button className="inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm disabled:opacity-40" disabled={safeListPage === 0} onClick={() => setListPage(safeListPage - 1)} type="button">Trang trước</button>
                     <span aria-live="polite" className="inline-flex min-h-11 items-center px-3 text-sm">{safeListPage + 1}/{listTotalPages}</span>
@@ -703,6 +693,16 @@ export default function AdminSchedulesPage() {
                   </nav>
                 </div>
               )}
+              {schedulePaging.page + 1 < schedulePaging.totalPages ? (
+                <button
+                  className="mt-3 w-full rounded-lg border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-bold text-teal-900 disabled:opacity-50"
+                  disabled={loadingMore !== null}
+                  onClick={() => void loadMore("schedule")}
+                  type="button"
+                >
+                  {loadingMore === "schedule" ? "Đang tải…" : `Tải thêm lịch (đang hiển thị ${schedules.length})`}
+                </button>
+              ) : null}
             </section>
           </div>
 

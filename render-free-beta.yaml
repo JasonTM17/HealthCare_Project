@@ -1,9 +1,10 @@
 # Render Free blueprint for the hosted HealthCare deployment.
 #
 # This is the canonical hosted manifest. The live topology lives entirely on
-# the backup Render workspace (healthcare-backup-backend + healthcare-backup-ai);
-# the old healthcare-beta-* workspace is retired. PostgreSQL is Supabase and
-# Redis is an external connection string — both arrive as dashboard-managed
+# the user-selected primary Render workspace (healthcare-primary-backend +
+# healthcare-primary-ai), with private healthcare-primary-redis in that same
+# workspace/region. Quota-exhausted backup and beta workspaces are retired.
+# PostgreSQL is Supabase; its credentials and the Redis connection arrive as dashboard-managed
 # secrets, so the blueprint declares only the two web services.
 # Keep remote-provider, clinical, storage, mail, payment and AV paths
 # fail-closed. The public HOSPITAL_SUPPORT chatbot uses a separate local-only
@@ -20,7 +21,7 @@
 
 services:
   - type: web
-    name: healthcare-backup-ai
+    name: healthcare-primary-ai
     runtime: python
     plan: free
     region: singapore
@@ -118,10 +119,10 @@ services:
       # a public health endpoint (no credentials), matching the warm cron in
       # .github/workflows/render-warm.yml.
       - key: BACKEND_WARM_URL
-        value: https://healthcare-backup-backend.onrender.com/actuator/health
+        value: https://healthcare-primary-backend.onrender.com/actuator/health
 
   - type: web
-    name: healthcare-backup-backend
+    name: healthcare-primary-backend
     runtime: image
     plan: free
     region: singapore
@@ -226,11 +227,11 @@ services:
       # HOSPITAL_SUPPORT uses the remote DeepSeek-backed FastAPI service.
       # Clinical modes and synthetic approval paths remain fail-closed.
       - key: AI_SERVICE_URL
-        value: https://healthcare-backup-ai.onrender.com
+        value: https://healthcare-primary-ai.onrender.com
       # 2026-10-07: the fromService links stopped re-materializing after the
       # env-layer wipe (generateValue secrets are never readable via API), so
       # both tokens are dashboard/API-managed secrets kept identical on this
-      # service and healthcare-backup-ai.
+      # service and healthcare-primary-ai.
       - key: AI_SERVICE_TOKEN
         sync: false
       - key: AI_RAG_INGEST_TOKEN
@@ -251,7 +252,7 @@ services:
       - key: AI_SERVICE_READ_TIMEOUT_MS
         value: "26000"
       # [L2] Spring-side key of the patient egress set (paired with the
-      # healthcare-backup-ai flips above). application.yml:295 binds this to
+      # healthcare-primary-ai flips above). application.yml:295 binds this to
       # AiConversationService, whose sanitize gate (:1559) otherwise rejects
       # provenance=remote_provider with a 502 AI_RESPONSE_INVALID. Safety
       # guards are unchanged: sanitize re-validation, rejectDiagnoseOrPrescribe,

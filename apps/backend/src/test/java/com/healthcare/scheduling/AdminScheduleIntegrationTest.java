@@ -211,6 +211,10 @@ class AdminScheduleIntegrationTest extends AbstractIntegrationTest {
             .getContentAsString();
 
         UUID scheduleId = UUID.fromString(objectMapper.readTree(body).path("id").asText());
+        // A real HTTP request has no fixture transaction keeping lazy relations open.
+        // Commit the create before PUT so response mapping must work after service return.
+        org.springframework.test.context.transaction.TestTransaction.flagForCommit();
+        org.springframework.test.context.transaction.TestTransaction.end();
         DoctorScheduleRequest updateRequest = new DoctorScheduleRequest(
             2, LocalTime.of(13, 0), LocalTime.of(17, 0), 20,
             LocalDate.of(2026, 9, 1), LocalDate.of(2026, 12, 31), false);
