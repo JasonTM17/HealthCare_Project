@@ -198,6 +198,11 @@ resolved by the authenticated backend against active catalog and schedule
 data. This slice models one fictional hospital/public catalog only; it does
 not provide tenant isolation or a multi-hospital data model.
 
+The model-output safety gate accepts the complete refusal statements
+`I cannot provide a prescription.` and `I cannot provide any prescription.`
+Affirmative continuations, diagnosis claims, drug instructions and dose-bearing
+cautions remain blocked. This exception does not widen approved-source mode.
+
 Citations are deliberately identity-only (`source_type`, `source_id`, and
 `title`) and are not authoritative clinical source URLs. The backend must
 resolve or verify any catalog follow-up; a URL or clinical authority cannot be

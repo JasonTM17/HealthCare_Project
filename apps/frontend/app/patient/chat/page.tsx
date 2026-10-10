@@ -56,8 +56,8 @@ import styles from "./chat.module.css";
 
 const MESSAGE_LIMIT = 30;
 const MAX_MESSAGE_LENGTH = 10_000;
-// The composer chip states the real per-question credit cost; keep it as a
-// constant so the copy cannot silently drift from the backend's charge rule.
+// Accepted paid responses cost one credit; safety guidance and eligible
+// local responses can be free. Keep the paid cost aligned with the backend.
 const AI_CHAT_CREDIT_COST_PER_QUESTION = 1;
 // The API speaks enum; the patient portal must not. Mirrors the labels already
 // used by the admin credit console so the two surfaces never disagree.
@@ -1454,10 +1454,10 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
 
               <form className={styles.composer} onSubmit={handleSubmit}>
                 <div className={styles.composerLabelRow}>
-                  <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <label htmlFor="patient-chat-message">Tin nhắn của bạn</label>
                     <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-[var(--chat-radius)] border border-emerald-200">
-                      {AI_CHAT_CREDIT_COST_PER_QUESTION} lượt / câu hỏi (hoàn lại nếu lỗi)
+                      Phản hồi tính phí: {AI_CHAT_CREDIT_COST_PER_QUESTION} lượt; hướng dẫn miễn phí: 0 lượt
                     </span>
                     {creditStatus ? (
                       <span className="text-xs font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-[var(--chat-radius)] border border-teal-200">
@@ -1490,7 +1490,7 @@ function PatientChatPageContent({ session }: { session: AuthSession | null }) {
                 />
                 <div className={styles.composerFooter}>
                   <div>
-                    <p id="patient-chat-help">Enter để gửi, Shift + Enter để xuống dòng. Không nhập thông tin nhận dạng không cần thiết.</p>
+                    <p id="patient-chat-help">Chỉ trừ lượt khi câu hỏi tính phí được trả lời thành công. Enter để gửi, Shift + Enter để xuống dòng. Không nhập thông tin nhận dạng không cần thiết.</p>
                     {selectedModeUnavailable ? <p className={styles.inFlightNotice}>Chế độ của cuộc trò chuyện này tạm chưa khả dụng. Bạn có thể đọc lại lịch sử hoặc mở cuộc trò chuyện mới ở chế độ khác.</p> : null}
                     {selectedSummary?.inFlight ? <p className={styles.inFlightNotice}>Tin nhắn trước có thể vẫn đang xử lý. Bạn có thể thử lại; máy chủ sẽ chỉ nhận yêu cầu mới khi lượt cũ đã hết hạn.</p> : null}
                     {sendFailure ? <p className={styles.composerError} id="patient-chat-error" role="alert">{sendFailure.message}</p> : null}

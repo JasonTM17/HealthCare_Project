@@ -238,11 +238,12 @@ test("patient chat offers a Stop control that resets the send machine synchronou
   assert.match(page, /sending \? "Đang gửi"/);
 });
 
-test("patient chat states the real per-question credit cost", async () => {
+test("patient chat distinguishes paid responses from free guidance", async () => {
   const page = await read("app/patient/chat/page.tsx");
 
   assert.match(page, /const AI_CHAT_CREDIT_COST_PER_QUESTION = 1;/);
-  assert.match(page, /\{AI_CHAT_CREDIT_COST_PER_QUESTION\} lượt \/ câu hỏi \(hoàn lại nếu lỗi\)/);
+  assert.match(page, /Phản hồi tính phí: \{AI_CHAT_CREDIT_COST_PER_QUESTION\} lượt; hướng dẫn miễn phí: 0 lượt/);
+  assert.match(page, /Chỉ trừ lượt khi câu hỏi tính phí được trả lời thành công/);
   assert.doesNotMatch(page, /-1 lượt/);
 });
 

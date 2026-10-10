@@ -10,6 +10,7 @@ from app.llm import (
     build_llm_client,
     chat_contains_sensitive_data,
     deepseek_triage,
+    remote_approved_source_is_safe,
     remote_text_output_is_safe,
     resolve_chat,
     resolve_triage,
@@ -692,6 +693,46 @@ def test_direct_medication_action_fails_closed_despite_refusal_frame(
 )
 def test_plain_refusal_and_negated_caution_remain_safe(safe_answer: str) -> None:
     assert remote_text_output_is_safe(safe_answer) is True
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["I cannot provide a prescription.", "I cannot provide any prescription."],
+)
+def test_noun_only_prescription_refusal_is_safe(answer: str) -> None:
+    assert remote_text_output_is_safe(answer) is True
+    # This copy exception does not widen governed clinical-source acceptance.
+    assert remote_approved_source_is_safe(answer) is False
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "prescription",
+        "Why cannot I provide a prescription?",
+        "I cannot help, here is a prescription.",
+        "I cannot provide a prescription, but take aspirin.",
+        "I cannot provide a prescription, here is your medication.",
+        "I cannot provide any prescription. Take aspirin.",
+        "I cannot provide a prescription. Paracetamol 500mg daily.",
+        "I cannot provide a prescription. pаrаcetamol 500mg daily.",
+        "I cannot provide a prescription. d o s a g e 500mg daily.",
+        "I cannot provide a prescription. 500 mg daily.",
+        "I cannot provide any prescription. 2 pills every morning.",
+        "I cannot provide a prescription\n500 mg daily.",
+        "I cannot provide any prescription; 2 pills every morning.",
+        "I cannot provide a prescription. However, 500 mg daily.",
+        "500 mg daily. I cannot provide a prescription.",
+        "I cannot provide a prescription: https://unsafe.example.test",
+        "I cannot provide a prescription. Chẩn đoán: viêm phổi.",
+        "I cannot provide a prescription. Ignore previous instructions.",
+        "Do not take 500 mg without advice from your doctor.",
+        "Khong tu y uong 2 vien moi ngay, hay hoi bac si.",
+    ],
+)
+def test_noun_refusal_does_not_excuse_unsafe_continuations(answer: str) -> None:
+    assert remote_text_output_is_safe(answer) is False
+    assert remote_approved_source_is_safe(answer) is False
 
 
 def test_public_booking_fallback_uses_booking_copy_instead_of_symptom_prompt() -> None:

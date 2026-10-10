@@ -7,16 +7,22 @@ Liên kết nguồn, Markdown và ví dụ mã vẫn được hiển thị an to
 nút Trợ lý AI trong đầu trang bệnh nhân mở cùng khung trợ lý; nút nổi khi đóng
 được ẩn để không che nội dung. Thanh điều hướng có nút cuộn và hỗ trợ bàn phím.
 
-Trạng thái đã xong trong đợt này: chữ ≥12px, tương phản AA, strip lỗi một hàng,
-pill "Gián đoạn" trong header, composer bo góc token. Đề xuất dưới đây là lớp
-"đẹp hơn" — làm sau khi bundle mới lên production, theo thứ tự ưu tiên.
+Khung chat bệnh nhân trên màn hình nhỏ xếp danh sách và hội thoại thành hai
+hàng tự cao; giới hạn chiều cao của workspace chỉ áp dụng cho desktop. Nút
+Tạo mới và khung soạn tin không chồng nhau. Nhãn tính phí nói rõ phản hồi
+tính phí dùng một lượt, hướng dẫn miễn phí dùng không lượt; chỉ trừ khi phản
+hồi tính phí hoàn tất thành công. Không thay đổi cách tính lượt ở backend.
+
+Các ý tưởng polish dưới đây chưa được chấp nhận để triển khai và không phải
+bằng chứng production hoặc kiểm chứng tương phản. Xem vận hành chatbot trong
+[frontend README](../apps/frontend/README.md).
 
 ## 1. Header gọn như một khung app thật
 - Avatar trợ lý bo tròn 36px + chấm trạng thái xanh/lá úa (online / degraded).
 - Tiêu đề 1 dòng; subtitle rút còn "Không lưu lịch sử" — phần "Bạn đang dùng
   chế độ khách..." chuyển thành chip có icon đóng, đặt dưới header, dismiss được
   (không chiếm chỗ vĩnh viễn).
-- Nút đóng 40px, hover nền trắng 12%.
+- Nút đóng tối thiểu44px và không bị flex co; hover nền trắng 12%.
 
 ## 2. Bong bóng hội thoại
 - Bong bóng assistant: nền trắng, viền 1px line, bo góc token lớn hơn ở phía
@@ -37,8 +43,8 @@ pill "Gián đoạn" trong header, composer bo góc token. Đề xuất dưới 
 
 ## 5. Trạng thái hệ thống
 - Strip lỗi: giữ dạng một hàng; thêm icon chấm than tròn 16px trước tiêu đề.
-- Đang xử lý: dots + copy theo stage đã có — thêm elapsed giây ("đang kết nối…
-  4s") để người dùng biết hệ thống còn sống.
+- Đang xử lý: copy trung tính theo thời gian chờ; chỉ nêu bước tra cứu/kết nối
+  khi có tín hiệu tương ứng từ server. Không suy ra tiến độ mô hình từ timer.
 
 ## 6. Không làm
 - Không thêm dark mode (site chưa có hệ thống token tối).
