@@ -2144,6 +2144,7 @@ export async function adminReviewPayment(
 }
 
 export interface JobApplicationAdminSummary {
+  demonstrationNotice?: string | null;
   id: string;
   applicationCode: string;
   jobId: string;

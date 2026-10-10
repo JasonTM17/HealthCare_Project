@@ -54,6 +54,7 @@ public class PaymentInvoiceService {
     }
 
     private byte[] receiptFor(BankTransferPayment payment, String actor) {
+        com.healthcare.demo.DashboardDemonstration.requireOrdinaryPayment(payment.getAppointment().getId());
         PaymentInvoice invoice = invoiceRepository.findByPaymentId(payment.getId())
             .orElseGet(() -> issue(payment, actor));
         // The stored snapshot wins over the live status: a receipt issued

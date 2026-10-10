@@ -36,6 +36,7 @@ public final class CatalogueIllustration {
     public static boolean contains(UUID id) { return id != null && IDS.contains(id); }
 
     public static void requireBookable(UUID doctorId, UUID branchId, UUID packageId) {
+        com.healthcare.demo.DashboardDemonstration.requireBookable(doctorId, branchId, packageId);
         if (contains(doctorId) || contains(branchId) || contains(packageId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, BOOKING_NOTICE);
         }

@@ -347,6 +347,7 @@ function AdminAiContentReviewsWorkspace() {
                     <tr className={active ? "bg-amber-50" : undefined} key={`${item.sourceType}-${item.sourceId}-${item.revision}`}>
                       <td className="px-4 py-4 align-top">
                         <p className="font-bold text-teal-950">{item.title || "Nguồn chưa đặt tên"}</p>
+                        {item.demonstrationNotice ? <p className="mt-2 max-w-xs text-xs font-semibold text-amber-900">{item.demonstrationNotice}</p> : null}
                         <p className="mt-1 text-xs text-slate-500">{typeLabel(item.sourceType)}</p>
                       </td>
                       <td className="px-4 py-4 align-top"><StateBadge state={item.state} /></td>

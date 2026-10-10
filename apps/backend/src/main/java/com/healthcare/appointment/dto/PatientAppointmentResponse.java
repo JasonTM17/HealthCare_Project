@@ -30,4 +30,6 @@ public record PatientAppointmentResponse(
     String cancellationReason,
     OffsetDateTime createdAt
 ) {
+    @com.fasterxml.jackson.annotation.JsonProperty("demonstrationNotice")
+    public String demonstrationNotice() { return com.healthcare.demo.DashboardDemonstration.notice(id); }
 }

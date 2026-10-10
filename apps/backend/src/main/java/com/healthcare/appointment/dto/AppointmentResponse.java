@@ -32,4 +32,6 @@ public record AppointmentResponse(
     String privacyConsentVersion,
     OffsetDateTime createdAt
 ) {
+    @com.fasterxml.jackson.annotation.JsonProperty("demonstrationNotice")
+    public String demonstrationNotice() { return com.healthcare.demo.DashboardDemonstration.notice(id); }
 }

@@ -226,6 +226,7 @@ export interface ConfirmAppointmentPayload {
 }
 
 export interface AppointmentDetails {
+  demonstrationNotice?: string | null;
   id: string;
   bookingCode: string;
   patientName: string;
@@ -252,6 +253,7 @@ export interface AppointmentDetails {
 }
 
 interface PortalAppointmentBase {
+  demonstrationNotice?: string | null;
   id: string;
   bookingCode: string;
   specialtyName?: string;
@@ -298,6 +300,7 @@ export interface PaymentWebhookEventView {
 }
 
 export interface BankTransferPayment {
+  demonstrationNotice?: string | null;
   id: string;
   appointmentId: string;
   bookingCode: string;
@@ -310,10 +313,10 @@ export interface BankTransferPayment {
   amount: number;
   currency: "VND";
   status: PaymentStatus;
-  bankName: string;
-  bankAccount: string;
-  accountHolder: string;
-  qrCodeUrl: string;
+  bankName: string | null;
+  bankAccount: string | null;
+  accountHolder: string | null;
+  qrCodeUrl: string | null;
   transferContent: string;
   transactionReference?: string | null;
   submittedAt?: string | null;
@@ -591,6 +594,7 @@ export type AiContentReviewState = "DRAFT" | "SUBMITTED" | "APPROVED" | "CHANGES
 export type AiContentDecision = "APPROVE" | "REQUEST_CHANGES" | "REVOKE";
 
 export interface AiContentReviewSummary {
+  demonstrationNotice?: string | null;
   sourceType: AiContentType;
   sourceId: string;
   title: string;
@@ -686,6 +690,7 @@ export interface ConsultationAdminQueueItem {
 }
 
 export interface HealthQuestionSummary {
+  demonstrationNotice?: string | null;
   id: string;
   topicSlug: string;
   question: string;

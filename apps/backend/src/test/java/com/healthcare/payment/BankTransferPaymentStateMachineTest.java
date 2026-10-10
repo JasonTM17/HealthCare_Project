@@ -72,7 +72,7 @@ class BankTransferPaymentStateMachineTest {
     private final BankTransferPaymentService service = new BankTransferPaymentService(
         paymentRepository, appointmentRepository, patientProfileRepository, userRepository,
         mock(com.healthcare.notification.service.NotificationService.class), auditService, claimService,
-        emailService, channelProvider);
+        emailService, channelProvider, mock(com.healthcare.demo.DashboardDemonstrationGuard.class));
 
     private UserDetails patientPrincipal;
     private UserDetails adminPrincipal;

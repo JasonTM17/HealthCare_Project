@@ -143,7 +143,7 @@ export default function AdminAppointmentsPage() {
             <thead className="border-b bg-slate-50 text-xs uppercase text-slate-500"><tr><th scope="col" className="px-4 py-3">Mã</th><th scope="col" className="px-4 py-3">Thời gian</th><th scope="col" className="px-4 py-3">Bệnh nhân</th><th scope="col" className="px-4 py-3">Bác sĩ</th><th scope="col" className="px-4 py-3">Cơ sở</th><th scope="col" className="px-4 py-3">Trạng thái</th><th scope="col" className="px-4 py-3">Lý do hủy</th><th scope="col" className="px-4 py-3">Thao tác</th></tr></thead>
             <tbody>{appointments.map((item) => (
               <tr className="border-b border-slate-100 last:border-0" key={item.id}>
-                <td className="px-4 py-4 font-mono text-xs">{item.bookingCode}</td>
+                <td className="px-4 py-4 font-mono text-xs">{item.bookingCode}{item.demonstrationNotice ? <p className="mt-2 max-w-xs font-sans font-semibold text-amber-900">{item.demonstrationNotice}</p> : null}</td>
                 <td className="px-4 py-4"><strong>{formatBusinessDate(item.appointmentDate)}</strong><br />{formatTime(item.startTime)} - {formatTime(item.endTime)}</td>
                 <td className="px-4 py-4"><strong>{item.patientName}</strong><br /><span className="text-xs text-slate-500">{item.patientPhone}</span></td>
                 <td className="px-4 py-4">{item.doctorName}</td>

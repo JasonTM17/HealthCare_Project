@@ -22,7 +22,9 @@ public class AccountDoctorLinker {
 
     public boolean apply(User target, Set<String> roles, UUID selected, boolean unlink,
                          String requestedName, boolean grantOrLink) {
+        com.healthcare.demo.DashboardDemonstration.requireMutableDoctor(selected);
         Doctor current = doctors.findByUserId(target.getId()).orElse(null);
+        if (current != null) com.healthcare.demo.DashboardDemonstration.requireMutableDoctor(current.getId());
         Map<UUID, Doctor> locked = new TreeMap<>();
         if (current != null) locked.put(current.getId(), current);
         if (selected != null) locked.put(selected, current);

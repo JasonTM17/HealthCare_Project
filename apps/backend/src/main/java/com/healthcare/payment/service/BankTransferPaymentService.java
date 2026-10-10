@@ -7,6 +7,8 @@ import com.healthcare.appointment.repository.AppointmentRepository;
 import com.healthcare.appointment.repository.PatientProfileRepository;
 import com.healthcare.appointment.service.AppointmentClaimService;
 import com.healthcare.appointment.service.BookingService;
+import com.healthcare.demo.DashboardDemonstration;
+import com.healthcare.demo.DashboardDemonstrationGuard;
 import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
 import com.healthcare.payment.dto.BankTransferPaymentResponse;
@@ -63,6 +65,7 @@ public class BankTransferPaymentService {
     private final AppointmentClaimService appointmentClaimService;
     private final PaymentStatusEmailService statusEmailService;
     private final PaymentChannelProvider channelProvider;
+    private final DashboardDemonstrationGuard demonstrationGuard;
 
     /** Selects the active channel; today only {@code vietqr} ships. */
     @Value("${app.payment.provider:vietqr}")
@@ -82,7 +85,8 @@ public class BankTransferPaymentService {
             PaymentAuditService auditService,
             AppointmentClaimService appointmentClaimService,
             PaymentStatusEmailService statusEmailService,
-            PaymentChannelProvider channelProvider) {
+            PaymentChannelProvider channelProvider,
+            DashboardDemonstrationGuard demonstrationGuard) {
         this.paymentRepository = paymentRepository;
         this.appointmentRepository = appointmentRepository;
         this.patientProfileRepository = patientProfileRepository;
@@ -92,10 +96,19 @@ public class BankTransferPaymentService {
         this.appointmentClaimService = appointmentClaimService;
         this.statusEmailService = statusEmailService;
         this.channelProvider = channelProvider;
+        this.demonstrationGuard = demonstrationGuard;
     }
 
     public boolean isAvailable() {
         return channelProvider.id().equals(configuredProvider) && channelProvider.isConfigured();
+    }
+
+    /** Reject owned simulated content before ordinary bank evidence is persisted. */
+    @Transactional(readOnly = true)
+    public void requireOrdinaryTransferContent(String transferContent) {
+        demonstrationGuard.requireOrdinaryTransferContent(transferContent);
+        paymentRepository.findAppointmentIdByTransferContent(transferContent.trim())
+            .ifPresent(DashboardDemonstration::requireOrdinaryPayment);
     }
 
     /** Ownership-verified, locked payment load — shared by the receipt issuer. */
@@ -118,6 +131,7 @@ public class BankTransferPaymentService {
     @Transactional
     public BankTransferPayment initialize(Appointment appointment) {
         requireConfigured();
+        demonstrationGuard.requireAppointment(appointment.getId());
         return paymentRepository.findByAppointmentId(appointment.getId()).orElseGet(() -> {
             BankTransferPayment payment = new BankTransferPayment();
             payment.setAppointment(appointment);
@@ -137,6 +151,7 @@ public class BankTransferPaymentService {
     public BankTransferPaymentResponse getForPatient(UUID appointmentId, UserDetails principal) {
         requireConfigured();
         Appointment appointment = ownAppointmentForUpdate(appointmentId, principal);
+        demonstrationGuard.requireAppointment(appointmentId);
         // A committed payment row is the record of whatever state the payment
         // reached — including refunds queued by a cancellation — so it is
         // returned in any status. The payable check only gates the FIRST
@@ -243,8 +258,10 @@ public class BankTransferPaymentService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
         BankTransferPayment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
+        demonstrationGuard.requireAppointment(appointmentId);
         User reviewer = userRepository.findByEmail(principal.getUsername())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không hợp lệ"));
+        requireDemonstrationReviewer(appointmentId, reviewer, principal);
 
         PaymentStatus previousStatus = payment.getStatus();
         if (request.decision() == ReviewBankTransferRequest.Decision.VERIFY) {
@@ -308,6 +325,7 @@ public class BankTransferPaymentService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
         BankTransferPayment payment = paymentRepository.findByIdForUpdate(paymentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
+        demonstrationGuard.requireAppointment(appointmentId);
         String reference = normalizeReference(request.refundReference());
         if (payment.getStatus() == PaymentStatus.REFUNDED) {
             if (reference.equals(payment.getRefundReference())) return toResponse(payment);
@@ -318,6 +336,7 @@ public class BankTransferPaymentService {
         }
         User reviewer = userRepository.findByEmail(principal.getUsername())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không hợp lệ"));
+        requireDemonstrationReviewer(appointmentId, reviewer, principal);
         payment.setStatus(PaymentStatus.REFUNDED);
         payment.setRefundReference(reference);
         payment.setRefundedAt(OffsetDateTime.now(BUSINESS_ZONE));
@@ -344,6 +363,7 @@ public class BankTransferPaymentService {
         // check on payment.getAppointment() runs on the locked state.
         UUID appointmentId = paymentRepository.findAppointmentIdByTransferContent(request.transferContent().trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nội dung chuyển khoản"));
+        DashboardDemonstration.requireOrdinaryPayment(appointmentId);
         appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nội dung chuyển khoản"));
         BankTransferPayment payment = paymentRepository.findByAppointmentIdForUpdate(appointmentId)
@@ -412,6 +432,7 @@ public class BankTransferPaymentService {
 
     @Transactional
     public void markAppointmentCancelled(Appointment appointment) {
+        demonstrationGuard.requireAppointment(appointment.getId());
         paymentRepository.findByAppointmentIdForUpdate(appointment.getId()).ifPresent(payment -> {
             if (payment.getStatus() == PaymentStatus.PAID) {
                 payment.setStatus(PaymentStatus.REFUND_PENDING);
@@ -434,6 +455,9 @@ public class BankTransferPaymentService {
         if (principal == null) throw new AccessDeniedException("Cần đăng nhập bằng tài khoản bệnh nhân");
         User user = userRepository.findByEmail(principal.getUsername())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Tài khoản không hợp lệ"));
+        if (DashboardDemonstration.appointment(appointmentId) && !DashboardDemonstration.id("patientUser").equals(user.getId())) {
+            throw new AccessDeniedException("Chỉ bệnh nhân minh họa được truy cập giao dịch thử nghiệm này");
+        }
         PatientProfile patient = patientProfileRepository.findByUserId(user.getId()).orElse(null);
         Appointment appointment = appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
@@ -462,6 +486,14 @@ public class BankTransferPaymentService {
             // allowed while the visit is still active.
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Lịch hẹn đã kết thúc nên không thể thanh toán");
         }
+    }
+
+    private void requireDemonstrationReviewer(UUID appointmentId, User reviewer, UserDetails principal) {
+        if (!DashboardDemonstration.appointment(appointmentId)) return;
+        if (!DashboardDemonstration.OWNER_ADMIN.equals(reviewer.getId())) {
+            throw new AccessDeniedException("Chỉ quản trị viên được chỉ định được xử lý giao dịch minh họa này");
+        }
+        demonstrationGuard.requireReviewer(principal);
     }
 
     private void ensureAppointmentCanBePaid(Appointment appointment) {
@@ -530,14 +562,16 @@ public class BankTransferPaymentService {
 
     private BankTransferPaymentResponse toResponse(BankTransferPayment payment) {
         Appointment appointment = payment.getAppointment();
+        boolean demonstration = DashboardDemonstration.appointment(appointment.getId());
         return new BankTransferPaymentResponse(
             payment.getId(), appointment.getId(), appointment.getBookingCode(),
             appointment.getPatient().getFullName(), appointment.getDoctor().getFullName(),
             appointment.getMedicalPackage() == null ? null : appointment.getMedicalPackage().getName(),
             appointment.getAppointmentDate(), appointment.getStartTime(), payByDeadline(appointment),
             payment.getAmount(), payment.getCurrency(), payment.getStatus(),
-            channelProvider.bankName(), channelProvider.bankAccount(), channelProvider.accountHolder(),
-            channelProvider.buildQrUrl(payment), payment.getTransferContent(), payment.getTransactionReference(),
+            demonstration ? null : channelProvider.bankName(), demonstration ? null : channelProvider.bankAccount(),
+            demonstration ? null : channelProvider.accountHolder(), demonstration ? null : channelProvider.buildQrUrl(payment),
+            payment.getTransferContent(), payment.getTransactionReference(),
             payment.getSubmittedAt(), payment.getVerifiedAt(), payment.getRejectionReason(),
             payment.getRefundReference(), payment.getRefundedAt(),
             payment.getCreatedAt(), payment.getUpdatedAt()
@@ -557,6 +591,11 @@ public class BankTransferPaymentService {
     }
 
     private void notifyPatient(Appointment appointment, EventType type, String title, String message) {
+        if (DashboardDemonstration.appointment(appointment.getId())) {
+            demonstrationGuard.requireAppointment(appointment.getId());
+            notificationService.create(DashboardDemonstration.id("patientUser"), type, title, message, appointment.getId());
+            return;
+        }
         if (appointment.getPatient().getUserId() != null) {
             notificationService.create(appointment.getPatient().getUserId(), type, title, message, appointment.getId());
         }
@@ -590,6 +629,11 @@ public class BankTransferPaymentService {
      * reviewers are not silently dropped the way a fixed page-0 read was.
      */
     private void notifyAdminsOfSubmission(Appointment appointment, String title, String message) {
+        if (DashboardDemonstration.appointment(appointment.getId())) {
+            demonstrationGuard.requireAppointment(appointment.getId());
+            notificationService.create(DashboardDemonstration.OWNER_ADMIN, EventType.PAYMENT_SUBMITTED, title, message, appointment.getId());
+            return;
+        }
         UUID patientUserId = appointment.getPatient().getUserId();
         int notified = 0;
         for (int page = 0; notified < MAX_ADMIN_NOTIFICATION_TOTAL; page++) {

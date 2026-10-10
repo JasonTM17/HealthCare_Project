@@ -30,5 +30,8 @@ public final class HealthQuestionContracts {
                                 OffsetDateTime createdAt, OffsetDateTime handledAt,
                                 String resolutionCode) {}
     public record Summary(UUID id, String topicSlug, String question, String publicAlias, String status,
-                          OffsetDateTime createdAt, String answer, String answerStatus) {}
+                          OffsetDateTime createdAt, String answer, String answerStatus) {
+        @com.fasterxml.jackson.annotation.JsonProperty("demonstrationNotice")
+        public String demonstrationNotice() { return com.healthcare.demo.DashboardDemonstration.notice(id); }
+    }
 }

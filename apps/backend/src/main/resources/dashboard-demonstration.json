@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "batch": "healthcare-dashboard-demo-20261009-v1",
+  "notice": "Dữ liệu minh họa; không chuyển tiền và không có lịch khám thật.",
+  "ownerAdmin": "90000000-0000-0000-0000-000000000025",
+  "ids": {
+    "patientUser": "18eb4aa3-6d44-5991-aa1a-4a6f93eae9e3",
+    "disabledUser": "4821fd5a-71e8-5cd3-9daa-bf7f77aa54e7",
+    "patientProfile": "b41a19a6-74b9-5e8a-97ea-65eb80a45e9d",
+    "doctor": "6c030bfb-8e22-56cc-95ba-6906b8b618a2",
+    "branch": "d13cad67-4ef1-5f42-92a9-7b842af73b7c",
+    "package": "af17f1da-d5d0-5b62-adf0-56bb42e980d2",
+    "appointment": "8ef669c2-1381-5813-b85a-3a1b547632fb",
+    "position": "dd3922c0-1e9d-5313-9b62-9901e114f8f8",
+    "application": "4edea70d-b59f-5d40-88cc-93a9e33e2230",
+    "question": "7ae5d5ff-35f4-550c-9bed-5f97313a925b",
+    "faq": "c350da53-bdea-5d76-8f1e-f7d68864dfd6"
+  }
+}

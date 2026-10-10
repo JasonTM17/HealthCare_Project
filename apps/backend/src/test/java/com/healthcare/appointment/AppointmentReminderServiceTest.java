@@ -30,6 +30,18 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AppointmentReminderServiceTest {
 
+    @Test
+    void ownedDemonstrationNeverResolvesRecipientsOrMarksReminderSent() {
+        Appointment appointment = new Appointment();
+        appointment.setId(UUID.fromString("8ef669c2-1381-5813-b85a-3a1b547632fb"));
+        when(appointmentRepository.lockDueReminders(any(OffsetDateTime.class), any(OffsetDateTime.class)))
+            .thenReturn(List.of(appointment));
+
+        assertThat(reminderService.sendDueReminders()).isZero();
+        assertThat(appointment.getReminderSentAt()).isNull();
+        verifyNoInteractions(notificationService, appointmentClaimService);
+    }
+
     @Mock
     private AppointmentRepository appointmentRepository;
 

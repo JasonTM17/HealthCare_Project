@@ -56,6 +56,11 @@ public class AccountGovernance {
 
     /** Call after acquire(), before reading roles or changing any linked identity. */
     public Map<UUID, User> lockUsersAndAuthorize(Collection<UUID> affected) {
+        // This identity is immutable even if its editable demo flag is corrupted.
+        // Reject before owner -> patient locks can invert a fixture graph's shares.
+        if (affected.contains(com.healthcare.demo.DashboardDemonstration.id("patientUser"))) {
+            throw new ForbiddenException("Shared demo accounts cannot be changed");
+        }
         HealthcareUserPrincipal principal = identity();
         TreeSet<UUID> ids = new TreeSet<>(affected);
         ids.add(principal.getUserId());

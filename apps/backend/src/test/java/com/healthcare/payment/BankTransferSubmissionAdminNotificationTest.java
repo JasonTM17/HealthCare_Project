@@ -77,7 +77,7 @@ class BankTransferSubmissionAdminNotificationTest {
     private final VietQrChannelProvider channelProvider = new VietQrChannelProvider();
     private final BankTransferPaymentService service = new BankTransferPaymentService(
         paymentRepository, appointmentRepository, patientProfileRepository, userRepository,
-        notifications, auditService, claimService, emailService, channelProvider);
+        notifications, auditService, claimService, emailService, channelProvider, mock(com.healthcare.demo.DashboardDemonstrationGuard.class));
 
     private UserDetails patientPrincipal;
     private User patientUser;

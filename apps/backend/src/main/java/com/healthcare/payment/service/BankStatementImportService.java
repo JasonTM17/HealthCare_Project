@@ -81,6 +81,10 @@ public class BankStatementImportService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Tệp sao kê có quá nhiều dòng (tối đa " + MAX_ROWS + ")");
         }
+        // Validate the whole batch before any header, evidence or sibling confirmation.
+        for (BankStatementParser.StatementRow row : parsed.rows()) {
+            paymentService.requireOrdinaryTransferContent(row.transferContent());
+        }
         UUID importId = UUID.randomUUID();
         jdbcTemplate.update(
             """

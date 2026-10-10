@@ -1,6 +1,7 @@
 package com.healthcare.payment.service;
 
 import com.healthcare.appointment.entity.Appointment;
+import com.healthcare.demo.DashboardDemonstration;
 import com.healthcare.auth.mail.AfterCommitEmailSender;
 import com.healthcare.auth.mail.EmailTemplateKey;
 import com.healthcare.payment.entity.BankTransferPayment;
@@ -52,7 +53,7 @@ public class PaymentStatusEmailService {
     }
 
     private void send(BankTransferPayment payment, String statusLine) {
-        if (!enabled) return;
+        if (!enabled || DashboardDemonstration.appointment(payment.getAppointment().getId())) return;
         // sendTemplateBestEffort picks the live route itself (Resend API →
         // transactional outbox → best-effort delegate) and absorbs failures.
         // Gating on isDeliveryAvailable() here skipped delivery whenever the

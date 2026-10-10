@@ -103,6 +103,7 @@ export default function PortalAppointments({
               : appointment.specialtyName ?? "Chuyên khoa chưa cập nhật"}
           </p>
           <dl className="portal-appointment__details">
+            {appointment.demonstrationNotice ? <div><dt>Minh họa</dt><dd>{appointment.demonstrationNotice}</dd></div> : null}
             {appointment.specialtyName ? <div><dt>Chuyên khoa</dt><dd>{appointment.specialtyName}</dd></div> : null}
             {appointment.branchName ? <div><dt>Cơ sở</dt><dd>{appointment.branchName}</dd></div> : null}
             {appointment.packageName ? <div><dt>Gói khám</dt><dd>{appointment.packageName}</dd></div> : null}
