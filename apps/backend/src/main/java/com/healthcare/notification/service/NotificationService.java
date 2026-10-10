@@ -1,6 +1,8 @@
 package com.healthcare.notification.service;
 
 import com.healthcare.common.SafePageRequests;
+import com.healthcare.demo.DashboardDemonstration;
+import com.healthcare.demo.DashboardDemonstrationGuard;
 import com.healthcare.exception.ResourceNotFoundException;
 import com.healthcare.notification.dto.NotificationResponse;
 import com.healthcare.notification.entity.Notification;
@@ -37,18 +39,23 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationPreferenceRepository preferenceRepository;
     private final UserRepository userRepository;
+    private final DashboardDemonstrationGuard demonstrationGuard;
 
     public NotificationService(
             NotificationRepository notificationRepository,
             NotificationPreferenceRepository preferenceRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            DashboardDemonstrationGuard demonstrationGuard) {
         this.notificationRepository = notificationRepository;
         this.preferenceRepository = preferenceRepository;
         this.userRepository = userRepository;
+        this.demonstrationGuard = demonstrationGuard;
     }
 
     @Transactional
     public Notification create(UUID userId, EventType eventType, String title, String message, UUID referenceId) {
+        boolean demonstration = DashboardDemonstration.notificationReference(referenceId);
+        if (demonstration && !demonstrationGuard.allowNotification(referenceId, userId)) return null;
         User user = userRepository.findById(userId)
             // A recipient vanishing concurrently must not roll back the
             // enclosing business transaction (payment review, clinical
@@ -59,26 +66,27 @@ public class NotificationService {
             log.warn("Skipping notification {} for missing user {}", eventType, userId);
             return null;
         }
-        if (!channelEnabled(userId, eventType, NotificationChannel.IN_APP)) {
+        if (!channelEnabled(userId, eventType, NotificationChannel.IN_APP, !demonstration)) {
             return null;
         }
         Notification notification = new Notification();
         notification.setUser(user);
         notification.setEventType(eventType);
-        notification.setTitle(title);
-        notification.setMessage(message);
+        notification.setTitle(demonstration ? "[Minh họa] " + title : title);
+        notification.setMessage(demonstration ? DashboardDemonstration.NOTICE + " " + message : message);
         notification.setReferenceId(referenceId);
         notification.setEmailAvailableAt(OffsetDateTime.now());
+        if (demonstration) notification.setEmailSuppressedAt(OffsetDateTime.now());
         return notificationRepository.save(notification);
     }
 
-    private boolean channelEnabled(UUID userId, EventType eventType, NotificationChannel channel) {
+    private boolean channelEnabled(UUID userId, EventType eventType, NotificationChannel channel, boolean materializeDefaults) {
         NotificationCategory category = categoryFor(eventType);
         if (category == null) {
             return true;
         }
         try {
-            preferenceRepository.ensureDefaults(userId);
+            if (materializeDefaults) preferenceRepository.ensureDefaults(userId);
             return preferenceRepository.findById(new NotificationPreferenceId(userId, category, channel))
                 .map(NotificationPreference::isEnabled)
                 .orElse(true);

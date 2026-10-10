@@ -35,4 +35,8 @@ public record BankTransferPaymentResponse(
     OffsetDateTime createdAt,
     OffsetDateTime updatedAt
 ) {
+    @com.fasterxml.jackson.annotation.JsonProperty("demonstrationNotice")
+    public String demonstrationNotice() {
+        return com.healthcare.demo.DashboardDemonstration.notice(appointmentId);
+    }
 }

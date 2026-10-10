@@ -48,6 +48,15 @@ class PaymentStatusEmailServiceTest {
     }
 
     @Test
+    void ownedDemonstrationNeverSendsAnyDecisionEmail() {
+        payment.getAppointment().setId(java.util.UUID.fromString("8ef669c2-1381-5813-b85a-3a1b547632fb"));
+        service.paymentConfirmed(payment);
+        service.paymentRejected(payment);
+        service.paymentRefunded(payment);
+        verifyNoInteractions(emailSender);
+    }
+
+    @Test
     void rejectedEmailDoesNotExposeReconciliationReason() {
         service.paymentRejected(payment);
 

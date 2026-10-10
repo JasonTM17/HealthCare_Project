@@ -68,6 +68,7 @@ public class BankTransferWebhookService {
         }
         verifySignature(timestamp, rawBody, signature);
         BankTransferWebhookRequest request = parse(rawBody);
+        paymentService.requireOrdinaryTransferContent(request.transferContent());
         String payloadHash = sha256(rawBody);
         // process() is deliberately NOT @Transactional. Evidence survival and
         // self-deadlock-freedom come from the order below (cross-transaction

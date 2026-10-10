@@ -242,6 +242,7 @@ export default function AdminHealthQuestionsPage() {
                 <div>
                   <p className="text-xs font-bold uppercase tracking-wide text-teal-700">{item.topicSlug} · {item.status}</p>
                   <h2 className="mt-2 text-lg font-bold text-slate-900">{item.question}</h2>
+                  {item.demonstrationNotice ? <p className="mt-2 text-sm font-semibold text-amber-900">{item.demonstrationNotice}</p> : null}
                   <p className="mt-1 text-sm text-slate-500">Hiển thị dưới tên: {item.publicAlias}</p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
