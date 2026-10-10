@@ -16,8 +16,8 @@ function load(file) {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX,
     esModuleInterop: true,
   }}).outputText;
-  const module = { exports: {} };
-  cache.set(file, module.exports);
+  const loadedModule = { exports: {} };
+  cache.set(file, loadedModule.exports);
   function scopedRequire(name) {
     if (!name.startsWith(".")) return require(name);
     const base = path.resolve(path.dirname(file), name);
@@ -26,9 +26,9 @@ function load(file) {
     }
     throw new Error(`Missing source module ${name}`);
   }
-  new Function("require", "module", "exports", compiled)(scopedRequire, module, module.exports);
-  cache.set(file, module.exports);
-  return module.exports;
+  new Function("require", "module", "exports", compiled)(scopedRequire, loadedModule, loadedModule.exports);
+  cache.set(file, loadedModule.exports);
+  return loadedModule.exports;
 }
 const Content = load(path.resolve("components/ChatMessageContent.tsx")).default;
 const render = (content) => renderToStaticMarkup(React.createElement(Content, { content }));
