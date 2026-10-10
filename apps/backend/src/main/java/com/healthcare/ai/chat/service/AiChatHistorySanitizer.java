@@ -72,7 +72,8 @@ final class AiChatHistorySanitizer {
                 return limit(collapseRepeatedSpecialtyLabels(focused, displaySources));
             }
         }
-        if (!containsLegacyFixtureMarker(rawContent)) {
+        if (!containsLegacyFixtureMarker(rawContent)
+                || isCurrentCatalogueDisclosure(rawContent, displaySources)) {
             return rawContent;
         }
 
@@ -175,5 +176,17 @@ final class AiChatHistorySanitizer {
     private static boolean containsLegacyFixtureMarker(String value) {
         String normalized = value.toLowerCase(Locale.ROOT);
         return normalized.contains("dữ liệu minh họa") || normalized.contains("lịch thử nghiệm");
+    }
+
+    private static boolean isCurrentCatalogueDisclosure(
+            String content, List<AiChatSourceResolver.ResolvedSource> currentSources) {
+        // Approved catalogue samples deliberately disclose their illustrative nature.
+        // Preserve that disclosure; historical doctor/schedule cleanup remains active.
+        String normalized = normalize(content);
+        return !currentSources.isEmpty()
+            && currentSources.stream().allMatch(source ->
+                "service".equals(source.type()) || "package".equals(source.type()))
+            && !normalized.contains("bac si")
+            && !normalized.contains("lich thu nghiem");
     }
 }

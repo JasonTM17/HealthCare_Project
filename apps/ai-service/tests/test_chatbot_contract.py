@@ -1879,6 +1879,113 @@ def _threshold_settings() -> Settings:
     )
 
 
+@pytest.mark.parametrize(("query", "expected", "full_noise"), [
+    ("HealthCare có những dịch vụ xét nghiệm và chẩn đoán nào?", {"lab", "cbc", "image"}, False),
+    ("HealthCare có những dịch vụ xét nghiệm và chẩn đoán nào?", {"lab", "cbc", "image"}, True),
+    ("Có dịch vụ xét nghiệm nào?", {"lab", "cbc"}, False),
+    ("Có dịch vụ xét nghiệm nào? Tôi không hỏi về chẩn đoán.", {"lab", "cbc"}, False),
+    ("Danh mục chẩn đoán hình ảnh?", {"image"}, False),
+    ("Có dịch vụ chẩn đoán nào?", {"lab", "cbc", "image", "noise"}, False),
+    ("Tìm bác sĩ cho dịch vụ xét nghiệm", {"lab", "cbc", "image", "noise"}, False),
+    ("Đặt lịch dịch vụ xét nghiệm", {"lab", "cbc", "image", "noise"}, False),
+])
+def test_lab_catalogue_question_excludes_vector_noise_and_rescues_matching_titles(
+    query: str, expected: set[str], full_noise: bool,
+) -> None:
+    service = RagService()
+    for source_id, title in (
+        ("lab", "Xét nghiệm và chẩn đoán"),
+        ("cbc", "Xét nghiệm công thức máu toàn phần (CBC)"),
+        ("image", "Chẩn đoán hình ảnh"),
+        ("noise", "Tư vấn phòng ngừa chấn thương khi vận động (minh họa)"),
+    ):
+        service.ingest(
+            "service", source_id, title,
+            title + ". Thông tin dịch vụ HealthCare trên website trải nghiệm.",
+            [1.0] + [0.0] * 383, embedding_model="local-hash",
+        )
+    noise = service.index.get("service:noise")
+    assert noise is not None
+    noise_hit: RagDocument = noise
+
+    class CatalogueVectorRag:
+        def search(self, vector: list[float], **kwargs: Any) -> list[tuple[RagDocument, float]]:
+            if full_noise:
+                return [(noise_hit, 0.95)] * 20
+            return [(document, 0.95) for document in service.index.documents]
+
+        def lexical_candidates(self, query_text: str, **kwargs: Any) -> list[RagDocument]:
+            return service.lexical_candidates(query_text, **kwargs)
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(message=query, mode=ChatMode.HOSPITAL_SUPPORT, top_k=20),
+        _threshold_settings(), CatalogueVectorRag(),  # type: ignore[arg-type]
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert {candidate.source_id for candidate in response.candidates} == expected
+    assert all(candidate.score >= response.relevance_threshold for candidate in response.candidates)
+
+
+def test_lab_catalogue_question_without_matching_sources_returns_no_candidates() -> None:
+    service = _service()
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(message="Có dịch vụ xét nghiệm nào?", mode=ChatMode.HOSPITAL_SUPPORT),
+        _settings(), service,
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert response.candidates == []
+
+
+def test_lab_title_alone_does_not_promote_a_sub_threshold_candidate() -> None:
+    service = RagService()
+    service.ingest(
+        "service", "lab", "Xét nghiệm", "Xét nghiệm.",
+        [1.0] + [0.0] * 383, embedding_model="local-hash",
+    )
+    document = service.index.get("service:lab")
+    assert document is not None
+    lab_hit: RagDocument = document
+
+    class SubThresholdRag:
+        def search(self, *_: Any, **kwargs: Any) -> list[tuple[RagDocument, float]]:
+            return [(lab_hit, 0.1)]
+
+        def lexical_candidates(self, query_text: str, **kwargs: Any) -> list[RagDocument]:
+            return service.lexical_candidates(query_text, **kwargs)
+
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(
+            message="HealthCare có những dịch vụ xét nghiệm và chẩn đoán nào?",
+            mode=ChatMode.HOSPITAL_SUPPORT,
+        ), _threshold_settings(), SubThresholdRag(),  # type: ignore[arg-type]
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    assert response.candidates == []
+
+
+@pytest.mark.parametrize("projection", ["OPERATIONAL", "CLINICAL"])
+def test_lab_catalogue_preserves_mode_allowed_operational_specialty(projection: str) -> None:
+    service = _service()
+    service.ingest(
+        "specialty", "lab-specialty", "Xét nghiệm", "Chuyên khoa xét nghiệm HealthCare.",
+        [1.0] + [0.0] * 383, embedding_model="local-hash",
+        metadata={"projection_kind": projection},
+    )
+    response = retrieve_chat_candidates(
+        ChatRetrieveRequest(message="Có dịch vụ xét nghiệm nào?", mode=ChatMode.HOSPITAL_SUPPORT),
+        _settings(), service,
+        embedder=lambda *_: ([1.0] + [0.0] * 383, "local-hash"),
+    )
+
+    expected = [
+        ("specialty", "lab-specialty"),
+    ] if projection == "OPERATIONAL" else []
+    assert [(candidate.source_type, candidate.source_id) for candidate in response.candidates] == expected
+
+
 def test_retrieve_pool_rescue_finds_document_buried_below_top_k() -> None:
     """The durable RPC caps at twenty vector-ranked rows; a strongly matching
     FAQ that never reaches those rows must still be rescued via the lexical
