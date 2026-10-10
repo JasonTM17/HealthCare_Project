@@ -215,8 +215,8 @@ jobs:
         run: |
           set -euo pipefail
           declare -A targets=(
-            ["backend"]="https://healthcare-backup-backend.onrender.com/actuator/health"
-            ["ai"]="https://healthcare-backup-ai.onrender.com/livez"
+            ["backend"]="https://healthcare-primary-backend.onrender.com/actuator/health"
+            ["ai"]="https://healthcare-primary-ai.onrender.com/livez"
           )
           failed=0
           for name in backend ai; do

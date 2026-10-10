@@ -48,9 +48,15 @@ production deployment.
 
 ## CMS and account compatibility
 
-The selected hosted backend is `https://healthcare-backup-backend.onrender.com`
+The selected hosted backend is `https://healthcare-primary-backend.onrender.com`
 in the user-selected Render workspace. Its AI dependency is
-`https://healthcare-backup-ai.onrender.com`. Set Vercel's server-only
+`https://healthcare-primary-ai.onrender.com`. The private
+`healthcare-primary-redis` instance belongs to the same selected workspace and
+Singapore region; supply its internal connection through the backend's
+dashboard-managed `REDIS_URL`. The two-service blueprint references this
+existing Redis instance through its secret and does not create another instance.
+The quota-exhausted backup workspace is retired; do not resume it as an automatic
+fallback. Set Vercel's server-only
 `BACKEND_INTERNAL_URL` to this backend and keep the BFF service token aligned
 with that service's secret store. Remove retired-cluster `BACKEND_BACKUP_URL`
 and `BACKEND_FALLBACK_URL` entries. A deployment without an explicitly configured
