@@ -422,6 +422,7 @@ public class AiClinicalReviewService {
 
     private Map<String, Object> summary(Map<String, Object> row) {
         Map<String, Object> result = new LinkedHashMap<>();
+        result.put("demonstrationNotice", com.healthcare.demo.DashboardDemonstration.noticeForText(row.get("source_id")));
         result.put("sourceType", row.get("source_type"));
         result.put("sourceId", row.get("source_id"));
         result.put("title", row.getOrDefault("title", "Nội dung bệnh viện"));

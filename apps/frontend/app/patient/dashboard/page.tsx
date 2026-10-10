@@ -218,6 +218,7 @@ function safePaymentQrUrl(value: string): URL {
 }
 
 async function downloadPaymentQrImage(paymentDetails: BankTransferPayment): Promise<void> {
+  if (paymentDetails.demonstrationNotice || !paymentDetails.qrCodeUrl) throw new Error("Giao dịch này không có mã ngân hàng để tải.");
   const qrUrl = safePaymentQrUrl(paymentDetails.qrCodeUrl);
   const response = await fetch(qrUrl, {
     cache: "no-store",
@@ -1863,7 +1864,7 @@ export default function PatientDashboardPage() {
                 <>
                   <div className={paymentStyles.heading}>
                     <div>
-                      <p className="section-note">CHUYỂN KHOẢN NGÂN HÀNG</p>
+                      <p className="section-note">{payment.data.demonstrationNotice ? "THANH TOÁN MÔ PHỎNG" : "CHUYỂN KHOẢN NGÂN HÀNG"}</p>
                       <h3 id="patient-payment-title" ref={paymentHeadingRef} tabIndex={-1}>Thanh toán lịch {payment.data.bookingCode}</h3>
                     </div>
                     <button aria-label={`Đóng thanh toán lịch ${payment.data.bookingCode}`} className={paymentStyles.closeButton} onClick={closePaymentPanel} type="button">
@@ -1873,9 +1874,15 @@ export default function PatientDashboardPage() {
                   </div>
                   <div className={paymentStyles.securityNote}>
                     <UiIcon name="shield-check" size={22} />
-                    <p>Chỉ chuyển đúng số tiền và nội dung bên dưới. Hệ thống không bao giờ yêu cầu mã OTP ngân hàng hoặc mật khẩu.</p>
+                    <p>{payment.data.demonstrationNotice || "Chỉ chuyển đúng số tiền và nội dung bên dưới. Hệ thống không bao giờ yêu cầu mã OTP ngân hàng hoặc mật khẩu."}</p>
                   </div>
-                  <div className={paymentStyles.layout}>
+                  {payment.data.demonstrationNotice ? (
+                    <dl className={paymentStyles.details}>
+                      <div><dt>Số tiền minh họa</dt><dd className={paymentStyles.amount}>{formatMoney(payment.data.amount)}</dd></div>
+                      <div><dt>Trạng thái mô phỏng</dt><dd><span className={paymentStyles.status} data-status={payment.data.status}>{formatPaymentStatus(payment.data.status)}</span></dd></div>
+                      {payment.data.transactionReference ? <div><dt>Mã mô phỏng đã gửi</dt><dd><code>{payment.data.transactionReference}</code></dd></div> : null}
+                    </dl>
+                  ) : <div className={paymentStyles.layout}>
                     <figure className={paymentStyles.qrCard}>
                       <div className={paymentStyles.qrFrame}>
                         <Image
@@ -1884,7 +1891,7 @@ export default function PatientDashboardPage() {
                           draggable={false}
                           height={360}
                           sizes="(max-width: 720px) 82vw, 360px"
-                          src={payment.data.qrCodeUrl}
+                          src={payment.data.qrCodeUrl ?? ""}
                           unoptimized
                           width={360}
                         />
@@ -1901,7 +1908,7 @@ export default function PatientDashboardPage() {
                         <dt>Số tài khoản</dt>
                         <dd className={paymentStyles.valueRow}>
                           <code>{payment.data.bankAccount}</code>
-                          <button aria-label={`Sao chép số tài khoản ${payment.data.bankAccount}`} className={paymentStyles.copyButton} onClick={() => void copyPaymentValue("account", "số tài khoản", payment.data.bankAccount)} type="button">{copiedPaymentField === "account" ? "Đã chép" : "Sao chép"}</button>
+                          <button aria-label={`Sao chép số tài khoản ${payment.data.bankAccount}`} className={paymentStyles.copyButton} onClick={() => void copyPaymentValue("account", "số tài khoản", payment.data.bankAccount ?? "")} type="button">{copiedPaymentField === "account" ? "Đã chép" : "Sao chép"}</button>
                         </dd>
                       </div>
                       <div><dt>Chủ tài khoản</dt><dd>{payment.data.accountHolder || "Kiểm tra tên hiển thị trong ứng dụng ngân hàng"}</dd></div>
@@ -1942,7 +1949,7 @@ export default function PatientDashboardPage() {
                         </div>
                       ) : null}
                     </dl>
-                  </div>
+                  </div>}
 
                   {isPollablePaymentStatus(payment.data.status) ? (
                     <div aria-live="polite" className={paymentStyles.polling} role="status">
@@ -1954,14 +1961,14 @@ export default function PatientDashboardPage() {
 
                   {payment.data.status === "PAID" ? (
                     <p className={paymentStyles.successCard}>
-                      <UiIcon name="check" size={20} /> Khoản thanh toán đã được xác nhận.{" "}
-                      <a
+                      <UiIcon name="check" size={20} /> {payment.data.demonstrationNotice ? "Giao dịch mô phỏng đã được duyệt; không có chuyển tiền." : "Khoản thanh toán đã được xác nhận."}{" "}
+                      {!payment.data.demonstrationNotice ? <a
                         className={paymentStyles.receiptLink}
                         download
                         href={`/api/v1/patient/appointments/${payment.data.appointmentId}/payment/invoice.pdf`}
                       >
                         Tải biên nhận PDF
-                      </a>
+                      </a> : null}
                     </p>
                   ) : null}
 
@@ -1969,24 +1976,24 @@ export default function PatientDashboardPage() {
                     <div aria-labelledby="payment-rejected-title" className={paymentStyles.rejectedGuide} role="alert">
                       <h4 id="payment-rejected-title"><UiIcon name="alert-triangle" size={20} /> Thanh toán cần kiểm tra lại</h4>
                       {payment.data.rejectionReason ? <p><strong>Lý do:</strong> {payment.data.rejectionReason}</p> : null}
-                      <ol>
+                      {payment.data.demonstrationNotice ? <p>Chỉnh mã mô phỏng theo lý do rồi gửi lại để kiểm thử đối soát. Không dùng ứng dụng ngân hàng.</p> : <ol>
                         <li>Đối chiếu số tiền, nội dung chuyển khoản và mã giao dịch với ứng dụng ngân hàng.</li>
                         <li>Nếu tài khoản đã bị trừ tiền, không chuyển lần thứ hai; nhập lại đúng mã giao dịch hoặc liên hệ cơ sở y tế.</li>
                         <li>Nếu chưa chuyển tiền, quét lại VietQR và dùng chính xác nội dung được hiển thị.</li>
-                      </ol>
+                      </ol>}
                     </div>
                   ) : null}
 
                   {payment.data.status === "UNPAID" || payment.data.status === "REJECTED" ? (
                     <form className={paymentStyles.form} onSubmit={handleSubmitPayment}>
-                      <label htmlFor="payment-reference">Mã giao dịch từ ứng dụng ngân hàng</label>
-                      <p id="payment-reference-help">Chỉ nhập mã giao dịch sau khi ngân hàng báo chuyển khoản thành công.</p>
+                      <label htmlFor="payment-reference">{payment.data.demonstrationNotice ? "Mã giao dịch mô phỏng" : "Mã giao dịch từ ứng dụng ngân hàng"}</label>
+                      <p id="payment-reference-help">{payment.data.demonstrationNotice ? "Nhập mã thử nghiệm, ví dụ DEMO-261009-001. Không cần chuyển tiền." : "Chỉ nhập mã giao dịch sau khi ngân hàng báo chuyển khoản thành công."}</p>
                       <input aria-describedby="payment-reference-help" autoComplete="off" id="payment-reference" maxLength={100} minLength={6} onChange={(event) => setPaymentReference(event.target.value)} pattern="[A-Za-z0-9._\-\/ ]+" placeholder="Ví dụ: FT123456789" required spellCheck={false} type="text" value={paymentReference} />
-                      <button className="button button--primary" disabled={paymentSubmitting} type="submit">{paymentSubmitting ? "Đang gửi…" : payment.data.status === "REJECTED" ? "Gửi lại để đối soát" : "Tôi đã chuyển khoản"}</button>
+                      <button className="button button--primary" disabled={paymentSubmitting} type="submit">{paymentSubmitting ? "Đang gửi…" : payment.data.demonstrationNotice ? "Gửi mã mô phỏng" : payment.data.status === "REJECTED" ? "Gửi lại để đối soát" : "Tôi đã chuyển khoản"}</button>
                     </form>
                   ) : null}
 
-                  {payment.data.status === "PENDING_VERIFICATION" ? <p className={paymentStyles.infoCard}>Bạn có thể rời trang. Trạng thái chỉ chuyển thành “Đã thanh toán” sau khi admin kiểm tra sao kê và phê duyệt.</p> : null}
+                  {payment.data.status === "PENDING_VERIFICATION" ? <p className={paymentStyles.infoCard}>{payment.data.demonstrationNotice ? "Mã mô phỏng đang chờ admin kiểm tra. Thao tác này không ghi nhận chuyển tiền thật." : "Bạn có thể rời trang. Trạng thái chỉ chuyển thành “Đã thanh toán” sau khi admin kiểm tra sao kê và phê duyệt."}</p> : null}
                   {payment.data.refundReference ? <p className={paymentStyles.successCard}><strong>Mã hoàn tiền:</strong> {payment.data.refundReference}</p> : null}
                 </>
               ) : null}

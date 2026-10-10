@@ -149,6 +149,7 @@ public class AdminDoctorService {
         if (governance != null) governance.acquire();
         Doctor doctor = doctorRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + slug));
+        com.healthcare.demo.DashboardDemonstration.requireMutableDoctor(doctor.getId());
         UUID previousUserId = doctor.getUserId();
         Map<UUID, User> locked = lockIdentities(doctor, request.userId());
         if (governance != null) doctor = doctorRepository.findByIdForUpdate(doctor.getId())
@@ -259,6 +260,7 @@ public class AdminDoctorService {
         if (governance != null) governance.acquire();
         Doctor doctor = doctorRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Doctor not found: " + slug));
+        com.healthcare.demo.DashboardDemonstration.requireMutableDoctor(doctor.getId());
         Map<UUID, User> locked = lockIdentities(doctor, null);
         if (governance != null) doctor = doctorRepository.findByIdForUpdate(doctor.getId())
             .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));

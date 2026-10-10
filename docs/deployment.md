@@ -76,6 +76,26 @@ Account verification/password-reset responses describe a mail request, not
 delivery. Preserve the distinction until actual SMTP/outbox delivery is
 observed; source tests and an accepted request cannot establish it.
 
+## Closed dashboard demonstrations
+
+Dashboard fixtures exist to demonstrate pending queues and simulated decisions;
+they are not bank evidence or clinical publication. An authorized simulation
+must remain visibly labelled and limited to its owned graph. Production data
+application requires separate backup, rehearsal and release evidence; local
+test results do not authorize replaying a seed against an existing environment.
+
+The executable boundary is
+[`DashboardDemonstrationGuard`](../apps/backend/src/main/java/com/healthcare/demo/DashboardDemonstrationGuard.java),
+with its identity manifest in
+[`dashboard-demonstration.json`](../apps/backend/src/main/resources/dashboard-demonstration.json).
+The fixed patient account and private doctor are immutable governance targets;
+account binding and doctor update/delete reject them before shared row locks.
+The designated reviewer's authority must remain valid at decision time because
+authentication may precede a transaction lock wait. The same fixtures must not
+enter ordinary bank evidence/dead-letter storage, even when no payment has yet
+been initialized. Ordinary unmatched evidence retains its existing recovery
+semantics.
+
 ## Verified synthetic beta
 
 The release-record baseline for local Docker readiness is

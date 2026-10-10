@@ -2,6 +2,7 @@ package com.healthcare.appointment.service;
 
 import com.healthcare.appointment.entity.Appointment;
 import com.healthcare.appointment.repository.AppointmentRepository;
+import com.healthcare.demo.DashboardDemonstration;
 import com.healthcare.notification.entity.Notification.EventType;
 import com.healthcare.notification.service.NotificationService;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,7 +41,8 @@ public class AppointmentReminderService {
     public int sendDueReminders() {
         OffsetDateTime now = OffsetDateTime.now(BUSINESS_ZONE);
         OffsetDateTime windowEnd = now.plusHours(Math.max(1, reminderLeadHours));
-        List<Appointment> dueAppointments = appointmentRepository.lockDueReminders(now, windowEnd);
+        List<Appointment> dueAppointments = appointmentRepository.lockDueReminders(now, windowEnd).stream()
+            .filter(appointment -> !DashboardDemonstration.appointment(appointment.getId())).toList();
 
         for (Appointment appointment : dueAppointments) {
             UUID recipientUserId = appointment.getPatient().getUserId();

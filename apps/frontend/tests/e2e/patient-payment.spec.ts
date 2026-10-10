@@ -59,9 +59,10 @@ function pageEnvelope<T>(content: T[]): PageEnvelope<T> {
   };
 }
 
-async function installPaymentMocks(context: BrowserContext): Promise<void> {
+async function installPaymentMocks(context: BrowserContext, demonstration = false): Promise<{ qrRequests: () => number }> {
   let paymentStatus: "UNPAID" | "PENDING_VERIFICATION" | "PAID" = "UNPAID";
   let paymentReads = 0;
+  let qrRequests = 0;
 
   const appointment = (): PatientPortalAppointment => ({
     id: APPOINTMENT_ID,
@@ -104,9 +105,11 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
     refundedAt: null,
     createdAt: "2026-08-23T00:00:00Z",
     updatedAt: "2026-08-23T01:01:00Z",
+    ...(demonstration ? { demonstrationNotice: "Dữ liệu minh họa; không chuyển tiền và không có lịch khám thật.", bankName: null, bankAccount: null, accountHolder: null, qrCodeUrl: null } : {}),
   });
 
   await context.route("https://img.vietqr.io/**", async (route) => {
+    qrRequests += 1;
     await route.fulfill({
       status: 200,
       contentType: "image/png",
@@ -165,7 +168,25 @@ async function installPaymentMocks(context: BrowserContext): Promise<void> {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
   });
   await installMockBrowserSession(context, PATIENT_SESSION);
+  return { qrRequests: () => qrRequests };
 }
+
+test("demonstration payment discloses simulation and never offers bank or QR actions", async ({ context, page }, testInfo) => {
+  await page.setViewportSize({ width: 375, height: 900 });
+  const mocks = await installPaymentMocks(context, true);
+  await page.goto("/patient/dashboard#appointments");
+  await page.getByRole("button", { name: "Thanh toán cho lịch APT-PAY-E2E" }).click();
+  const panel = page.getByRole("region", { name: "Thanh toán chuyển khoản" });
+  await expect(panel.getByText("Dữ liệu minh họa; không chuyển tiền và không có lịch khám thật.", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("img", { name: /VietQR/ })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: /Sao chép số tài khoản|Tải mã VietQR|Tôi đã chuyển khoản/ })).toHaveCount(0);
+  await expect(panel.getByText("HEALTHCARE E2E", { exact: true })).toHaveCount(0);
+  await expect(panel.getByLabel("Mã giao dịch mô phỏng", { exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: "Gửi mã mô phỏng", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  expect(mocks.qrRequests()).toBe(0);
+  await page.screenshot({ path: testInfo.outputPath("demonstration-payment-375.png"), fullPage: true });
+});
 
 test("mobile patient payment keeps QR actions accessible and waits for admin approval", async ({ context, page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
