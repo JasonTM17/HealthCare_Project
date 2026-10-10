@@ -153,9 +153,12 @@ function useField(fieldId: string, nativeValue: CmsLayoutValue) {
     },
   };
 }
-export function CmsNativeText({ fieldId, value, as = "span", children, ...props }: { fieldId: string; value: string; as?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "strong" | "small"; children?: ReactNode } & HTMLAttributes<HTMLElement>) {
+export function CmsNativeText({ fieldId, value, as = "span", children, renderText, ...props }: { fieldId: string; value: string; as?: "span" | "p" | "h1" | "h2" | "h3" | "h4" | "strong" | "small"; children?: ReactNode; renderText?: (text: string) => ReactNode } & HTMLAttributes<HTMLElement>) {
   const field = useField(fieldId, { kind: "text", value });
-  return createElement(as, { ...props, ...field.attributes }, field.value.kind === "text" && field.value.value !== value ? field.value.value : children ?? value);
+  const text = field.value.kind === "text" ? field.value.value : value;
+  // Native typography applies to the effective draft/published copy without
+  // turning an editable plain-text field into arbitrary CMS HTML.
+  return createElement(as, { ...props, ...field.attributes }, renderText ? renderText(text) : text !== value ? text : children ?? value);
 }
 export function CmsNativeRich({ fieldId, value, children, ...props }: { fieldId: string; value: string; children?: ReactNode } & HTMLAttributes<HTMLDivElement>) {
   const field = useField(fieldId, { kind: "rich", format: "markdown", value });

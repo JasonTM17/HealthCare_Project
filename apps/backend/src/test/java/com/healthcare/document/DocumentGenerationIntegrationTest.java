@@ -173,6 +173,37 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
         appointmentId = appointment.getId();
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"UTC", "Asia/Ho_Chi_Minh"})
+    void appointmentReminderKeepsWallClockTimeOnNonUtcHosts(String hostZone) throws Exception {
+        java.util.TimeZone original = java.util.TimeZone.getDefault();
+        try {
+            java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(hostZone));
+            // PostgreSQL TIME is a wall-clock value, not an instant. Write it
+            // directly so an ORM round-trip cannot hide a symmetric shift.
+            jdbcTemplate.update("UPDATE appointments SET start_time=TIME '09:00', end_time=TIME '09:30' WHERE id=?", appointmentId);
+            Appointment stored = appointmentRepository.findById(appointmentId).orElseThrow();
+            assertThat(stored.getStartTime()).isEqualTo(LocalTime.of(9, 0));
+            assertThat(stored.getEndTime()).isEqualTo(LocalTime.of(9, 30));
+            mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
+                    .header("Authorization", patientBearer)
+                    .contentType(MediaType.APPLICATION_JSON).content(requestBody()))
+                .andExpect(status().isCreated());
+            ArgumentCaptor<byte[]> bytes = ArgumentCaptor.forClass(byte[].class);
+            verify(objectStore).put(org.mockito.ArgumentMatchers.anyString(), bytes.capture(), eq("application/pdf"));
+            try (PDDocument document = Loader.loadPDF(bytes.getValue())) {
+                assertThat(new PDFTextStripper().getText(document)).contains("09:00 – 09:30");
+            }
+            stored.setStartTime(LocalTime.of(10, 0));
+            stored.setEndTime(LocalTime.of(10, 30));
+            appointmentRepository.saveAndFlush(stored);
+            assertThat(jdbcTemplate.queryForObject("SELECT start_time::text FROM appointments WHERE id=?", String.class, appointmentId)).isEqualTo("10:00:00");
+            assertThat(jdbcTemplate.queryForObject("SELECT end_time::text FROM appointments WHERE id=?", String.class, appointmentId)).isEqualTo("10:30:00");
+        } finally {
+            java.util.TimeZone.setDefault(original);
+        }
+    }
+
     @Test
     void appointmentReminderGeneratesEndToEndAndFinalizesAvailable() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
