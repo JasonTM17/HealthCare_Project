@@ -156,6 +156,9 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: apps/frontend
         run: npx playwright install --with-deps chromium
+      - name: Rendered layout regressions
+        working-directory: apps/frontend
+        run: npm run test:rendered
       - name: Test
         working-directory: apps/frontend
         run: npm run test

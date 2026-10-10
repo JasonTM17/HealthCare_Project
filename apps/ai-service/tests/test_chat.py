@@ -132,6 +132,45 @@ def test_public_hospital_support_chat_uses_remote_provider_when_enabled() -> Non
     provider.complete_json.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    ("answer", "expected_remote"),
+    [
+        ("I cannot provide a prescription.", True),
+        ("I cannot provide any prescription.", True),
+        ("I cannot provide a prescription, but take aspirin.", False),
+        ("I cannot provide any prescription. Paracetamol 500mg daily.", False),
+        ("I cannot provide a prescription. 500 mg daily.", False),
+        ("I cannot provide any prescription. 2 pills every morning.", False),
+        ("I cannot provide a prescription\n500 mg daily.", False),
+        ("I cannot provide any prescription; 2 pills every morning.", False),
+    ],
+)
+def test_public_support_noun_refusal_output_gate(
+    answer: str, expected_remote: bool,
+) -> None:
+    provider = MagicMock()
+    provider.complete_json.return_value = {"answer": answer}
+    configured = _synthetic_remote_settings()
+    configured.ai_public_hospital_support_remote_enabled = True
+
+    result = resolve_chat(
+        "Bệnh viện có chuyên khoa nào?",
+        configured,
+        context=["Tim mạch: Bệnh viện có chuyên khoa Tim mạch."],
+        citations=[Citation(source_type="specialty", source_id="specialty-1", title="Tim mạch")],
+        client=provider,
+        public_support_chat=True,
+    )
+
+    provider.complete_json.assert_called_once()
+    assert (result.provenance == "remote_provider") is expected_remote
+    if expected_remote:
+        assert result.answer == answer
+    else:
+        assert result.provenance == "local_fallback"
+        assert answer not in result.answer
+
+
 def test_public_catalog_question_uses_navigation_guidance_without_symptom_triage() -> None:
     local_settings = MagicMock()
     local_settings.ai_provider = "local"

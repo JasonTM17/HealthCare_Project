@@ -1065,6 +1065,7 @@
 
 .composerLabelRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
@@ -1216,9 +1217,11 @@
     height: auto;
     min-height: 0;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
   }
 
   .conversationRail {
+    height: auto;
     max-height: none;
     align-self: start;
     border-right: 0;
@@ -1231,6 +1234,8 @@
 
   .thread {
     min-height: 40rem;
+    height: auto;
+    max-height: none;
   }
 
   .messageViewport {
@@ -1333,6 +1338,9 @@
     margin-bottom: var(--sp-2);
   }
 
+}
+
+@media (min-width: 901px) and (max-height: 820px) {
   .workspace {
     height: clamp(26rem, 68vh, 48rem);
   }

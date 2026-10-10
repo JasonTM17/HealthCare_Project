@@ -49,6 +49,10 @@ function loadComponent(relative, { openMenu = false } = {}) {
     if (cache.has(filename)) return cache.get(filename).exports;
     const loadedModule = { exports: {} };
     cache.set(filename, loadedModule);
+    if (filename.endsWith(".json")) {
+      loadedModule.exports = JSON.parse(readFileSync(filename, "utf8"));
+      return loadedModule.exports;
+    }
     const source = ts.transpileModule(readFileSync(filename, "utf8"), {
       fileName: filename,
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },

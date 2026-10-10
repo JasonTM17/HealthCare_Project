@@ -2023,6 +2023,9 @@ _REFUSABLE_CLINICAL_ACTIONS = frozenset({
     "ke don", "ke toa", "boc thuoc", "prescribe", "ngung thuoc",
     "stop medication", "change your medication",
 })
+_PRESCRIPTION_NOUN_REFUSAL_MESSAGE_PATTERN = re.compile(
+    r"\s*i\s+cannot\s+provide\s+(?:a|any)\s+prescription\s*\.?\s*", re.IGNORECASE,
+)
 # A refusable action excused by a refusal frame must not be followed by a
 # medication object or dose before the next clause boundary — otherwise a
 # comma-chained reuse ("không thể kê đơn, kê đơn aspirin") would ride the
@@ -2151,6 +2154,14 @@ def _has_unnegated_forbidden_match(
                         continue
                     return True
                 if phrase not in _REFUSABLE_CLINICAL_ACTIONS:
+                    # Admit only a complete model output consisting of a refusal.
+                    # Clinical-source mode and every affirmative tail stay closed.
+                    if (
+                        not allow_approved_clinical
+                        and phrase == "prescription"
+                        and _PRESCRIPTION_NOUN_REFUSAL_MESSAGE_PATTERN.fullmatch(variant)
+                    ):
+                        continue
                     return True
                 prefix = sentence[: match.start()]
                 if _CONTRASTIVE_WORD_PATTERN.search(prefix):
