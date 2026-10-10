@@ -42,3 +42,11 @@ provide the phone number attached to the appointment. The operation accepts
 only `CONFIRMED` appointments, validates the doctor's schedule and branch,
 and returns HTTP `409` without changing the original appointment when the
 target interval is occupied.
+
+SQL `TIME` fields represent wall-clock values. `LocalTimeTypeContributor`
+registers JDBC 4.2 binding for `LocalTime` attributes and query parameters, so
+appointment overlap checks, schedules, quiet hours and reminder documents agree
+on UTC and non-UTC JVM hosts. Instant/offset timestamp mappings and the database
+schema remain unchanged. Do not enable the broader Hibernate direct-JDBC flag
+as a substitute, or rewrite historical rows automatically; compare any suspected
+legacy value with an independent source before proposing a data correction.

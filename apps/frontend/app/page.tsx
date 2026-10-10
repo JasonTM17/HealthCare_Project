@@ -361,6 +361,14 @@ function isPlaceholderCmsHeroPayload(cmsHero?: CmsHeroPayload): boolean {
   return PLACEHOLDER_HERO_COPY_PATTERN.test(source);
 }
 
+function renderHomeHeroTitle(title: string): React.ReactNode {
+  return title.split(/(sức khỏe|gia đình)/giu).map((part, index) =>
+    /^(sức khỏe|gia đình)$/iu.test(part)
+      ? <span className="hero-teal-accent" key={index}>{part}</span>
+      : part,
+  );
+}
+
 function HomeHeroCopy({
   searchQuery,
   setSearchQuery,
@@ -382,7 +390,7 @@ function HomeHeroCopy({
         <span className="hero-kicker__line" aria-hidden="true" />
         <CmsNativeText fieldId="hero.eyebrow" value={activeCmsHero?.eyebrow ?? "Bệnh viện đa khoa HealthCare"} />
       </p>
-      <CmsNativeText as="h1" fieldId="hero.title" id="hero-title" value={activeCmsHero?.title ?? "Đồng hành cùng sức khỏe gia đình"}>
+      <CmsNativeText as="h1" fieldId="hero.title" id="hero-title" renderText={renderHomeHeroTitle} value={activeCmsHero?.title ?? "Đồng hành cùng sức khỏe gia đình"}>
         {activeCmsHero?.title ?? (
           <>
             Đồng hành<br />

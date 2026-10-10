@@ -10,6 +10,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -52,9 +54,13 @@ public class Appointment {
     private LocalDate appointmentDate;
 
     @Column(name = "start_time", nullable = false)
+    // Wall-clock TIME values must use JDBC 4.2 LocalTime, independent of
+    // hibernate.jdbc.time_zone and the server's default timezone.
+    @JdbcTypeCode(SqlTypes.LOCAL_TIME)
     private LocalTime startTime;
 
     @Column(name = "end_time")
+    @JdbcTypeCode(SqlTypes.LOCAL_TIME)
     private LocalTime endTime;
 
     @Column(name = "appointment_time", nullable = false)

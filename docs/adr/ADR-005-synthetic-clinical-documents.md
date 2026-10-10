@@ -112,5 +112,8 @@ with unchanged auth semantics.
   the existing clinical access audit service.
 - Template or font changes change the template version constant, which changes
   the idempotency key and therefore produces a fresh document per source.
+- Template 1.1 increases line and section spacing, including adjacent empty
+  sections. Previously generated files remain immutable; regenerate through
+  the existing authorized workflow to obtain the current template.
 - If a hosted font download had failed, font-dependent steps would have been
   recorded BLOCKED_CAPABILITY; both fonts downloaded successfully.

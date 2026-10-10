@@ -216,7 +216,7 @@ class DocumentServiceTest {
         ArgumentCaptor<PatientDocument> saved = ArgumentCaptor.forClass(PatientDocument.class);
         verify(documentRepository, times(2)).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getIdempotencyKey())
-                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":1.0");
+                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":" + SyntheticPdfRenderer.TEMPLATE_VERSION);
         assertThat(savedStatuses).containsExactly(DocumentStatus.PENDING, DocumentStatus.AVAILABLE);
         assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
         assertThat(response.sha256()).isEqualTo(codec.sha256Hex(RENDERED_PDF));
@@ -234,7 +234,7 @@ class DocumentServiceTest {
         PatientDocument previous = availableDocument(
                 UUID.fromString("00000000-0000-4000-8000-0000000000f3"), RECORD_ID);
         previous.setSourceVersion(SOURCE_VERSION - 1);
-        previous.setIdempotencyKey("VISIT_SUMMARY:" + RECORD_ID + ":" + (SOURCE_VERSION - 1) + ":1.0");
+        previous.setIdempotencyKey("VISIT_SUMMARY:" + RECORD_ID + ":" + (SOURCE_VERSION - 1) + ":" + SyntheticPdfRenderer.TEMPLATE_VERSION);
         when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
         when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
         when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
@@ -408,7 +408,7 @@ class DocumentServiceTest {
 
     /**
      * The reported production defect: a FAILED row created by an older template
-     * version ('v1.0') never matches the idempotency key built today ('1.0'), so a
+     * version ('v1.0') never matches the idempotency key built for the current template, so a
      * retry from the patient panel must adopt that orphan row in place instead of
      * inserting a second row and leaving the FAILED one stuck on the UI forever.
      */
@@ -453,8 +453,8 @@ class DocumentServiceTest {
         // The adopted row must carry the current identity, otherwise the very next
         // retry would miss both lookups again and insert a duplicate after all.
         assertThat(stale.getIdempotencyKey())
-                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":1.0");
-        assertThat(stale.getTemplateVersion()).isEqualTo("1.0");
+                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":" + SyntheticPdfRenderer.TEMPLATE_VERSION);
+        assertThat(stale.getTemplateVersion()).isEqualTo(SyntheticPdfRenderer.TEMPLATE_VERSION);
         assertThat(stale.getSourceVersion()).isEqualTo(SOURCE_VERSION);
         assertThat(response.sha256()).isEqualTo(codec.sha256Hex(RENDERED_PDF));
         assertThat(response.byteSize()).isEqualTo((long) RENDERED_PDF.length);
@@ -589,7 +589,7 @@ class DocumentServiceTest {
         ArgumentCaptor<PatientDocument> saved = ArgumentCaptor.forClass(PatientDocument.class);
         verify(documentRepository, times(2)).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getIdempotencyKey())
-                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":1.0");
+                .isEqualTo("VISIT_SUMMARY:" + RECORD_ID + ":" + SOURCE_VERSION + ":" + SyntheticPdfRenderer.TEMPLATE_VERSION);
         assertThat(savedStatuses).containsExactly(DocumentStatus.PENDING, DocumentStatus.AVAILABLE);
         verify(objectStore).put(anyString(), eq(RENDERED_PDF), eq("application/pdf"));
     }
@@ -1001,13 +1001,13 @@ class DocumentServiceTest {
         document.setSourceRecordId(sourceRecordId);
         document.setSourceType(DocumentSourceType.VISIT_SUMMARY);
         document.setSourceVersion(SOURCE_VERSION);
-        document.setTemplateVersion("1.0");
+        document.setTemplateVersion(SyntheticPdfRenderer.TEMPLATE_VERSION);
         document.setStatus(DocumentStatus.AVAILABLE);
         document.setObjectKey("documents/" + PATIENT_ID + "/existing.pdf");
         document.setSha256(codec.sha256Hex(RENDERED_PDF));
         document.setByteSize((long) RENDERED_PDF.length);
         document.setGeneratedBy(userMock());
-        document.setIdempotencyKey("VISIT_SUMMARY:" + sourceRecordId + ":" + SOURCE_VERSION + ":1.0");
+        document.setIdempotencyKey("VISIT_SUMMARY:" + sourceRecordId + ":" + SOURCE_VERSION + ":" + SyntheticPdfRenderer.TEMPLATE_VERSION);
         return document;
     }
 

@@ -36,7 +36,7 @@ import java.util.TimeZone;
 public class SyntheticPdfRenderer {
 
     /** Bumping this changes the document idempotency key for every source. */
-    public static final String TEMPLATE_VERSION = "1.0";
+    public static final String TEMPLATE_VERSION = "1.1";
 
     public static final String DISCLAIMER_LINE =
         "BẢN TỔNG HỢP DEMO — KHÔNG PHẢI CHỨNG TỪ Y KHOA CÓ CHỮ KÝ";
@@ -47,7 +47,7 @@ public class SyntheticPdfRenderer {
     private static final float MARGIN = 48f;
     private static final float BOTTOM_LIMIT = 64f;
     private static final float BODY_SIZE = 10f;
-    private static final float BODY_LEADING = 12.5f;
+    private static final float BODY_LEADING = 14f;
 
     private final byte[] regularFontBytes;
     private final byte[] boldFontBytes;
@@ -270,9 +270,10 @@ public class SyntheticPdfRenderer {
         }
 
         private void section(String text) throws IOException {
-            ensureSpace(24f);
-            y -= 10f;
+            ensureSpace(32f);
+            y -= 16f;
             drawText(text, bold, 12f);
+            y -= 6f;
         }
 
         private void disclaimerBox(String text) throws IOException {

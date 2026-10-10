@@ -32,6 +32,69 @@ async function installChatPolicy(context: BrowserContext) {
   });
 }
 
+for (const viewport of [
+  { width: 320, height: 568 },
+  { width: 375, height: 812 },
+  { width: 390, height: 500 },
+  { width: 600, height: 570 },
+  { width: 1000, height: 420 },
+]) {
+  test(`consent and transcript share one usable scroll region at ${viewport.width}x${viewport.height}`, async ({ context, page }, testInfo) => {
+    await installChatPolicy(context);
+    let accepted = false;
+    let consentWrites = 0;
+    const conversation = () => ({
+      id: "conv-responsive-consent", title: "Chuẩn bị đi khám", mode: "HOSPITAL_SUPPORT", status: "ACTIVE", inFlight: false,
+      consentRequired: !accepted, consentVersion: accepted ? "2026-08-23" : null,
+      consentedAt: accepted ? "2026-10-10T10:00:00Z" : null,
+      createdAt: "2026-08-23T00:00:00Z", updatedAt: "2026-08-23T00:00:00Z", lastMessageAt: null, expiresAt: "2099-11-21T00:00:00Z",
+    });
+    await context.route("**/api/v1/ai/conversations**", async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (path.endsWith("/consent")) {
+        expect(request.method()).toBe("PUT");
+        expect(request.postDataJSON()).toEqual({ accepted: true, policyVersion: "2026-08-23" });
+        consentWrites++;
+        accepted = true;
+        await route.fulfill({ json: conversation() });
+      } else {
+        await route.fulfill({ json: path.endsWith("/messages") ? { content: [], nextCursor: null, hasMore: false } : [conversation()] });
+      }
+    });
+    await installMockPatientPortalSession(context, PATIENT_SESSION);
+    await page.setViewportSize(viewport);
+    await page.goto("/about", { waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Mở trợ lý sức khỏe" }).click();
+    const dialog = page.getByRole("dialog", { name: "Trợ lý sức khỏe HealthCare" });
+    const consent = dialog.getByRole("button", { name: "Tôi đồng ý và tiếp tục", exact: true });
+    await expect(consent).toBeEnabled();
+    await expect(dialog.locator("textarea")).toBeDisabled();
+    const regions = await dialog.evaluate(panel => [...panel.querySelectorAll<HTMLElement>("*")].filter(el =>
+      el.tagName !== "TEXTAREA" && /auto|scroll/.test(getComputedStyle(el).overflowY) && el.clientHeight > 0,
+    ).map(el => ({ className: el.className, height: el.clientHeight, scrollHeight: el.scrollHeight })));
+    expect(regions.length, `The consent and transcript must not have competing scrollbars: ${JSON.stringify(regions)}`).toBe(1);
+    expect(regions[0].height, "Readable space must remain between the header and composer").toBeGreaterThanOrEqual(120);
+    await consent.scrollIntoViewIfNeeded();
+    expect(await consent.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    })).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`consent-${viewport.width}-${viewport.height}.png`) });
+    await consent.focus();
+    await consent.press("Space");
+    await expect(consent).toHaveCount(0);
+    await expect(dialog.locator("textarea")).toBeEnabled();
+    expect(consentWrites).toBe(1);
+    const geometry = await measureComposerGeometry(page);
+    expect(geometry.panel.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.composer.bottom).toBeLessThanOrEqual(geometry.panel.bottom);
+    expect(geometry.launcher.top).toBeGreaterThanOrEqual(geometry.composer.bottom);
+    await dialog.getByRole("button", { name: "Đóng cửa sổ trợ lý" }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+}
+
 type ComposerGeometry = {
   panel: { top: number; bottom: number };
   composer: { top: number; bottom: number };
@@ -123,7 +186,7 @@ for (const viewport of [
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ content: [], nextCursor: null }),
+          body: JSON.stringify({ content: [], nextCursor: null, hasMore: false }),
         });
         return;
       }

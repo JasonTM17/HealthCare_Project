@@ -690,15 +690,17 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                 <span>{user.email}</span>
               </div>
             </Link>
-            <div className="grid max-w-xs justify-items-end gap-1">
-              {role === "PATIENT" && pathname !== "/patient/chat" && !pathname.startsWith("/patient/chat/") ? <button className="outline-button outline-button--small min-h-11 portal-assistant-trigger" type="button"
-                aria-haspopup="dialog"
-                onClick={() => window.dispatchEvent(new CustomEvent("healthcare:open-assistant"))}>
-                Trợ lý AI
-              </button> : null}
-              <button className="outline-button outline-button--small min-h-11" disabled={loggingOut} onClick={handleLogout} type="button">
-                {loggingOut ? "Đang thoát..." : "Đăng xuất"}
-              </button>
+            <div className="portal-user__actions">
+              <div className="portal-user__buttons">
+                {role === "PATIENT" && pathname !== "/patient/chat" && !pathname.startsWith("/patient/chat/") ? <button className="outline-button outline-button--small min-h-11 portal-assistant-trigger" type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => window.dispatchEvent(new CustomEvent("healthcare:open-assistant"))}>
+                  Trợ lý AI
+                </button> : null}
+                <button className="outline-button outline-button--small min-h-11" disabled={loggingOut} onClick={handleLogout} type="button">
+                  {loggingOut ? "Đang thoát..." : "Đăng xuất"}
+                </button>
+              </div>
               {logoutError ? <p aria-live="polite" className="text-right text-xs font-semibold leading-5 text-amber-800" role="status">{logoutError}</p> : null}
             </div>
           </div>

@@ -297,6 +297,7 @@ function FloatingHealthAssistantPanel({
   const conversationIdRef = useRef<string | null>(null);
   const policyEpochRef = useRef(0);
   const messageViewportRef = useRef<HTMLDivElement>(null);
+  const consentActionRef = useRef<HTMLButtonElement>(null);
   const shouldScrollRef = useRef(false);
   const stickToBottomRef = useRef(true);
   // Warmed on launcher hover/focus so the panel opens populated; each entry is
@@ -644,24 +645,34 @@ function FloatingHealthAssistantPanel({
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
-    if (!viewport || !shouldScrollRef.current) return;
+    if (!viewport || !shouldScrollRef.current || consentActionRef.current) return;
     viewport.scrollTop = viewport.scrollHeight;
     const timer = setTimeout(() => {
-      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+      if (viewport && !consentActionRef.current) viewport.scrollTop = viewport.scrollHeight;
     }, 60);
     shouldScrollRef.current = false;
     return () => clearTimeout(timer);
-  }, [messages, pendingUserMessage]);
+  }, [messages, pendingUserMessage, conversation, policy]);
 
   useEffect(() => {
     const viewport = messageViewportRef.current;
-    if (!viewport || !streamingReply || !stickToBottomRef.current) return;
+    if (!viewport || consentActionRef.current || !streamingReply || !stickToBottomRef.current) return;
     viewport.scrollTop = viewport.scrollHeight;
   }, [streamingReply]);
 
   useEffect(() => {
     handleModeChangeRef.current = handleModeChange;
   });
+
+  useEffect(() => {
+    const viewport = messageViewportRef.current;
+    const action = consentActionRef.current;
+    if (!open || loading || !viewport || !action || !conversationNeedsCurrentConsent(conversation, policy)) return;
+    // Reveal the required action in this widget only, without scrolling the
+    // underlying patient page or creating another nested scroll container.
+    const excess = action.getBoundingClientRect().bottom - viewport.getBoundingClientRect().bottom;
+    if (excess > 0) viewport.scrollTo({ top: viewport.scrollTop + excess + 8, behavior: "instant" });
+  }, [open, loading, conversation, policy]);
 
   if (hidden || blockedByModal) return null;
 
@@ -964,6 +975,12 @@ function FloatingHealthAssistantPanel({
             </button>
           </header>
 
+          <div
+            className={styles.scrollRegion}
+            onScroll={(event) => { stickToBottomRef.current = isNearBottom(event.currentTarget); }}
+            ref={messageViewportRef}
+          >
+
           {isPatient ? (
             <div aria-label="Chế độ trợ lý" className={styles.modePicker} role="group">
               <span className={styles.modeLegend}>Mục đích cuộc trò chuyện</span>
@@ -992,7 +1009,6 @@ function FloatingHealthAssistantPanel({
             </div>
           ) : null}
 
-          <>
               {sendModeUnavailable ? (
                 <section className={styles.consentPanel} role="note">
                   <p>{conversationModeUnavailable
@@ -1004,7 +1020,7 @@ function FloatingHealthAssistantPanel({
                 <section aria-describedby="floating-assistant-consent-copy" className={styles.consentPanel}>
                   <strong>Xác nhận trước khi trò chuyện</strong>
                   <p id="floating-assistant-consent-copy">{policy ? `Bạn đồng ý lưu cuộc trò chuyện tối đa ${policy.retentionDays} ngày để HealthCare đồng bộ lịch sử tư vấn.` : "Thời hạn lưu trữ được áp dụng theo chính sách hiện tại của HealthCare."} Trợ lý hỗ trợ giải đáp thông tin và chuẩn bị thăm khám; không thay thế chẩn đoán hoặc phác đồ từ bác sĩ chuyên khoa.</p>
-                  <button className={styles.primaryButton} disabled={consentBusy} onClick={() => void handleConsent()} type="button">
+                  <button className={styles.primaryButton} disabled={consentBusy} onClick={() => void handleConsent()} ref={consentActionRef} type="button">
                     {consentBusy ? "Đang xác nhận…" : "Tôi đồng ý và tiếp tục"}
                   </button>
                   {consentError ? <p aria-live="assertive" className={styles.consentError} role="alert">{consentError}</p> : null}
@@ -1014,10 +1030,6 @@ function FloatingHealthAssistantPanel({
                 aria-busy={loading || sending}
                 aria-live="polite"
                 className={styles.thread}
-                onScroll={(event) => {
-                  stickToBottomRef.current = isNearBottom(event.currentTarget);
-                }}
-                ref={messageViewportRef}
                 role="log"
               >
                 {loading ? <p className={styles.status} role="status"><UiIcon name="clock" size={15} /> Đang tải lịch sử từ máy chủ…</p> : null}
@@ -1026,7 +1038,7 @@ function FloatingHealthAssistantPanel({
                     Xem đầy đủ hội thoại <UiIcon name="arrow-up-right" size={14} />
                   </Link>
                 ) : null}
-                {!loading && messages.length === 0 && !pendingUserMessage && !sending ? (
+                {!loading && messages.length === 0 && !pendingUserMessage && !sending && !consentBlocked ? (
                   <div className={styles.emptyState}>
                     <UiIcon name="message-square" size={26} />
                     <strong>Bạn cần hỗ trợ điều gì?</strong>
@@ -1215,6 +1227,8 @@ function FloatingHealthAssistantPanel({
                 </div>
               ) : null}
 
+          </div>
+
               {requiresLogin ? (
                 <div className={styles.loginGate} data-testid="floating-assistant-login-gate">
                   <strong>Đăng nhập để trò chuyện với trợ lý</strong>
@@ -1288,7 +1302,6 @@ function FloatingHealthAssistantPanel({
               {isPatient ? (
                 <Link className={styles.fullChatLink} href="/patient/chat">Mở trợ lý đầy đủ <UiIcon name="arrow-up-right" size={15} /></Link>
               ) : null}
-          </>
         </section>
       ) : null}
 
