@@ -20,3 +20,14 @@ khoản khác tên chuyên môn, chuyển trang khi ảnh đã cache, reload, ba
 375/768/1440, tải chậm và lỗi dịch vụ hồ sơ. Các phản hồi API trong kiểm thử
 được mô phỏng; kết quả này không thay thế kiểm chứng phiên bác sĩ thật trên
 bản deploy.
+# Tạo kế hoạch chăm sóc
+
+Nút **Tạo kế hoạch mới** ở đầu trang đưa bàn phím đến lịch hẹn đủ điều kiện;
+nếu ngày đang xem chưa có lịch hẹn, nút đưa đến **Ngày lịch hẹn** để chọn ngày khác.
+Kế hoạch vẫn cần gắn đúng lịch hẹn được phân công và có trạng thái hợp lệ.
+Nút này không tạo dữ liệu trước khi bác sĩ chọn lịch hẹn, nhập tên/mục tiêu và
+bấm **Tạo kế hoạch** trong biểu mẫu. Các kế hoạch đã tạo vẫn hiển thị khi đổi ngày.
+
+Kiểm thử `tests/e2e/doctor-care-plan-create.spec.ts` chạy trang Next thật với
+API giả lập: ngày trống, chọn ngày khác, focus, một yêu cầu tạo, tồn tại sau reload
+và bố cục 375/768/1440. Bằng chứng này chưa thay thế kiểm chứng backend thật.
