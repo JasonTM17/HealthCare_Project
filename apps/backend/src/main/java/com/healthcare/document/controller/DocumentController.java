@@ -74,6 +74,17 @@ public class DocumentController {
                 .body(documentService.generateDocument(patientId, request, userDetails));
     }
 
+    @Operation(summary = "Tạo bản PDF mới từ dữ liệu còn giữ", description = "Giữ nguyên tài liệu cũ và lưu quan hệ tới bản xuất mới; không khôi phục nội dung tải lên thủ công")
+    @PostMapping("/{documentId}/regenerate")
+    public ResponseEntity<DocumentResponse> regenerateDocument(
+            @PathVariable UUID patientId,
+            @PathVariable UUID documentId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(documentService.regenerateDocument(patientId, documentId, userDetails));
+    }
+
     @Operation(summary = "Thu hồi tài liệu y khoa đã xuất", description = "Đánh dấu thu hồi tệp tài liệu (lưu vết kiểm toán bất biến)")
     @PostMapping("/{documentId}/revoke")
     @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN')")

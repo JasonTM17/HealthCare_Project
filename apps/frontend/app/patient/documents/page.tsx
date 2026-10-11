@@ -13,6 +13,7 @@ import {
   fetchPatientPrescriptions,
   fetchPatientProfile,
   generatePatientDocument,
+  regeneratePatientDocument,
   hasRole,
   readAuthSession,
   type AuthSession,
@@ -40,6 +41,19 @@ type Loadable<T> =
   | { status: "error"; message: string; statusCode?: number };
 
 type Notice = { tone: "success" | "error"; message: string };
+type DownloadIssue = { recoverable: boolean; message: string; refreshRequired?: boolean };
+
+const PDF_RECOVERY_MESSAGE = "Tệp PDF này đang thiếu hoặc không khớp dữ liệu lưu trữ. Bạn có thể tạo lại PDF từ hồ sơ hiện tại. Bản cũ vẫn được giữ trong lịch sử.";
+
+function downloadIssue(error: unknown): DownloadIssue {
+  const recoverable = error instanceof ApiError && [
+    "DOCUMENT_CONTENT_UNAVAILABLE", "DOWNLOAD_HASH_MISMATCH", "DOWNLOAD_SIZE_MISMATCH",
+  ].includes(error.code ?? "");
+  return {
+    recoverable,
+    message: recoverable ? PDF_RECOVERY_MESSAGE : getErrorMessage(error),
+  };
+}
 
 const LOADING: Loadable<never> = { status: "loading" };
 
@@ -166,6 +180,7 @@ export default function PatientDocumentsPage() {
   const session = useAuthSession();
   const authStatus = useAuthSessionStatus();
   const loadRun = useRef(0);
+  const actionInFlight = useRef(false);
   const [profile, setProfile] = useState<Loadable<PatientProfile | null>>(LOADING);
   const [documents, setDocuments] = useState<Loadable<PatientDocument[]>>(LOADING);
   const [records, setRecords] = useState<Loadable<MedicalRecord[]>>(LOADING);
@@ -174,6 +189,7 @@ export default function PatientDocumentsPage() {
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [downloadIssues, setDownloadIssues] = useState<Record<string, DownloadIssue>>({});
 
   const retry = useCallback(async () => {
     if (!session?.user || !hasRole(session.user, "PATIENT")) return;
@@ -192,6 +208,8 @@ export default function PatientDocumentsPage() {
     setPrescriptions(LOADING);
     setCapabilities(LOADING);
     setNotice(null);
+    setDownloadIssues({});
+    actionInFlight.current = false;
 
     try {
       const patient = await fetchPatientProfile();
@@ -265,9 +283,22 @@ export default function PatientDocumentsPage() {
   const DOCUMENT_GENERATION_ENABLED =
     capabilities.status === "success" && capabilities.data.generationConfigured;
 
+  const replacementsByOriginal = useMemo(() => {
+    const replacements = new Map<string, PatientDocument>();
+    if (documents.status === "success") {
+      for (const document of sortDocuments(documents.data)) {
+        if (document.regeneratedFromDocumentId && document.status === "AVAILABLE"
+          && document.sourceCurrent !== false && !replacements.has(document.regeneratedFromDocumentId)) {
+          replacements.set(document.regeneratedFromDocumentId, document);
+        }
+      }
+    }
+    return replacements;
+  }, [documents]);
+
   const availableDocumentCount = documents.status === "success"
     ? documents.data.filter((document) => (
-      document.status === "AVAILABLE" && document.sourceCurrent !== false
+      document.status === "AVAILABLE" && document.sourceCurrent !== false && !replacementsByOriginal.has(document.id)
     )).length
     : 0;
   const activePrescriptionCount = prescriptions.status === "success"
@@ -280,7 +311,8 @@ export default function PatientDocumentsPage() {
     || loadRun.current !== runId;
 
   const handleGenerate = async (sourceType: PatientDocumentSourceType, sourceRecordId: string) => {
-    if (profile.status !== "success" || profile.data === null) return;
+    if (profile.status !== "success" || profile.data === null || actionInFlight.current || !DOCUMENT_GENERATION_ENABLED) return;
+    actionInFlight.current = true;
     const expectedSession = readAuthSession();
     const runId = loadRun.current;
     const actionKey = `${sourceType}:${sourceRecordId}`;
@@ -320,12 +352,55 @@ export default function PatientDocumentsPage() {
         setNotice({ tone: "error", message: getErrorMessage(error) });
       }
     } finally {
-      if (!isStale(expectedSession, runId)) setGeneratingKey(null);
+      if (!isStale(expectedSession, runId)) {
+        setGeneratingKey(null);
+        actionInFlight.current = false;
+      }
+    }
+  };
+
+  const handleRegenerate = async (document: PatientDocument) => {
+    if (profile.status !== "success" || profile.data === null || actionInFlight.current
+      || !DOCUMENT_GENERATION_ENABLED || document.sourceEligible === false
+      || !["AVAILABLE", "FAILED"].includes(document.status)) return;
+    actionInFlight.current = true;
+    const expectedSession = readAuthSession();
+    const runId = loadRun.current;
+    setGeneratingKey(`RECOVERY:${document.id}`);
+    setNotice(null);
+    try {
+      const generated = await regeneratePatientDocument(profile.data.id, document.id);
+      if (isStale(expectedSession, runId)) return;
+      setDocuments((current) => ({ status: "success", data: upsertDocument(current.status === "success" ? current.data : [], generated) }));
+      setDownloadIssues((current) => {
+        const next = { ...current };
+        delete next[document.id];
+        return next;
+      });
+      setNotice({ tone: "success", message: "Đã tạo bản PDF mới từ hồ sơ hiện tại. Bản cũ vẫn được giữ trong lịch sử; hãy tải bản mới ở danh sách bên dưới." });
+    } catch (error) {
+      if (isStale(expectedSession, runId)) return;
+      if (getErrorStatus(error) === 401) {
+        clearAuthSession();
+        setNotice({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
+      } else {
+        setDownloadIssues((current) => ({ ...current, [document.id]: {
+          recoverable: true,
+          refreshRequired: [403, 404, 409].includes(getErrorStatus(error) ?? 0),
+          message: `Chưa tạo được bản PDF mới. ${getErrorMessage(error)} Bản cũ vẫn được giữ trong lịch sử.`,
+        } }));
+      }
+    } finally {
+      if (!isStale(expectedSession, runId)) {
+        setGeneratingKey(null);
+        actionInFlight.current = false;
+      }
     }
   };
 
   const handleDownload = async (document: PatientDocument) => {
-    if (profile.status !== "success" || profile.data === null || document.status !== "AVAILABLE" || document.sourceCurrent === false) return;
+    if (profile.status !== "success" || profile.data === null || document.status !== "AVAILABLE" || document.sourceCurrent === false || actionInFlight.current) return;
+    actionInFlight.current = true;
     const expectedSession = readAuthSession();
     const runId = loadRun.current;
     setDownloadingId(document.id);
@@ -333,6 +408,11 @@ export default function PatientDocumentsPage() {
     try {
       await downloadPatientDocument(profile.data.id, document.id, documentFilename(document), { byteSize: document.byteSize, sha256: document.sha256 });
       if (isStale(expectedSession, runId)) return;
+      setDownloadIssues((current) => {
+        const next = { ...current };
+        delete next[document.id];
+        return next;
+      });
       setNotice({ tone: "success", message: "Đã bắt đầu tải PDF về máy." });
     } catch (error) {
       if (isStale(expectedSession, runId)) return;
@@ -340,10 +420,13 @@ export default function PatientDocumentsPage() {
         clearAuthSession();
         setNotice({ tone: "error", message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại." });
       } else {
-        setNotice({ tone: "error", message: getErrorMessage(error) });
+        setDownloadIssues((current) => ({ ...current, [document.id]: downloadIssue(error) }));
       }
     } finally {
-      if (!isStale(expectedSession, runId)) setDownloadingId(null);
+      if (!isStale(expectedSession, runId)) {
+        setDownloadingId(null);
+        actionInFlight.current = false;
+      }
     }
   };
 
@@ -451,50 +534,67 @@ export default function PatientDocumentsPage() {
             {(items) => (
               <div className="portal-record-list">
                 {sortDocuments(items).map((document) => (
-                  <article className="portal-record" key={document.id}>
+                  <article className="portal-record" id={`document-${document.id}`} key={document.id}>
                     <div className="portal-record__meta">
                       <span>{SOURCE_LABEL[document.sourceType]}</span>
-                      <span>{documentStatusLabel(document)}</span>
+                      <span>{replacementsByOriginal.has(document.id) ? "Đã tạo bản mới · Giữ lịch sử" : documentStatusLabel(document)}</span>
                     </div>
                     <h3>{documentSourceTitle(document, recordsById, prescriptionsById)}</h3>
                     <p className="portal-record__doctor">Tạo lúc {formatBusinessDateTime(document.generatedAt)} · {formatBytes(document.byteSize)}</p>
                     {document.sha256 ? <p>Mã đối chiếu tài liệu: {document.sha256.slice(0, 12)}…</p> : null}
-                    {document.status === "FAILED" && !(document.sourceType === "APPOINTMENT_REMINDER" && document.sourceEligible === false)
-                      ? <p className="portal-record__followup">Tệp tạo lỗi đã được ghi nhận để thử lại an toàn.</p>
+                    {document.regeneratedFromDocumentId ? (
+                      <p className="portal-record__followup">Bản tạo lại từ hồ sơ hiện tại · <a href={`#document-${document.regeneratedFromDocumentId}`}>Xem bản cũ trong lịch sử</a></p>
+                    ) : null}
+                    {replacementsByOriginal.has(document.id) ? (
+                      <p className="portal-record__followup"><a href={`#document-${replacementsByOriginal.get(document.id)!.id}`}>Xem bản PDF mới</a>. Bản cũ được giữ để đối chiếu.</p>
+                    ) : null}
+                    {downloadIssues[document.id] ? (
+                      <p className="portal-inline-error" role="alert">{downloadIssues[document.id].message}</p>
+                    ) : null}
+                    {document.status === "FAILED" && !replacementsByOriginal.has(document.id)
+                      && !(document.sourceType === "APPOINTMENT_REMINDER" && document.sourceEligible === false)
+                      ? <p className="portal-record__followup">Bản cũ chưa tạo thành công. Bạn có thể tạo lại từ hồ sơ hiện tại; lịch sử bản cũ vẫn được giữ.</p>
                       : null}
                     {document.sourceType === "APPOINTMENT_REMINDER" && document.sourceEligible === false
                       ? <p className="portal-record__followup">Giấy nhắc không còn hiệu lực vì lịch hẹn đã thay đổi hoặc bị hủy.</p>
                       : null}
                     <div className="portal-appointment__actions">
-                      <button
+                      {!replacementsByOriginal.has(document.id) ? <button
                         className="button button--primary"
-                        disabled={document.status !== "AVAILABLE" || document.sourceCurrent === false || downloadingId === document.id}
+                        disabled={document.status !== "AVAILABLE" || document.sourceCurrent === false || downloadingId !== null || generatingKey !== null}
                         onClick={() => void handleDownload(document)}
                         type="button"
                       >
-                        {downloadingId === document.id ? "Đang tải..." : "Tải PDF"}
-                      </button>
+                        {downloadingId === document.id ? "Đang tải..." : downloadIssues[document.id] && !downloadIssues[document.id].recoverable ? "Thử tải lại" : "Tải PDF"}
+                      </button> : null}
                       {document.sourceType === "APPOINTMENT_REMINDER"
                         && document.status === "AVAILABLE"
                         && document.sourceCurrent === false
                         && document.sourceEligible === true ? (
                         <button
                           className="outline-button outline-button--small"
-                          disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null}
+                          disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null || downloadingId !== null}
                           onClick={() => void handleGenerate(document.sourceType, document.sourceRecordId)}
                           type="button"
                         >
                           {generatingKey === `${document.sourceType}:${document.sourceRecordId}` ? "Đang tạo…" : "Tạo giấy nhắc mới"}
                         </button>
                         ) : null}
-                      {document.status === "FAILED" && !(document.sourceType === "APPOINTMENT_REMINDER" && document.sourceEligible === false) ? (
+                      {!replacementsByOriginal.has(document.id) && (document.status === "FAILED" || downloadIssues[document.id]?.recoverable)
+                        && ["AVAILABLE", "FAILED"].includes(document.status) && document.sourceEligible !== false
+                        && !downloadIssues[document.id]?.refreshRequired ? (
                         <button
                           className="outline-button outline-button--small"
-                          disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null}
-                          onClick={() => void handleGenerate(document.sourceType, document.sourceRecordId)}
+                          disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null || downloadingId !== null}
+                          onClick={() => void handleRegenerate(document)}
                           type="button"
                         >
-                          {generatingKey === `${document.sourceType}:${document.sourceRecordId}` ? "Đang tạo lại…" : "Thử tạo lại"}
+                          {generatingKey === `RECOVERY:${document.id}` ? "Đang tạo lại…" : "Tạo lại PDF"}
+                        </button>
+                      ) : null}
+                      {downloadIssues[document.id]?.refreshRequired ? (
+                        <button className="outline-button outline-button--small" onClick={() => void retry()} type="button">
+                          Cập nhật danh sách
                         </button>
                       ) : null}
                     </div>
@@ -535,7 +635,7 @@ export default function PatientDocumentsPage() {
                         <div className="portal-appointment__actions">
                           <button
                             className="outline-button outline-button--small"
-                            disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null}
+                            disabled={!DOCUMENT_GENERATION_ENABLED || generatingKey !== null || downloadingId !== null}
                             onClick={() => void handleGenerate("VISIT_SUMMARY", record.id)}
                             type="button"
                           >
@@ -580,7 +680,7 @@ export default function PatientDocumentsPage() {
                         <div className="portal-appointment__actions">
                           <button
                             className="outline-button outline-button--small"
-                            disabled={!DOCUMENT_GENERATION_ENABLED || !isActive || generatingKey !== null}
+                            disabled={!DOCUMENT_GENERATION_ENABLED || !isActive || generatingKey !== null || downloadingId !== null}
                             onClick={() => void handleGenerate("PRESCRIPTION", prescription.id)}
                             type="button"
                           >
