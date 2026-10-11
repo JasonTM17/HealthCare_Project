@@ -64,6 +64,12 @@ are outside the public-page editor's authority.
 
 ## Realtime authority and operational boundaries
 
+Public CMS snapshot, list and reconciliation responses use `Cache-Control: no-store` through the [BFF](../../apps/frontend/lib/server/healthcare-bff.ts). A browser request using `cache: no-store` alone does not invalidate a previously shared CDN response; the outgoing response must also prevent shared caching. Ordinary hospital catalogue and immutable media policies remain separate.
+
+The editor reads its saved published snapshot through the Admin API. Visitors read the public snapshot through the BFF. After an explicit publish, a fresh public read must resolve the same version; private draft saves continue to leave that version unchanged. Native page layouts refresh on visible-tab polling or returning to the tab, so an already open page can wait for the next bounded refresh. Reloading performs a fresh read. The legacy change feed continues its existing reconciliation flow.
+
+[Publication cache regressions](../../apps/frontend/tests/bff-cold-start-retry.test.mjs) cover the slot list, page layout and event-cursor read, including a changed publication version. Keep these responses uncached rather than changing stored content or deleting editorial history to mask an old edge response.
+
 PostgreSQL is the publication and replay authority. Redis is a wake-up path;
 its availability cannot be used as proof that a client has the latest snapshot.
 Public change metadata must never carry draft bodies. Reconnect and fallback
