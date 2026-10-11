@@ -1,5 +1,19 @@
 # Chatbot stability fix — runbook & deploy notes
 
+## Public blood-pressure questions — 2026-10-11
+
+Questions interpreting blood-pressure readings, normal ranges or hypertension
+thresholds use `HEALTH_EDUCATION`, including questions that also mention booking.
+This route retrieves sources, validates their current approval in Spring and
+generates only from authorized context. When no eligible source is available,
+the assistant reports insufficient evidence instead of using the uncited
+hospital-support provider. Booking a measurement and asking its price retain
+the operational route. General unknown questions retain their existing policy.
+
+Regression checkpoint: `ChatSuggestedActionResolverTest` and
+`PublicAiChatControllerTest`. The focused old-behavior tests fail; the repaired
+classes pass. This source checkpoint does not itself confirm production rollout.
+
 Ngày: 2026-10-02 · Branch: `fix/ai-chat-stability` (merge vào main qua PR)
 
 Fix một chuỗi lỗi khiến chatbot AI hỏng trên production lẫn local: tin nhắn

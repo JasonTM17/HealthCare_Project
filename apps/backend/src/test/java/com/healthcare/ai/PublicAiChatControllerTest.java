@@ -26,6 +26,28 @@ import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 
 class PublicAiChatControllerTest {
 
+    @Test
+    void bloodPressureThresholdQuestionNeverUsesUngroundedHospitalProvider() {
+        AiService aiService = mock(AiService.class);
+        AiChatSourceResolver resolver = mock(AiChatSourceResolver.class);
+        when(aiService.retrieveChat(any())).thenReturn(Map.of(
+            "mode", "HEALTH_EDUCATION", "provenance", "local_provider",
+            "safety_action", "ANSWER", "candidates", List.of()));
+        when(resolver.authorize(eq(ChatMode.HEALTH_EDUCATION), any())).thenReturn(List.of());
+
+        Map<String, Object> body = new PublicAiChatController(aiService, resolver)
+            .chat(new PublicAiChatController.PublicChatRequest(
+                "Chỉ số huyết áp bình thường là bao nhiêu và khi nào được xác định là tăng huyết áp?", null))
+            .getBody();
+
+        assertThat(body).containsEntry("mode", "HEALTH_EDUCATION")
+            .containsEntry("safety_action", "INSUFFICIENT_EVIDENCE")
+            .containsEntry("routingReason", "public_education_source_unavailable");
+        verify(aiService).retrieveChat(any());
+        verify(aiService, never()).chat(any());
+        verify(aiService, never()).generateChat(any());
+    }
+
     private static final String SPECIALTY_ID = "00000000-0000-0000-0000-000000000001";
     private static final String SECOND_SPECIALTY_ID = "00000000-0000-0000-0000-000000000002";
     private static final String BRANCH_ID = "00000000-0000-0000-0000-000000000003";
