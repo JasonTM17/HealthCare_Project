@@ -248,12 +248,10 @@ public class BankTransferPaymentService {
             ReviewBankTransferRequest request,
             UserDetails principal) {
         // Canonical lock order is appointment → payment, the same order the
-        // cancellation sweeps take. The unlocked probe only resolves the
-        // appointment id — every state check below runs on the locked
-        // appointment, so a stale unlocked copy can never be evaluated.
-        UUID appointmentId = paymentRepository.findById(paymentId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"))
-            .getAppointment().getId();
+        // cancellation sweeps take. A scalar probe keeps the payment out of
+        // the persistence context until its locked load, including its version.
+        UUID appointmentId = paymentRepository.findAppointmentIdByPaymentId(paymentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
         appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
         BankTransferPayment payment = paymentRepository.findByIdForUpdate(paymentId)
@@ -317,10 +315,9 @@ public class BankTransferPaymentService {
     @Transactional
     public BankTransferPaymentResponse refund(UUID paymentId, RefundBankTransferRequest request, UserDetails principal) {
         // Same canonical lock order as review and the cancellation sweeps:
-        // appointment → payment. The unlocked probe resolves the id only.
-        UUID appointmentId = paymentRepository.findById(paymentId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"))
-            .getAppointment().getId();
+        // appointment → payment. The scalar probe must not cache a stale version.
+        UUID appointmentId = paymentRepository.findAppointmentIdByPaymentId(paymentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy thanh toán"));
         appointmentRepository.findByIdWithDetailsForUpdate(appointmentId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy lịch hẹn"));
         BankTransferPayment payment = paymentRepository.findByIdForUpdate(paymentId)

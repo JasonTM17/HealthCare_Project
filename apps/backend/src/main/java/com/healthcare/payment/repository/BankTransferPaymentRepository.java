@@ -18,6 +18,10 @@ public interface BankTransferPaymentRepository extends JpaRepository<BankTransfe
 
     Optional<BankTransferPayment> findByAppointmentId(UUID appointmentId);
 
+    /** Resolve lock order without caching an unlocked payment/version in the transaction. */
+    @Query("select p.appointment.id from BankTransferPayment p where p.id = :paymentId")
+    Optional<UUID> findAppointmentIdByPaymentId(@Param("paymentId") UUID paymentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from BankTransferPayment p join fetch p.appointment a join fetch a.patient join fetch a.doctor left join fetch a.medicalPackage where p.appointment.id = :appointmentId")
     Optional<BankTransferPayment> findByAppointmentIdForUpdate(@Param("appointmentId") UUID appointmentId);
