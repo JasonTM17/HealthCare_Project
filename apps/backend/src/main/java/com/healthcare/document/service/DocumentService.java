@@ -37,6 +37,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
 import java.util.EnumMap;
@@ -64,6 +65,8 @@ public class DocumentService {
     public static final String ACTION_REVOKE = "REVOKE";
     public static final String DOCUMENT_CONTENT_TYPE = "application/pdf";
     static final String OBJECT_KEY_PREFIX = "documents/";
+    // Match the private bucket/upload limit; never buffer an unbounded object.
+    private static final long MAX_DOWNLOAD_BYTES = 10L * 1024 * 1024;
 
     private final PatientDocumentRepository documentRepository;
     private final MedicalRecordRepository medicalRecordRepository;
@@ -457,22 +460,7 @@ public class DocumentService {
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new BusinessException(409, "Tài liệu chưa sẵn sàng để tải xuống");
         }
-        if (document.getSourceType() == DocumentSourceType.APPOINTMENT_REMINDER) {
-            Appointment appointment = appointmentRepository
-                    .findById(document.getSourceRecordId()).orElse(null);
-            boolean eligible = appointment != null
-                    && appointment.getPatient().getId().equals(patientId)
-                    && appointment.getStatus() != AppointmentStatus.CANCELLED
-                    && appointment.getStatus() != AppointmentStatus.NO_SHOW;
-            boolean current = eligible
-                    && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
-                            .equals(document.getIdempotencyKey());
-            if (!eligible || !current) {
-                recordAuditSafely(principal, patientId, documentId.toString(),
-                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
-                throw new BusinessException(409, "Giấy nhắc hẹn đã lỗi thời; hãy tạo lại giấy nhắc mới");
-            }
-        }
+        validateReminderSource(document, patientId, principal, false);
         if (!objectStore.isConfigured()) {
             throw new BusinessException(503, "Kho đối tượng chưa được cấu hình");
         }
@@ -490,9 +478,9 @@ public class DocumentService {
             throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
         }
         try {
-            InputStream stream = objectStore.get(document.getObjectKey());
-            boolean handedOff = false;
-            try {
+            int expectedSize = validatedDownloadSize(document);
+            byte[] bytes;
+            try (InputStream stream = objectStore.get(document.getObjectKey())) {
                 // Re-validate once more after the fetch: a revoke that
                 // committed during objectStore.get must not hand out a live
                 // stream.
@@ -506,21 +494,37 @@ public class DocumentService {
                         ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
                     throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
                 }
-                recordAuditSafely(principal, patientId, documentId.toString(),
-                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW, null);
-                handedOff = true;
-                return new DocumentDownload(document, stream);
-            } finally {
-                // Any exit that did not hand the stream to the caller —
-                // deny, refresh failure, audit failure — must close it or
-                // the object-store connection leaks.
-                if (!handedOff) {
-                    try {
-                        stream.close();
-                    } catch (java.io.IOException ignored) {
-                    }
-                }
+                // One extra byte detects trailing data without consuming an
+                // arbitrarily large object. Nothing is sent until verified.
+                bytes = stream.readNBytes(expectedSize + 1);
             }
+            // Reading/closing may take time: refresh at the actual handoff
+            // boundary, preserving revocation and current ownership rules.
+            try {
+                try {
+                    entityManager.refresh(document);
+                } catch (jakarta.persistence.EntityNotFoundException exception) {
+                    document.setStatus(DocumentStatus.REVOKED);
+                }
+                if (document.getStatus() != DocumentStatus.AVAILABLE
+                        || !patientId.equals(document.getPatient().getId())) {
+                    throw new AccessDeniedException("Tài liệu đã bị thu hồi hoặc thay thế và không thể tải xuống");
+                }
+                authorizePatientScope(patientId, principal);
+                authorizeDocumentRead(document, principal);
+            } catch (AccessDeniedException exception) {
+                recordAuditSafely(principal, patientId, documentId.toString(),
+                    ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
+                throw exception;
+            }
+            validateReminderSource(document, patientId, principal, true);
+            if (validatedDownloadSize(document) != bytes.length
+                    || !snapshotCodec.sha256Hex(bytes).equals(document.getSha256())) {
+                throw new IOException("Stored document integrity mismatch");
+            }
+            recordAuditSafely(principal, patientId, documentId.toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW, null);
+            return new DocumentDownload(document, new ByteArrayInputStream(bytes));
         } catch (AccessDeniedException | BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -529,6 +533,56 @@ public class DocumentService {
                 exception);
             throw new BusinessException(503, "Không thể đọc tài liệu từ kho đối tượng");
         }
+    }
+
+    private void validateReminderSource(PatientDocument document, UUID patientId,
+            UserDetails principal, boolean refreshSource) {
+        if (document.getSourceType() != DocumentSourceType.APPOINTMENT_REMINDER) {
+            return;
+        }
+        Appointment appointment = appointmentRepository
+                .findById(document.getSourceRecordId()).orElse(null);
+        if (refreshSource && appointment != null) {
+            // findById alone can reuse the earlier persistence-context value.
+            try {
+                entityManager.refresh(appointment);
+                // The reminder snapshot includes these display fields. Lazy
+                // associations have no REFRESH cascade and may still contain
+                // values initialized by the initial freshness check.
+                entityManager.refresh(appointment.getPatient());
+                entityManager.refresh(appointment.getDoctor());
+                if (appointment.getBranch() != null) {
+                    entityManager.refresh(appointment.getBranch());
+                }
+                if (appointment.getSpecialty() != null) {
+                    entityManager.refresh(appointment.getSpecialty());
+                }
+            } catch (jakarta.persistence.EntityNotFoundException exception) {
+                appointment = null;
+            }
+        }
+        boolean eligible = appointment != null
+                && appointment.getPatient().getId().equals(patientId)
+                && appointment.getStatus() != AppointmentStatus.CANCELLED
+                && appointment.getStatus() != AppointmentStatus.NO_SHOW;
+        boolean current = eligible
+                && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
+                        .equals(document.getIdempotencyKey());
+        if (!eligible || !current) {
+            recordAuditSafely(principal, patientId, document.getId().toString(),
+                ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
+            throw new BusinessException(409, "Giấy nhắc hẹn đã lỗi thời; hãy tạo lại giấy nhắc mới");
+        }
+    }
+
+    private int validatedDownloadSize(PatientDocument document) throws IOException {
+        Long size = document.getByteSize();
+        String sha = document.getSha256();
+        if (size == null || size <= 0 || size > MAX_DOWNLOAD_BYTES
+                || sha == null || !sha.matches("[0-9a-f]{64}")) {
+            throw new IOException("Invalid stored document integrity metadata");
+        }
+        return size.intValue();
     }
 
     /**

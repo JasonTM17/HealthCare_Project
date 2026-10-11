@@ -104,6 +104,18 @@ with unchanged auth semantics.
 
 ## Consequences
 
+- Download verifies the complete object against the stored byte length and
+  SHA-256 before returning PDF bytes or recording an allowed download. Missing,
+  invalid or mismatched integrity metadata fails with a safe JSON 503; original
+  metadata and objects stay unchanged. Buffering is capped at 10 MiB, matching
+  the private bucket limit. The upstream connection closes before handoff and
+  ownership/status is rechecked after reading. Matching keys or a PDF header
+  alone does not establish successful storage recovery.
+- Appointment reminders also refresh their appointment and referenced patient,
+  doctor, branch and specialty display fields before checking source freshness
+  at handoff. A changed or cancelled source returns the existing JSON 409 and
+  requires an authorized new export; the old document is never rewritten.
+
 - PDF successes retain `application/pdf`. Typed business, missing-document and
   access errors return the JSON error envelope even when the request accepts
   only PDF; an incompatible `Accept` header returns 406 rather than 500.
