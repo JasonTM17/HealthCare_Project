@@ -371,11 +371,114 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
                 .as("download content type").startsWith("application/pdf");
         softly.assertThat(actual.length).as("downloaded length equals stored object length")
                 .isEqualTo(expected.length);
+        softly.assertThat(download.getResponse().getHeader("Content-Length"))
+                .as("declared length equals verified bytes").isEqualTo(Integer.toString(expected.length));
         softly.assertThat(codec.sha256Hex(actual)).as("downloaded sha256 equals stored object sha256")
                 .isEqualTo(codec.sha256Hex(expected));
         softly.assertThat(new String(actual, 0, Math.min(5, actual.length), StandardCharsets.US_ASCII))
                 .as("downloaded payload is a PDF").isEqualTo("%PDF-");
         softly.assertAll();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void corruptedObjectReturnsJsonUnavailableWithoutPdfHandoff(boolean sameSize) throws Exception {
+        Map<String, byte[]> stored = stubObjectStoreRoundTrip();
+        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
+                        .header("Authorization", patientBearer)
+                        .contentType(MediaType.APPLICATION_JSON).content(requestBody()))
+                .andExpect(status().isCreated()).andReturn();
+        var metadata = objectMapper.readTree(created.getResponse().getContentAsString());
+        String documentId = metadata.get("id").asText();
+        String key = stored.keySet().iterator().next();
+        byte[] original = stored.get(key);
+        byte[] replacement = sameSize ? original.clone() : new byte[603];
+        replacement[replacement.length - 1] ^= 1;
+        if (!sameSize) {
+            System.arraycopy("%PDF-".getBytes(StandardCharsets.US_ASCII), 0, replacement, 0, 5);
+        }
+        stored.put(key, replacement);
+        MvcResult rejected = mockMvc.perform(get(
+                        "/api/v1/patients/{patientId}/documents/{documentId}/download", patientId, documentId)
+                        .header("Authorization", patientBearer).accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isServiceUnavailable()).andReturn();
+        assertThat(rejected.getResponse().getContentType()).startsWith("application/json");
+        assertThat(rejected.getResponse().getHeader("Content-Disposition")).isNull();
+        assertThat(rejected.getResponse().getContentAsByteArray()).isNotEqualTo(replacement);
+        assertThat(jdbcTemplate.queryForObject(
+                "select sha256 from patient_documents where id = ?", String.class, UUID.fromString(documentId)))
+                .isEqualTo(metadata.get("sha256").asText());
+        assertThat(jdbcTemplate.queryForObject(
+                "select byte_size from patient_documents where id = ?", Long.class, UUID.fromString(documentId)))
+                .isEqualTo((long) original.length);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from clinical_access_audit where target_id = ? and action = 'DOWNLOAD' and decision = 'ALLOW'",
+                Integer.class, documentId)).isZero();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void reminderChangedDuringObjectReadIsRejectedBeforeHandoff(boolean cancelled) throws Exception {
+        assertReminderChangeDuringReadDenied(cancelled ? "cancel" : "reason");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"patient", "patient-phone", "doctor", "branch", "specialty"})
+    void reminderRelatedSourceChangedDuringReadIsRejectedBeforeHandoff(String change) throws Exception {
+        assertReminderChangeDuringReadDenied(change);
+    }
+
+    private void assertReminderChangeDuringReadDenied(String change) throws Exception {
+        Map<String, byte[]> stored = stubObjectStoreRoundTrip();
+        MvcResult created = mockMvc.perform(post("/api/v1/patients/{patientId}/documents", patientId)
+                        .header("Authorization", patientBearer)
+                        .contentType(MediaType.APPLICATION_JSON).content(requestBody()))
+                .andExpect(status().isCreated()).andReturn();
+        String documentId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+        var closed = new java.util.concurrent.atomic.AtomicBoolean();
+        when(objectStore.get(any(String.class))).thenAnswer(call ->
+                new ByteArrayInputStream(stored.get(call.getArgument(0))) {
+                    @Override
+                    public byte[] readNBytes(int length) throws java.io.IOException {
+                        byte[] bytes = super.readNBytes(length);
+                        sideEffects.write(jdbc -> {
+                            switch (change) {
+                                case "cancel" -> jdbc.update(
+                                        "update appointments set status = 'CANCELLED' where id = ?", appointmentId);
+                                case "reason" -> jdbc.update(
+                                        "update appointments set reason_for_visit = 'Changed appointment' where id = ?", appointmentId);
+                                case "patient" -> jdbc.update(
+                                        "update patient_profiles set full_name = 'Changed patient' where id = (select patient_id from appointments where id = ?)", appointmentId);
+                                case "patient-phone" -> jdbc.update(
+                                        "update patient_profiles set phone = '0998888877' where id = (select patient_id from appointments where id = ?)", appointmentId);
+                                case "doctor" -> jdbc.update(
+                                        "update doctors set full_name = 'Changed doctor' where id = (select doctor_id from appointments where id = ?)", appointmentId);
+                                case "branch" -> jdbc.update(
+                                        "update branches set name = 'Changed branch' where id = (select branch_id from appointments where id = ?)", appointmentId);
+                                case "specialty" -> jdbc.update(
+                                        "update specialties set name = 'Changed specialty' where id = (select specialty_id from appointments where id = ?)", appointmentId);
+                                default -> throw new IllegalArgumentException("Unknown isolated fault");
+                            }
+                        });
+                        return bytes;
+                    }
+
+                    @Override
+                    public void close() throws java.io.IOException {
+                        closed.set(true);
+                        super.close();
+                    }
+                });
+        MvcResult rejected = mockMvc.perform(get(
+                        "/api/v1/patients/{patientId}/documents/{documentId}/download", patientId, documentId)
+                        .header("Authorization", patientBearer).accept(MediaType.APPLICATION_PDF))
+                .andExpect(status().isConflict()).andReturn();
+        assertThat(closed).isTrue();
+        assertThat(rejected.getResponse().getContentType()).startsWith("application/json");
+        assertThat(rejected.getResponse().getHeader("Content-Disposition")).isNull();
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from clinical_access_audit where target_id = ? and action = 'DOWNLOAD' and decision = 'ALLOW'",
+                Integer.class, documentId)).isZero();
     }
 
     @Test

@@ -39,7 +39,7 @@ export function CmsFieldInspector({ identity, fieldId, value, rawRich, disabled,
       <CmsImageField key={fieldId} id={`cms-field-${fieldId}`} value={value.src} disabled={disabled} onBusyChange={onBusyChange} required onChange={(src) => onChange({ ...value, src })} />
       <label>Mô tả ảnh<input maxLength={500} value={value.alt} disabled={disabled} onChange={(event) => onChange({ ...value, alt: event.target.value })} /></label>
     </> : null}
-    {value.kind === "rich" ? <RichTextEditor key={fieldId} contentMode="cms" value={rawRich ?? value.value} onChange={onRichChange} onBusyChange={onBusyChange} label={field.label} minHeight="360px" id={`cms-field-${fieldId}`} disabled={disabled} purpose="GENERAL" /> : null}
+    {value.kind === "rich" ? <div className={styles.richEditor}><RichTextEditor key={fieldId} contentMode="cms" value={rawRich ?? value.value} onChange={onRichChange} onBusyChange={onBusyChange} label={field.label} minHeight="360px" id={`cms-field-${fieldId}`} disabled={disabled} purpose="GENERAL" /></div> : null}
     {error ? <p id="cms-field-error" role="alert" className={styles.error}>{error}</p> : null}
     <p className={styles.status}>{value.kind === "image" ? "Ảnh và mô tả được lưu cùng bản nháp." : "Tối đa 4.000 ký tự; thay đổi chỉ công khai sau khi xuất bản."}</p>
     <button type="button" disabled={disabled} onClick={onReset}>Khôi phục giá trị đã lưu của trường này</button>
