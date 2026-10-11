@@ -761,16 +761,8 @@ export default function DoctorDashboardPage() {
     );
   };
 
-  // The topbar chip must carry the doctor's clinical identity: the auth session
-  // displayName comes from the account seed (e.g. "Bác sĩ Local"), while the
-  // doctor profile owns the real professional name. Prefer the profile name
-  // once it has loaded and fall back to the session display name until then.
-  const chipUser = doctorProfile.status === "success" && doctorProfile.data.fullName
-    ? { ...user, displayName: doctorProfile.data.fullName }
-    : user;
-
   return (
-    <PortalChrome role="DOCTOR" user={chipUser}>
+    <PortalChrome role="DOCTOR" user={user}>
       <div className="portal-content">
         <header className="portal-hero">
           <div>
