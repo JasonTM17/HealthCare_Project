@@ -288,3 +288,26 @@ test("BFF does not retry after the browser disconnects", async () => {
   assert.equal(attempts, 1, "a disconnected browser must not trigger a second upstream call");
   assert.equal(response.status, 502);
 });
+
+// Publishing edits must reach normal visitors rather than an older CDN response.
+for (const path of [
+  "/api/v1/cms/content",
+  "/api/v1/cms/content/homepage.layout",
+  "/api/v1/cms/content/homepage.layout?afterEventId=41",
+]) {
+  test(`BFF keeps published CMS reads uncached: ${path}`, async () => {
+    const bff = await loadBff();
+    let publicationVersion = 41;
+    const fetchImpl = async () => Response.json({ version: publicationVersion }, {
+      headers: { "Cache-Control": "no-store" },
+    });
+    const segments = new URL(path, "https://beta.healthcare.test").pathname.split("/").slice(3);
+    const first = await bff.proxyHealthcareRequest(browserRequest(path), segments, { fetchImpl, runtimeConfig });
+    assert.equal(first.headers.get("cache-control"), "no-store", "CDN must not retain a previous publication");
+    assert.equal((await first.json()).version, 41);
+    publicationVersion = 42;
+    const next = await bff.proxyHealthcareRequest(browserRequest(path), segments, { fetchImpl, runtimeConfig });
+    assert.equal(next.headers.get("cache-control"), "no-store");
+    assert.equal((await next.json()).version, 42);
+  });
+}

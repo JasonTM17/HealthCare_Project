@@ -1102,10 +1102,6 @@ function createBrowserResponse(
       || apiPath.startsWith("/api/v1/hospital/packages")
       || apiPath.startsWith("/api/v1/hospital/articles")
       || apiPath.startsWith("/api/v1/hospital/faqs")
-      // Published CMS slots are public, cacheable content; the events stream
-      // stays uncached (SSE), and /admin/cms/* is out of scope by prefix.
-      || (apiPath.startsWith("/api/v1/cms/content")
-        && !apiPath.startsWith("/api/v1/cms/content/events"))
     );
 
   // GET /api/v1/media/{id} serves public immutable bytes whose TTL the
@@ -1125,6 +1121,8 @@ function createBrowserResponse(
   } else if (isPublicMediaRead && upstreamCacheControl) {
     headers.set("Cache-Control", upstreamCacheControl);
   } else {
+    // CMS publications and reconciliation reads must follow the latest
+    // snapshot; a shared CDN cache can outlive an administrator's publish.
     headers.set("Cache-Control", "no-store");
   }
 
