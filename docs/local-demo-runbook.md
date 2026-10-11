@@ -95,3 +95,15 @@ docker compose -p healthcare-local-demo --env-file .env \
   -f infrastructure/docker-compose.yml \
   -f infrastructure/docker-compose.local-demo.yml up -d --build frontend
 ```
+
+## Hồ sơ bác sĩ cho nút demo "Bác sĩ"
+
+Nút demo đăng nhập bằng `doctor@healthcare.com`. Bước seed `infrastructure/seed-local-demo-doctor.sql`
+(chạy sau seed chính trong `docker-compose.local-demo.yml`) gắn hồ sơ TS.BS Nguyễn Minh Khôi (có 10 lịch hẹn)
+cho tài khoản này; `doctor@healthcare.local` chuyển sang hồ sơ ThS.BS Trần Thu Hà. Chạy lại seed bất cứ lúc nào:
+
+```bash
+docker compose -p healthcare-local-demo --env-file .env \
+  -f infrastructure/docker-compose.yml \
+  -f infrastructure/docker-compose.local-demo.yml up --no-deps local-seed
+```
