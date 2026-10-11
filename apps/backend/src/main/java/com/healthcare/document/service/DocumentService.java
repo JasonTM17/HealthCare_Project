@@ -137,11 +137,140 @@ public class DocumentService {
             // later contended row lock surfaces the same way as a contended
             // advisory lock — map both to the retryable 409, not a 500.
             return generateDocumentLocked(patientId, request, principal);
-        } catch (PessimisticLockingFailureException exception) {
+        } catch (PessimisticLockingFailureException | jakarta.persistence.LockTimeoutException
+                | jakarta.persistence.PessimisticLockException exception) {
             recordAuditSafely(principal, patientId,
                 request.sourceRecordId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new BusinessException(409, "Tài liệu đang được tạo, vui lòng thử lại sau giây lát");
         }
+    }
+
+    /** Explicit recovery creates a new export and never adopts/supersedes an old row. */
+    @Transactional(noRollbackFor = BusinessException.class)
+    public DocumentResponse regenerateDocument(UUID patientId, UUID documentId, UserDetails principal) {
+        authorizePatientScope(patientId, principal);
+        PatientDocument original = documentRepository.findByIdAndPatientId(documentId, patientId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
+        UUID originalSourceId = original.getSourceRecordId();
+        DocumentSourceType originalSourceType = original.getSourceType();
+        entityManager.createNativeQuery("SET LOCAL lock_timeout = '5s'").executeUpdate();
+        try {
+            documentRepository.acquireGenerationLock("DOCUMENT_GENERATION:"
+                    + original.getSourceType().name() + ":" + original.getSourceRecordId());
+            UUID actorId = resolveUserId(principal);
+            lockRecoveryInputs(original, actorId);
+            // Rows were locked through SQL. Discard values loaded before waiting
+            // for those locks, including lazy joined display fields/role mappings.
+            entityManager.clear();
+            User actor = resolveUser(principal);
+            validateRecoveryActor(actor, principal);
+            UserDetails currentPrincipal = HealthcareUserPrincipal.from(actor);
+            authorizePatientScope(patientId, currentPrincipal);
+            original = documentRepository.findByIdAndPatientId(documentId, patientId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
+            if (!originalSourceId.equals(original.getSourceRecordId())
+                    || originalSourceType != original.getSourceType()) {
+                throw new BusinessException(409, "Nguồn tài liệu vừa thay đổi, vui lòng tải lại danh sách");
+            }
+            if (original.getStatus() != DocumentStatus.FAILED
+                    && original.getStatus() != DocumentStatus.AVAILABLE) {
+                throw new BusinessException(409, "Tài liệu đã thu hồi, thay thế hoặc đang xử lý không thể tạo bản khôi phục");
+            }
+            if (!objectStore.isConfigured()) {
+                throw new BusinessException(503, "SERVICE_UNAVAILABLE", "Kho lưu trữ chưa sẵn sàng");
+            }
+            DocumentSnapshot snapshot = snapshotForRecovery(patientId, original, currentPrincipal);
+            String snapshotHash = snapshotCodec.sha256Hex(snapshotCodec.canonicalJson(snapshot));
+            String recoveryKey = "RECOVERY:" + original.getId() + ":" + snapshotHash;
+            PatientDocument replacement = documentRepository.findByIdempotencyKey(recoveryKey).orElse(null);
+            if (replacement != null && replacement.getStatus() != DocumentStatus.FAILED
+                    && replacement.getStatus() != DocumentStatus.PENDING) {
+                if (replacement.getStatus() != DocumentStatus.AVAILABLE) {
+                    throw new BusinessException(409, "Bản PDF mới đã thu hồi hoặc thay thế");
+                }
+                recordAuditAfterCommit(principal, patientId, replacement.getId().toString(),
+                        ACTION_GENERATE, ClinicalAccessAuditService.DECISION_ALLOW);
+                return toResponse(replacement);
+            }
+            byte[] pdf = render(snapshot, snapshotHash);
+            if (replacement == null) {
+                replacement = new PatientDocument();
+                replacement.setPatient(patientProfileRepository.findById(patientId).orElseThrow());
+                replacement.setSourceType(snapshot.sourceType());
+                replacement.setSourceRecordId(snapshot.sourceRecordId());
+                replacement.setSourceVersion(snapshot.sourceVersion());
+                replacement.setTemplateVersion(snapshot.templateVersion());
+                replacement.setObjectKey(OBJECT_KEY_PREFIX + patientId + "/" + UUID.randomUUID() + ".pdf");
+                replacement.setIdempotencyKey(recoveryKey);
+                replacement.setRegeneratedFromDocumentId(original.getId());
+                replacement.setSourceSnapshotSha256(snapshotHash);
+                replacement.setRecoveryReason("LOST_FILE_COPY");
+            }
+            replacement.setStatus(DocumentStatus.PENDING);
+            replacement.setGeneratedBy(actor);
+            replacement.setGeneratedAt(OffsetDateTime.now());
+            replacement.setSha256(null);
+            replacement.setByteSize(null);
+            documentRepository.saveAndFlush(replacement);
+            // Every source/actor/original row lock remains held across rendering,
+            // object upload and publication/commit. Source facts are never edited.
+            return storeAndFinalize(replacement, patientId, principal, pdf, false);
+        } catch (PessimisticLockingFailureException | jakarta.persistence.LockTimeoutException
+                | jakarta.persistence.PessimisticLockException exception) {
+            throw new BusinessException(409, "Tài liệu đang được cập nhật, vui lòng thử lại sau giây lát");
+        }
+    }
+
+    private DocumentSnapshot snapshotForRecovery(UUID patientId, PatientDocument original, UserDetails principal) {
+        return switch (original.getSourceType()) {
+            case VISIT_SUMMARY -> snapshotFromMedicalRecord(patientId, original.getSourceRecordId(), principal);
+            case PRESCRIPTION -> snapshotFromPrescription(patientId, original.getSourceRecordId(), principal, true);
+            case APPOINTMENT_REMINDER -> snapshotFromAppointment(patientId, original.getSourceRecordId(), principal);
+        };
+    }
+
+    private void validateRecoveryActor(User actor, UserDetails principal) {
+        Set<String> currentRoles = actor.getRoles().stream().map(role -> "ROLE_" + role.getCode())
+                .collect(Collectors.toSet());
+        Set<String> sessionRoles = principal.getAuthorities().stream()
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority).collect(Collectors.toSet());
+        if (!"ACTIVE".equals(actor.getStatus()) || !actor.isEmailVerified()
+                || !currentRoles.equals(sessionRoles)
+                || (principal instanceof HealthcareUserPrincipal session
+                    && actor.getSecurityVersion() != session.getSecurityVersion())) {
+            throw new AccessDeniedException("Authenticated authority changed; sign in again");
+        }
+    }
+
+    private void lockRecoveryInputs(PatientDocument original, UUID actorId) {
+        lockRows("SELECT id FROM users WHERE id = :id FOR UPDATE", actorId);
+        lockRows("SELECT user_id FROM user_roles WHERE user_id = :id ORDER BY role_id FOR UPDATE", actorId);
+        lockRows("SELECT id FROM roles WHERE id IN (SELECT role_id FROM user_roles WHERE user_id = :id) ORDER BY id FOR SHARE", actorId);
+        lockRows("SELECT id FROM doctors WHERE user_id = :id ORDER BY id FOR UPDATE", actorId);
+        lockRows("SELECT id FROM patient_documents WHERE id = :id FOR UPDATE", original.getId());
+        String table = switch (original.getSourceType()) {
+            case VISIT_SUMMARY -> "medical_records";
+            case PRESCRIPTION -> "prescriptions";
+            case APPOINTMENT_REMINDER -> "appointments";
+        };
+        UUID sourceId = original.getSourceRecordId();
+        // FOR UPDATE on the parent also blocks FK key-share acquisition for
+        // inserted prescription items, preventing collection phantoms.
+        lockRows("SELECT id FROM " + table + " WHERE id = :id FOR UPDATE", sourceId);
+        lockRows("SELECT id FROM patient_profiles WHERE id = (SELECT patient_id FROM " + table + " WHERE id = :id) FOR UPDATE", sourceId);
+        lockRows("SELECT id FROM doctors WHERE id = (SELECT doctor_id FROM " + table + " WHERE id = :id) FOR UPDATE", sourceId);
+        if (original.getSourceType() == DocumentSourceType.VISIT_SUMMARY) {
+            lockRows("SELECT id FROM appointments WHERE id = (SELECT appointment_id FROM medical_records WHERE id = :id) FOR UPDATE", sourceId);
+        } else if (original.getSourceType() == DocumentSourceType.PRESCRIPTION) {
+            lockRows("SELECT id FROM prescription_items WHERE prescription_id = :id ORDER BY id FOR UPDATE", sourceId);
+        } else {
+            lockRows("SELECT id FROM branches WHERE id = (SELECT branch_id FROM appointments WHERE id = :id) FOR UPDATE", sourceId);
+            lockRows("SELECT id FROM specialties WHERE id = (SELECT specialty_id FROM appointments WHERE id = :id) FOR UPDATE", sourceId);
+        }
+    }
+
+    private void lockRows(String sql, UUID id) {
+        entityManager.createNativeQuery(sql).setParameter("id", id).getResultList();
     }
 
     private DocumentResponse generateDocumentLocked(
@@ -181,8 +310,11 @@ public class DocumentService {
         // dropping any of them could hand one patient's row to another source.
         boolean adoptedFailedOrphan = false;
         if (existing == null) {
+            // A failed recovery child owns a different accepted snapshot/key.
+            // Leave it untouched for explicit recovery retry; only legacy NULL
+            // lineage rows belong to ordinary orphan adoption.
             existing = documentRepository
-                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
                     patientId, snapshot.sourceType(), snapshot.sourceRecordId(), DocumentStatus.FAILED)
                 .orElse(null);
             adoptedFailedOrphan = existing != null;
@@ -250,6 +382,11 @@ public class DocumentService {
             UUID patientId,
             UserDetails principal,
             byte[] pdfBytes) {
+        return storeAndFinalize(document, patientId, principal, pdfBytes, true);
+    }
+
+    private DocumentResponse storeAndFinalize(PatientDocument document, UUID patientId,
+            UserDetails principal, byte[] pdfBytes, boolean supersedeOriginals) {
         boolean objectUploaded = false;
         try {
             cleanupService.trackCandidate(document.getObjectKey());
@@ -274,7 +411,9 @@ public class DocumentService {
             document.setSha256(snapshotCodec.sha256Hex(pdfBytes));
             document.setByteSize((long) pdfBytes.length);
             saved = documentRepository.saveAndFlush(document);
-            supersedePreviousAvailableVersions(saved);
+            if (supersedeOriginals) {
+                supersedePreviousAvailableVersions(saved);
+            }
             resolveCleanupAfterCommit(saved.getObjectKey());
         } catch (RuntimeException exception) {
             cleanupStoredObject(document.getObjectKey(), exception);
@@ -520,7 +659,7 @@ public class DocumentService {
             validateReminderSource(document, patientId, principal, true);
             if (validatedDownloadSize(document) != bytes.length
                     || !snapshotCodec.sha256Hex(bytes).equals(document.getSha256())) {
-                throw new IOException("Stored document integrity mismatch");
+                throw new DocumentContentUnavailableException("Stored document integrity mismatch");
             }
             recordAuditSafely(principal, patientId, documentId.toString(),
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_ALLOW, null);
@@ -531,7 +670,12 @@ public class DocumentService {
             recordAuditSafely(principal, patientId, documentId.toString(),
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY,
                 exception);
-            throw new BusinessException(503, "Không thể đọc tài liệu từ kho đối tượng");
+            throw new BusinessException(503,
+                    exception instanceof DocumentContentUnavailableException
+                            ? "DOCUMENT_CONTENT_UNAVAILABLE" : "SERVICE_UNAVAILABLE",
+                    exception instanceof DocumentContentUnavailableException
+                            ? "Tệp tài liệu bị thiếu hoặc không còn khớp dữ liệu lưu trữ"
+                            : "Dịch vụ lưu trữ đang tạm gián đoạn, vui lòng thử lại sau");
         }
     }
 
@@ -565,9 +709,7 @@ public class DocumentService {
                 && appointment.getPatient().getId().equals(patientId)
                 && appointment.getStatus() != AppointmentStatus.CANCELLED
                 && appointment.getStatus() != AppointmentStatus.NO_SHOW;
-        boolean current = eligible
-                && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
-                        .equals(document.getIdempotencyKey());
+        boolean current = eligible && reminderSnapshotMatches(document, appointment);
         if (!eligible || !current) {
             recordAuditSafely(principal, patientId, document.getId().toString(),
                 ClinicalAccessAuditService.ACTION_DOWNLOAD, ClinicalAccessAuditService.DECISION_DENY, null);
@@ -580,7 +722,7 @@ public class DocumentService {
         String sha = document.getSha256();
         if (size == null || size <= 0 || size > MAX_DOWNLOAD_BYTES
                 || sha == null || !sha.matches("[0-9a-f]{64}")) {
-            throw new IOException("Invalid stored document integrity metadata");
+            throw new DocumentContentUnavailableException("Invalid stored document integrity metadata");
         }
         return size.intValue();
     }
@@ -684,6 +826,11 @@ public class DocumentService {
     }
 
     private DocumentSnapshot snapshotFromPrescription(UUID patientId, UUID prescriptionId, UserDetails principal) {
+        return snapshotFromPrescription(patientId, prescriptionId, principal, false);
+    }
+
+    private DocumentSnapshot snapshotFromPrescription(UUID patientId, UUID prescriptionId, UserDetails principal,
+            boolean stableRecoveryOrder) {
         Prescription prescription = prescriptionRepository.findById(prescriptionId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Prescription not found with ID: " + prescriptionId));
@@ -694,7 +841,8 @@ public class DocumentService {
         }
         List<DocumentSnapshot.PrescriptionItemSnapshot> items = prescription.getItems() == null
                 ? List.of()
-                : prescription.getItems().stream()
+                : (stableRecoveryOrder ? prescription.getItems().stream().sorted(java.util.Comparator.comparing(
+                        com.healthcare.clinical.entity.PrescriptionItem::getId)) : prescription.getItems().stream())
                         .map(item -> new DocumentSnapshot.PrescriptionItemSnapshot(
                                 item.getMedicationName(),
                                 item.getActiveIngredient(),
@@ -1002,9 +1150,7 @@ public class DocumentService {
                     && appointment.getPatient().getId().equals(document.getPatient().getId())
                     && appointment.getStatus() != AppointmentStatus.CANCELLED
                     && appointment.getStatus() != AppointmentStatus.NO_SHOW;
-            sourceCurrent = Boolean.TRUE.equals(sourceEligible)
-                    && buildIdempotencyKey(appointmentReminderSnapshot(appointment))
-                            .equals(document.getIdempotencyKey());
+            sourceCurrent = Boolean.TRUE.equals(sourceEligible) && reminderSnapshotMatches(document, appointment);
         }
         return new DocumentResponse(
                 document.getId(),
@@ -1020,6 +1166,16 @@ public class DocumentService {
                 document.getGeneratedAt(),
                 document.getRevokedAt(),
                 sourceCurrent,
-                sourceEligible);
+                sourceEligible,
+                document.getRegeneratedFromDocumentId(),
+                document.getSourceSnapshotSha256(),
+                document.getRecoveryReason());
+    }
+
+    private boolean reminderSnapshotMatches(PatientDocument document, Appointment appointment) {
+        DocumentSnapshot snapshot = appointmentReminderSnapshot(appointment);
+        return document.getRegeneratedFromDocumentId() != null
+                ? snapshotCodec.sha256Hex(snapshotCodec.canonicalJson(snapshot)).equals(document.getSourceSnapshotSha256())
+                : buildIdempotencyKey(snapshot).equals(document.getIdempotencyKey());
     }
 }

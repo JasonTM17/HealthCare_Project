@@ -346,6 +346,118 @@ test("patient document center can generate and download synthetic PDFs", async (
   await assertNoSensitiveBrowserStorage(page);
 });
 
+test("damaged PDF offers an inline recovery action without exposing provider errors", async ({ context, page }) => {
+  await installPatientDocumentMocks(context);
+  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/${AVAILABLE_DOCUMENT_ID}/download`, async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({
+      code: "DOCUMENT_CONTENT_UNAVAILABLE", message: "private provider detail must never appear",
+    }) });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
+  const card = page.locator("article.portal-record").filter({ hasText: AVAILABLE_PDF_SHA256.slice(0, 12) });
+  await card.getByRole("button", { name: "Tải PDF", exact: true }).click();
+  await expect(card.getByRole("alert")).toContainText("Tệp PDF này đang thiếu hoặc không khớp dữ liệu lưu trữ");
+  await expect(card.getByRole("button", { name: "Tạo lại PDF", exact: true })).toBeVisible();
+  await expect(page.getByText("private provider detail must never appear")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
+
+test("PDF recovery preserves history, prevents duplicate clicks, retries and downloads the fresh copy", async ({ context, page }) => {
+  await installPatientDocumentMocks(context);
+  const original = initialDocuments()[0];
+  const fresh: PatientDocument = { ...original, id: "pdf-recovery-new", generatedAt: "2026-10-11T04:00:00Z",
+    regeneratedFromDocumentId: original.id, sourceSnapshotSha256: "c".repeat(64), recoveryReason: "LOST_FILE_COPY" };
+  let recoveryCalls = 0;
+  let releaseFirst: () => void = () => {};
+  const firstResponse = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/${original.id}/download`, async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ code: "DOCUMENT_CONTENT_UNAVAILABLE" }) });
+  });
+  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/${original.id}/regenerate`, async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().headers()["authorization"]).toBeUndefined();
+    recoveryCalls += 1;
+    if (recoveryCalls === 1) {
+      await firstResponse;
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ code: "SERVICE_UNAVAILABLE" }) });
+    } else {
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify(fresh) });
+    }
+  });
+  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/${fresh.id}/download`, async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/pdf", body: AVAILABLE_PDF_BYTES });
+  });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
+  const oldCard = page.locator(`[id="document-${original.id}"]`);
+  await oldCard.getByRole("button", { name: "Tải PDF", exact: true }).click();
+  const recover = oldCard.getByRole("button", { name: "Tạo lại PDF", exact: true });
+  await recover.focus();
+  await page.keyboard.press("Enter");
+  await expect(oldCard.getByRole("button", { name: "Đang tạo lại…", exact: true })).toBeDisabled();
+  await page.keyboard.press("Enter");
+  expect(recoveryCalls).toBe(1);
+  releaseFirst();
+  await expect(oldCard.getByRole("alert")).toContainText("Chưa tạo được bản PDF mới");
+  await recover.click();
+  await expect(page.getByRole("status").filter({ hasText: "Đã tạo bản PDF mới" })).toBeVisible();
+  expect(recoveryCalls).toBe(2);
+  await expect(oldCard).toContainText(original.sha256!.slice(0, 12));
+  await expect(oldCard.getByRole("link", { name: "Xem bản PDF mới" })).toHaveAttribute("href", `#document-${fresh.id}`);
+  const freshCard = page.locator(`[id="document-${fresh.id}"]`);
+  await expect(freshCard.getByRole("link", { name: "Xem bản cũ trong lịch sử" })).toHaveAttribute("href", `#document-${original.id}`);
+  const downloaded = page.waitForEvent("download");
+  await freshCard.getByRole("button", { name: "Tải PDF", exact: true }).click();
+  const download = await downloaded;
+  const stream = await download.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(chunk);
+  expect(Buffer.concat(chunks)).toEqual(AVAILABLE_PDF_BYTES);
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(freshCard).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  }
+  await assertNoSensitiveBrowserStorage(page);
+});
+
+test("temporary PDF service failure offers download retry and does not regenerate", async ({ context, page }) => {
+  await installPatientDocumentMocks(context);
+  let calls = 0;
+  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/${AVAILABLE_DOCUMENT_ID}/download`, async (route) => {
+    calls += 1;
+    await route.fulfill(calls === 1
+      ? { status: 503, contentType: "application/json", body: JSON.stringify({ code: "SERVICE_UNAVAILABLE", message: "private provider" }) }
+      : { status: 200, contentType: "application/pdf", body: AVAILABLE_PDF_BYTES });
+  });
+  await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
+  const card = page.locator("article.portal-record").filter({ hasText: AVAILABLE_PDF_SHA256.slice(0, 12) });
+  await card.getByRole("button", { name: "Tải PDF", exact: true }).click();
+  await expect(card.getByRole("alert")).toContainText("Dịch vụ đang tạm thời gián đoạn");
+  await expect(card.getByRole("button", { name: "Tạo lại PDF", exact: true })).toHaveCount(0);
+  const downloaded = page.waitForEvent("download");
+  await card.getByRole("button", { name: "Thử tải lại", exact: true }).click();
+  await downloaded;
+  await expect(card.getByRole("alert")).toHaveCount(0);
+  expect(calls).toBe(2);
+});
+
+test("recovery conflict asks to refresh instead of repeatedly regenerating a changed source", async ({ context, page }) => {
+  await installPatientDocumentMocks(context);
+  await context.route(`**/api/v1/patients/${PATIENT_ID}/documents/document-failed-e2e/regenerate`, async (route) => {
+    await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ code: "CONFLICT" }) });
+  });
+  await page.goto("/patient/documents", { waitUntil: "domcontentloaded" });
+  const card = page.locator('[id="document-document-failed-e2e"]');
+  await card.getByRole("button", { name: "Tạo lại PDF", exact: true }).click();
+  await expect(card.getByRole("alert")).toContainText("Chưa tạo được bản PDF mới");
+  await expect(card.getByRole("button", { name: "Tạo lại PDF", exact: true })).toHaveCount(0);
+  await card.getByRole("button", { name: "Cập nhật danh sách", exact: true }).click();
+  await expect(card.getByRole("alert")).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Tạo lại PDF", exact: true })).toBeVisible();
+});
+
 const REMINDER_PDF_BYTES = Buffer.from("%PDF-1.7\n% synthetic appointment reminder e2e\n%%EOF", "utf8");
 const REMINDER_PDF_SHA256 = sha256Hex(REMINDER_PDF_BYTES);
 const REMINDER_DOCUMENT_ID = "reminder-doc-0001";
@@ -426,7 +538,7 @@ test("patient document center disables generation when the server reports storag
   await expect(page.getByText("Tính năng tạo tài liệu PDF hiện chưa được bật trên máy chủ vì chưa có kho lưu trữ.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Tạo PDF tổng kết" })).toBeDisabled();
   await expect(page.locator("article.portal-record").filter({ hasText: "RX-PDF-001" }).getByRole("button", { name: "Tạo PDF đơn thuốc" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Thử tạo lại" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Tạo lại PDF" })).toBeDisabled();
   await expect(page.locator("article.portal-record").filter({ hasText: AVAILABLE_PDF_SHA256.slice(0, 12) }).getByRole("button", { name: "Tải PDF" })).toBeEnabled();
 
   await assertNoSensitiveBrowserStorage(page);
@@ -582,13 +694,13 @@ test("cancelled reminders offer no download, retry, or regeneration controls", a
     .filter({ hasText: "Giấy nhắc" });
   await expect(failedCard).toBeVisible();
   await expect(failedCard.getByRole("button", { name: "Tải PDF" })).toBeDisabled();
-  await expect(failedCard.getByRole("button", { name: "Thử tạo lại" })).toHaveCount(0);
+  await expect(failedCard.getByRole("button", { name: "Tạo lại PDF" })).toHaveCount(0);
   await expect(failedCard.getByRole("button", { name: "Tạo giấy nhắc mới" })).toHaveCount(0);
   await expect(failedCard).toContainText("Giấy nhắc không còn hiệu lực vì lịch hẹn đã thay đổi hoặc bị hủy.");
   await expect(failedCard).not.toContainText("Tệp tạo lỗi đã được ghi nhận để thử lại an toàn.");
 
   const visitFailedCard = page.locator("article.portal-record").filter({ hasText: "RX-PDF-001" });
-  await expect(visitFailedCard.getByRole("button", { name: "Thử tạo lại" })).toBeEnabled();
+  await expect(visitFailedCard.getByRole("button", { name: "Tạo lại PDF" })).toBeEnabled();
 
   await assertNoSensitiveBrowserStorage(page);
 });

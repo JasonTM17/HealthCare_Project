@@ -73,6 +73,22 @@ public class PatientDocument {
     @Column(name = "idempotency_key", nullable = false, unique = true, length = 220)
     private String idempotencyKey;
 
+    @Column(name = "regenerated_from_document_id")
+    private UUID regeneratedFromDocumentId;
+
+    @Column(name = "source_snapshot_sha256", length = 64)
+    private String sourceSnapshotSha256;
+
+    @Column(name = "recovery_reason", length = 40)
+    private String recoveryReason;
+
+    public UUID getRegeneratedFromDocumentId() { return regeneratedFromDocumentId; }
+    public void setRegeneratedFromDocumentId(UUID value) { regeneratedFromDocumentId = value; }
+    public String getSourceSnapshotSha256() { return sourceSnapshotSha256; }
+    public void setSourceSnapshotSha256(String value) { sourceSnapshotSha256 = value; }
+    public String getRecoveryReason() { return recoveryReason; }
+    public void setRecoveryReason(String value) { recoveryReason = value; }
+
     public UUID getId() {
         return id;
     }

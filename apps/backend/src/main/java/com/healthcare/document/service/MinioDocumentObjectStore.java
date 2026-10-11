@@ -62,9 +62,15 @@ public class MinioDocumentObjectStore implements DocumentObjectStore {
     @Override
     public InputStream get(String objectKey) throws Exception {
         ensureBucket();
-        return minioClient.getObject(
-            GetObjectArgs.builder().bucket(bucket).object(objectKey).build()
-        );
+        try {
+            return minioClient.getObject(
+                GetObjectArgs.builder().bucket(bucket).object(objectKey).build());
+        } catch (io.minio.errors.ErrorResponseException exception) {
+            if ("NoSuchKey".equals(exception.errorResponse().code())) {
+                throw new DocumentContentUnavailableException("Stored document object is missing");
+            }
+            throw exception;
+        }
     }
 
     @Override

@@ -795,6 +795,181 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
         verify(objectStore, never()).get(any(String.class));
     }
 
+    @Test
+    void recoveryPreservesOriginalAndPublishesIdempotentLineageAndValidPdf() throws Exception {
+        Map<String, byte[]> stored = stubObjectStoreRoundTrip();
+        UUID original = failedRecoveryOriginal("APPOINTMENT_REMINDER", appointmentId);
+        String before = originalFingerprint(original);
+        MvcResult created = recover(original);
+        assertThat(created.getResponse().getStatus()).isEqualTo(201);
+        var copy = objectMapper.readTree(created.getResponse().getContentAsString());
+        assertThat(copy.get("regeneratedFromDocumentId").asText()).isEqualTo(original.toString());
+        assertThat(copy.get("sourceSnapshotSha256").asText()).matches("[0-9a-f]{64}");
+        assertThat(copy.get("recoveryReason").asText()).isEqualTo("LOST_FILE_COPY");
+        assertThat(copy.get("sourceCurrent").asBoolean()).isTrue();
+        assertThat(originalFingerprint(original)).isEqualTo(before);
+        assertThat(objectMapper.readTree(recover(original).getResponse().getContentAsString()).get("id")).isEqualTo(copy.get("id"));
+        verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
+        MvcResult downloaded = mockMvc.perform(get("/api/v1/patients/{pid}/documents/{id}/download", patientId, copy.get("id").asText())
+                .header("Authorization", patientBearer)).andExpect(status().isOk()).andReturn();
+        assertThat(stored).hasSize(1);
+        try (PDDocument pdf = Loader.loadPDF(downloaded.getResponse().getContentAsByteArray())) {
+            assertThat(new PDFTextStripper().getText(pdf)).contains("Synthetic", "09:00");
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM clinical_access_audit WHERE target_id=? AND action='GENERATE' AND decision='ALLOW'", Integer.class, copy.get("id").asText())).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void concurrentRecoveryReusesOneNewRowAndObject() throws Exception {
+        when(objectStore.isConfigured()).thenReturn(true);
+        UUID original = failedRecoveryOriginal("APPOINTMENT_REMINDER", appointmentId);
+        String before = originalFingerprint(original);
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        doAnswer(invocation -> { entered.countDown(); assertThat(release.await(15, TimeUnit.SECONDS)).isTrue(); return null; })
+                .when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<MvcResult> first = executor.submit(() -> recover(original));
+            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<MvcResult> second = executor.submit(() -> recover(original));
+            awaitRecoveryLockWait("pg_advisory_xact_lock");
+            release.countDown();
+            var a = objectMapper.readTree(first.get(15, TimeUnit.SECONDS).getResponse().getContentAsString());
+            var b = objectMapper.readTree(second.get(15, TimeUnit.SECONDS).getResponse().getContentAsString());
+            assertThat(a.get("id")).isNotNull().isEqualTo(b.get("id"));
+            assertThat(a.get("status").asText()).isEqualTo("AVAILABLE");
+            assertThat(originalFingerprint(original)).isEqualTo(before);
+            verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
+        } finally { release.countDown(); executor.shutdownNow(); executor.awaitTermination(10, TimeUnit.SECONDS); }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"patient", "doctor", "branch", "specialty", "appointment", "actor", "roles", "original", "item-update", "item-insert"})
+    void recoverySerializesJoinedInputsAndAuthorityUntilPublication(String change) throws Exception {
+        when(objectStore.isConfigured()).thenReturn(true);
+        UUID sourceId = appointmentId;
+        String sourceType = "APPOINTMENT_REMINDER";
+        if (change.startsWith("item")) {
+            sourceId = UUID.randomUUID();
+            sourceType = "PRESCRIPTION";
+            jdbcTemplate.update("INSERT INTO prescriptions(id,patient_id,doctor_id,prescription_code,status) SELECT ?,patient_id,doctor_id,?,'ACTIVE' FROM appointments WHERE id=?", sourceId, "SYN-" + sourceId, appointmentId);
+            jdbcTemplate.update("INSERT INTO prescription_items(id,prescription_id,medication_name,dosage,unit,frequency,duration_days,total_quantity) VALUES (?,?, 'Synthetic item','1','unit','daily',1,1)", UUID.randomUUID(), sourceId);
+        }
+        UUID original = failedRecoveryOriginal(sourceType, sourceId);
+        if (change.equals("original")) {
+            jdbcTemplate.update("UPDATE patient_documents SET status='AVAILABLE',sha256=repeat('0',64),byte_size=1 WHERE id=?", original);
+        }
+        String before = originalFingerprint(original);
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        doAnswer(invocation -> { entered.countDown(); assertThat(release.await(15, TimeUnit.SECONDS)).isTrue(); return null; })
+                .when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
+        String sql = switch (change) {
+            case "patient" -> "UPDATE patient_profiles SET full_name='Changed synthetic' WHERE id='" + patientId + "'";
+            case "doctor" -> "UPDATE doctors SET full_name='Changed synthetic' WHERE id=(SELECT doctor_id FROM appointments WHERE id='" + appointmentId + "')";
+            case "branch" -> "UPDATE branches SET name='Changed synthetic' WHERE id=(SELECT branch_id FROM appointments WHERE id='" + appointmentId + "')";
+            case "specialty" -> "UPDATE specialties SET name='Changed synthetic' WHERE id=(SELECT specialty_id FROM appointments WHERE id='" + appointmentId + "')";
+            case "appointment" -> "UPDATE appointments SET reason_for_visit='Changed synthetic' WHERE id='" + appointmentId + "'";
+            case "actor" -> "UPDATE users SET status='DISABLED',security_version=security_version+1 WHERE id=(SELECT user_id FROM patient_profiles WHERE id='" + patientId + "')";
+            case "roles" -> "DELETE FROM user_roles WHERE user_id=(SELECT user_id FROM patient_profiles WHERE id='" + patientId + "')";
+            case "original" -> "UPDATE patient_documents SET status='REVOKED',revoked_at=now() WHERE id='" + original + "'";
+            case "item-update" -> "UPDATE prescription_items SET medication_name='Changed synthetic' WHERE prescription_id='" + sourceId + "'";
+            default -> "INSERT INTO prescription_items(id,prescription_id,medication_name,dosage,unit,frequency,duration_days,total_quantity) VALUES ('" + UUID.randomUUID() + "','" + sourceId + "','Inserted synthetic','1','unit','daily',1,1)";
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<MvcResult> generation = executor.submit(() -> recover(original));
+            assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<Integer> update = executor.submit(() -> jdbcTemplate.update(sql));
+            awaitRecoveryLockWait(change.equals("roles") ? "user_roles" : change.startsWith("item") ? "prescription_items" : change.equals("original") ? "patient_documents" : change.equals("actor") ? "users" : change.equals("appointment") ? "appointments" : change.equals("patient") ? "patient_profiles" : change.equals("doctor") ? "doctors" : change.equals("branch") ? "branches" : "specialties");
+            assertThat(update.isDone()).isFalse();
+            assertThat(originalFingerprint(original)).isEqualTo(before);
+            release.countDown();
+            assertThat(generation.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(201);
+            assertThat(update.get(15, TimeUnit.SECONDS)).isGreaterThanOrEqualTo(1);
+        } finally { release.countDown(); executor.shutdownNow(); executor.awaitTermination(10, TimeUnit.SECONDS); }
+    }
+
+    @Test
+    void recoveryStorageFailureLeavesOriginalImmutableAndTracksSeparateFailure() throws Exception {
+        when(objectStore.isConfigured()).thenReturn(true);
+        UUID original = failedRecoveryOriginal("APPOINTMENT_REMINDER", appointmentId);
+        String before = originalFingerprint(original);
+        org.mockito.Mockito.doThrow(new java.io.IOException("synthetic outage")).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
+        assertThat(recover(original).getResponse().getStatus()).isEqualTo(503);
+        assertThat(originalFingerprint(original)).isEqualTo(before);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM patient_documents WHERE regenerated_from_document_id=? AND status='FAILED'", Integer.class, original)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM clinical_access_audit WHERE target_id IN (SELECT id::text FROM patient_documents WHERE regenerated_from_document_id=?) AND decision='ALLOW'", Integer.class, original)).isZero();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void ordinaryGenerationNeverAdoptsFailedRecoveryChild(boolean changeSource) throws Exception {
+        Map<String, byte[]> stored = stubObjectStoreRoundTrip();
+        UUID original = failedRecoveryOriginal("APPOINTMENT_REMINDER", appointmentId);
+        jdbcTemplate.update("UPDATE patient_documents SET generated_at=now()-interval '1 day' WHERE id=?", original);
+        java.util.concurrent.atomic.AtomicInteger writes = new java.util.concurrent.atomic.AtomicInteger();
+        doAnswer(invocation -> {
+            if (writes.getAndIncrement() == 0) throw new java.io.IOException("synthetic one-shot outage");
+            stored.put(invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(objectStore).put(any(String.class), any(byte[].class), any(String.class));
+        assertThat(recover(original).getResponse().getStatus()).isEqualTo(503);
+        UUID child = jdbcTemplate.queryForObject("SELECT id FROM patient_documents WHERE regenerated_from_document_id=?", UUID.class, original);
+        String childBefore = originalFingerprint(child);
+        String originalRecoveryKey = jdbcTemplate.queryForObject("SELECT idempotency_key FROM patient_documents WHERE id=?", String.class, child);
+        if (changeSource) {
+            jdbcTemplate.update("UPDATE appointments SET reason_for_visit='Changed owned synthetic snapshot' WHERE id=?", appointmentId);
+        }
+        MvcResult ordinary = mockMvc.perform(post("/api/v1/patients/{pid}/documents", patientId)
+                .header("Authorization", patientBearer).contentType(MediaType.APPLICATION_JSON).content(requestBody()))
+                .andExpect(status().isCreated()).andReturn();
+        var ordinaryRow = objectMapper.readTree(ordinary.getResponse().getContentAsString());
+        org.assertj.core.api.SoftAssertions softly = new org.assertj.core.api.SoftAssertions();
+        softly.assertThat(ordinaryRow.get("id").asText()).as("ordinary generation must retain legacy NULL-lineage adoption").isEqualTo(original.toString());
+        softly.assertThat(originalFingerprint(child)).as("FAILED recovery child identity/provenance must remain byte-for-byte unchanged").isEqualTo(childBefore);
+        softly.assertThat(jdbcTemplate.queryForObject("SELECT idempotency_key FROM patient_documents WHERE id=?", String.class, child)).as("recovery retry key preserved").isEqualTo(originalRecoveryKey);
+        softly.assertThat(ordinaryRow.get("sourceCurrent").asBoolean()).as("ordinary successful export is current").isTrue();
+        softly.assertAll();
+        MvcResult retry = recover(original);
+        assertThat(retry.getResponse().getStatus()).isEqualTo(201);
+        var retryRow = objectMapper.readTree(retry.getResponse().getContentAsString());
+        assertThat(retryRow.get("regeneratedFromDocumentId").asText()).isEqualTo(original.toString());
+        if (changeSource) {
+            assertThat(retryRow.get("id").asText()).isNotEqualTo(child.toString());
+            assertThat(originalFingerprint(child)).isEqualTo(childBefore);
+        } else {
+            assertThat(retryRow.get("id").asText()).isEqualTo(child.toString());
+            assertThat(jdbcTemplate.queryForObject("SELECT idempotency_key FROM patient_documents WHERE id=?", String.class, child)).isEqualTo(originalRecoveryKey);
+        }
+        assertThat(objectMapper.readTree(recover(original).getResponse().getContentAsString()).get("id")).isEqualTo(retryRow.get("id"));
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM patient_documents WHERE regenerated_from_document_id=?", Integer.class, original)).isEqualTo(changeSource ? 2 : 1);
+        assertThat(writes.get()).isEqualTo(3);
+    }
+
+    private UUID failedRecoveryOriginal(String sourceType, UUID sourceId) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update("INSERT INTO patient_documents(id,patient_id,source_record_id,source_type,source_version,template_version,status,object_key,generated_by,idempotency_key) SELECT ?,id,?,?,1,'legacy','FAILED',?,user_id,? FROM patient_profiles WHERE id=?", id, sourceId, sourceType, "documents/synthetic-lost/" + id + ".pdf", "SYNTHETIC-LOST:" + id, patientId);
+        return id;
+    }
+
+    private String originalFingerprint(UUID original) {
+        return jdbcTemplate.queryForObject("SELECT md5(row_to_json(d)::text) FROM patient_documents d WHERE id=?", String.class, original);
+    }
+
+    private MvcResult recover(UUID original) throws Exception {
+        return mockMvc.perform(post("/api/v1/patients/{pid}/documents/{id}/regenerate", patientId, original).header("Authorization", patientBearer)).andReturn();
+    }
+
+    private void awaitRecoveryLockWait(String table) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            Boolean waiting = jdbcTemplate.queryForObject("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid() AND wait_event_type='Lock' AND query ILIKE ?)", Boolean.class, "%" + table + "%");
+            if (Boolean.TRUE.equals(waiting)) return;
+            Thread.sleep(25);
+        }
+        throw new AssertionError("Expected PostgreSQL row/advisory lock wait for " + table);
+    }
+
     private Map<String, byte[]> stubObjectStoreRoundTrip() throws Exception {
         Map<String, byte[]> stored = new ConcurrentHashMap<>();
         doAnswer(invocation -> {

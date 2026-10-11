@@ -95,6 +95,51 @@ with unchanged auth semantics.
 
 ## Non-goals
 
+### Lost-file recovery amendment (2026-10-11)
+
+`POST /api/v1/patients/{patientId}/documents/{documentId}/regenerate` accepts
+no request body and creates a **new export from current retained source data**.
+The owning patient, source's issuing/assigned doctor, or administrator uses the
+existing authenticated boundary. It supports generated documents only; missing
+manually uploaded clinical originals cannot be reconstructed by this endpoint.
+
+The original row, key, status, size, checksum and issuance history stay intact.
+The explicit operation bypasses ordinary generation's FAILED-row adoption and
+automatic supersession. The new row persists `regeneratedFromDocumentId`,
+`sourceSnapshotSha256` and `recoveryReason=LOST_FILE_COPY` (V122). Its normal
+actor/time, source/template version and actual PDF byte metadata complete the
+lineage. Current template disclaimers remain visible: a new copy is neither a
+restored original nor a signed or independently approved clinical record.
+
+Recovery idempotency is `RECOVERY:{originalId}:{canonicalSnapshotSha256}`;
+the hash includes source type/id/version, template and joined snapshot content.
+Prescription items use stable ID order for recovery only. A retry resolves the
+same successful replacement; failed retries use that separate replacement
+attempt, never the original. Revoked, superseded, pending or ineligible originals
+and sources are rejected. Ordinary generation retains its existing contract.
+
+The source advisory lock is shared with ordinary generation. PostgreSQL row
+locks cover the original, source, patient, doctor, relevant appointment/branch/
+specialty or prescription items, and current actor/user-role/role rows until
+publication commits. Locking the prescription parent also blocks foreign-key
+inserts into its item collection. A fresh persistence-context read after locks
+validates active, verified, unchanged session role/security version and source
+ownership/eligibility before rendering. Contention is bounded by a 5-second
+lock timeout and returns retryable conflict; facts and account settings are not
+edited by recovery. Existing cleanup and after-commit allowed-audit handling are
+reused. Generation authority is checked at publication; later authorized edits
+are separate operations.
+
+Known invalid size/hash metadata, byte mismatches and confirmed object-not-found
+responses return JSON HTTP 503 with `DOCUMENT_CONTENT_UNAVAILABLE`. Temporary
+provider failures return `SERVICE_UNAVAILABLE`; a 503 alone does not establish
+lost content or authorize reconstruction. REST adapter treats actual HTTP 404
+from an object GET as missing, and MinIO treats `NoSuchKey` as missing. Unknown
+provider errors remain temporary failures. Clients can display a friendly
+recovery action for the dedicated content code while keeping outage retries
+separate. Actual original-byte restoration remains a separately verified
+storage operation and must match the historical checksum and size.
+
 - No digital signatures, PKI, timestamps authorities, or QR verification.
 - No legal validity: every PDF carries the visible line
   "BẢN TỔNG HỢP DEMO — KHÔNG PHẢI CHỨNG TỪ Y KHOA CÓ CHỮ KÝ" and UI copy never

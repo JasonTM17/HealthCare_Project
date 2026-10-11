@@ -427,7 +427,7 @@ class DocumentServiceTest {
         stale.setTemplateVersion("v1.0");
         stale.setIdempotencyKey("VISIT_SUMMARY:" + RECORD_ID + ":1:v1.0");
         when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
-        when(documentRepository.findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+        when(documentRepository.findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
                 PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
                 .thenReturn(Optional.of(stale));
         when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
@@ -494,7 +494,7 @@ class DocumentServiceTest {
         when(documentRepository.findByIdempotencyKey(anyString()))
                 .thenReturn(Optional.empty(), Optional.of(winner));
         when(documentRepository
-                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
                         PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
                 .thenReturn(Optional.of(orphan));
         when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
@@ -534,7 +534,7 @@ class DocumentServiceTest {
         when(documentRepository.findByIdempotencyKey(anyString()))
                 .thenReturn(Optional.empty(), Optional.of(winner));
         when(documentRepository
-                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+                .findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
                         PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
                 .thenReturn(Optional.empty());
         when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
@@ -565,7 +565,7 @@ class DocumentServiceTest {
         PatientProfile patient = patientMock(PATIENT_ID);
         User generator = userMock();
         when(documentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
-        when(documentRepository.findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+        when(documentRepository.findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
                 PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED))
                 .thenReturn(Optional.empty());
         when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(ownRecord));
@@ -584,7 +584,7 @@ class DocumentServiceTest {
                 new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID),
                 patientPrincipal());
 
-        verify(documentRepository).findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+        verify(documentRepository).findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
                 PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED);
         assertThat(response.id()).isEqualTo(DOCUMENT_ID);
         assertThat(response.status()).isEqualTo(DocumentStatus.AVAILABLE);
@@ -725,7 +725,8 @@ class DocumentServiceTest {
         when(objectStore.get(document.getObjectKey())).thenReturn(stream);
 
         assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
-                .isInstanceOf(BusinessException.class).extracting("status").isEqualTo(503);
+                .isInstanceOf(BusinessException.class).extracting("status", "code")
+                .containsExactly(503, "DOCUMENT_CONTENT_UNAVAILABLE");
         verify(auditService, never()).record(any(), any(), any(), any(), any(),
                 eq(ClinicalAccessAuditService.DECISION_ALLOW));
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
@@ -1047,6 +1048,189 @@ class DocumentServiceTest {
                 .isInstanceOf(AccessDeniedException.class);
 
         verify(objectStore, never()).isConfigured();
+    }
+
+    @Test
+    void recoveryCreatesFreshCopyWithoutAdoptingOrSupersedingOriginal() throws Exception {
+        PatientDocument original = availableDocument();
+        original.setStatus(DocumentStatus.FAILED);
+        String oldKey = original.getObjectKey();
+        String oldHash = original.getSha256();
+        UserDetails principal = stubRecovery(original);
+        DocumentResponse result = service.regenerateDocument(PATIENT_ID, original.getId(), principal);
+        assertThat(result.id()).isNotEqualTo(original.getId());
+        assertThat(result.regeneratedFromDocumentId()).isEqualTo(original.getId());
+        assertThat(result.recoveryReason()).isEqualTo("LOST_FILE_COPY");
+        assertThat(result.sourceSnapshotSha256()).matches("[0-9a-f]{64}");
+        assertThat(original.getStatus()).isEqualTo(DocumentStatus.FAILED);
+        assertThat(original.getObjectKey()).isEqualTo(oldKey);
+        assertThat(original.getSha256()).isEqualTo(oldHash);
+        verify(documentRepository, never()).saveAndFlush(same(original));
+        verify(documentRepository, never()).saveAll(any());
+        verify(documentRepository, never()).findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(any(), any(), any(), any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = DocumentStatus.class, names = {"REVOKED", "SUPERSEDED", "PENDING"})
+    void recoveryRejectsLifecycleIneligibleOriginal(DocumentStatus status) throws Exception {
+        PatientDocument original = availableDocument();
+        original.setStatus(status);
+        UserDetails principal = stubRecovery(original);
+        assertThatThrownBy(() -> service.regenerateDocument(PATIENT_ID, original.getId(), principal))
+                .isInstanceOf(BusinessException.class).extracting("status").isEqualTo(409);
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+    }
+
+    @Test
+    void recoveryRejectsAuthorityChangeBeforeWriting() throws Exception {
+        PatientDocument original = availableDocument();
+        UserDetails principal = stubRecovery(original);
+        User actor = userRepository.findById(USER_ID).orElseThrow();
+        actor.setStatus("DISABLED");
+        assertThatThrownBy(() -> service.regenerateDocument(PATIENT_ID, original.getId(), principal))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"verification", "role", "security-version"})
+    void recoveryRejectsStaleVerifiedRoleOrSecurityVersion(String change) throws Exception {
+        PatientDocument original = availableDocument();
+        stubRecovery(original);
+        User actor = userRepository.findById(USER_ID).orElseThrow();
+        UserDetails principal = com.healthcare.security.HealthcareUserPrincipal.from(actor);
+        switch (change) {
+            case "verification" -> actor.setEmailVerified(false);
+            case "role" -> actor.setRoles(java.util.Set.of());
+            default -> actor.setSecurityVersion(actor.getSecurityVersion() + 1);
+        }
+        assertThatThrownBy(() -> service.regenerateDocument(PATIENT_ID, original.getId(), principal))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+    }
+
+    @Test
+    void recoveryChangedJoinedSnapshotGetsAnotherIdentityWithoutChangingOriginal() throws Exception {
+        PatientDocument original = availableDocument();
+        UserDetails principal = stubRecovery(original);
+        DocumentResponse first = service.regenerateDocument(PATIENT_ID, original.getId(), principal);
+        MedicalRecord record = medicalRecordRepository.findByIdWithDetails(RECORD_ID).orElseThrow();
+        when(record.getPatient().getFullName()).thenReturn("Changed synthetic display name");
+        DocumentResponse second = service.regenerateDocument(PATIENT_ID, original.getId(), principal);
+        assertThat(second.id()).isNotEqualTo(first.id());
+        assertThat(second.sourceSnapshotSha256()).isNotEqualTo(first.sourceSnapshotSha256());
+        assertThat(original.getId()).isEqualTo(DOCUMENT_ID);
+        verify(documentRepository, never()).saveAndFlush(same(original));
+    }
+
+    @Test
+    void recoveryRejectsForeignSourceAndIssuerBeforeWriting() throws Exception {
+        PatientDocument original = availableDocument();
+        UserDetails principal = stubRecovery(original);
+        MedicalRecord foreign = medicalRecord(OTHER_PATIENT_ID, DOCTOR_ID);
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(foreign));
+        assertThatThrownBy(() -> service.regenerateDocument(PATIENT_ID, original.getId(), principal))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+    }
+
+    @Test
+    void recoveryObjectFailureKeepsOriginalAndSeparateFailedAttempt() throws Exception {
+        PatientDocument original = availableDocument();
+        UserDetails principal = stubRecovery(original);
+        doThrow(new java.io.IOException("provider unavailable")).when(objectStore).put(anyString(), any(), anyString());
+        assertThatThrownBy(() -> service.regenerateDocument(PATIENT_ID, original.getId(), principal))
+                .isInstanceOf(BusinessException.class).extracting("status").isEqualTo(503);
+        assertThat(original.getStatus()).isEqualTo(DocumentStatus.AVAILABLE);
+        ArgumentCaptor<PatientDocument> saved = ArgumentCaptor.forClass(PatientDocument.class);
+        verify(documentRepository, times(2)).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getStatus()).isEqualTo(DocumentStatus.FAILED);
+        assertThat(saved.getValue().getRegeneratedFromDocumentId()).isEqualTo(original.getId());
+        assertThat(saved.getValue().getId()).isNotEqualTo(original.getId());
+    }
+
+    @Test
+    void recoveryDuplicateReturnsOnlyTheExistingReplacement() throws Exception {
+        PatientDocument original = availableDocument();
+        UserDetails principal = stubRecovery(original);
+        PatientDocument replacement = availableDocument(UUID.randomUUID(), RECORD_ID);
+        replacement.setRegeneratedFromDocumentId(original.getId());
+        replacement.setRecoveryReason("LOST_FILE_COPY");
+        when(documentRepository.findByIdempotencyKey(org.mockito.ArgumentMatchers.startsWith("RECOVERY:")))
+                .thenReturn(Optional.of(replacement));
+        assertThat(service.regenerateDocument(PATIENT_ID, original.getId(), principal).id()).isEqualTo(replacement.getId());
+        verify(objectStore, never()).put(anyString(), any(), anyString());
+        verify(documentRepository, never()).saveAndFlush(any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void downloadDistinguishesConfirmedMissingContentFromProviderOutage(boolean missing) throws Exception {
+        PatientDocument original = availableDocument();
+        when(documentRepository.findByIdAndPatientId(original.getId(), PATIENT_ID)).thenReturn(Optional.of(original));
+        when(objectStore.isConfigured()).thenReturn(true);
+        when(objectStore.get(original.getObjectKey())).thenThrow(missing
+                ? new com.healthcare.document.service.DocumentContentUnavailableException("missing")
+                : new java.io.IOException("provider offline"));
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, original.getId(), patientPrincipal()))
+                .isInstanceOf(BusinessException.class).extracting("code")
+                .isEqualTo(missing ? "DOCUMENT_CONTENT_UNAVAILABLE" : "SERVICE_UNAVAILABLE");
+    }
+
+    @Test
+    void ordinaryGenerationDoesNotConsumeFailedRecoveryOrphan() throws Exception {
+        PatientDocument original = availableDocument();
+        UserDetails principal = stubRecovery(original);
+        PatientDocument child = availableDocument(UUID.randomUUID(), RECORD_ID);
+        child.setStatus(DocumentStatus.FAILED);
+        child.setSha256(null);
+        child.setByteSize(null);
+        child.setTemplateVersion("legacy");
+        child.setSourceVersion(1L);
+        child.setRegeneratedFromDocumentId(original.getId());
+        child.setSourceSnapshotSha256("0".repeat(64));
+        child.setRecoveryReason("LOST_FILE_COPY");
+        String recoveryKey = "RECOVERY:" + original.getId() + ":" + child.getSourceSnapshotSha256();
+        child.setIdempotencyKey(recoveryKey);
+        DocumentResponse ordinary = service.generateDocument(PATIENT_ID,
+                new GenerateDocumentRequest(DocumentSourceType.VISIT_SUMMARY, RECORD_ID), principal);
+        assertThat(ordinary.id()).isNotEqualTo(child.getId());
+        assertThat(ordinary.regeneratedFromDocumentId()).isNull();
+        assertThat(child.getStatus()).isEqualTo(DocumentStatus.FAILED);
+        assertThat(child.getIdempotencyKey()).isEqualTo(recoveryKey);
+        assertThat(child.getSourceSnapshotSha256()).isEqualTo("0".repeat(64));
+        assertThat(child.getSourceVersion()).isEqualTo(1L);
+        assertThat(child.getTemplateVersion()).isEqualTo("legacy");
+        verify(documentRepository, never()).saveAndFlush(same(child));
+        verify(documentRepository).findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
+                PATIENT_ID, DocumentSourceType.VISIT_SUMMARY, RECORD_ID, DocumentStatus.FAILED);
+    }
+
+    private UserDetails stubRecovery(PatientDocument original) throws Exception {
+        UserDetails principal = patientPrincipal();
+        User actor = new User();
+        actor.setId(USER_ID);
+        actor.setEmail("patient@example.com");
+        actor.setPasswordHash("test-only");
+        actor.setStatus("ACTIVE");
+        com.healthcare.user.entity.Role role = new com.healthcare.user.entity.Role();
+        role.setCode("PATIENT");
+        actor.setRoles(new java.util.HashSet<>(java.util.Set.of(role)));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(actor));
+        when(documentRepository.findByIdAndPatientId(original.getId(), PATIENT_ID)).thenReturn(Optional.of(original));
+        stubPatientExists(PATIENT_ID);
+        MedicalRecord record = medicalRecord(PATIENT_ID, DOCTOR_ID);
+        when(medicalRecordRepository.findByIdWithDetails(RECORD_ID)).thenReturn(Optional.of(record));
+        when(renderer.renderVisitSummary(any(), anyString())).thenReturn(RENDERED_PDF);
+        when(objectStore.isConfigured()).thenReturn(true);
+        Query query = entityManager.createNativeQuery("test");
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(documentRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            PatientDocument row = invocation.getArgument(0);
+            if (row.getId() == null) row.setId(UUID.randomUUID());
+            return row;
+        });
+        return principal;
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────
