@@ -99,7 +99,7 @@ docker compose -p healthcare-local-demo --env-file .env \
 ## Hồ sơ bác sĩ cho nút demo "Bác sĩ"
 
 Nút demo đăng nhập bằng `doctor@healthcare.com`. Bước seed `infrastructure/seed-local-demo-doctor.sql`
-(chạy sau seed chính trong `docker-compose.local-demo.yml`) gắn hồ sơ TS.BS Nguyễn Minh Khôi (có 10 lịch hẹn)
+(chạy sau seed chính trong `docker-compose.local-demo.yml`) gắn hồ sơ TS.BS Nguyễn Minh Khôi (có lịch hẹn mẫu)
 cho tài khoản này; `doctor@healthcare.local` chuyển sang hồ sơ ThS.BS Trần Thu Hà. Chạy lại seed bất cứ lúc nào:
 
 ```bash
@@ -107,3 +107,7 @@ docker compose -p healthcare-local-demo --env-file .env \
   -f infrastructure/docker-compose.yml \
   -f infrastructure/docker-compose.local-demo.yml up --no-deps local-seed
 ```
+
+Cùng bước seed này tạo 8 lịch `DEMO-LIVE-01..08` cho bác sĩ demo, tính theo ngày hôm nay (múi giờ Việt Nam):
+2 lịch **Đang khám** (hiện nút "Ghi nhận kết quả khám"), 1 đã tiếp nhận, 5 đã xác nhận trong 3 ngày tới.
+Mỗi lần chạy lại seed, các lịch này được dời về hôm nay và trả về trạng thái ban đầu.
