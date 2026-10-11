@@ -101,6 +101,13 @@ public final class ChatSuggestedActionResolver {
         "bai viet", "bai nao", "cam nang", "faq", "cau hoi thuong gap",
         "kien thuc suc khoe", "huong dan suc khoe"
     };
+    private static final String[] BLOOD_PRESSURE_TERMS = {
+        "huyet ap", "blood pressure"
+    };
+    private static final String[] MEDICAL_RANGE_TERMS = {
+        "binh thuong", "nguong", "tang huyet ap", "cao huyet ap",
+        "ha huyet ap", "normal", "threshold", "range", "hypertension", "hypotension"
+    };
     private static final String[] SYMPTOM_TERMS = {
         "trieu chung", "dau", "sot", "ho", "met moi", "mat ngu", "chong mat",
         "buon non", "phu hop"
@@ -128,6 +135,13 @@ public final class ChatSuggestedActionResolver {
     public static HospitalSupportIntent classify(String question) {
         String normalized = normalize(question);
         if (GREETING_PATTERN.matcher(normalized.trim()).matches()) return HospitalSupportIntent.GREETING;
+        // Medical interpretation requires approved sources even when a
+        // question also mentions booking. Mere measurement logistics/prices
+        // keep their existing operational route.
+        if (containsAny(normalized, BLOOD_PRESSURE_TERMS)
+                && containsAny(normalized, MEDICAL_RANGE_TERMS)) {
+            return HospitalSupportIntent.EDUCATION;
+        }
         // Logistics wins over education wording so a mixed question such as
         // "FAQ về đặt lịch" cannot enter the clinical article/FAQ lane.
         if (containsAny(normalized, BOOKING_TERMS)) return HospitalSupportIntent.BOOKING;

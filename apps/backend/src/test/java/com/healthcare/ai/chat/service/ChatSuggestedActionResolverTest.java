@@ -10,6 +10,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ChatSuggestedActionResolverTest {
 
     @Test
+    void medicalBloodPressureThresholdsRequireGovernedEducation() {
+        for (String question : List.of(
+                "Chỉ số huyết áp bình thường là bao nhiêu và khi nào được xác định là tăng huyết áp?",
+                "Chi so huyet ap binh thuong la bao nhieu?",
+                "What is normal blood pressure?",
+                "Tôi muốn đặt lịch nhưng chỉ số huyết áp bao nhiêu là tăng huyết áp?")) {
+            assertThat(ChatSuggestedActionResolver.publicMode(question))
+                .as(question)
+                .isEqualTo(com.healthcare.ai.chat.entity.ChatMode.HEALTH_EDUCATION);
+        }
+        for (String question : List.of(
+                "Tôi muốn đặt lịch đo huyết áp",
+                "Dịch vụ đo huyết áp giá bao nhiêu?",
+                "Tôi muốn đặt lịch đo chỉ số huyết áp",
+                "Dịch vụ đo chỉ số huyết áp giá bao nhiêu?",
+                "Giờ làm việc của bệnh viện?")) {
+            assertThat(ChatSuggestedActionResolver.publicMode(question))
+                .as(question)
+                .isEqualTo(com.healthcare.ai.chat.entity.ChatMode.HOSPITAL_SUPPORT);
+        }
+    }
+
+    @Test
     void routesSymptomSpecialtyQuestionsToUsefulNextSteps() {
         assertThat(ChatSuggestedActionResolver.classify(
             "Tôi bị đau đầu kéo dài, nên khám chuyên khoa nào?"))
