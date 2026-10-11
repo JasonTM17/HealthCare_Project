@@ -4,6 +4,7 @@ import test from "node:test";
 
 const pagePath = new URL("../app/page.tsx", import.meta.url);
 const cmsEditorPath = new URL("../components/cms/CmsEditor.tsx", import.meta.url);
+const cmsWorkspacePath = new URL("../components/cms/cms-editor-workspace.tsx", import.meta.url);
 const imageUploadPath = new URL("../components/ImageUpload.tsx", import.meta.url);
 const healthQuestionsPath = new URL("../app/patient/health-questions/page.tsx", import.meta.url);
 const profilePath = new URL("../app/patient/profile/page.tsx", import.meta.url);
@@ -138,4 +139,22 @@ test("operational kickers render in Vietnamese", async () => {
       assert.ok(!source.includes(text), `${relativePath} still contains "${text}"`);
     }
   }
+});
+
+test("cms history button refetches, scrolls and focuses the panel on every open", async () => {
+  const source = await readFile(cmsWorkspacePath, "utf8");
+
+  // The stale-cache guard that skipped refetches must be gone: reopening the
+  // panel always asks the backend for fresh history after saves/publishes.
+  assert.ok(!source.includes("if (history || showHistory) return"));
+  const loadSlice = source.slice(source.indexOf("const loadHistory"), source.indexOf("const fetchHistory"));
+  assert.match(loadSlice, /setShowHistory\(true\)/);
+  assert.match(loadSlice, /await fetchHistory\(\)/);
+  const fetchSlice = source.slice(source.indexOf("const fetchHistory"), source.indexOf("const inspect"));
+  assert.match(fetchSlice, /setHistory\(null\)/);
+  // The panel sits below the editor grid, so opening it must bring it into
+  // view and move keyboard focus onto its heading.
+  assert.match(source, /scrollIntoView\(\{\s*behavior:\s*"smooth",\s*block:\s*"start"\s*\}\)/);
+  assert.match(source, /historyHeadingRef\.current\?\.focus\(/);
+  assert.match(source, /<h2 ref=\{historyHeadingRef\} tabIndex=\{-1\}>/);
 });

@@ -34,6 +34,9 @@ COPY --from=build --chown=node:node /app/.next ./.next
 COPY --from=build --chown=node:node /app/public ./public
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
 COPY --from=build --chown=node:node /app/next.config.ts ./next.config.ts
+# next start transpiles next.config.ts at boot; its self-contained lib import
+# must exist in the runtime image too.
+COPY --from=build --chown=node:node /app/lib/cms-page-manifest.ts ./lib/cms-page-manifest.ts
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
 USER node
 EXPOSE 3000
