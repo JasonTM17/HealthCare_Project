@@ -5,6 +5,8 @@ test("new care plan action guides an empty day to an eligible appointment and pe
   let plans: unknown[] = [];
   let writes = 0;
   const appointmentId = "00000000-0000-4000-8000-000000000001";
+  // The page defaults to today's business date, so the eligible day must never be today.
+  const eligibleDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toLocaleDateString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
   await page.route("**/api/v1/**", async (route) => {
     if (await fulfillBackendWarmup(route)) return;
     const request = route.request();
@@ -25,8 +27,8 @@ test("new care plan action guides an empty day to an eligible appointment and pe
     } else if (url.pathname === "/api/v1/doctor/care-plans") {
       body = plans;
     } else if (url.pathname.includes("/appointments") || url.pathname.includes("/notifications")) {
-      const content = url.pathname.includes("/appointments") && url.searchParams.get("date") === "2026-10-12"
-        ? [{ id: appointmentId, bookingCode: "DEMO-CREATE-001", appointmentDate: "2026-10-12", patientName: "Bệnh nhân kiểm thử", status: "COMPLETED" }] : [];
+      const content = url.pathname.includes("/appointments") && url.searchParams.get("date") === eligibleDate
+        ? [{ id: appointmentId, bookingCode: "DEMO-CREATE-001", appointmentDate: eligibleDate, patientName: "Bệnh nhân kiểm thử", status: "COMPLETED" }] : [];
       body = { content, totalElements: content.length, totalPages: content.length ? 1 : 0, number: 0, size: 100, first: true, last: true, empty: !content.length };
     }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -36,7 +38,7 @@ test("new care plan action guides an empty day to an eligible appointment and pe
   await page.getByRole("button", { name: "Tạo kế hoạch mới", exact: true }).click();
   await expect(page.getByLabel("Ngày lịch hẹn", { exact: true })).toBeFocused();
   expect(writes).toBe(0);
-  await page.getByLabel("Ngày lịch hẹn", { exact: true }).fill("2026-10-12");
+  await page.getByLabel("Ngày lịch hẹn", { exact: true }).fill(eligibleDate);
   const appointment = page.getByRole("combobox", { name: "Lịch hẹn", exact: true });
   await expect(appointment).toBeVisible();
   await page.getByRole("button", { name: "Tạo kế hoạch mới", exact: true }).click();
