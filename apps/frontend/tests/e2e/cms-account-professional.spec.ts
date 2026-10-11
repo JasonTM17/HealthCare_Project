@@ -276,11 +276,17 @@ test.describe("CMS native production UI with fixtures", () => {
     await input.fill("Bản riêng tiếp theo"); await page.getByTestId("cms-save-draft").click();
     await expect(page.getByTestId("cms-draft-status")).toContainText("Bản nháp đã lưu");
     await page.getByRole("button", { name: "Lịch sử", exact: true }).click();
+    await expect(page.getByTestId("cms-history")).toBeInViewport();
     await page.getByTestId("cms-history").getByRole("button", { name: "Khôi phục vào bản nháp", exact: true }).last().click();
     await page.getByRole("dialog").getByRole("button", { name: "Khôi phục bản nháp", exact: true }).click();
     await expect(page.getByRole("dialog")).toBeHidden();
     expect(fixture.drafts.get("homepage.layout")!.hasDraft).toBe(true);
     expect(fixture.drafts.get("homepage.layout")!.publicContent).toEqual(published);
+    await page.getByRole("button", { name: "Lịch sử", exact: true }).click();
+    await expect(page.getByTestId("cms-history")).toBeHidden();
+    await page.getByRole("button", { name: "Lịch sử", exact: true }).click();
+    await expect(page.getByTestId("cms-history")).toBeInViewport();
+    await expect.poll(() => fixture.requests.filter((request) => request.path === "/admin/cms/content/homepage.layout/history").length).toBe(2);
   });
   test("dirty switch offers stay, failed save stays, discard and save continue", async ({ context, page }) => {
     const fixture = await installFixtures(context); await page.goto("/admin/content");

@@ -1,0 +1,26 @@
+# Local demo overlay (untracked). Brings up the full stack for in-person demo:
+# deterministic local AI provider (egress-isolated by design), all three chat
+# modes enabled, and a localhost site URL baked into the frontend build.
+# Usage:
+#   docker compose -p healthcare-local-demo --env-file .env \
+#     -f infrastructure/docker-compose.yml \
+#     -f infrastructure/docker-compose.local-demo.yml up -d --build
+services:
+  backend:
+    environment:
+      AI_CHAT_SYMPTOM_TRIAGE_ENABLED: "true"
+      AI_CHAT_HEALTH_EDUCATION_ENABLED: "true"
+      AI_CHAT_SYNTHETIC_BETA_ASSERTED: "true"
+
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+  ai-service:
+    environment:
+      AI_PROVIDER: local
+      AI_CHAT_MODEL: local-deterministic
+      AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED: "false"
+      AI_PATIENT_CHAT_REMOTE_ENABLED: "false"
+      AI_CHAT_REMOTE_PROVIDER_ENABLED: "false"

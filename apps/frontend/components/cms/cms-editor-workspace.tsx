@@ -64,6 +64,8 @@ function CmsPageSession({ identity, onPageChange }: { identity: CmsPageIdentity;
   const [pageSearch, setPageSearch] = useState("");
   const requestEpoch = useRef(0);
   const navigationBypass = useRef(false);
+  const historySectionRef = useRef<HTMLElement>(null);
+  const historyHeadingRef = useRef<HTMLHeadingElement>(null);
   let validationError: string | null = null;
   try { parseCmsPageLayout(working, identity); } catch (cause) { validationError = cause instanceof Error ? cause.message : "Nội dung chưa hợp lệ."; }
   const dirty = !equalCmsPageLayouts(working, draft.payload) || Object.keys(richErrors).length > 0;
@@ -98,6 +100,11 @@ function CmsPageSession({ identity, onPageChange }: { identity: CmsPageIdentity;
     const historyGuard = installAdminHistoryGuard({ isBlocked: () => !navigationBypass.current, isBusy: () => pendingRef.current || mediaBusyRef.current, onRequestLeave: (proceed) => setSwitchIntent({ kind: "browser", proceed }) });
     return () => { historyGuard.dispose(); window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigate, true); };
   }, [dirty, pending, mediaBusy]);
+  useEffect(() => {
+    if (!showHistory) return;
+    historySectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    historyHeadingRef.current?.focus({ preventScroll: true });
+  }, [showHistory]);
 
   const onSelected = useCallback((id: string, nativeValue: CmsLayoutValue) => {
     if (pendingRef.current || mediaBusyRef.current) return;
@@ -179,12 +186,16 @@ function CmsPageSession({ identity, onPageChange }: { identity: CmsPageIdentity;
     finally { if (epoch === requestEpoch.current) setDetailLoading(false); }
   };
   const loadHistory = async () => {
-    setShowHistory((value) => !value);
-    if (history || showHistory) return;
+    if (showHistory) {
+      setShowHistory(false);
+      return;
+    }
+    setShowHistory(true);
     await fetchHistory();
   };
   const fetchHistory = async () => {
     setHistoryError(null);
+    setHistory(null);
     const epoch = requestEpoch.current;
     try { const result = await cmsLayoutClient.history(identity); if (epoch === requestEpoch.current) setHistory(result); } catch (cause) { if (epoch === requestEpoch.current) setHistoryError(errorCopy(cause)); }
   };
@@ -255,7 +266,7 @@ function CmsPageSession({ identity, onPageChange }: { identity: CmsPageIdentity;
         {fieldId && !selectedValue ? <p role="status">Đang chọn trường trên trang thật…</p> : <CmsFieldInspector identity={identity} fieldId={fieldId} value={selectedValue} rawRich={fieldId ? rawRich[fieldId] : undefined} disabled={disableEditing || mode === "published"} onBusyChange={onMediaBusy} error={fieldId ? richErrors[fieldId] : undefined} onChange={update} onRichChange={updateRich} onReset={() => setResetFieldId(fieldId)} />}
       </aside>
     </div>
-    {showHistory ? <section className={styles.history} data-testid="cms-history"><h2>Lịch sử nội dung</h2>{historyError ? <><p role="alert" className={styles.error}>{historyError}</p><button type="button" onClick={() => void fetchHistory()}>Thử tải lại lịch sử</button></> : history === null ? <p>Đang tải lịch sử…</p> : history.length === 0 ? <p>Chưa có lịch sử lưu cho trang này.</p> : history.map((entry) => <div key={entry.eventId} className={styles.historyRow}><div><strong>{entry.status === "PUBLISHED" ? "Nội dung lưu / xuất bản" : "Nội dung lưu bản nháp"}</strong><p>{formatBusinessDateTime(entry.changedAt)} · {entry.actorEmail}</p></div><div className={styles.actions}><button type="button" onClick={() => setHistoryPreview(entry)}>Xem phiên bản</button><button type="button" disabled={disableEditing || dirty} onClick={() => setConfirm({ kind: "restore", entry })}>Khôi phục vào bản nháp</button></div></div>)}{dirty ? <p className={styles.notice}>Lưu hoặc bỏ thay đổi hiện tại trước khi khôi phục lịch sử.</p> : null}{historyPreview ? <div><h3>Phiên bản lưu lúc {formatBusinessDateTime(historyPreview.changedAt)}</h3><button type="button" onClick={() => setHistoryPreview(null)}>Đóng phiên bản</button><CmsNativePreview key={historyPreview.eventId} identity={identity} layout={historyPreview.payload} mode="published" onSelected={() => {}} /></div> : null}</section> : null}
+    {showHistory ? <section ref={historySectionRef} className={styles.history} data-testid="cms-history"><h2 ref={historyHeadingRef} tabIndex={-1}>Lịch sử nội dung</h2>{historyError ? <><p role="alert" className={styles.error}>{historyError}</p><button type="button" onClick={() => void fetchHistory()}>Thử tải lại lịch sử</button></> : history === null ? <p>Đang tải lịch sử…</p> : history.length === 0 ? <p>Chưa có lịch sử lưu cho trang này.</p> : history.map((entry) => <div key={entry.eventId} className={styles.historyRow}><div><strong>{entry.status === "PUBLISHED" ? "Nội dung lưu / xuất bản" : "Nội dung lưu bản nháp"}</strong><p>{formatBusinessDateTime(entry.changedAt)} · {entry.actorEmail}</p></div><div className={styles.actions}><button type="button" onClick={() => setHistoryPreview(entry)}>Xem phiên bản</button><button type="button" disabled={disableEditing || dirty} onClick={() => setConfirm({ kind: "restore", entry })}>Khôi phục vào bản nháp</button></div></div>)}{dirty ? <p className={styles.notice}>Lưu hoặc bỏ thay đổi hiện tại trước khi khôi phục lịch sử.</p> : null}{historyPreview ? <div><h3>Phiên bản lưu lúc {formatBusinessDateTime(historyPreview.changedAt)}</h3><button type="button" onClick={() => setHistoryPreview(null)}>Đóng phiên bản</button><CmsNativePreview key={historyPreview.eventId} identity={identity} layout={historyPreview.payload} mode="published" onSelected={() => {}} /></div> : null}</section> : null}
     <ConfirmActionDialog open={confirm !== null} title={confirm?.kind === "restore" ? "Khôi phục nội dung vào bản nháp?" : "Xuất bản nội dung trang?"} description={confirm?.kind === "restore" ? "Thao tác chỉ tạo bản nháp riêng; nội dung công khai giữ nguyên." : "Nội dung và thứ tự vùng của trang này sẽ được hiển thị công khai."} summaryItems={[{ label: "Trang", value: identity.canonicalPath }, { label: "Bản đang sửa", value: dirty ? "Sẽ lưu rồi xuất bản" : "Bản nháp đã lưu" }]} confirmLabel={confirm?.kind === "restore" ? "Khôi phục bản nháp" : "Xác nhận xuất bản"} cancelLabel="Hủy" pending={pending} error={error} onCancel={() => setConfirm(null)} onConfirm={() => void mutate()} />
     <ConfirmActionDialog open={switchIntent !== null} title="Bạn có thay đổi chưa lưu" description="Lưu bản nháp trước khi rời trang, hoặc ở lại để tiếp tục chỉnh sửa." summaryItems={[{ label: "Trang đang sửa", value: identity.canonicalPath }, { label: "Bỏ thay đổi", value: <button type="button" disabled={pending} onClick={() => { if (switchIntent) completeSwitch(switchIntent); }}>Bỏ thay đổi và tiếp tục</button> }]} confirmLabel="Lưu bản nháp và tiếp tục" cancelLabel="Ở lại" pending={pending} error={error} onCancel={() => setSwitchIntent(null)} onConfirm={() => { const intent = switchIntent; if (intent) void save().then((saved) => { if (saved) completeSwitch(intent); }); }} />
     <ConfirmActionDialog open={resetFieldId !== null} title="Khôi phục giá trị đã lưu của trường?" description="Nội dung chưa lưu của trường này sẽ được thay bằng giá trị đã lưu. Các vùng khác của trang vẫn được giữ." summaryItems={[{ label: "Trang", value: identity.canonicalPath }, { label: "Trường", value: identity.sections.flatMap((section) => section.fields).find((field) => field.id === resetFieldId)?.label ?? "" }]} confirmLabel="Khôi phục trường này" cancelLabel="Giữ nội dung đang sửa" pending={pending || mediaBusy} onCancel={() => setResetFieldId(null)} onConfirm={resetField} />
