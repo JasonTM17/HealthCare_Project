@@ -303,9 +303,16 @@ export default function DoctorCarePlansPage() {
           <h1>Kế hoạch chăm sóc</h1>
           <p>Tạo checklist mục tiêu và lời nhắc gắn đúng lịch hẹn. Không nhập đơn thuốc, chẩn đoán hay hướng dẫn điều trị tự động.</p>
         </div>
-        <button className="outline-button min-h-11" disabled={loading} onClick={() => setRetry((value) => value + 1)} type="button">
-          {loading ? "Đang tải..." : "Tải lại"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button className="button button--primary min-h-11" disabled={loading || creating || Boolean(busy)} onClick={() => {
+            const target = document.getElementById(appointments.length > 0 ? "care-appointment" : "care-appointment-date");
+            target?.focus({ preventScroll: true });
+            target?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" });
+          }} type="button">Tạo kế hoạch mới</button>
+          <button className="outline-button min-h-11" disabled={loading} onClick={() => setRetry((value) => value + 1)} type="button">
+            {loading ? "Đang tải..." : "Tải lại"}
+          </button>
+        </div>
       </header>
 
       {loading ? <LoadingState label="Đang tải kế hoạch..." /> : null}

@@ -34,13 +34,16 @@ test("profile loader is guarded so a post-save session refresh cannot clobber th
   );
 });
 
-test("portal chrome and navbar render the session display name as the single identity source", async () => {
+test("patient chrome retains the session name while all doctor routes share the linked clinical identity", async () => {
   const [portalChrome, navbar] = await Promise.all([
     readFile(portalChromePath, "utf8"),
     readFile(navbarPath, "utf8"),
   ]);
 
-  assert.match(portalChrome, /<strong>\{user\.displayName\}<\/strong>/);
-  assert.match(portalChrome, /user\.displayName/);
+  assert.match(portalChrome, /<strong>\{displayName\}<\/strong>/);
+  assert.match(portalChrome, /const displayName = role === "DOCTOR"/);
+  assert.match(portalChrome, /doctorIdentity\?\.userId === user\.id/);
+  assert.match(portalChrome, /doctorIdentity\.name \?\? user\.displayName/);
+  assert.match(portalChrome, /:\s*user\.displayName;/);
   assert.match(navbar, /authSession\.user\.displayName/);
 });
