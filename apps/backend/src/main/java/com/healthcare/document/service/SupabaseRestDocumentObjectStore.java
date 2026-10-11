@@ -69,7 +69,14 @@ public class SupabaseRestDocumentObjectStore implements DocumentObjectStore {
         HttpRequest request = authed(objectUri(objectKey)).GET().build();
         HttpResponse<InputStream> response =
             httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        require2xx(response, "get");
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            try (InputStream ignored = response.body()) {
+                if (response.statusCode() == 404) {
+                    throw new DocumentContentUnavailableException("Stored document object is missing");
+                }
+                require2xx(response, "get");
+            }
+        }
         return response.body();
     }
 

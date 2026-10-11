@@ -40,8 +40,10 @@ public interface PatientDocumentRepository extends JpaRepository<PatientDocument
      *
      * <p>{@code findFirst} keeps the result deterministic (newest first) when the
      * historical bug already accumulated more than one FAILED row for a source.
+     * Explicit recovery children retain their independent snapshot/key lineage;
+     * ordinary generation may adopt only legacy rows with NULL recovery parent.
      */
-    Optional<PatientDocument> findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusOrderByGeneratedAtDesc(
+    Optional<PatientDocument> findFirstByPatientIdAndSourceTypeAndSourceRecordIdAndStatusAndRegeneratedFromDocumentIdIsNullOrderByGeneratedAtDesc(
             UUID patientId,
             DocumentSourceType sourceType,
             UUID sourceRecordId,

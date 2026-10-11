@@ -25,6 +25,9 @@ public record DocumentResponse(
         OffsetDateTime generatedAt,
         OffsetDateTime revokedAt,
         Boolean sourceCurrent,
-        Boolean sourceEligible
+        Boolean sourceEligible,
+        UUID regeneratedFromDocumentId,
+        String sourceSnapshotSha256,
+        String recoveryReason
 ) {
 }

@@ -12,6 +12,7 @@ const ERROR_COPY_BY_CODE = Object.freeze({
   VALIDATION_ERROR: "Thông tin chưa hợp lệ. Vui lòng kiểm tra lại các trường đã nhập.",
   BAD_REQUEST: "Yêu cầu gửi lên chưa hợp lệ. Vui lòng kiểm tra lại.",
   SERVICE_UNAVAILABLE: "Dịch vụ đang tạm thời gián đoạn. Vui lòng thử lại sau.",
+  DOCUMENT_CONTENT_UNAVAILABLE: "Tệp PDF này đang thiếu hoặc không khớp dữ liệu lưu trữ. Bạn có thể tạo lại PDF từ hồ sơ hiện tại.",
   RESOURCE_EXPIRED: "Tài nguyên hoặc phiên làm việc đã hết hạn. Vui lòng thử lại.",
   CONFLICT: "Dữ liệu bị xung đột hoặc đã thay đổi. Vui lòng tải lại và thử lại.",
   APPOINTMENT_CONFLICT: "Khung giờ hoặc lịch hẹn đã có người đăng ký. Vui lòng chọn thời gian khác.",

@@ -519,6 +519,9 @@ export interface PatientDocument {
   revokedAt?: string | null;
   sourceCurrent?: boolean | null;
   sourceEligible?: boolean | null;
+  regeneratedFromDocumentId?: string | null;
+  sourceSnapshotSha256?: string | null;
+  recoveryReason?: string | null;
 }
 
 export interface DiagnosticResult {

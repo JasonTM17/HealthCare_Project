@@ -3427,6 +3427,13 @@ export async function generatePatientDocument(
   );
 }
 
+export async function regeneratePatientDocument(patientId: string, documentId: string): Promise<PatientDocument> {
+  return getAuthenticatedJson<PatientDocument>(
+    `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}/regenerate`,
+    { method: "POST" },
+  );
+}
+
 export async function fetchPatientDiagnosticResults(): Promise<DiagnosticResult[]> {
   return getAuthenticatedJson<DiagnosticResult[]>("/patient/diagnostic-results");
 }
