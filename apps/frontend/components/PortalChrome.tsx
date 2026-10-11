@@ -129,7 +129,9 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
-  const [resolvedAvatar, setResolvedAvatar] = useState<string | null>(() => getCachedAvatar(role, user.id, avatarUrl));
+  const identityKey = `${role}:${user.id}`;
+  const [resolvedAvatar, setResolvedAvatar] = useState<{ key: string; url: string | null }>(() => ({ key: identityKey, url: getCachedAvatar(role, user.id, avatarUrl) }));
+  const [doctorIdentity, setDoctorIdentity] = useState<{ userId: string; name: string | null } | null>(null);
   const [avatarError, setAvatarError] = useState(false);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
@@ -155,7 +157,12 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   // popover Escape handler above never sees it. Treat the detail as a modal
   // dialog: trap focus, close on Escape, and restore the trigger.
   useDialogFocus(notificationModalRef, Boolean(selectedNotification), () => setSelectedNotification(null));
-  const effectiveAvatar = avatarUrl ?? resolvedAvatar ?? getCachedAvatar(role, user.id);
+  const effectiveAvatar = avatarUrl ?? (resolvedAvatar.key === identityKey ? resolvedAvatar.url : null) ?? getCachedAvatar(role, user.id);
+  // Every doctor route resolves the same linked clinical profile, independently
+  // of whether its portrait has already been cached by another route.
+  const displayName = role === "DOCTOR"
+    ? doctorIdentity?.userId === user.id ? doctorIdentity.name ?? user.displayName : "Đang tải hồ sơ bác sĩ…"
+    : user.displayName;
 
   // The mobile tab strip scrolls horizontally, so keep the active tab visible
   // whenever the route changes instead of leaving it hidden off-screen.
@@ -366,9 +373,9 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
   useEffect(() => {
     if (avatarUrl) {
       setCachedAvatar(role, user.id, avatarUrl);
-      return;
+      if (role !== "DOCTOR") return;
     }
-    if (getCachedAvatar(role, user.id)) {
+    if (role !== "DOCTOR" && getCachedAvatar(role, user.id)) {
       return;
     }
     let cancelled = false;
@@ -377,19 +384,24 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       try {
         if (role === "DOCTOR") {
           const doc = await fetchDoctorProfile();
-          if (!cancelled && doc.photoUrl) {
-            setCachedAvatar(role, user.id, doc.photoUrl);
-            setResolvedAvatar(doc.photoUrl);
+          if (!cancelled) {
+            setDoctorIdentity({ userId: user.id, name: doc.fullName?.trim() || null });
+            if (doc.photoUrl) {
+              setCachedAvatar(role, user.id, doc.photoUrl);
+              setResolvedAvatar({ key: identityKey, url: doc.photoUrl });
+            }
           }
         } else {
           const pat = await fetchPatientProfile();
           if (!cancelled && pat.avatarUrl) {
             setCachedAvatar(role, user.id, pat.avatarUrl);
-            setResolvedAvatar(pat.avatarUrl);
+            setResolvedAvatar({ key: identityKey, url: pat.avatarUrl });
           }
         }
       } catch {
-        // Fallback to initials
+        if (!cancelled && role === "DOCTOR") {
+          setDoctorIdentity({ userId: user.id, name: null });
+        }
       } finally {
         if (!cancelled) {
           setAvatarLoading(false);
@@ -400,7 +412,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
       cancelled = true;
       void task;
     };
-  }, [avatarUrl, role, user.id]);
+  }, [avatarUrl, identityKey, role, user.id]);
   const homePath = role === "PATIENT" ? "/patient/dashboard" : "/doctor/dashboard";
   // Every portal now owns a full-screen inbox, so the bell's destinations are
   // real routes for both roles instead of a patient-only dashboard anchor.
@@ -669,7 +681,7 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                   <>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      alt={user.displayName}
+                      alt={displayName}
                       className={`portal-user__avatar-img${avatarLoaded ? " portal-user__avatar-img--loaded" : ""}`}
                       onError={() => setAvatarError(true)}
                       onLoad={() => setAvatarLoaded(true)}
@@ -677,16 +689,16 @@ export default function PortalChrome({ role, user, avatarUrl, children }: Portal
                     />
                     {!avatarLoaded ? (
                       <span className="portal-user__avatar-placeholder">
-                        {user.displayName?.charAt(0)?.toUpperCase() ?? "U"}
+                        {displayName?.charAt(0)?.toUpperCase() ?? "U"}
                       </span>
                     ) : null}
                   </>
                 ) : (
-                  user.displayName?.charAt(0)?.toUpperCase() ?? "U"
+                  displayName?.charAt(0)?.toUpperCase() ?? "U"
                 )}
               </span>
               <div className="portal-user__copy">
-                <strong>{user.displayName}</strong>
+                <strong>{displayName}</strong>
                 <span>{user.email}</span>
               </div>
             </Link>
