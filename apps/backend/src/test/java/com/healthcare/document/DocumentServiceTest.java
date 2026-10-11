@@ -37,6 +37,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
@@ -710,12 +712,91 @@ class DocumentServiceTest {
                 eq(ClinicalAccessAuditService.DECISION_DENY));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.MethodSource("invalidDownloadObjects")
+    void downloadRejectsCorruptedObjectBeforeHandoff(byte[] bytes, Long size, String sha) throws Exception {
+        PatientDocument document = availableDocument();
+        document.setByteSize(size);
+        document.setSha256(sha);
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        InputStream stream = org.mockito.Mockito.spy(new ByteArrayInputStream(bytes));
+        when(objectStore.get(document.getObjectKey())).thenReturn(stream);
+
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(BusinessException.class).extracting("status").isEqualTo(503);
+        verify(auditService, never()).record(any(), any(), any(), any(), any(),
+                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+        verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
+                eq(document.getId().toString()), eq(ClinicalAccessAuditService.ACTION_DOWNLOAD),
+                eq(ClinicalAccessAuditService.DECISION_DENY));
+        // Invalid metadata may fail before storage is opened.
+        if (org.mockito.Mockito.mockingDetails(objectStore).getInvocations().stream()
+                .anyMatch(call -> call.getMethod().getName().equals("get"))) {
+            verify(stream).close();
+        }
+    }
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> invalidDownloadObjects() {
+        String sha = new DocumentSnapshotCodec().sha256Hex(RENDERED_PDF);
+        byte[] sameSize = RENDERED_PDF.clone();
+        sameSize[sameSize.length - 1] ^= 1;
+        byte[] extra = java.util.Arrays.copyOf(RENDERED_PDF, RENDERED_PDF.length + 1);
+        return java.util.stream.Stream.of(
+                org.junit.jupiter.params.provider.Arguments.of(new byte[603], 660043L, sha),
+                org.junit.jupiter.params.provider.Arguments.of(sameSize, (long) RENDERED_PDF.length, sha),
+                org.junit.jupiter.params.provider.Arguments.of(new byte[0], (long) RENDERED_PDF.length, sha),
+                org.junit.jupiter.params.provider.Arguments.of(extra, (long) RENDERED_PDF.length, sha),
+                org.junit.jupiter.params.provider.Arguments.of(RENDERED_PDF, null, sha),
+                org.junit.jupiter.params.provider.Arguments.of(RENDERED_PDF, 0L, sha),
+                org.junit.jupiter.params.provider.Arguments.of(RENDERED_PDF, 10485761L, sha),
+                org.junit.jupiter.params.provider.Arguments.of(RENDERED_PDF, (long) RENDERED_PDF.length, null),
+                org.junit.jupiter.params.provider.Arguments.of(RENDERED_PDF, (long) RENDERED_PDF.length, "invalid"));
+    }
+
+    @Test
+    void downloadRejectsReadFailureAndClosesSource() throws Exception {
+        PatientDocument document = availableDocument();
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        InputStream stream = mock(InputStream.class);
+        when(stream.readNBytes(anyInt())).thenThrow(new java.io.IOException("storage read failed"));
+        when(objectStore.get(document.getObjectKey())).thenReturn(stream);
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(BusinessException.class).extracting("status").isEqualTo(503);
+        verify(stream).close();
+        verify(auditService, never()).record(any(), any(), any(), any(), any(),
+                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
+    @Test
+    void downloadDeniesRevocationDuringReadBeforeHandoff() throws Exception {
+        PatientDocument document = availableDocument();
+        when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
+                .thenReturn(Optional.of(document));
+        when(objectStore.isConfigured()).thenReturn(true);
+        InputStream stream = org.mockito.Mockito.spy(new ByteArrayInputStream(RENDERED_PDF));
+        org.mockito.Mockito.doAnswer(call -> {
+            byte[] result = (byte[]) call.callRealMethod();
+            document.setStatus(DocumentStatus.REVOKED);
+            return result;
+        }).when(stream).readNBytes(anyInt());
+        when(objectStore.get(document.getObjectKey())).thenReturn(stream);
+        assertThatThrownBy(() -> service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal()))
+                .isInstanceOf(AccessDeniedException.class);
+        verify(stream).close();
+        verify(auditService, never()).record(any(), any(), any(), any(), any(),
+                eq(ClinicalAccessAuditService.DECISION_ALLOW));
+    }
+
     @Test
     void availableDocumentDownloadStreamsFromObjectStore() throws Exception {
         PatientDocument document = availableDocument();
         when(documentRepository.findByIdAndPatientId(document.getId(), PATIENT_ID))
                 .thenReturn(Optional.of(document));
-        ByteArrayInputStream stream = new ByteArrayInputStream(RENDERED_PDF);
+        InputStream stream = org.mockito.Mockito.spy(new ByteArrayInputStream(RENDERED_PDF));
         when(objectStore.get(document.getObjectKey())).thenReturn(stream);
         when(objectStore.isConfigured()).thenReturn(true);
 
@@ -723,7 +804,9 @@ class DocumentServiceTest {
                 service.downloadDocument(PATIENT_ID, document.getId(), patientPrincipal());
 
         assertThat(download.document().getId()).isEqualTo(document.getId());
-        assertThat(download.stream()).isSameAs(stream);
+        assertThat(download.stream()).isNotSameAs(stream);
+        assertThat(download.stream().readAllBytes()).isEqualTo(RENDERED_PDF);
+        verify(stream).close();
         verify(auditService).record(any(), eq(PATIENT_ID), eq(DocumentService.TARGET_DOCUMENT),
                 eq(document.getId().toString()), eq(ClinicalAccessAuditService.ACTION_DOWNLOAD),
                 eq(ClinicalAccessAuditService.DECISION_ALLOW));

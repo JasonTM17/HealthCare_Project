@@ -301,19 +301,30 @@ public class FileStorageService {
             } else {
                 authorizeMetadataAccess(metadata, principal);
             }
-            auditFileAccess(principal, patientId, objectName, ClinicalAccessAuditService.DECISION_ALLOW);
         } catch (AccessDeniedException exception) {
             auditFileAccess(principal, patientId, objectName, ClinicalAccessAuditService.DECISION_DENY);
             throw exception;
         }
-        init();
-        try (InputStream stream = minioClient.getObject(
-            GetObjectArgs.builder()
-                .bucket(bucket)
-                .object(objectName)
-                .build()
-        )) {
-            return readLimited(stream);
+        try {
+            init();
+            byte[] bytes;
+            try (InputStream stream = minioClient.getObject(
+                GetObjectArgs.builder()
+                    .bucket(bucket)
+                    .object(objectName)
+                    .build()
+            )) {
+                bytes = readLimited(stream);
+            }
+            if (metadata != null && bytes.length != metadata.getSizeBytes()) {
+                throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Tệp lưu trữ không khớp thông tin đã lưu; chưa thể tải xuống");
+            }
+            auditFileAccess(principal, patientId, objectName, ClinicalAccessAuditService.DECISION_ALLOW);
+            return bytes;
+        } catch (Exception exception) {
+            auditFileAccess(principal, patientId, objectName, ClinicalAccessAuditService.DECISION_DENY);
+            throw exception;
         }
     }
 
