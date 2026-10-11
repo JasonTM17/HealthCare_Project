@@ -22,8 +22,15 @@ export function appointmentStatusColor(key: string): string {
   return APPOINTMENT_CHART_COLORS[key] ?? APPOINTMENT_CHART_COLORS.NO_SHOW;
 }
 
+const countFormatter = new Intl.NumberFormat("vi-VN");
+const shareFormatter = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+
+export function appointmentCount(count: number): string {
+  return countFormatter.format(count);
+}
+
 export function appointmentShare(count: number, total: number): string {
-  return `${(total > 0 ? (count / total) * 100 : 0).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`;
+  return `${shareFormatter.format(total > 0 ? (count / total) * 100 : 0)}%`;
 }
 
 export function statusChartConfig(slices: StatusSlice[], animate: boolean, font: string): ChartConfiguration<"doughnut"> {

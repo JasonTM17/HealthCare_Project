@@ -25,6 +25,8 @@ test("status color follows identity across subsets and shares use the displayed 
   assert.equal(presentation.appointmentShare(62, 100), "62%");
   assert.equal(presentation.appointmentShare(1, 3), "33,3%");
   assert.equal(presentation.appointmentShare(0, 0), "0%");
+  assert.equal(presentation.appointmentCount(100), "100");
+  assert.equal(presentation.appointmentCount(1234), "1.234");
   assert.ok(presentation.appointmentStatusColor("FUTURE_STATUS"));
   assert.equal(full.options.animation, false);
 });

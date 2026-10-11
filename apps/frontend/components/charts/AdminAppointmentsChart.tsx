@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Chart, ArcElement, BarController, BarElement, CategoryScale, DoughnutController, LinearScale, Tooltip, Legend } from "chart.js";
 import { adminListAppointments } from "../../lib/api-client";
 import { summarizeStatuses, summarizeUpcomingDays, type StatusSlice, type WeekBucket } from "./adminAppointmentInsights";
-import { appointmentShare, appointmentStatusColor, statusChartConfig, weekChartConfig } from "./admin-appointment-chart-config";
+import { appointmentCount, appointmentShare, appointmentStatusColor, statusChartConfig, weekChartConfig } from "./admin-appointment-chart-config";
 
 Chart.register(ArcElement, BarController, BarElement, CategoryScale, DoughnutController, LinearScale, Tooltip, Legend);
 
@@ -99,7 +99,7 @@ export default function AdminAppointmentsChart() {
     <div className="min-w-0 border-b border-slate-200 bg-white p-4 sm:p-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
-          <p className="text-sm font-bold tabular-nums text-teal-900">{displayedCount.toLocaleString("vi-VN")} / {state.total.toLocaleString("vi-VN")} lịch hẹn</p>
+              <p className="text-sm font-bold tabular-nums text-teal-900">{appointmentCount(displayedCount)} / {appointmentCount(state.total)} lịch hẹn</p>
           <p className="mt-1 max-w-xl text-xs leading-5 text-slate-600">Cả hai biểu đồ chỉ phản ánh trang dữ liệu đang xem, bao gồm mọi trạng thái.</p>
         </div>
         <Link className="inline-flex min-h-11 items-center text-sm font-bold text-teal-800 underline underline-offset-4 hover:text-teal-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700" href="/admin/appointments">Xem lịch hẹn</Link>
