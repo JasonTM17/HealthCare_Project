@@ -16,6 +16,8 @@ services:
     build:
       args:
         NEXT_PUBLIC_SITE_URL: http://localhost:3000
+        NEXT_PUBLIC_ENABLE_DEMO_LOGIN: "true"
+        NEXT_PUBLIC_ENABLE_DEMO_ADMIN: "true"
 
   ai-service:
     environment:

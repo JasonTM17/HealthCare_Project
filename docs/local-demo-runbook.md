@@ -81,3 +81,17 @@ docker compose -p healthcare-local-demo --env-file .env \
 - Backend chỉ nhận request qua BFF của frontend — gọi API trực tiếp cần
   header BFF; dùng `http://localhost:3000/api/v1/...` kèm `Origin:
   http://localhost:3000` và cookie đăng nhập.
+
+## Đăng nhập nhanh (tài khoản demo)
+
+Trang `/login` local hiển thị khối "Tài khoản demo dùng để trải nghiệm" với 3 nút
+Bệnh nhân / Bác sĩ / Quản trị viên (bấm để điền sẵn email + mật khẩu
+`HealthCare@2026`). Khối này được bật lúc **build** image frontend bằng
+`NEXT_PUBLIC_ENABLE_DEMO_LOGIN` và `NEXT_PUBLIC_ENABLE_DEMO_ADMIN`, đặt trong
+`infrastructure/docker-compose.local-demo.yml`. Sau khi đổi hai biến này phải build lại:
+
+```bash
+docker compose -p healthcare-local-demo --env-file .env \
+  -f infrastructure/docker-compose.yml \
+  -f infrastructure/docker-compose.local-demo.yml up -d --build frontend
+```
