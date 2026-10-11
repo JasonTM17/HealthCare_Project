@@ -172,6 +172,46 @@ export async function assertNativeRoute(page: Page, frame: Frame, identity: CmsP
 }
 
 test.describe("CMS native production UI with fixtures", () => {
+  for (const width of CMS_TEST_WIDTHS) {
+    test(`rich editor selected modes remain readable at ${width}px`, async ({ context, page }) => {
+      const fixture = await installFixtures(context);
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/admin/content");
+      const frame = await previewFrame(page);
+      await frame.locator('[data-cms-native-field="hero.body"]').click();
+      await revealCmsTab(page, "Chỉnh sửa");
+      for (const name of ["Chế độ trực quan TinyMCE", "Mã nguồn", "Chế độ chia đôi màn hình xem trước trực quan", "Chế độ xem trước toàn bộ bài viết"]) {
+        const button = page.getByRole("button", { name, exact: true });
+        await button.click();
+        await expect(button).toHaveAttribute("aria-pressed", "true");
+        await button.evaluate(async (element) => {
+          await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+          await Promise.all(element.getAnimations().map((animation) => animation.finished.catch(() => {})));
+        });
+        const observation = await button.evaluate((element) => {
+          const style = getComputedStyle(element);
+          const luminance = (value: string) => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number)
+            .map((channel) => channel / 255).map((channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4)
+            .reduce((sum, channel, index) => sum + channel * [.2126, .7152, .0722][index], 0);
+          const foreground = luminance(style.color), background = luminance(style.backgroundColor);
+          return { contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05), height: element.getBoundingClientRect().height };
+        });
+        expect(observation.contrast, name).toBeGreaterThanOrEqual(4.5);
+        expect(observation.height, name).toBeGreaterThanOrEqual(44);
+      }
+      const inspector = await page.getByTestId("cms-field-inspector").boundingBox();
+      const fullscreen = await page.getByRole("button", { name: "Mở rộng toàn màn hình", exact: true }).boundingBox();
+      expect(inspector).not.toBeNull();
+      expect(fullscreen).not.toBeNull();
+      expect(fullscreen!.x + fullscreen!.width).toBeLessThanOrEqual(inspector!.x + inspector!.width);
+      await page.getByRole("button", { name: "Mở rộng toàn màn hình", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Thoát toàn màn hình", exact: true })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("button", { name: "Mở rộng toàn màn hình", exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect(fixture.requests.filter((request) => request.method !== "GET")).toHaveLength(0);
+    });
+  }
   test("manifest covers exactly 18 families and seven UUID detail families", () => {
     expect(CMS_PAGE_MANIFESTS).toHaveLength(18);
     expect(CMS_PAGE_MANIFESTS.filter((item) => item.supportsDetail)).toHaveLength(7);

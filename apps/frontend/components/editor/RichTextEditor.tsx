@@ -1673,7 +1673,7 @@ export function RichTextEditor({
         </div>
 
         {/* View Mode Switcher + Fullscreen */}
-        <div className="flex items-center gap-1">
+        <div className={`flex items-center gap-1 ${contentMode === "cms" ? "flex-wrap" : ""}`}>
           <div className="inline-flex rounded-[3px] border border-slate-300 bg-white p-0.5">
             <button
               aria-label="Chế độ trực quan TinyMCE"
