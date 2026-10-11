@@ -128,7 +128,7 @@ class BankTransferPaymentStateMachineTest {
             .thenReturn(Optional.of(appointment));
         when(paymentRepository.findByAppointmentId(APPOINTMENT_ID)).thenReturn(Optional.of(payment));
         when(paymentRepository.findByAppointmentIdForUpdate(APPOINTMENT_ID)).thenReturn(Optional.of(payment));
-        when(paymentRepository.findById(PAYMENT_ID)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findAppointmentIdByPaymentId(PAYMENT_ID)).thenReturn(Optional.of(APPOINTMENT_ID));
         when(paymentRepository.findByIdForUpdate(PAYMENT_ID)).thenReturn(Optional.of(payment));
         when(paymentRepository.findAppointmentIdByTransferContent(TRANSFER_CONTENT))
             .thenReturn(Optional.of(APPOINTMENT_ID));
@@ -331,9 +331,10 @@ class BankTransferPaymentStateMachineTest {
         // the Team Lead's container run, not a unit test.
         org.mockito.InOrder lockOrder =
             org.mockito.Mockito.inOrder(appointmentRepository, paymentRepository);
-        lockOrder.verify(paymentRepository).findById(PAYMENT_ID);
+        lockOrder.verify(paymentRepository).findAppointmentIdByPaymentId(PAYMENT_ID);
         lockOrder.verify(appointmentRepository).findByIdWithDetailsForUpdate(APPOINTMENT_ID);
         lockOrder.verify(paymentRepository).findByIdForUpdate(PAYMENT_ID);
+        verify(paymentRepository, never()).findById(PAYMENT_ID);
     }
 
     @Test
