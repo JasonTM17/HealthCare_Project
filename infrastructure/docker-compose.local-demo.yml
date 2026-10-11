@@ -19,6 +19,11 @@ services:
         NEXT_PUBLIC_ENABLE_DEMO_LOGIN: "true"
         NEXT_PUBLIC_ENABLE_DEMO_ADMIN: "true"
 
+  local-seed:
+    volumes:
+      - ./seed-local-demo-doctor.sql:/seed/demo-doctor.sql:ro
+    command: ["/bin/sh", "-ec", "psql -v ON_ERROR_STOP=1 -f /seed/seed.sql -f /seed/careers.sql -f /seed/rich-content.sql -f /seed/demo-doctor.sql"]
+
   ai-service:
     environment:
       AI_PROVIDER: local
