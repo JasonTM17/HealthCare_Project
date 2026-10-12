@@ -12,11 +12,11 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 # Digest of the backend image published by publish-images for the current
-# release line, built from 6dc1eb3f (native public page
-# CMS editing and account lifecycle governance).
+# release line, built from a8d32ef2 (admin direct password reset, account governance,
+# V125 mutable authority, package image URL, booking response guidance).
 # Update together with the blueprint when a new image is released.
 BACKEND_DIGEST = (
-    "sha256:56e746c814ef2226f706c2c412da337ee7666407537c4087e00bfa389eff3f45"
+    "sha256:e8b2f9d64d0ff01a3c67d8ead200b4684a73b01b66aa038b798f3f05dc8e54ed"
 )
 
 
