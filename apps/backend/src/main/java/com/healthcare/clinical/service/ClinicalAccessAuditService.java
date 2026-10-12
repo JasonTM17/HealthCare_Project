@@ -46,6 +46,7 @@ public class ClinicalAccessAuditService {
     public static final String TARGET_USER = "USER";
     public static final String ACTION_ADMIN_UPDATE_USER_STATUS = "ADMIN_UPDATE_USER_STATUS";
     public static final String ACTION_ADMIN_UPDATE_USER_ROLES = "ADMIN_UPDATE_USER_ROLES";
+    public static final String ACTION_ADMIN_UPDATE_USER_PASSWORD = "ADMIN_UPDATE_USER_PASSWORD";
     public static final String DECISION_ALLOW = "ALLOW";
     public static final String DECISION_DENY = "DENY";
 
