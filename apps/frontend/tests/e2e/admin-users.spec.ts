@@ -358,4 +358,3 @@ test("admin users directly resets patient password through confirmed dialog", as
   });
   await expect(page.getByText(/Đã đổi mật khẩu. Các phiên đăng nhập cũ đã được thu hồi/)).toBeVisible();
 });
-
