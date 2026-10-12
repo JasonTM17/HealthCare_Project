@@ -296,3 +296,66 @@ test("admin users honours the status deep link and only fetches matching rows", 
   await expect(leaveDialog).toBeHidden();
   await expect(nameInput).toHaveValue("Quản trị viên Hai đổi");
 });
+
+test("admin users directly resets patient password through confirmed dialog", async ({ context, page }) => {
+  await installAdminSession(context);
+  let passwordPutPayload: { expectedVersion: number; newPassword: string } | null = null;
+  await context.route("**/api/v1/**", async (route) => {
+    if (await fulfillBackendWarmup(route)) return;
+    if (await fulfillNotificationBell(route)) return;
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === "GET") {
+      if (url.pathname === `/api/v1/admin/users/${ACTOR_ID}` || url.pathname === `/api/v1/admin/users/${PATIENT_USER.id}`) {
+        await route.fulfill({ json: url.pathname.endsWith(ACTOR_ID) ? ACTOR_USER : PATIENT_USER });
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/users") {
+        await route.fulfill({ json: pageEnvelope([PATIENT_USER]) });
+        return;
+      }
+    }
+    if (url.pathname === `/api/v1/admin/users/${PATIENT_USER.id}/password` && request.method() === "PUT") {
+      passwordPutPayload = request.postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ...PATIENT_USER, version: 1 }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/admin/users");
+  await expect(page.getByText("Nguyễn Văn An")).toBeVisible();
+  await page.getByTestId(`account-row-${PATIENT_USER.id}`).getByRole("button", { name: "Xem chi tiết" }).click();
+
+  const newPasswordInput = page.getByLabel("Mật khẩu mới", { exact: true });
+  const repeatPasswordInput = page.getByLabel("Nhập lại mật khẩu mới", { exact: true });
+  const submitButton = page.getByRole("button", { name: "Xem lại và đổi mật khẩu" });
+
+  await expect(newPasswordInput).toBeVisible();
+  await newPasswordInput.fill("ValidPass123!");
+  await repeatPasswordInput.fill("Mismatch123!");
+  await submitButton.click();
+  await expect(page.getByText("Mật khẩu nhập lại chưa khớp.")).toBeVisible();
+
+  await repeatPasswordInput.fill("ValidPass123!");
+  await submitButton.click();
+
+  const confirmDialog = page.getByRole("dialog", { name: "Xác nhận đổi mật khẩu?" });
+  await expect(confirmDialog).toBeVisible();
+  await expect(confirmDialog.getByText("Mật khẩu cũ và các phiên đăng nhập hiện tại sẽ mất hiệu lực.")).toBeVisible();
+
+  await confirmDialog.getByRole("button", { name: "Đổi mật khẩu" }).click();
+  await expect(confirmDialog).toBeHidden();
+
+  expect(passwordPutPayload).toEqual({
+    expectedVersion: 0,
+    expectedUpdatedAt: PATIENT_USER.updatedAt,
+    newPassword: "ValidPass123!",
+  });
+  await expect(page.getByText(/Đã đổi mật khẩu. Các phiên đăng nhập cũ đã được thu hồi/)).toBeVisible();
+});
+
