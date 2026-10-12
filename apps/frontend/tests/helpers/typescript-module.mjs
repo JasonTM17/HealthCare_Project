@@ -13,15 +13,15 @@ export function loadTypeScriptModule(path) {
   path = resolve(path instanceof URL ? fileURLToPath(path) : path);
   if (!existsSync(path)) path += ".ts";
   if (cache.has(path)) return cache.get(path).exports;
-  const module = { exports: {} };
-  cache.set(path, module);
+  const loadedModule = { exports: {} };
+  cache.set(path, loadedModule);
   const compiled = ts.transpileModule(readFileSync(path, "utf8"), {
     fileName: path,
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   });
   new Function("require", "module", "exports", compiled.outputText)(
     (name) => name.startsWith(".") ? loadTypeScriptModule(resolve(dirname(path), name)) : require(name),
-    module, module.exports,
+    loadedModule, loadedModule.exports,
   );
-  return module.exports;
+  return loadedModule.exports;
 }
