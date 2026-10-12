@@ -93,8 +93,20 @@ test("actual DTO parser preserves exact instant/epoch and retains only explicit 
   assert.equal(result.doctorProfile, null);
 });
 test("malformed account facts, tokens and page shapes fail closed without invented defaults", () => {
-  for (const patch of [{ roles: [] }, { roles: ["PATIENT", "PATIENT"] }, { roles: ["OWNER"] }, { status: "LOCKED" }, { demo: "false" }, { updatedAt: null }, { updatedAt: "today" }, { version: -1 }, { doctorProfile: {} }, { emailVerifiedAt: "yesterday" }]) assert.throws(() => client.parseAdminAccount(account(patch)), ApiError);
+  for (const patch of [{ roles: ["PATIENT", "PATIENT"] }, { roles: ["OWNER"] }, { status: "LOCKED" }, { demo: "false" }, { updatedAt: null }, { updatedAt: "today" }, { version: -1 }, { doctorProfile: {} }, { emailVerifiedAt: "yesterday" }]) assert.throws(() => client.parseAdminAccount(account(patch)), ApiError);
   assert.throws(() => client.parseAccountPage({ content: [account()], number: 0, size: 0, totalElements: 1, totalPages: 1 }), ApiError);
+});
+
+test("an account awaiting role assignment does not hide the whole inventory or gain a default role", () => {
+  const pendingAccount = account({ roles: [] });
+  const page = client.parseAccountPage({ content: [pendingAccount, account({ id: actorId })], number: 0, size: 20, totalElements: 2, totalPages: 1 });
+  assert.deepEqual(page.content[0].roles, []);
+  assert.equal(page.content.length, 2);
+  assert.deepEqual(page.content[1].roles, ["PATIENT"]);
+  assert.throws(() => client.parseAccountPage({ content: [account({ roles: ["OWNER"] })], number: 0, size: 20, totalElements: 1, totalPages: 1 }), ApiError);
+  const html = renderToStaticMarkup(React.createElement(AccountPanel, { initial: pendingAccount, actor: account({ id: actorId, roles: ["ADMIN"], emailVerified: true }), onClose() {}, onChanged() {} }));
+  assert.doesNotMatch(html, /name="newPassword"/);
+  assert.match(html, /đã được cấp quyền/);
 });
 test("inventory query uses real filters, authoritative page totals and cancellation", async () => {
   const controller = new AbortController(); let captured;

@@ -234,6 +234,7 @@ function CmsPageSession({ identity, onPageChange }: { identity: CmsPageIdentity;
         <label>Bản xem trước <select data-testid="cms-preview-mode" value={mode} onChange={(event) => setMode(event.target.value as "draft" | "published")}><option value="draft">Bản nháp đang sửa</option><option value="published">Đang công khai</option></select></label>
       </div>
     </header>
+    {identity.manifest.family === "homepage" || identity.manifest.family === "packages" ? <p className={styles.notice}>Tên, giá và nội dung từng gói khám lấy từ danh mục. <a href="/admin/catalog">Sửa nội dung gói khám ↗</a>. Các thay đổi danh mục được hiển thị trên các trang sử dụng gói đó.</p> : null}
     {error ? <p role="alert" className={styles.error}>{error}</p> : null}
     {validationError ? <p role="alert" className={styles.error}>{validationError} Dữ liệu đang sửa được giữ lại.</p> : null}
     {conflict ? <div data-testid="cms-conflict" className={styles.notice}>
