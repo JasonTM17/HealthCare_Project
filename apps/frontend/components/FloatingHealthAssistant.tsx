@@ -1050,7 +1050,7 @@ function FloatingHealthAssistantPanel({
                     <span className={styles.messageRole}><UiIcon name={message.role === "ASSISTANT" ? "stethoscope" : "user"} size={13} /> {message.role === "ASSISTANT" ? "HealthCare" : "Bạn"}</span>
                     {message.role === "ASSISTANT" && message.provenance === "local_fallback" && message.safetyAction === "INSUFFICIENT_EVIDENCE" ? (
                       <div className={styles.fallbackNotice} data-provenance="local_fallback">
-                        <span className={styles.provenance}>Hướng dẫn tạm thời — chưa phải câu trả lời AI</span>
+                        <span className={styles.provenance}>Hướng dẫn nhanh — Trợ lý HealthCare</span>
                         {(() => {
                           const index = messages.indexOf(message);
                           const previous = index > 0 ? messages[index - 1] : null;
