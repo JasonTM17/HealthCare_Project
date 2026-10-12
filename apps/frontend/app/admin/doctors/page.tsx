@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import {
   adminListBranches,
   adminListDoctors,
@@ -175,8 +176,8 @@ export default function AdminDoctorsPage() {
         <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Cập nhật hồ sơ và trạng thái hiển thị của đội ngũ bác sĩ trong mạng lưới.</p>
       </header>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <section aria-labelledby="doctor-form-title" className="border-t border-slate-200 bg-white p-5 sm:p-6">
+      <div className="mt-6 grid min-w-0 grid-cols-1 gap-6 min-[1920px]:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+        <section aria-labelledby="doctor-form-title" className="min-w-0 border-t border-slate-200 bg-white p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-slate-900" id="doctor-form-title">{editingSlug ? "Sửa hồ sơ" : "Thêm bác sĩ"}</h2>
@@ -301,8 +302,9 @@ export default function AdminDoctorsPage() {
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách bác sĩ" tone="error" /> : null}
           {!loading && !loadError && doctors.length === 0 ? <AdminState tone="empty" title="Chưa có bác sĩ" description="Tạo hồ sơ bác sĩ đầu tiên để bắt đầu quản lý đội ngũ." /> : null}
           {!loading && !loadError && doctors.length > 0 ? (
-            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <div aria-label="Bảng bác sĩ, có thể cuộn ngang" className="overflow-x-auto" role="region" tabIndex={0}>
+            <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <p className="border-b border-slate-200 px-4 py-2 text-xs text-slate-600" id="doctor-table-help">Trên màn hình nhỏ, cuộn ngang trong bảng để xem đủ họ tên, tài khoản và thao tác.</p>
+              <div aria-describedby="doctor-table-help" aria-label="Bảng bác sĩ, có thể cuộn ngang" className="max-w-full overflow-x-auto" role="region" tabIndex={0}>
                 <table className="min-w-[1100px] w-full table-fixed text-left text-sm">
                   <caption className="sr-only">Bác sĩ trong admin catalog</caption>
                   <colgroup>
@@ -323,7 +325,7 @@ export default function AdminDoctorsPage() {
                       <tr className="border-b border-slate-100 align-top last:border-0" key={doctor.id}>
                         <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}<br /><span className="font-mono text-xs font-normal text-slate-500 break-all">{doctor.slug}</span></td>
                         <td className="px-4 py-4 text-xs text-slate-700">
-                          {doctor.linkedUser ? <span className="break-all">{doctor.linkedUser.email}</span> : <span className="text-slate-400">—</span>}
+                          {doctor.linkedUser ? <div className="space-y-2"><span className="block break-all">{doctor.linkedUser.email}</span><Link className="inline-block font-semibold text-teal-800 underline underline-offset-4" href={`/admin/users?account=${encodeURIComponent(doctor.linkedUser.id)}`}>Đổi email / mật khẩu</Link></div> : <span className="text-slate-400">Chưa liên kết tài khoản</span>}
                         </td>
                         <td className="px-4 py-4">
                           {branchNames.length > 0 ? (
@@ -336,7 +338,7 @@ export default function AdminDoctorsPage() {
                           ) : <span className="text-xs text-amber-800">Chưa gán chuyên khoa</span>}
                         </td>
                         <td className="px-4 py-4">
-                          <span className={doctor.active ?? true ? "rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
+                          <span className={doctor.active ?? true ? "inline-flex whitespace-nowrap rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "inline-flex whitespace-nowrap rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
                             {doctor.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
                           </span>
                         </td>

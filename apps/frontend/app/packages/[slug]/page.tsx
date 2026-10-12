@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import PackageImage from "../../../components/PackageImage";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { packageVisualStyles } from "../../../components/PackageVisualCard";
@@ -86,17 +86,8 @@ export default function PackageDetailPage() {
             <CmsNativeSection sectionId="profile">
               <article className={`${packageVisualStyles.detailHero} ${packageVisualStyles[`tone-${visual.tone}`]}`}>
                 <figure className={packageVisualStyles.detailMedia}>
-                  <Image
-                    alt={visual.imageAlt}
-                    className={packageVisualStyles.image}
-                    fill
-                    priority
-                    sizes="(max-width: 760px) 100vw, 46vw"
-                    src={visual.imageSrc}
-                  />
-                  <figcaption className={packageVisualStyles.detailCredit}>
-                    Ảnh minh họa: <a href={visual.sourceHref} rel="noreferrer" target="_blank">{visual.sourceLabel}</a>
-                  </figcaption>
+                  <PackageImage key={`${item.id}:${item.imageUrl ?? ""}`} packageItem={item} className={packageVisualStyles.image} priority
+                    sizes="(max-width: 760px) 100vw, 46vw" creditClassName={packageVisualStyles.detailCredit} />
                 </figure>
 
                 <div className={packageVisualStyles.detailContent}>

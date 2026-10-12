@@ -36,7 +36,8 @@ public class PackageService {
             pkg.getTargetAudience(),
             pkg.getDurationDays(),
             HospitalJsonMapper.strings(pkg.getChecklist()),
-            HospitalJsonMapper.strings(pkg.getPreparationSteps())
+            HospitalJsonMapper.strings(pkg.getPreparationSteps()),
+            pkg.getImageUrl()
         );
     }
 }

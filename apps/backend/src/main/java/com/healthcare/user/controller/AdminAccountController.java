@@ -40,6 +40,9 @@ public class AdminAccountController {
     @PutMapping("/{id}") public ResponseEntity<AdminAccountResponse> update(@PathVariable UUID id, @Valid @RequestBody AdminAccountUpdateRequest body, HttpServletRequest http) {
         return noStore(accounts.update(id, body, http));
     }
+    @PutMapping("/{id}/password")
+    public ResponseEntity<AdminAccountResponse> setPassword(@PathVariable UUID id,
+        @Valid @RequestBody AdminAccountPasswordRequest body) { return noStore(accounts.setPassword(id, body)); }
     @PostMapping("/{id}/{action:verification|password-reset|revoke-sessions}")
     public ResponseEntity<AdminAccountActionResponse> action(@PathVariable UUID id, @PathVariable String action,
         @Valid @RequestBody AdminAccountActionRequest body, HttpServletRequest http) { return noStore(accounts.action(id, action, body, http)); }

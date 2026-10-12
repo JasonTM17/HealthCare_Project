@@ -1,4 +1,5 @@
 import type { HealthPackage } from "../types/hospital";
+import { isSafeCmsImageUrl } from "./cms-client";
 
 export interface PackageVisual {
   imageSrc: string;
@@ -264,7 +265,7 @@ const SPECIALTY_VARIANTS: Partial<Record<PackageVisual["tone"], readonly Package
  * duplicate default fallbacks, rotating smoothly across all 14+ clinical tones.
  */
 export function getPackageVisual(
-  packageItem?: (Pick<HealthPackage, "slug" | "name"> & { id?: string }) | null
+  packageItem?: (Pick<HealthPackage, "slug" | "name" | "imageUrl"> & { id?: string }) | null
 ): PackageVisual {
   if (!packageItem) {
     return { ...VISUALS.general, tone: "general" };
@@ -272,6 +273,12 @@ export function getPackageVisual(
 
   const recognizedTone = resolveTone(packageItem);
   const rankNum = extractRankOrIndex(packageItem);
+  const imageUrl = typeof packageItem.imageUrl === "string" ? packageItem.imageUrl.trim() : "";
+  if (imageUrl && imageUrl.length <= 500 && !/\p{Cc}/u.test(packageItem.imageUrl!) && !/[\s\p{Cc}]/u.test(imageUrl) && isSafeCmsImageUrl(imageUrl)) {
+    const tone = recognizedTone ?? "general";
+    return { ...VISUALS[tone], tone, imageSrc: imageUrl,
+      imageAlt: `Ảnh minh họa gói ${packageItem.name}`, sourceHref: "", sourceLabel: "Ảnh do quản trị viên cung cấp" };
+  }
 
   // 1. Explicit specialty recognized from clinical keywords
   if (recognizedTone) {

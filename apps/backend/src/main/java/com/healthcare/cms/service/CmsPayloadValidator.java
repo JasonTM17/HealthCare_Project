@@ -143,7 +143,7 @@ public class CmsPayloadValidator {
      * only allows same-origin and a few HTTPS image hosts, so an external
      * host that passes isSafeLink would still render as a broken image.
      */
-    static boolean isSafeImageSource(String value) {
+    public static boolean isSafeImageSource(String value) {
         if (value.startsWith("/")) {
             return !value.startsWith("//") && !value.contains("\\");
         }
