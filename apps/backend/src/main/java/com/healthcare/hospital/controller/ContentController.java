@@ -87,7 +87,8 @@ public class ContentController {
             pkg.getTargetAudience(),
             pkg.getDurationDays(),
             com.healthcare.hospital.service.HospitalJsonMapper.strings(pkg.getChecklist()),
-            com.healthcare.hospital.service.HospitalJsonMapper.strings(pkg.getPreparationSteps())
+            com.healthcare.hospital.service.HospitalJsonMapper.strings(pkg.getPreparationSteps()),
+            pkg.getImageUrl()
         );
     }
 }

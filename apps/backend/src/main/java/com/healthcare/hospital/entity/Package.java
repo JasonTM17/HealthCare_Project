@@ -33,6 +33,9 @@ public class Package {
     @Column(name = "description", length = 2000)
     private String description;
 
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     @Column(name = "price", nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
@@ -91,6 +94,9 @@ public class Package {
     public void setDescription(String description) {
         this.description = description;
     }
+
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
     public BigDecimal getPrice() {
         return price;

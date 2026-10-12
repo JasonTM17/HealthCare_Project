@@ -1,4 +1,4 @@
-import Image from "next/image";
+import PackageImage from "./PackageImage";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { getPackageVisual } from "../lib/package-visuals";
@@ -34,17 +34,10 @@ export default function PackageVisualCard({
     <article className={`${styles.card} ${styles[`tone-${visual.tone}`]} ${variant === "home" ? styles.cardHome : ""}`}>
       <Link className={styles.mediaLink} href={detailHref} aria-label={`Xem chi tiết ${packageItem.name}`}>
         <figure className={styles.media}>
-          <Image
-            alt={visual.imageAlt}
-            className={styles.image}
-            fill
-            priority={priority}
-            sizes={variant === "home" ? "(max-width: 640px) 82vw, (max-width: 1050px) 46vw, 25vw" : "(max-width: 760px) 100vw, 46vw"}
-            src={visual.imageSrc}
-          />
+          <PackageImage key={`${packageItem.id}:${packageItem.imageUrl ?? ""}`} packageItem={packageItem} className={styles.image} priority={priority}
+            sizes={variant === "home" ? "(max-width: 640px) 82vw, (max-width: 1050px) 46vw, 25vw" : "(max-width: 760px) 100vw, 46vw"} />
           <span className={styles.imageWash} aria-hidden="true" />
           <span className={styles.category}>{visual.category}</span>
-          <figcaption className="sr-only">Ảnh minh họa: {visual.sourceLabel}</figcaption>
         </figure>
       </Link>
 

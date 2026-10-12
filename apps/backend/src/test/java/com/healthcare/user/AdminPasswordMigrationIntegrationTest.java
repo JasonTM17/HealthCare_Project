@@ -63,17 +63,47 @@ class AdminPasswordMigrationIntegrationTest {
             .callbacks(new CatalogFixtureCallback()).target(org.flywaydb.core.api.MigrationVersion.fromVersion(target)).load();
     }
 
+    @Test
+    void seededV123ToV124AddsOnlyNullablePackageImageAndPreservesHistoryAndOldRows() throws Exception {
+        String name = "package_image_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        try (PostgreSQLContainer<?> owned = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName(name).withUsername("healthcare_test").withPassword("healthcare_test")
+            .withLabel("healthcare.test.fixture", "package-image-upgrade")) {
+            owned.start();
+            DataSource source = new DriverManagerDataSource(owned.getJdbcUrl(), owned.getUsername(), owned.getPassword());
+            JdbcTemplate db = new JdbcTemplate(source);
+            assertThat(db.queryForObject("select current_database()", String.class)).isEqualTo(name);
+            migration(source, "123").migrate();
+            assertThat(db.queryForObject("select count(*) from packages", Integer.class)).isPositive();
+            assertThat(db.queryForObject("select count(*) from information_schema.columns where table_schema='public' and table_name='packages' and column_name='image_url'", Integer.class)).isZero();
+            Map<String, String> before = fingerprints(db, true);
+            List<String> history = db.queryForList("select to_jsonb(h)::text from flyway_schema_history h order by installed_rank", String.class);
+            Flyway upgrade = migration(source, "124");
+            assertThat(upgrade.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(fingerprints(db, true)).isEqualTo(before);
+            assertThat(db.queryForList("select to_jsonb(h)::text from flyway_schema_history h where version<>'124' or version is null order by installed_rank", String.class)).isEqualTo(history);
+            assertThat(db.queryForObject("select count(*) from packages where image_url is not null", Integer.class)).isZero();
+            assertThat(db.queryForObject("select count(*) from information_schema.columns where table_schema='public' and table_name='packages' and column_name='image_url' and is_nullable='YES' and character_maximum_length=500", Integer.class)).isEqualTo(1);
+            assertThat(db.queryForObject("select count(*) from flyway_schema_history where version='124' and success", Integer.class)).isEqualTo(1);
+        }
+    }
+
     private static void audit(JdbcTemplate db, String action) {
         db.update("insert into clinical_access_audit(id,actor_user_id,actor_email,actor_role,target_type,target_id,action,decision) values(?,?,?,'ADMIN','USER',?,?,'ALLOW')",
             UUID.randomUUID(), UUID.randomUUID(), "upgrade-fixture@example.invalid", UUID.randomUUID().toString(), action);
     }
 
     private static Map<String, String> fingerprints(JdbcTemplate db) throws Exception {
+        return fingerprints(db, false);
+    }
+
+    private static Map<String, String> fingerprints(JdbcTemplate db, boolean excludeNewPackageImage) throws Exception {
         Map<String, String> result = new TreeMap<>();
         List<String> tables = db.queryForList("select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' and table_name<>'flyway_schema_history' order by table_name", String.class);
         for (String table : tables) {
             String identifier = "\"" + table.replace("\"", "\"\"") + "\"";
-            List<String> rows = db.queryForList("select to_jsonb(t)::text from public." + identifier + " t order by to_jsonb(t)::text collate \"C\"", String.class);
+            String projection = excludeNewPackageImage && table.equals("packages") ? "(to_jsonb(t)-'image_url')" : "to_jsonb(t)";
+            List<String> rows = db.queryForList("select " + projection + "::text from public." + identifier + " t order by " + projection + "::text collate \"C\"", String.class);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             for (String row : rows) {
                 byte[] bytes = row.getBytes(StandardCharsets.UTF_8);
