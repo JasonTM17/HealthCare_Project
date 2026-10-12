@@ -19,6 +19,7 @@ export interface AccountFilters {
 }
 export interface AccountCreate { email: string; displayName: string; password: string; roles: AccountRole[]; doctorProfileId?: string }
 export interface AccountExpected { expectedVersion: number; expectedUpdatedAt: string }
+export interface AccountPasswordUpdate extends AccountExpected { newPassword: string }
 export interface AccountUpdate extends AccountExpected {
   email: string; displayName: string; status: AccountStatus; roles: AccountRole[];
   doctorProfileId?: string; unlinkDoctorProfile: boolean;
@@ -73,6 +74,12 @@ export function parseAccountPage(value: unknown): AccountPage {
 }
 export function expectedAccount(account: AdminAccount): AccountExpected {
   return { expectedVersion: account.version, expectedUpdatedAt: account.updatedAt };
+}
+export function validateAccountPassword(value: string): void {
+  if (value.length < 8 || value.length > 128 || new TextEncoder().encode(value).length > 72
+    || !/\p{L}/u.test(value) || !/[0-9]/.test(value) || /[\r\n\u2028\u2029]/.test(value)) {
+    throw new ApiError("Mật khẩu cần 8–128 ký tự, có chữ và số, tối đa 72 byte UTF-8; không có ký tự xuống dòng.", 400, ROOT);
+  }
 }
 function parseAction(value: unknown, action: AccountActionResponse["action"]): AccountActionResponse {
   if (!record(value) || value.action !== action || !["REQUESTED_UNCONFIRMED", "NOT_APPLICABLE"].includes(string(value.deliveryState))) invalid();
@@ -136,6 +143,11 @@ export class AdminUsersClient {
     if (!["ACTIVE", "DISABLED"].includes(body.status)) throw new ApiError("Trạng thái không hợp lệ.", 400, ROOT);
     const payload = { email: body.email.trim(), displayName: body.displayName.trim(), status: body.status, roles: [...body.roles], ...(body.doctorProfileId ? { doctorProfileId: body.doctorProfileId } : {}), unlinkDoctorProfile: body.unlinkDoctorProfile, expectedVersion: integer(body.expectedVersion), expectedUpdatedAt: instant(body.expectedUpdatedAt) };
     return accountAt(await this.request(idPath(id), { method: "PUT", body: JSON.stringify(payload) }), id);
+  }
+  async setPassword(id: string, body: AccountPasswordUpdate): Promise<AdminAccount> {
+    validateAccountPassword(body.newPassword);
+    const payload = { newPassword: body.newPassword, expectedVersion: integer(body.expectedVersion), expectedUpdatedAt: instant(body.expectedUpdatedAt) };
+    return accountAt(await this.request(`${idPath(id)}/password`, { method: "PUT", body: JSON.stringify(payload) }), id);
   }
   async action(id: string, action: AccountAction, expected: AccountExpected): Promise<AccountActionResponse> {
     if (!["verification", "password-reset", "revoke-sessions"].includes(action)) throw new ApiError("Thao tác không hợp lệ.", 400, ROOT);

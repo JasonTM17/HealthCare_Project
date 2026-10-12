@@ -8,6 +8,7 @@ import { formatBusinessDateTime } from "../../../lib/business-time";
 import { AccountForm, ROLE_LABELS } from "./account-form";
 import { accountForm, accountFormDirty, accountUpdatePayload, reconcileAccountBuffer, type AccountBuffer } from "./account-form-state";
 import styles from "./users.module.css";
+import AdminPasswordForm from "./admin-password-form";
 
 export function AccountTime({ value, testId }: { value: string | null; testId?: string }) {
   return value ? <time data-testid={testId} dateTime={value}>{formatBusinessDateTime(value)}</time> : <span data-testid={testId}>Chưa có dữ liệu</span>;
@@ -29,13 +30,18 @@ export default function AccountPanel({ initial, actor, onClose, onChanged }: {
   const busy = useRef(false);
   const bypassLeave = useRef(false);
   const latestAbort = useRef<AbortController | null>(null);
-  const dirty = accountFormDirty(buffer);
+  const mounted = useRef(true);
+  const currentBuffer = useRef(buffer);
+  const [passwordDirty, setPasswordDirty] = useState(false);
+  const profileDirty = accountFormDirty(buffer);
+  const dirty = profileDirty || passwordDirty;
   const dirtyRef = useRef(dirty);
   const baseline = buffer.baseline;
   const self = Boolean(baseline && actor?.id === baseline.id);
   const readOnly = !actor || actor.demo || !actor.emailVerified || actor.status !== "ACTIVE" || !actor.roles.includes("ADMIN") || Boolean(baseline?.demo);
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
-  useEffect(() => { heading.current?.focus(); return () => latestAbort.current?.abort(); }, []);
+  useEffect(() => { currentBuffer.current = buffer; }, [buffer]);
+  useEffect(() => { mounted.current = true; heading.current?.focus(); return () => { mounted.current = false; latestAbort.current?.abort(); }; }, []);
   useEffect(() => {
     const blocked = () => dirtyRef.current && !bypassLeave.current;
     const request = (proceed: () => void) => {
@@ -103,6 +109,19 @@ export default function AccountPanel({ initial, actor, onClose, onChanged }: {
     finally { if (!controller.signal.aborted) setReadingLatest(false); }
   };
   const showAction = (intent: Intent) => { setError(""); setConfirm(intent); };
+  const changePassword = async (newPassword: string) => {
+    if (!baseline || busy.current || readOnly || profileDirty || self || baseline.roles.includes("ADMIN")) throw new Error("Password action is unavailable");
+    latestAbort.current?.abort(); setReadingLatest(false);
+    busy.current = true; setPending(true); setNotice("");
+    try {
+      const account = await adminUsers.setPassword(baseline.id, { ...expectedAccount(baseline), newPassword });
+      if (!mounted.current || currentBuffer.current.baseline?.id !== baseline.id) return;
+      setBuffer((current) => reconcileAccountBuffer(current, account, accountFormDirty(current)));
+      setLatest(null); setError(""); setPasswordDirty(false);
+      setNotice("Đã đổi mật khẩu. Các phiên đăng nhập cũ đã được thu hồi; tài khoản dùng mật khẩu mới ở lần đăng nhập tiếp theo.");
+      onChanged(account);
+    } finally { busy.current = false; if (mounted.current) setPending(false); }
+  };
   const currentSummary = [
     { label: "Tài khoản", value: baseline?.displayName ?? buffer.form.displayName },
     { label: "Email", value: baseline?.email ?? buffer.form.email },
@@ -139,7 +158,10 @@ export default function AccountPanel({ initial, actor, onClose, onChanged }: {
         <p>Nội dung đang sửa vẫn được giữ. Chọn thông tin mới làm cơ sở rồi xem lại thay đổi trước khi lưu.</p>
         <div className={styles.actions}><button disabled={pending} onClick={() => { setBuffer(reconcileAccountBuffer(buffer, latest, true)); setLatest(null); setError(""); }} type="button">Giữ nội dung sửa để đối chiếu</button><button disabled={pending} onClick={() => setLeaveIntent(() => () => { setBuffer(reconcileAccountBuffer(buffer, latest, false)); setLatest(null); setError(""); })} type="button">Bỏ nội dung sửa và dùng bản mới</button></div>
       </section>}
-      <AccountForm account={baseline} disabled={readOnly || pending || confirm !== null} onChange={(form) => { setBuffer({ ...buffer, form }); setNotice(""); }} onSubmit={() => showAction("save")} self={self} value={buffer.form} />
+      <AccountForm account={baseline} disabled={readOnly || pending || passwordDirty || confirm !== null} onChange={(form) => { setBuffer({ ...buffer, form }); setNotice(""); }} onSubmit={() => showAction("save")} self={self} value={buffer.form} />
+      {baseline && <AdminPasswordForm key={`${baseline.id}:${baseline.version}:${baseline.updatedAt}:${readOnly}`} account={baseline}
+        disabled={readOnly || profileDirty || self || baseline.roles.includes("ADMIN") || confirm !== null}
+        pending={pending} onDirty={setPasswordDirty} onSubmit={changePassword} onReadLatest={() => void readLatest()} />}
       {baseline && <section className={styles.lifecycle} aria-label="Thao tác tài khoản">
         <h3>Thao tác tài khoản</h3>
         {dirty && <p>Lưu hoặc bỏ thay đổi trước khi thực hiện thao tác tài khoản.</p>}

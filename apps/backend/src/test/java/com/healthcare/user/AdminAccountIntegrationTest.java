@@ -345,6 +345,140 @@ class AdminAccountIntegrationTest extends AbstractIntegrationTest {
         assertThat(detail(target.getId())).isEqualTo(before);
     }
 
+    @Test
+    void adminDirectPasswordChangesPatientAndDoctorAndRevokesAllOldCredentials() throws Exception {
+        for (String role : List.of("PATIENT", "DOCTOR")) {
+            User target = fixture("Password " + role, true, false, role);
+            JsonNode auth = read(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(loginBody(target.getEmail())), 200);
+            String browser = sessions.issue(target.getId()).rawSessionSecret();
+            JsonNode before = detail(target.getId());
+            action(target.getId(), "password-reset", before, 200);
+            String next = "ChangedFixturePassword42!";
+            JsonNode after = directPassword(target.getId(), expectedBody(before).put("newPassword", next), admin, 200);
+            assertThat(after.path("version").asLong()).isEqualTo(before.path("version").asLong() + 1);
+            assertThat(after.path("roles")).isEqualTo(before.path("roles"));
+            assertThat(after.path("emailVerified")).isEqualTo(before.path("emailVerified"));
+            assertThat(after.toString()).doesNotContain(next, "passwordHash", "newPassword");
+            assertThat(passwords.matches(next, userRepository.findById(target.getId()).orElseThrow().getPasswordHash())).isTrue();
+            rejectedCredentials("Bearer " + auth.path("accessToken").asText(), auth.path("refreshToken").asText(), browser);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from auth_otp_challenges where user_id=? and consumed_at is null", Integer.class, target.getId())).isZero();
+            read(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(loginBody(target.getEmail())), 401);
+            read(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.createObjectNode().put("email", target.getEmail()).put("password", next).toString()), 200);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from clinical_access_audit where target_id=? and action='ADMIN_UPDATE_USER_PASSWORD'", Integer.class, target.getId().toString())).isEqualTo(1);
+            JsonNode persistedAfter = detail(target.getId());
+            assertThat(OffsetDateTime.parse(persistedAfter.path("updatedAt").asText()).toInstant())
+                .isEqualTo(OffsetDateTime.parse(after.path("updatedAt").asText()).toInstant());
+            directPassword(target.getId(), expectedBody(before).put("newPassword", "RepeatedFixture42!"), admin, 409);
+            assertThat(detail(target.getId())).isEqualTo(persistedAfter);
+        }
+    }
+
+    @Test
+    void directPasswordRejectsPrivilegedDemoSelfAndNonAdminActorsWithoutMutation() throws Exception {
+        User patient = fixture("Actor patient", true, false, "PATIENT");
+        for (User target : List.of(actor, fixture("Other admin", true, false, "ADMIN"),
+            fixture("Mixed admin", true, false, "PATIENT", "ADMIN"), fixture("Demo patient", true, true, "PATIENT"))) {
+            String hash = target.getPasswordHash();
+            JsonNode before = detail(target.getId());
+            directPassword(target.getId(), expectedBody(before).put("newPassword", "RejectedFixture42!"), admin, 403);
+            assertThat(detail(target.getId())).isEqualTo(before);
+            assertThat(userRepository.findById(target.getId()).orElseThrow().getPasswordHash()).isEqualTo(hash);
+        }
+        JsonNode before = detail(patient.getId());
+        directPassword(patient.getId(), expectedBody(before).put("newPassword", "RejectedFixture42!"), bearer(patient), 403);
+        assertThat(detail(patient.getId())).isEqualTo(before);
+    }
+
+    @Test
+    void directPasswordValidatesBcryptBytesAndDoesNotActivateOrVerifyAccounts() throws Exception {
+        User target = fixture("Inactive unverified", false, false, "PATIENT");
+        target.setStatus("DISABLED"); userRepository.saveAndFlush(target);
+        JsonNode before = detail(target.getId());
+        for (String value : List.of("short1", "no-digits", "漢".repeat(25) + "a1", "Password42\n")) {
+            directPassword(target.getId(), expectedBody(before).put("newPassword", value), admin, 400);
+            assertThat(detail(target.getId())).isEqualTo(before);
+        }
+        JsonNode after = directPassword(target.getId(), expectedBody(before).put("newPassword", "ChangedFixture42!"), admin, 200);
+        assertThat(after.path("status").asText()).isEqualTo("DISABLED");
+        assertThat(after.path("emailVerified").asBoolean()).isFalse();
+    }
+
+    @Test
+    void passwordBoundaryAndRequiredPreimagesAreEnforcedAndProfileIdentityIsPreserved() throws Exception {
+        User target = fixture("Mixed doctor patient", true, false, "DOCTOR", "PATIENT");
+        target.setGoogleSubject("fixture-linked-google-subject"); userRepository.saveAndFlush(target);
+        Doctor profile = doctor(target.getDisplayName(), true, target.getId());
+        JsonNode before = detail(target.getId());
+        directPassword(target.getId(), expectedBody(before).put("newPassword", "a" + "1".repeat(72)), admin, 400);
+        directPassword(target.getId(), mapper.createObjectNode().put("newPassword", "ValidFixture42!"), admin, 400);
+        directPassword(target.getId(), expectedBody(before).put("expectedUpdatedAt", "2000-01-01T00:00:00Z").put("newPassword", "ValidFixture42!"), admin, 409);
+        directPassword(UUID.randomUUID(), expectedBody(before).put("newPassword", "ValidFixture42!"), admin, 404);
+        assertThat(detail(target.getId())).isEqualTo(before);
+        String next = "漢".repeat(23) + "a12";
+        JsonNode after = directPassword(target.getId(), expectedBody(before).put("newPassword", next), admin, 200);
+        assertThat(after.path("roles")).isEqualTo(before.path("roles"));
+        assertThat(after.path("doctorProfile")).isEqualTo(before.path("doctorProfile"));
+        assertThat(after.path("patientProfileId")).isEqualTo(before.path("patientProfileId"));
+        assertThat(after.path("googleLinked").asBoolean()).isTrue();
+        assertThat(userRepository.findById(target.getId()).orElseThrow().getGoogleSubject()).isEqualTo("fixture-linked-google-subject");
+        assertThat(doctorRepository.findById(profile.getId()).orElseThrow().getUserId()).isEqualTo(target.getId());
+        assertThat(passwords.matches(next, userRepository.findById(target.getId()).orElseThrow().getPasswordHash())).isTrue();
+    }
+
+    @Test
+    void passwordAuditMigrationPreservesHistoricalRowsAndRejectsUnknownActions() throws Exception {
+        jdbcTemplate.update("insert into clinical_access_audit(id,actor_user_id,actor_email,actor_role,target_type,target_id,action,decision) values(?,?,?,'ADMIN','USER',?,'ADMIN_UPDATE_USER_ROLES','ALLOW')",
+            UUID.randomUUID(), actor.getId(), actor.getEmail(), actor.getId().toString());
+        var before = jdbcTemplate.queryForList("select * from clinical_access_audit order by id");
+        assertThat(before).hasSize(1);
+        jdbcTemplate.execute("alter table clinical_access_audit drop constraint ck_clinical_access_audit_action");
+        jdbcTemplate.execute("alter table clinical_access_audit add constraint ck_clinical_access_audit_action check(action in ('READ','DOWNLOAD','PRESCRIBE','ADMIN_CANCEL_APPOINTMENT','GENERATE','REVOKE','ADMIN_UPDATE_USER_STATUS','ADMIN_UPDATE_USER_ROLES'))");
+        try (var connection = jdbcTemplate.getDataSource().getConnection()) {
+            org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(connection,
+                new org.springframework.core.io.ClassPathResource("db/migration/V123__admin_direct_password_audit.sql"));
+        }
+        assertThat(jdbcTemplate.queryForList("select * from clinical_access_audit order by id")).isEqualTo(before);
+        for (String action : List.of("READ", "DOWNLOAD", "PRESCRIBE", "ADMIN_CANCEL_APPOINTMENT", "GENERATE", "REVOKE", "ADMIN_UPDATE_USER_STATUS", "ADMIN_UPDATE_USER_ROLES", "ADMIN_UPDATE_USER_PASSWORD")) {
+            jdbcTemplate.update("insert into clinical_access_audit(id,actor_user_id,actor_email,actor_role,target_type,target_id,action,decision) values(?,?,?,'ADMIN','USER',?,?,'ALLOW')",
+                UUID.randomUUID(), actor.getId(), actor.getEmail(), actor.getId().toString(), action);
+        }
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbcTemplate.update("insert into clinical_access_audit(id,actor_user_id,actor_email,actor_role,target_type,target_id,action,decision) values(?,?,?,'ADMIN','USER',?,'UNKNOWN_FIXTURE','ALLOW')",
+            UUID.randomUUID(), actor.getId(), actor.getEmail(), actor.getId().toString())).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void passwordAuditFailureRollsBackPasswordEpochAndCredentials() throws Exception {
+        User target = fixture("Password atomic rollback", true, false, "PATIENT");
+        JsonNode auth = read(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(loginBody(target.getEmail())), 200);
+        String browser = sessions.issue(target.getId()).rawSessionSecret();
+        JsonNode before = detail(target.getId());
+        String hash = target.getPasswordHash();
+        action(target.getId(), "password-reset", before, 200);
+        Integer activeOtp = jdbcTemplate.queryForObject("select count(*) from auth_otp_challenges where user_id=? and consumed_at is null", Integer.class, target.getId());
+        assertThat(activeOtp).isEqualTo(1);
+        jdbcTemplate.execute("create function reject_test_password_audit() returns trigger language plpgsql as $$ begin if NEW.action='ADMIN_UPDATE_USER_PASSWORD' then raise exception using errcode='23514',message='test audit fault'; end if; return NEW; end $$");
+        jdbcTemplate.execute("create trigger reject_test_password_audit before insert on clinical_access_audit for each row execute function reject_test_password_audit()");
+        try {
+            directPassword(target.getId(), expectedBody(before).put("newPassword", "RejectedFixture42!"), admin, 409);
+            assertThat(detail(target.getId())).isEqualTo(before);
+            assertThat(userRepository.findById(target.getId()).orElseThrow().getPasswordHash()).isEqualTo(hash);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from auth_otp_challenges where user_id=? and consumed_at is null", Integer.class, target.getId())).isEqualTo(activeOtp);
+            mockMvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + auth.path("accessToken").asText())).andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/users/me").cookie(new Cookie("__Host-healthcare_session", browser))).andExpect(status().isOk());
+            read(post("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(mapper.createObjectNode().put("refreshToken", auth.path("refreshToken").asText()).toString()), 200);
+        } finally {
+            jdbcTemplate.execute("drop trigger reject_test_password_audit on clinical_access_audit");
+            jdbcTemplate.execute("drop function reject_test_password_audit()");
+        }
+    }
+
+    private JsonNode directPassword(UUID id, ObjectNode body, String authorization, int expected) throws Exception {
+        return read(put(PATH + "/" + id + "/password").header("Authorization", authorization)
+            .contentType(MediaType.APPLICATION_JSON).content(body.toString()), expected);
+    }
+
     private JsonNode detail(UUID id) throws Exception { return read(get(PATH + "/" + id).header("Authorization", admin), 200); }
     private JsonNode update(UUID id, ObjectNode body, int expected) throws Exception {
         return read(put(PATH + "/" + id).header("Authorization", admin).contentType(MediaType.APPLICATION_JSON).content(body.toString()), expected);
