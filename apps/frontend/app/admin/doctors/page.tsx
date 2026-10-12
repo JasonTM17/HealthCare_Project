@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import {
   adminListBranches,
@@ -72,6 +72,15 @@ function toggleId(list: string[], id: string): string[] {
   return list.includes(id) ? list.filter((value) => value !== id) : [...list, id];
 }
 
+/** Case- and accent-insensitive folding so "nguyen" matches "Nguyễn". */
+function foldForFilter(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d");
+}
+
 export default function AdminDoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -85,6 +94,68 @@ export default function AdminDoctorsPage() {
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; title: string; description: string } | null>(null);
   const [mutating, setMutating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Doctor | null>(null);
+
+  // Search, filter and pagination states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSpecialty, setSelectedSpecialty] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState<"" | "active" | "hidden">("");
+  const [selectedAccountStatus, setSelectedAccountStatus] = useState<"" | "linked" | "unlinked">("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const filteredDoctors = useMemo(() => {
+    const q = foldForFilter(searchQuery.trim());
+    return doctors.filter((doctor) => {
+      if (q) {
+        const nameFolded = foldForFilter(doctor.fullName);
+        const slugFolded = foldForFilter(doctor.slug);
+        const emailFolded = doctor.linkedUser ? foldForFilter(doctor.linkedUser.email) : "";
+        const bioFolded = doctor.bio ? foldForFilter(doctor.bio) : "";
+        const matches =
+          nameFolded.includes(q) ||
+          slugFolded.includes(q) ||
+          emailFolded.includes(q) ||
+          bioFolded.includes(q);
+        if (!matches) return false;
+      }
+      if (selectedSpecialty && !(doctor.specialtyIds ?? []).includes(selectedSpecialty)) {
+        return false;
+      }
+      if (selectedBranch && !(doctor.branchIds ?? []).includes(selectedBranch)) {
+        return false;
+      }
+      if (selectedStatus === "active" && doctor.active === false) return false;
+      if (selectedStatus === "hidden" && doctor.active !== false) return false;
+      if (selectedAccountStatus === "linked" && !doctor.linkedUser) return false;
+      if (selectedAccountStatus === "unlinked" && doctor.linkedUser) return false;
+      return true;
+    });
+  }, [doctors, searchQuery, selectedSpecialty, selectedBranch, selectedStatus, selectedAccountStatus]);
+
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    selectedSpecialty ||
+    selectedBranch ||
+    selectedStatus ||
+    selectedAccountStatus
+  );
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setSelectedSpecialty("");
+    setSelectedBranch("");
+    setSelectedStatus("");
+    setSelectedAccountStatus("");
+    setCurrentPage(1);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(filteredDoctors.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedDoctors = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredDoctors.slice(start, start + pageSize);
+  }, [filteredDoctors, safePage, pageSize]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -302,54 +373,242 @@ export default function AdminDoctorsPage() {
           {!loading && loadError ? <AdminState action={<button className="text-sm font-bold underline underline-offset-4" onClick={() => void load()} type="button">Thử lại</button>} description={loadError} title="Không thể tải danh sách bác sĩ" tone="error" /> : null}
           {!loading && !loadError && doctors.length === 0 ? <AdminState tone="empty" title="Chưa có bác sĩ" description="Tạo hồ sơ bác sĩ đầu tiên để bắt đầu quản lý đội ngũ." /> : null}
           {!loading && !loadError && doctors.length > 0 ? (
-            <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <p className="border-b border-slate-200 px-4 py-2 text-xs text-slate-600" id="doctor-table-help">Trên màn hình nhỏ, cuộn ngang trong bảng để xem đủ họ tên, tài khoản và thao tác.</p>
-              <div aria-describedby="doctor-table-help" aria-label="Bảng bác sĩ, có thể cuộn ngang" className="max-w-full overflow-x-auto" role="region" tabIndex={0}>
-                <table className="min-w-[1100px] w-full table-fixed text-left text-sm">
-                  <caption className="sr-only">Bác sĩ trong admin catalog</caption>
-                  <colgroup>
-                    <col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[22%]" /><col className="w-[20%]" /><col className="w-[11%]" /><col className="w-[12%]" />
-                  </colgroup>
-                  <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Họ tên</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Tài khoản</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Cơ sở</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Chuyên khoa</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Trạng thái</th><th scope="col" className="whitespace-nowrap px-4 py-3 text-right font-bold">Thao tác</th></tr>
-                  </thead>
-                  <tbody>
-                    {doctors.map((doctor) => {
-                      const branchNames = (doctor.branchIds ?? [])
-                        .map((id) => branches.find((branch) => branch.id === id)?.name ?? null)
-                        .filter((name): name is string => name !== null);
-                      const specialtyNames = (doctor.specialtyIds ?? [])
-                        .map((id) => specialties.find((specialty) => specialty.id === id)?.name ?? null)
-                        .filter((name): name is string => name !== null);
-                      return (
-                      <tr className="border-b border-slate-100 align-top last:border-0" key={doctor.id}>
-                        <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}<br /><span className="font-mono text-xs font-normal text-slate-500 break-all">{doctor.slug}</span></td>
-                        <td className="px-4 py-4 text-xs text-slate-700">
-                          {doctor.linkedUser ? <div className="space-y-2"><span className="block break-all">{doctor.linkedUser.email}</span><Link className="inline-block font-semibold text-teal-800 underline underline-offset-4" href={`/admin/users?account=${encodeURIComponent(doctor.linkedUser.id)}`}>Đổi email / mật khẩu</Link></div> : <span className="text-slate-400">Chưa liên kết tài khoản</span>}
-                        </td>
-                        <td className="px-4 py-4">
-                          {branchNames.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">{branchNames.map((name) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={name}>{name}</span>)}</div>
-                          ) : <span className="text-xs text-amber-800">Chưa gán cơ sở</span>}
-                        </td>
-                        <td className="px-4 py-4">
-                          {specialtyNames.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">{specialtyNames.map((name) => <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-900" key={name}>{name}</span>)}</div>
-                          ) : <span className="text-xs text-amber-800">Chưa gán chuyên khoa</span>}
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className={doctor.active ?? true ? "inline-flex whitespace-nowrap rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "inline-flex whitespace-nowrap rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
-                            {doctor.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => setPendingDelete(doctor)} type="button">Xóa</button></div></td>
-                      </tr>
-                    );
-                    })}
-                  </tbody>
-                </table>
+            <>
+              {/* Thanh tìm kiếm và bộ lọc */}
+              <div className="mb-4 space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <label className="block text-xs font-bold text-slate-700" htmlFor="doctor-search-input">
+                      Tìm kiếm bác sĩ
+                    </label>
+                    <div className="relative mt-1">
+                      <input
+                        id="doctor-search-input"
+                        type="search"
+                        className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                        placeholder="Tìm theo họ tên, slug, email..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                      />
+                      <svg
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700" htmlFor="doctor-filter-specialty">
+                      Chuyên khoa
+                    </label>
+                    <select
+                      id="doctor-filter-specialty"
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                      value={selectedSpecialty}
+                      onChange={(e) => {
+                        setSelectedSpecialty(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value="">Tất cả chuyên khoa</option>
+                      {specialties.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700" htmlFor="doctor-filter-branch">
+                      Cơ sở
+                    </label>
+                    <select
+                      id="doctor-filter-branch"
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                      value={selectedBranch}
+                      onChange={(e) => {
+                        setSelectedBranch(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value="">Tất cả cơ sở</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700" htmlFor="doctor-filter-status">
+                      Trạng thái hiển thị
+                    </label>
+                    <select
+                      id="doctor-filter-status"
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                      value={selectedStatus}
+                      onChange={(e) => {
+                        setSelectedStatus(e.target.value as "" | "active" | "hidden");
+                        setCurrentPage(1);
+                      }}
+                    >
+                      <option value="">Tất cả trạng thái</option>
+                      <option value="active">Đang hiển thị</option>
+                      <option value="hidden">Tạm ẩn</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Thanh thông tin số lượng và nút xóa bộ lọc */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs">
+                  <span className="font-medium text-slate-600">
+                    Hiển thị <strong className="text-teal-900">{filteredDoctors.length}</strong> / {doctors.length} bác sĩ
+                    {hasActiveFilters ? " (đang lọc)" : ""}
+                  </span>
+
+                  {hasActiveFilters ? (
+                    <button
+                      type="button"
+                      className="font-bold text-teal-800 underline underline-offset-4 hover:text-teal-950"
+                      onClick={resetFilters}
+                    >
+                      Xóa bộ lọc
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
+
+              {filteredDoctors.length === 0 ? (
+                <AdminState
+                  tone="empty"
+                  title="Không tìm thấy bác sĩ phù hợp"
+                  description="Không có hồ sơ bác sĩ nào khớp với từ khóa tìm kiếm hoặc bộ lọc hiện tại."
+                  action={
+                    <button
+                      className="text-sm font-bold text-teal-800 underline underline-offset-4"
+                      onClick={resetFilters}
+                      type="button"
+                    >
+                      Xóa bộ lọc
+                    </button>
+                  }
+                />
+              ) : (
+                <>
+                  <div className="min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    <p className="border-b border-slate-200 px-4 py-2 text-xs text-slate-600" id="doctor-table-help">
+                      Trên màn hình nhỏ, cuộn ngang trong bảng để xem đủ họ tên, tài khoản và thao tác.
+                    </p>
+                    <div aria-describedby="doctor-table-help" aria-label="Bảng bác sĩ, có thể cuộn ngang" className="max-w-full overflow-x-auto" role="region" tabIndex={0}>
+                      <table className="min-w-[1100px] w-full table-fixed text-left text-sm">
+                        <caption className="sr-only">Bác sĩ trong admin catalog</caption>
+                        <colgroup>
+                          <col className="w-[16%]" /><col className="w-[19%]" /><col className="w-[22%]" /><col className="w-[20%]" /><col className="w-[11%]" /><col className="w-[12%]" />
+                        </colgroup>
+                        <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                          <tr><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Họ tên</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Tài khoản</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Cơ sở</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Chuyên khoa</th><th scope="col" className="whitespace-nowrap px-4 py-3 font-bold">Trạng thái</th><th scope="col" className="whitespace-nowrap px-4 py-3 text-right font-bold">Thao tác</th></tr>
+                        </thead>
+                        <tbody>
+                          {pagedDoctors.map((doctor) => {
+                            const branchNames = (doctor.branchIds ?? [])
+                              .map((id) => branches.find((branch) => branch.id === id)?.name ?? null)
+                              .filter((name): name is string => name !== null);
+                            const specialtyNames = (doctor.specialtyIds ?? [])
+                              .map((id) => specialties.find((specialty) => specialty.id === id)?.name ?? null)
+                              .filter((name): name is string => name !== null);
+                            return (
+                            <tr className="border-b border-slate-100 align-top last:border-0" key={doctor.id}>
+                              <td className="px-4 py-4 font-semibold text-slate-900">{doctor.fullName}<br /><span className="font-mono text-xs font-normal text-slate-500 break-all">{doctor.slug}</span></td>
+                              <td className="px-4 py-4 text-xs text-slate-700">
+                                {doctor.linkedUser ? <div className="space-y-2"><span className="block break-all">{doctor.linkedUser.email}</span><Link className="inline-block font-semibold text-teal-800 underline underline-offset-4" href={`/admin/users?account=${encodeURIComponent(doctor.linkedUser.id)}`}>Đổi email / mật khẩu</Link></div> : <span className="text-slate-400">Chưa liên kết tài khoản</span>}
+                              </td>
+                              <td className="px-4 py-4">
+                                {branchNames.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">{branchNames.map((name) => <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700" key={name}>{name}</span>)}</div>
+                                ) : <span className="text-xs text-amber-800">Chưa gán cơ sở</span>}
+                              </td>
+                              <td className="px-4 py-4">
+                                {specialtyNames.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">{specialtyNames.map((name) => <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-900" key={name}>{name}</span>)}</div>
+                                ) : <span className="text-xs text-amber-800">Chưa gán chuyên khoa</span>}
+                              </td>
+                              <td className="px-4 py-4">
+                                <span className={doctor.active ?? true ? "inline-flex whitespace-nowrap rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700" : "inline-flex whitespace-nowrap rounded-md bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600"}>
+                                  {doctor.active ?? true ? "Đang hiển thị" : "Tạm ẩn"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-4"><div className="flex justify-end gap-3"><button aria-label={`Sửa ${doctor.fullName}`} className="text-xs font-bold text-teal-800 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => { setEditingSlug(doctor.slug); setForm(formFromDoctor(doctor)); setFormError(null); setFeedback(null); }} type="button">Sửa</button><button aria-label={`Xóa ${doctor.fullName}`} className="text-xs font-bold text-red-700 underline underline-offset-4 disabled:opacity-50" disabled={mutating} onClick={() => setPendingDelete(doctor)} type="button">Xóa</button></div></td>
+                            </tr>
+                          );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Phân trang bác sĩ */}
+                  <nav
+                    aria-label="Phân trang bác sĩ"
+                    className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600"
+                  >
+                    <p>
+                      Hiển thị {Math.min((safePage - 1) * pageSize + 1, filteredDoctors.length)}–
+                      {Math.min(safePage * pageSize, filteredDoctors.length)} trên {filteredDoctors.length} bác sĩ · Trang{" "}
+                      {safePage} / {totalPages}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={safePage <= 1}
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        className="rounded border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Trang trước
+                      </button>
+                      <button
+                        type="button"
+                        disabled={safePage >= totalPages}
+                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        className="rounded border border-slate-300 bg-white px-2.5 py-1.5 font-bold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Trang sau
+                      </button>
+                      <label className="flex items-center gap-1.5 ml-2">
+                        <span>Số dòng:</span>
+                        <select
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs outline-none focus:border-teal-600"
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                        >
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                      </label>
+                    </div>
+                  </nav>
+                </>
+              )}
+            </>
           ) : null}
         </section>
       </div>
