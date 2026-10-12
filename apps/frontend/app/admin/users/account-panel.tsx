@@ -39,6 +39,7 @@ export default function AccountPanel({ initial, actor, onClose, onChanged }: {
   const baseline = buffer.baseline;
   const self = Boolean(baseline && actor?.id === baseline.id);
   const readOnly = !actor || actor.demo || !actor.emailVerified || actor.status !== "ACTIVE" || !actor.roles.includes("ADMIN") || Boolean(baseline?.demo);
+  const passwordEligible = Boolean(baseline?.roles.length && baseline.roles.every((role) => role === "PATIENT" || role === "DOCTOR"));
   useEffect(() => { dirtyRef.current = dirty; }, [dirty]);
   useEffect(() => { currentBuffer.current = buffer; }, [buffer]);
   useEffect(() => { mounted.current = true; heading.current?.focus(); return () => { mounted.current = false; latestAbort.current?.abort(); }; }, []);
@@ -110,7 +111,7 @@ export default function AccountPanel({ initial, actor, onClose, onChanged }: {
   };
   const showAction = (intent: Intent) => { setError(""); setConfirm(intent); };
   const changePassword = async (newPassword: string) => {
-    if (!baseline || busy.current || readOnly || profileDirty || self || baseline.roles.includes("ADMIN")) throw new Error("Password action is unavailable");
+    if (!baseline || busy.current || readOnly || profileDirty || self || !passwordEligible) throw new Error("Password action is unavailable");
     latestAbort.current?.abort(); setReadingLatest(false);
     busy.current = true; setPending(true); setNotice("");
     try {
@@ -159,9 +160,9 @@ export default function AccountPanel({ initial, actor, onClose, onChanged }: {
         <div className={styles.actions}><button disabled={pending} onClick={() => { setBuffer(reconcileAccountBuffer(buffer, latest, true)); setLatest(null); setError(""); }} type="button">Giữ nội dung sửa để đối chiếu</button><button disabled={pending} onClick={() => setLeaveIntent(() => () => { setBuffer(reconcileAccountBuffer(buffer, latest, false)); setLatest(null); setError(""); })} type="button">Bỏ nội dung sửa và dùng bản mới</button></div>
       </section>}
       <AccountForm account={baseline} disabled={readOnly || pending || passwordDirty || confirm !== null} onChange={(form) => { setBuffer({ ...buffer, form }); setNotice(""); }} onSubmit={() => showAction("save")} self={self} value={buffer.form} />
-      {baseline && <AdminPasswordForm key={`${baseline.id}:${baseline.version}:${baseline.updatedAt}:${readOnly}`} account={baseline}
-        disabled={readOnly || profileDirty || self || baseline.roles.includes("ADMIN") || confirm !== null}
-        pending={pending} onDirty={setPasswordDirty} onSubmit={changePassword} onReadLatest={() => void readLatest()} />}
+      {baseline && (passwordEligible ? <AdminPasswordForm key={`${baseline.id}:${baseline.version}:${baseline.updatedAt}:${readOnly}`} account={baseline}
+        disabled={readOnly || profileDirty || self || confirm !== null}
+        pending={pending} onDirty={setPasswordDirty} onSubmit={changePassword} onReadLatest={() => void readLatest()} /> : <p className={styles.warning}>Đổi mật khẩu trực tiếp chỉ dành cho tài khoản bệnh nhân hoặc bác sĩ đã được cấp quyền; không áp dụng cho tài khoản quản trị.</p>)}
       {baseline && <section className={styles.lifecycle} aria-label="Thao tác tài khoản">
         <h3>Thao tác tài khoản</h3>
         {dirty && <p>Lưu hoặc bỏ thay đổi trước khi thực hiện thao tác tài khoản.</p>}

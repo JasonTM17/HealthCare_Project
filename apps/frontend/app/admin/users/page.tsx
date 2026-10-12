@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuthSession } from "../../../components/useAuthSession";
 import { ACCOUNT_ROLES, accountDateBounds, accountError, adminUsers, type AccountFilters, type AccountPage, type AccountRole, type AccountStatus, type AdminAccount } from "../../../lib/admin-users-client";
@@ -11,7 +11,7 @@ import styles from "./users.module.css";
 
 interface Filters { q: string; role: AccountRole | ""; status: AccountStatus | ""; verified: string; demo: string; from: string; through: string; sort: NonNullable<AccountFilters["sort"]>; direction: "asc" | "desc"; page: number; size: number }
 const DEFAULT_FILTERS: Filters = { q: "", role: "", status: "", verified: "", demo: "", from: "", through: "", sort: "createdAt", direction: "desc", page: 0, size: 20 };
-export function AdminUsersContent({ initialStatus }: { initialStatus: Filters["status"] }) {
+export function AdminUsersContent({ initialStatus, initialAccountId = "" }: { initialStatus: Filters["status"]; initialAccountId?: string }) {
   const session = useAuthSession();
   const [actor, setActor] = useState<AdminAccount | null>(null);
   const [actorError, setActorError] = useState("");
@@ -52,7 +52,7 @@ export function AdminUsersContent({ initialStatus }: { initialStatus: Filters["s
   }, [filters, refresh]);
   useEffect(() => () => detailAbort.current?.abort(), []);
   const filter = <K extends keyof Filters>(key: K, value: Filters[K]) => { setLoading(true); setFilters((current) => ({ ...current, [key]: value, page: key === "page" ? Number(value) : 0 })); };
-  const openDetail = async (id: string, button?: HTMLButtonElement) => {
+  const openDetail = useCallback(async (id: string, button?: HTMLButtonElement) => {
     if (button) trigger.current = button;
     detailAbort.current?.abort(); const controller = new AbortController(); detailAbort.current = controller;
     const requestSequence = ++selectionSequence.current;
@@ -60,7 +60,12 @@ export function AdminUsersContent({ initialStatus }: { initialStatus: Filters["s
     try { const account = await adminUsers.get(id, controller.signal); if (!controller.signal.aborted && requestSequence === selectionSequence.current) setSelected({ id, account }); }
     catch (failure) { if (!controller.signal.aborted && requestSequence === selectionSequence.current) setDetailError(accountError(failure)); }
     finally { if (!controller.signal.aborted && requestSequence === selectionSequence.current) setDetailLoading(false); }
-  };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    if (initialAccountId) void Promise.resolve().then(() => { if (active) void openDetail(initialAccountId); });
+    return () => { active = false; };
+  }, [initialAccountId, openDetail]);
   const closeDetail = () => { detailAbort.current?.abort(); ++selectionSequence.current; setSelected(null); setDetailError(""); window.setTimeout(() => trigger.current?.focus(), 0); };
   const changed = (account: AdminAccount) => { if (account.id === session?.user.id) setActor(account); setRefresh((n) => n + 1); };
   const editable = Boolean(actor && actor.id === session?.user.id && !actor.demo && actor.emailVerified && actor.status === "ACTIVE" && actor.roles.includes("ADMIN"));
@@ -89,7 +94,7 @@ export function AdminUsersContent({ initialStatus }: { initialStatus: Filters["s
             <table><caption>Danh sách tài khoản · ngày giờ theo múi giờ Việt Nam</caption><thead><tr><th scope="col">Tài khoản</th><th scope="col">Vai trò</th><th scope="col">Trạng thái</th><th scope="col">Ngày tạo</th><th scope="col">Cập nhật gần nhất</th><th scope="col">Thao tác</th></tr></thead><tbody>
               {data.content.map((account) => <tr data-testid={`account-row-${account.id}`} key={account.id}>
                 <td data-label="Tài khoản"><strong>{account.displayName}</strong><span className={styles.email}>{account.email}</span><small>{account.id === session?.user.id ? "Bạn · " : ""}{account.demo ? "Trải nghiệm" : "Tài khoản thực"}</small></td>
-                <td data-label="Vai trò">{account.roles.map((role) => ROLE_LABELS[role]).join(", ")}</td>
+                <td data-label="Vai trò">{account.roles.length ? account.roles.map((role) => ROLE_LABELS[role]).join(", ") : "Chưa cấp quyền"}</td>
                 <td data-label="Trạng thái"><span>{account.status === "ACTIVE" ? "Hoạt động" : "Đã khóa"}</span><small>{account.emailVerified ? "Email đã xác minh" : "Email chưa xác minh"}</small></td>
                 <td data-label="Ngày tạo"><AccountTime value={account.createdAt} /></td><td data-label="Cập nhật gần nhất"><AccountTime value={account.updatedAt} /></td>
                 <td data-label="Thao tác"><button disabled={loading} onClick={(event) => void openDetail(account.id, event.currentTarget)} type="button">Xem chi tiết</button></td>
@@ -110,7 +115,9 @@ function PrivateAdminUsersRoute() {
   const search = useSearchParams();
   const requested = search.get("status");
   const status = requested === "ACTIVE" || requested === "DISABLED" ? requested : "";
-  return <AdminUsersContent key={status} initialStatus={status} />;
+  const requestedAccount = search.get("account") ?? "";
+  const accountId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedAccount) ? requestedAccount.toLowerCase() : "";
+  return <AdminUsersContent key={`${status}:${accountId}`} initialAccountId={accountId} initialStatus={status} />;
 }
 
 export default function AdminUsersPage() {

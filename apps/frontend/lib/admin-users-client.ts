@@ -41,7 +41,7 @@ function instant(value: unknown): string {
 }
 function integer(value: unknown): number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : invalid(); }
 export function parseAdminAccount(value: unknown): AdminAccount {
-  if (!record(value) || !Array.isArray(value.roles) || !value.roles.length || value.roles.length > 3) invalid();
+  if (!record(value) || !Array.isArray(value.roles) || value.roles.length > 3) invalid();
   const roles = value.roles.map((role) => {
     if (!ACCOUNT_ROLES.includes(role as AccountRole)) invalid();
     return role as AccountRole;
