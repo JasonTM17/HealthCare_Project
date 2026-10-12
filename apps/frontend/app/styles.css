@@ -6039,6 +6039,27 @@ main {
   font-size: 0.75rem;
 }
 
+/* Filter toolbar: every control row starts at the same top edge, so a field
+   with a helper line (date) cannot push the select and the buttons lower. */
+.portal-lookup-form--toolbar {
+  align-items: flex-start;
+}
+
+.portal-lookup-form--toolbar > .portal-lookup-form__actions {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: var(--sp-2) var(--sp-3);
+}
+
+/* Zero-width spacer with the label's typography keeps the buttons level with the inputs. */
+.portal-lookup-form__actions::before {
+  content: "\200b";
+  grid-column: 1 / -1;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
 .portal-entry {
   min-height: 100dvh;
   display: grid;
@@ -6355,6 +6376,15 @@ main {
   .portal-lookup-form {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .portal-lookup-form--toolbar > .portal-lookup-form__actions {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portal-lookup-form__actions::before {
+    display: none;
   }
 
   .portal-hero__actions {

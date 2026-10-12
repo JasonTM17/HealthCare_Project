@@ -814,7 +814,7 @@ export default function DoctorDashboardPage() {
               ? "Đang xem một ngày theo ngày đã chọn."
               : "Đang xem từ ngày đã chọn đến 7 ngày sau, nhóm theo từng ngày."}
           </p>
-          <form className="portal-lookup-form" onSubmit={(event) => { event.preventDefault(); reloadAppointments(); }}>
+          <form className="portal-lookup-form portal-lookup-form--toolbar" onSubmit={(event) => { event.preventDefault(); reloadAppointments(); }}>
             <div>
               <label htmlFor="daily-appointment-date">Ngày xem lịch</label>
               <input id="daily-appointment-date" onChange={(event) => changeScheduleAnchor(() => setDailyDate(event.target.value))} required type="date" value={dailyDate} />
@@ -826,16 +826,18 @@ export default function DoctorDashboardPage() {
                 {APPOINTMENT_STATUSES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </div>
-            <button className="outline-button" disabled={appointmentsLoading} type="submit">Làm mới lịch</button>
-            <button
-              className="outline-button"
-              disabled={appointmentsLoading || currentAppointments.length === 0}
-              onClick={exportCurrentSchedule}
-              title="Tải toàn bộ lịch hẹn đang xem ra tệp lịch (.ics)"
-              type="button"
-            >
-              Xuất lịch (.ics)
-            </button>
+            <div className="portal-lookup-form__actions">
+              <button className="outline-button" disabled={appointmentsLoading} type="submit">Làm mới lịch</button>
+              <button
+                className="outline-button"
+                disabled={appointmentsLoading || currentAppointments.length === 0}
+                onClick={exportCurrentSchedule}
+                title="Tải toàn bộ lịch hẹn đang xem ra tệp lịch (.ics)"
+                type="button"
+              >
+                Xuất lịch (.ics)
+              </button>
+            </div>
           </form>
           {appointmentAction ? <p aria-live="polite" className="portal-handoff-note">Đang cập nhật trạng thái lịch hẹn…</p> : null}
           {appointmentError ? <p aria-live="assertive" className="portal-inline-error" role="alert">{appointmentError}</p> : null}

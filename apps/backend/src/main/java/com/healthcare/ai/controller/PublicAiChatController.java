@@ -724,9 +724,11 @@ public class PublicAiChatController {
                     + "hoặc hướng dẫn bắt đầu đặt lịch khám tại HealthCare.";
             }
             case BOOKING ->
-                "Bạn có thể bắt đầu tại trang Đặt lịch khám: chọn chuyên khoa hoặc bác sĩ, "
-                    + "sau đó chọn cơ sở và khung giờ còn trống. Nếu chưa biết nên bắt đầu từ đâu, "
-                    + "hãy mở danh sách Chuyên khoa.";
+                "Để đặt lịch khám tại HealthCare nhanh chóng và thuận tiện, bạn có thể thực hiện theo các bước sau:\n\n"
+                    + "1. **Chọn hình thức khám**: Bạn có thể đặt khám theo **Chuyên khoa**, chọn theo **Bác sĩ** mong muốn, hoặc đăng ký các **Gói khám sức khỏe tổng quát**.\n"
+                    + "2. **Chọn Cơ sở & Khung giờ**: Chọn cơ sở thuận tiện gần bạn nhất và thời gian khám còn trống phù hợp với lịch trình.\n"
+                    + "3. **Xác nhận & Nhận mã khám**: Điền thông tin người khám và nhận mã phiếu đặt khám tức thì qua tin nhắn/email để làm thủ tục nhanh chóng tại quầy tiếp đón.\n\n"
+                    + "👉 Bạn hãy nhấn vào nút **Đặt lịch khám** bên dưới để bắt đầu ngay nhé! Nếu cần hỗ trợ chọn chuyên khoa phù hợp với triệu chứng, bạn hãy nhắn cho mình biết nhé.";
             case SPECIALTY_GUIDANCE ->
                 "Mình chưa thể xác định chuyên khoa phù hợp chỉ từ mô tả hiện tại. "
                     + "Bạn hãy mở danh sách Chuyên khoa để xem thông tin chính thức của HealthCare.";

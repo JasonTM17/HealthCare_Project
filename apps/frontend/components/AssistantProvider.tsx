@@ -64,7 +64,7 @@ export function provenanceLabel(
   if (safetyAction === "INSUFFICIENT_EVIDENCE") {
     // The offline guidance answer must never read as a verified AI response;
     // name it for what it is so patients know to retry or navigate instead.
-    return "Hướng dẫn tạm thời";
+    return "Hướng dẫn nhanh";
   }
   switch (provenance) {
     case "local_fallback":
