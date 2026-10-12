@@ -1221,7 +1221,7 @@ export async function submitJobApplication(
   );
 }
 
-export interface AdminPackagePayload { name: string; slug: string; description?: string | null; price: number; active: boolean }
+export interface AdminPackagePayload { name: string; slug: string; description?: string | null; price: number; active: boolean; imageUrl?: string | null; expectedVersion?: number }
 export interface AdminFaqPayload { question: string; answer: string; active: boolean }
 export interface AdminArticlePayload {
   title: string;

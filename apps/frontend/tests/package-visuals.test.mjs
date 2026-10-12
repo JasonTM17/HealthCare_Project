@@ -1,14 +1,39 @@
 import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
-import {
+import { loadTypeScriptModule } from "./helpers/typescript-module.mjs";
+const {
   ALL_PACKAGE_TONES,
   getPackageVisual,
   resolveTone,
-} from "../lib/package-visuals.ts";
+} = loadTypeScriptModule(new URL("../lib/package-visuals.ts", import.meta.url));
 
 const root = new URL("../", import.meta.url);
 const read = (relativePath) => readFile(new URL(relativePath, root), "utf8");
+
+test("saved package images override inferred visuals without claiming fallback photographer credits", () => {
+  const item = { name: "Gói tiêu hóa", slug: "goi-tieu-hoa" };
+  for (const imageUrl of ["/images/packages/heart-screening.jpg", "https://images.pexels.com/photos/1/photo.jpg"]) {
+    const visual = getPackageVisual({ ...item, imageUrl });
+    assert.equal(visual.imageSrc, imageUrl);
+    assert.equal(visual.sourceHref, "");
+    assert.equal(visual.sourceLabel, "Ảnh do quản trị viên cung cấp");
+    assert.match(visual.imageAlt, /Gói tiêu hóa/);
+  }
+  const fallback = getPackageVisual(item);
+  for (const imageUrl of [null, "", "javascript:alert(1)", "//evil.example/image.jpg", "https://evil.example/image.jpg"]) {
+    assert.deepEqual(getPackageVisual({ ...item, imageUrl }), fallback);
+  }
+});
+
+test("malformed public image values fall back and safe padded strings normalize", () => {
+  const item = { name: "Gói tiêu hóa", slug: "goi-tieu-hoa" };
+  const fallback = getPackageVisual(item);
+  for (const imageUrl of [42, {}, [], true, "/a b.jpg", "/a\n.jpg", "/a\u0000.jpg", "/a.jpg\n", "/" + "a".repeat(500)]) {
+    assert.deepEqual(getPackageVisual({ ...item, imageUrl }), fallback);
+  }
+  assert.equal(getPackageVisual({ ...item, imageUrl: "  /images/packages/general-checkup.jpg  " }).imageSrc, "/images/packages/general-checkup.jpg");
+});
 
 test("package catalog uses local licensed photography instead of competitor assets", async () => {
   const [visuals, attribution] = await Promise.all([
@@ -62,8 +87,10 @@ test("package detail keeps backend-owned content and labels stock photography", 
   for (const marker of ["targetAudience", "checklist", "preparationSteps", "durationDays"]) {
     assert.match(detail, new RegExp(marker));
   }
-  assert.match(detail, /Ảnh minh họa/);
-  assert.match(detail, /sourceHref/);
+  const image = await read("components/PackageImage.tsx");
+  assert.match(detail, /PackageImage/);
+  assert.match(image, /Ảnh minh họa/);
+  assert.match(image, /sourceHref/);
   assert.match(detail, /setItem\(null\)/);
   assert.match(detail, /Không tìm thấy/);
 });

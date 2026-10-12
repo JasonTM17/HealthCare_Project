@@ -2,6 +2,9 @@ package com.healthcare.hospital.service;
 
 import com.healthcare.ai.service.AiClinicalContentRevisionService;
 import com.healthcare.exception.DuplicateResourceException;
+import com.healthcare.exception.BadRequestException;
+import com.healthcare.exception.ConflictException;
+import com.healthcare.cms.service.CmsPayloadValidator;
 import com.healthcare.hospital.dto.PackageRequest;
 import com.healthcare.hospital.dto.CatalogOrderRequest;
 import com.healthcare.exception.BusinessException;
@@ -51,6 +54,7 @@ public class AdminPackageService {
         pkg.setName(request.name());
         pkg.setSlug(request.slug());
         pkg.setDescription(request.description());
+        pkg.setImageUrl(imageUrl(request.imageUrl()));
         pkg.setPrice(request.price());
         pkg.setActive(request.active());
         pkg.setDisplayOrder(packageRepository.findMaxDisplayOrder() + 1);
@@ -61,15 +65,31 @@ public class AdminPackageService {
     public Package update(String slug, PackageRequest request) {
         Package pkg = packageRepository.findBySlug(slug)
             .orElseThrow(() -> new com.healthcare.exception.ResourceNotFoundException("Package not found: " + slug));
+        if (request.expectedVersion() != null && !request.expectedVersion().equals(pkg.getVersion())) {
+            throw new ConflictException("Package changed; read the latest version before saving");
+        }
         if (!slug.equals(request.slug()) && packageRepository.findBySlug(request.slug()).isPresent()) {
             throw new DuplicateResourceException("Package slug already exists: " + request.slug());
         }
         pkg.setName(request.name());
         pkg.setSlug(request.slug());
         pkg.setDescription(request.description());
+        if (request.imageUrl() != null) pkg.setImageUrl(imageUrl(request.imageUrl()));
         pkg.setPrice(request.price());
         pkg.setActive(request.active());
         return packageRepository.save(pkg);
+    }
+
+    private String imageUrl(String value) {
+        if (value == null) return null;
+        if (value.chars().anyMatch(Character::isISOControl)) throw new BadRequestException("Package image must not contain control characters");
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return null;
+        if (trimmed.length() > 500 || trimmed.chars().anyMatch(c -> Character.isWhitespace(c) || Character.isISOControl(c))
+            || !CmsPayloadValidator.isSafeImageSource(trimmed)) {
+            throw new BadRequestException("Package image must use an allowed image URL");
+        }
+        return trimmed;
     }
 
     @Transactional

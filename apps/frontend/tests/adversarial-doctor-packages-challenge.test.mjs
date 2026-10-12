@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { stat } from "node:fs/promises";
 import test from "node:test";
+import { loadTypeScriptModule } from "./helpers/typescript-module.mjs";
 import {
   getDoctorPhoto,
 } from "../lib/doctor-portrait.ts";
-import {
+const {
   ALL_PACKAGE_TONES,
   getPackageVisual,
   resolveTone,
   VISUALS,
-} from "../lib/package-visuals.ts";
+} = loadTypeScriptModule(new URL("../lib/package-visuals.ts", import.meta.url));
 
 const root = new URL("../", import.meta.url);
 
