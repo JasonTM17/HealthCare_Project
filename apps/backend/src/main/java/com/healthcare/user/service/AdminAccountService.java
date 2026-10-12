@@ -225,6 +225,22 @@ public class AdminAccountService {
         return new AdminAccountActionResponse(response(target), action, delivery);
     }
 
+    @Transactional
+    public AdminAccountResponse setPassword(UUID id, AdminAccountPasswordRequest request) {
+        User target = lock(id);
+        Set<String> codes = roleCodes(target);
+        if (target.getId().equals(governance.identity().getUserId()) || codes.isEmpty()
+            || !Set.of("PATIENT", "DOCTOR").containsAll(codes)) {
+            throw new ForbiddenException("Direct password change is limited to other patient and doctor accounts");
+        }
+        checkExpected(target, request.expectedVersion(), request.expectedUpdatedAt());
+        target.setPasswordHash(passwords.encode(request.newPassword()));
+        governance.invalidateCredentials(target, "ADMIN_PASSWORD_CHANGED");
+        users.saveAndFlush(target);
+        auditAccount(target, ClinicalAccessAuditService.ACTION_ADMIN_UPDATE_USER_PASSWORD);
+        return response(target);
+    }
+
     private User lock(UUID id) {
         governance.acquire();
         User target = governance.lockUsersAndAuthorize(List.of(id)).get(id);

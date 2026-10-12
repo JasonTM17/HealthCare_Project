@@ -80,6 +80,67 @@ class AdminAccountGovernanceConcurrencyTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void twoPasswordChangesWithSamePreimageCommitOnlyOnce() throws Exception {
+        User target = fixture("Password race patient", "PATIENT");
+        JsonNode before = detail(target.getId());
+        ObjectNode body = mapper.createObjectNode().put("expectedVersion", before.path("version").asLong())
+            .put("expectedUpdatedAt", before.path("updatedAt").asText()).put("newPassword", "RaceFixturePassword42!");
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        AtomicReference<Future<MvcResult>> one = new AtomicReference<>();
+        AtomicReference<Future<MvcResult>> two = new AtomicReference<>();
+        CountDownLatch started = new CountDownLatch(2);
+        try {
+            new TransactionTemplate(transactions).executeWithoutResult(tx -> {
+                governance.acquire();
+                one.set(workers.submit(() -> { started.countDown(); return perform(passwordRequest(target.getId(), body, admin)); }));
+                two.set(workers.submit(() -> { started.countDown(); return perform(passwordRequest(target.getId(), body, admin)); }));
+                await(started); awaitBlocked(2);
+            });
+            assertThat(List.of(one.get().get(15, TimeUnit.SECONDS).getResponse().getStatus(),
+                two.get().get(15, TimeUnit.SECONDS).getResponse().getStatus())).containsExactlyInAnyOrder(200, 409);
+            assertThat(detail(target.getId()).path("version").asLong()).isEqualTo(before.path("version").asLong() + 1);
+            assertThat(jdbcTemplate.queryForObject("select count(*) from clinical_access_audit where target_id=? and action='ADMIN_UPDATE_USER_PASSWORD'", Integer.class, target.getId().toString())).isEqualTo(1);
+        } finally { stopWorkers(workers); }
+    }
+
+    @Test
+    void queuedPasswordChangeRevalidatesDemotedActorAndPreservesTarget() throws Exception {
+        User staleActor = fixture("Password stale administrator", "ADMIN");
+        User target = fixture("Password unchanged patient", "PATIENT");
+        JsonNode before = detail(target.getId());
+        String hash = target.getPasswordHash();
+        ObjectNode body = mapper.createObjectNode().put("expectedVersion", before.path("version").asLong())
+            .put("expectedUpdatedAt", before.path("updatedAt").asText()).put("newPassword", "RejectedFixture42!");
+        ObjectNode demote = updateBody(detail(staleActor.getId())); demote.putArray("roles").add("PATIENT");
+        MvcResult result = queueBehind(passwordRequest(target.getId(), body, bearer(staleActor)),
+            () -> expect(accountRequest(staleActor.getId(), demote, admin), 200));
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        assertThat(detail(target.getId())).isEqualTo(before);
+        assertThat(userRepository.findById(target.getId()).orElseThrow().getPasswordHash()).isEqualTo(hash);
+    }
+
+    private MockHttpServletRequestBuilder passwordRequest(UUID id, ObjectNode body, String authorization) {
+        return put(ACCOUNTS + id + "/password").header("Authorization", authorization)
+            .contentType(MediaType.APPLICATION_JSON).content(body.toString());
+    }
+
+    @Test
+    void queuedPasswordChangeRejectsTargetPromotedToAdministrator() throws Exception {
+        User target = fixture("Promoted password target", "PATIENT");
+        JsonNode before = detail(target.getId());
+        String hash = target.getPasswordHash();
+        ObjectNode body = mapper.createObjectNode().put("expectedVersion", before.path("version").asLong())
+            .put("expectedUpdatedAt", before.path("updatedAt").asText()).put("newPassword", "RejectedFixture42!");
+        ObjectNode promotion = updateBody(before); promotion.putArray("roles").add("PATIENT").add("ADMIN");
+        MvcResult result = queueBehind(passwordRequest(target.getId(), body, admin),
+            () -> expect(accountRequest(target.getId(), promotion, admin), 200));
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        assertThat(detail(target.getId()).path("roles").toString()).contains("ADMIN");
+        assertThat(userRepository.findById(target.getId()).orElseThrow().getPasswordHash()).isEqualTo(hash);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from clinical_access_audit where target_id=? and action='ADMIN_UPDATE_USER_PASSWORD'", Integer.class, target.getId().toString())).isZero();
+    }
+
+    @Test
     void queuedActorIsRevalidatedAfterAnotherAdministratorCommitsItsDemotion() throws Exception {
         User staleActor = fixture("Queued stale administrator", "ADMIN");
         User patient = fixture("Unchanged patient", "PATIENT");

@@ -77,6 +77,7 @@ export interface HealthPackage {
   slug: string;
   description: string;
   price: number;
+  imageUrl?: string | null;
   active?: boolean;
   featured?: boolean;
   checklist?: string[];

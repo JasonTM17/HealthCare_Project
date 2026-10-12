@@ -45,6 +45,44 @@ const client = load("lib/admin-users-client.ts");
 const state = load("app/admin/users/account-form-state.ts");
 const { default: AccountPanel, AccountTime } = load("app/admin/users/account-panel.tsx");
 const { default: AdminUsersPage, AdminUsersContent } = load("app/admin/users/page.tsx");
+const { default: AdminPasswordForm, passwordChangeError } = load("app/admin/users/admin-password-form.tsx");
+
+test("direct password client retains exact password and concurrency metadata without echoing a secret", async () => {
+  const calls = [];
+  const api = new client.AdminUsersClient(async (...args) => { calls.push(args); return account(); });
+  const password = " FixturePassword42! ";
+  const result = await api.setPassword(targetId, { newPassword: password, ...client.expectedAccount(account()) });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], `/admin/users/${targetId}/password`);
+  assert.equal(calls[0][1].method, "PUT");
+  assert.deepEqual(JSON.parse(calls[0][1].body), { newPassword: password, expectedVersion: 3, expectedUpdatedAt: timestamp });
+  assert.equal(result.id, targetId);
+  assert.equal(JSON.stringify(result).includes(password), false);
+});
+
+test("direct password validation rejects malformed values before network and preserves backend errors", async () => {
+  let calls = 0;
+  const api = new client.AdminUsersClient(async () => { calls++; throw new ApiError("private provider detail", 409); });
+  for (const value of ["short1", "NoDigitsHere", "漢".repeat(25) + "a1", "Password42\n"]) {
+    await assert.rejects(api.setPassword(targetId, { newPassword: value, ...client.expectedAccount(account()) }));
+  }
+  assert.equal(calls, 0);
+  await assert.rejects(api.setPassword(targetId, { newPassword: "FixturePassword42!", ...client.expectedAccount(account()) }), (error) => error.status === 409);
+  assert.equal(calls, 1);
+  assert.equal(passwordChangeError(new ApiError("private detail", 409)).includes("private detail"), false);
+  assert.match(passwordChangeError(new ApiError("private detail", 409)), /nhập và xác nhận mật khẩu lại/);
+});
+
+test("password form renders labelled masked inputs and protected disabled form", () => {
+  const html = renderToStaticMarkup(React.createElement(AdminPasswordForm, {
+    account: account(), disabled: true, pending: false, onDirty: () => {}, onSubmit: async () => {}, onReadLatest: () => {},
+  }));
+  assert.equal((html.match(/type="password"/g) ?? []).length, 2);
+  assert.equal((html.match(/autoComplete="new-password"/g) ?? []).length, 2);
+  assert.match(html, /fieldset disabled/);
+  assert.match(html, /Nhập lại mật khẩu mới/);
+  assert.doesNotMatch(html, /type="text"/);
+});
 
 test("actual DTO parser preserves exact instant/epoch and retains only explicit safe fields", () => {
   const result = client.parseAdminAccount(account({ passwordHash: "must-never-reach-ui", googleSubject: "private", refreshToken: "private", lastLogin: "guessed" }));
@@ -55,8 +93,20 @@ test("actual DTO parser preserves exact instant/epoch and retains only explicit 
   assert.equal(result.doctorProfile, null);
 });
 test("malformed account facts, tokens and page shapes fail closed without invented defaults", () => {
-  for (const patch of [{ roles: [] }, { roles: ["PATIENT", "PATIENT"] }, { roles: ["OWNER"] }, { status: "LOCKED" }, { demo: "false" }, { updatedAt: null }, { updatedAt: "today" }, { version: -1 }, { doctorProfile: {} }, { emailVerifiedAt: "yesterday" }]) assert.throws(() => client.parseAdminAccount(account(patch)), ApiError);
+  for (const patch of [{ roles: ["PATIENT", "PATIENT"] }, { roles: ["OWNER"] }, { status: "LOCKED" }, { demo: "false" }, { updatedAt: null }, { updatedAt: "today" }, { version: -1 }, { doctorProfile: {} }, { emailVerifiedAt: "yesterday" }]) assert.throws(() => client.parseAdminAccount(account(patch)), ApiError);
   assert.throws(() => client.parseAccountPage({ content: [account()], number: 0, size: 0, totalElements: 1, totalPages: 1 }), ApiError);
+});
+
+test("an account awaiting role assignment does not hide the whole inventory or gain a default role", () => {
+  const pendingAccount = account({ roles: [] });
+  const page = client.parseAccountPage({ content: [pendingAccount, account({ id: actorId })], number: 0, size: 20, totalElements: 2, totalPages: 1 });
+  assert.deepEqual(page.content[0].roles, []);
+  assert.equal(page.content.length, 2);
+  assert.deepEqual(page.content[1].roles, ["PATIENT"]);
+  assert.throws(() => client.parseAccountPage({ content: [account({ roles: ["OWNER"] })], number: 0, size: 20, totalElements: 1, totalPages: 1 }), ApiError);
+  const html = renderToStaticMarkup(React.createElement(AccountPanel, { initial: pendingAccount, actor: account({ id: actorId, roles: ["ADMIN"], emailVerified: true }), onClose() {}, onChanged() {} }));
+  assert.doesNotMatch(html, /name="newPassword"/);
+  assert.match(html, /đã được cấp quyền/);
 });
 test("inventory query uses real filters, authoritative page totals and cancellation", async () => {
   const controller = new AbortController(); let captured;

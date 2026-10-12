@@ -6,6 +6,8 @@
 
 > *Nền tảng y tế số cấp doanh nghiệp: Vận hành khám chữa bệnh thông minh đa vai trò (Bệnh nhân • Bác sĩ • Quản trị viên), phân luồng lịch khám đa cơ sở, trợ lý AI Y tế bảo vệ đa tầng (RAG & Triage an toàn).*
 
+**Website:** [HealthCare](https://www.healthcare.id.vn) · [Cổng quản trị](https://www.healthcare.id.vn/admin) · [Quản lý tài khoản](https://www.healthcare.id.vn/admin/users)
+
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg?branch=main&style=for-the-badge&label=CI)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js_16_%7C_React_19-black?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![Backend](https://img.shields.io/badge/Backend-Spring_Boot_3.5_%7C_Java_21-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)

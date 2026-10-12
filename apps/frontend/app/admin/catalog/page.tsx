@@ -31,6 +31,9 @@ import { RichTextEditor, toStoredArticleBody } from "../../../components/editor"
 import { hasUnresolvedInlineUpload } from "../../../components/editor/RichContentRenderer";
 import { normalizedPublicImageUrl, PUBLIC_IMAGE_URL_MESSAGE } from "../../../lib/media-uploads";
 import ConfirmActionDialog from "../../../components/ui/ConfirmActionDialog";
+import CmsImageField from "../../../components/cms/CmsImageField";
+import { createPackageImageUploadScope } from "../../../lib/package-image-upload";
+import { isSafeCmsImageUrl } from "../../../lib/cms-client";
 import { useSortableList } from "../../../lib/useSortableList";
 import { ToastContainer, useToastManager } from "../../../components/ui/ToastNotification";
 
@@ -68,6 +71,8 @@ type PackageForm = {
   description: string;
   price: string;
   active: boolean;
+  imageUrl: string;
+  expectedVersion?: number;
 };
 
 type FaqForm = {
@@ -203,6 +208,7 @@ const emptyPackageForm: PackageForm = {
   description: "",
   price: "",
   active: true,
+  imageUrl: "",
 };
 
 const emptyFaqForm: FaqForm = {
@@ -280,6 +286,8 @@ function packageFormFrom(item: HealthPackage): PackageForm {
     description: item.description ?? "",
     price: String(item.price),
     active: item.active ?? true,
+    imageUrl: item.imageUrl ?? "",
+    expectedVersion: item.version,
   };
 }
 
@@ -424,6 +432,15 @@ export default function AdminCatalogPage() {
   const [editingPackage, setEditingPackage] = useState<string | null>(null);
   const [editingArticle, setEditingArticle] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [packageImageBusy, setPackageImageBusy] = useState(false);
+  const [packageImageGeneration, setPackageImageGeneration] = useState(0);
+  const packageImageScope = useRef(createPackageImageUploadScope());
+  const resetPackageImage = () => { setPackageImageGeneration(packageImageScope.current.reset()); setPackageImageBusy(false); };
+  useEffect(() => {
+    const scope = packageImageScope.current;
+    scope.activate();
+    return () => scope.dispose();
+  }, []);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -477,6 +494,7 @@ export default function AdminCatalogPage() {
   };
 
   const persistPackageOrder = async (newPackages: HealthPackage[], oldIdx: number, newIdx: number) => {
+    if (packageImageScope.current.blocked()) return;
     if (reorderInFlightRef.current) {
       addToast({ tone: "info", title: "Đang lưu thứ tự trước đó", message: "Vui lòng đợi lưu xong rồi kéo tiếp." });
       return;
@@ -540,7 +558,7 @@ export default function AdminCatalogPage() {
     items: packages,
     handle: ".package-drag-handle",
     animation: 180,
-    disabled: busy,
+    disabled: busy || packageImageBusy,
     onReorder: (newPackages, oldIdx, newIdx) => { void persistPackageOrder(newPackages, oldIdx, newIdx); },
   });
 
@@ -775,6 +793,12 @@ export default function AdminCatalogPage() {
 
   const savePackage = async (event: FormEvent) => {
     event.preventDefault();
+    if (busy || packageImageScope.current.blocked()) return;
+    const imageUrl = packageForm.imageUrl.trim();
+    if (imageUrl && !isSafeCmsImageUrl(imageUrl)) {
+      setFeedback({ tone: "error", title: "Ảnh gói khám không hợp lệ", description: "Dùng ảnh của hệ thống hoặc liên kết HTTPS từ nguồn được phép." });
+      return;
+    }
     if (!packageForm.name.trim()) {
       const msg = "Vui lòng nhập tên gói khám.";
       setFeedback({ tone: "error", title: "Thiếu tên gói khám", description: msg });
@@ -788,6 +812,8 @@ export default function AdminCatalogPage() {
       description: packageForm.description.trim() || null,
       price: Number(packageForm.price),
       active: packageForm.active,
+      imageUrl,
+      ...(editingPackage && packageForm.expectedVersion !== undefined ? { expectedVersion: packageForm.expectedVersion } : {}),
     };
     const saved = await run(
       () => editingPackage ? adminUpdatePackage(editingPackage, payload) : adminCreatePackage(payload),
@@ -797,6 +823,7 @@ export default function AdminCatalogPage() {
       broadcastCatalogChange({ kind: "package", action: editingPackage ? "updated" : "created", slug: finalSlug });
       setPackageForm(emptyPackageForm);
       setEditingPackage(null);
+      resetPackageImage();
     }
   };
 
@@ -1019,6 +1046,13 @@ export default function AdminCatalogPage() {
                   onChange={(event) => setPackageForm({ ...packageForm, price: event.target.value })}
                 />
               </label>
+              <div>
+                <label className="block text-sm font-semibold" htmlFor="package-image">Ảnh gói khám</label>
+                <CmsImageField key={packageImageGeneration} id="package-image" value={packageForm.imageUrl} disabled={busy || packageImageBusy}
+                  onBusyChange={(value) => { if (packageImageScope.current.setBusy(packageImageGeneration, value)) setPackageImageBusy(value); }}
+                  onChange={(imageUrl) => { if (packageImageScope.current.accepts(packageImageGeneration)) setPackageForm((current) => ({ ...current, imageUrl })); }} />
+                <p className="mt-1 text-xs text-slate-600">Ảnh dùng chung ở trang chủ, danh sách và chi tiết gói. Để trống để dùng ảnh minh họa mặc định.</p>
+              </div>
               <label className="flex items-center gap-2 text-sm font-semibold">
                 <input
                   checked={packageForm.active}
@@ -1028,14 +1062,16 @@ export default function AdminCatalogPage() {
                 Đang hiển thị công khai
               </label>
               <div className="flex flex-wrap gap-2">
-                <button className={buttonClass} disabled={busy} type="submit">
+                <button className={buttonClass} disabled={busy || packageImageBusy} type="submit">
                   Lưu gói khám
                 </button>
                 {editingPackage ? (
                   <button
                     className={secondaryButtonClass}
-                    disabled={busy}
+                    disabled={busy || packageImageBusy}
                     onClick={() => {
+                      if (packageImageScope.current.blocked()) return;
+                      resetPackageImage();
                       setPackageForm(emptyPackageForm);
                       setEditingPackage(null);
                     }}
@@ -1056,6 +1092,7 @@ export default function AdminCatalogPage() {
                         aria-label={`Kéo thả đổi thứ tự ${item.name}`}
                         className="package-drag-handle flex min-h-11 min-w-11 cursor-grab items-center justify-center rounded-[4px] text-slate-500 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing"
                         title="Kéo thả để sắp xếp thứ tự hiển thị"
+                        disabled={busy || packageImageBusy}
                         type="button"
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1068,8 +1105,8 @@ export default function AdminCatalogPage() {
                         </svg>
                       </button>
                       <div className="flex gap-1" aria-label={`Sắp xếp ${item.name}`} role="group">
-                        <button aria-label={`Di chuyển ${item.name} lên`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || packages.indexOf(item) === 0} onClick={() => { const index = packages.indexOf(item); void persistPackageOrder(moveItem(packages, index, -1), index, index - 1); }} type="button">▲</button>
-                        <button aria-label={`Di chuyển ${item.name} xuống`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || packages.indexOf(item) === packages.length - 1} onClick={() => { const index = packages.indexOf(item); void persistPackageOrder(moveItem(packages, index, 1), index, index + 1); }} type="button">▼</button>
+                        <button aria-label={`Di chuyển ${item.name} lên`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || packageImageBusy || packages.indexOf(item) === 0} onClick={() => { const index = packages.indexOf(item); void persistPackageOrder(moveItem(packages, index, -1), index, index - 1); }} type="button">▲</button>
+                        <button aria-label={`Di chuyển ${item.name} xuống`} className="min-h-11 rounded-[4px] border border-slate-300 px-2 font-semibold disabled:opacity-40" disabled={busy || packageImageBusy || packages.indexOf(item) === packages.length - 1} onClick={() => { const index = packages.indexOf(item); void persistPackageOrder(moveItem(packages, index, 1), index, index + 1); }} type="button">▼</button>
                       </div>
                       <strong className="text-slate-900">{item.name}</strong>
                     </div>
@@ -1080,8 +1117,10 @@ export default function AdminCatalogPage() {
                     <button
                       aria-label={`Sửa ${item.name}`}
                       className="mr-3 text-teal-800 underline"
-                      disabled={busy}
+                      disabled={busy || packageImageBusy}
                       onClick={() => {
+                        if (packageImageScope.current.blocked()) return;
+                        resetPackageImage();
                         setEditingPackage(item.slug);
                         setPackageForm(packageFormFrom(item));
                       }}
@@ -1092,8 +1131,8 @@ export default function AdminCatalogPage() {
                     <button
                       aria-label={`Xóa ${item.name}`}
                       className="text-red-700 underline"
-                      disabled={busy}
-                      onClick={() => setPendingRemoval({
+                      disabled={busy || packageImageBusy}
+                      onClick={() => { if (packageImageScope.current.blocked()) return; setPendingRemoval({
                         label: `gói khám "${item.name}"`,
                         detail: [
                           { label: "Tên gói khám", value: item.name },
@@ -1103,7 +1142,7 @@ export default function AdminCatalogPage() {
                         action: () => adminDeletePackage(item.slug),
                         success: "Đã xóa gói khám",
                         broadcast: { kind: "package", slug: item.slug },
-                      })}
+                      }); }}
                       type="button"
                     >
                       Xóa
