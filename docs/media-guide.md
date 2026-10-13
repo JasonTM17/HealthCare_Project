@@ -37,22 +37,9 @@ Mỗi lần chụp là một snapshot riêng. Image revision label `unknown` ph�
 
 ## Sơ đồ
 
-| Nội dung | Nguồn chỉnh sửa | Export |
-| --- | --- | --- |
-| Logic architecture | [system-overview.mmd](architecture/system-overview.mmd) | [SVG](assets/architecture.svg), [PNG](assets/architecture.png) |
-| Local network/dependencies | [deployment-local.mmd](architecture/deployment-local.mmd) | [SVG](assets/deployment-local.svg), [PNG](assets/deployment-local.png) |
-| ERD | Mermaid blocks trong [Database](database/schema-overview.md) | GitHub-rendered source |
-| Sequences và lifecycle | Mermaid blocks trong [Business workflows](business-workflows.md), [API](api-reference.md), [AI](ai-system.md) | GitHub-rendered source |
+Sơ đồ hệ thống hiện là Mermaid gốc trong [README](../README.md#kiến-trúc-hệ-thống) và [System overview](architecture/system-overview.md); GitHub tự render theo theme của người đọc. [system-overview.mmd](architecture/system-overview.mmd) và [deployment-local.mmd](architecture/deployment-local.mmd) là bản nguồn dễ chỉnh sửa; cập nhật khối Markdown và tệp `.mmd` cùng lúc khi thay đổi node hoặc edge.
 
-SVG là bản trình bày vector của cùng topology; giữ Mermaid và SVG đồng bộ khi thay đổi edge hoặc component. [Diagram helper](media-tools/generate-doc-diagrams.py) dựng bản vector; chạy `python docs/media-tools/generate-doc-diagrams.py` từ repo root. Đây là helper tài liệu, không phải CI gate của sản phẩm.
-
-SVG export trong phiên này dùng XML validation và Sharp renderer vì `rsvg-convert` không có trên máy. Visual inspection vẫn bắt buộc: label không đè node, edge không đi xuyên component, conditional paths có legend, font đọc được khi thu nhỏ.
-
-Sau khi chạy diagram helper và cài dependencies frontend, export PNG từ repo root:
-
-```powershell
-node -e "const sharp=require('./apps/frontend/node_modules/sharp'); Promise.all(['architecture','deployment-local'].map(n=>sharp('docs/assets/'+n+'.svg').resize({width:1920}).png().toFile('docs/assets/'+n+'.png'))).catch(e=>{console.error(e.message);process.exitCode=1})"
-```
+ERD nằm trong [Database](database/schema-overview.md); sequence và lifecycle nằm trong [Business workflows](business-workflows.md), [API](api-reference.md) và [AI](ai-system.md). Kiểm tra render thực tế ở cả light/dark: label không đè node, đường có điều kiện còn rõ và chữ vẫn đọc được khi thu nhỏ. Không cần export PNG/SVG để đọc tài liệu trên GitHub.
 
 ## Giới hạn bằng chứng
 
