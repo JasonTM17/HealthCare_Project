@@ -1,6 +1,6 @@
 # Tài liệu HealthCare
 
-Bộ tài liệu dành cho người đánh giá, developer mới và người vận hành. [README dự án](../README.md) có sản phẩm, GIF theo vai trò và hướng dẫn nhanh.
+Bộ tài liệu dành cho người đánh giá, developer mới và người vận hành. [README tiếng Việt](../README.md) và [README tiếng Anh](../README.en.md) có sản phẩm, GIF theo vai trò và hướng dẫn nhanh. Các trang chuyên đề dưới đây hiện chủ yếu viết bằng tiếng Việt.
 
 ## Đường đọc đề xuất
 
