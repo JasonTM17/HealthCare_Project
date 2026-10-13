@@ -49,6 +49,8 @@ Citation dựa trên source identity được lưu/index, không phải URL ho�
 
 Public catalog mirror và clinical projection khác authority. Nội dung active/published công khai không tự mang approval lâm sàng. [Review workflow](business-workflows.md#kiểm-duyệt-nguồn-ai) liên kết revision/hash/expiry/outbox owners.
 
+Câu hỏi diễn giải chỉ số huyết áp cần nguồn lâm sàng đủ điều kiện, ngay cả khi người dùng đồng thời nhắc tới đặt lịch; thông tin vận hành như giá và cách đặt lịch thuộc catalog. Phân biệt này tránh đưa tư vấn sức khỏe qua đường hỗ trợ bệnh viện không có nguồn lâm sàng. [Routing policy](../apps/backend/src/main/java/com/healthcare/ai/chat/service/ChatSuggestedActionResolver.java) và [public AI regression](../apps/backend/src/test/java/com/healthcare/ai/PublicAiChatControllerTest.java) sở hữu các nhánh và trường hợp thiếu nguồn.
+
 ## Storage backend và consistency
 
 | Lựa chọn | Hợp đồng |

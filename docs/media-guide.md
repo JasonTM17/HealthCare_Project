@@ -21,7 +21,7 @@ WebM do Playwright ghi được chuyển thành GIF 5 fps, chiều rộng 960px;
 | Doctor | [doctor-tour.gif](assets/repo-tours/doctor-tour.gif) | [dashboard](assets/repo-tours/doctor-01.png), [care plans](assets/repo-tours/doctor-04.png) |
 | Admin | [admin-tour.gif](assets/repo-tours/admin-tour.gif) | [dashboard](assets/repo-tours/admin-01.png), [doctor directory](assets/repo-tours/admin-02.png), [CMS](assets/repo-tours/admin-04.png) |
 
-Media cũ trong `docs/assets/screenshots` và `demo.gif` là tài sản trước phiên này. `demo.gif` được script cũ ghép từ ảnh; không gọi nó là capture liên tục. Gallery chính sử dụng tên tài sản mới để tránh nhầm bằng chứng và cache cũ.
+Gallery dùng `docs/assets/repo-tours` làm nguồn media theo vai trò. Các ảnh chụp và GIF ghép từ pipeline cũ được giữ local, ngoài Git, để người đọc không nhầm chúng với các tour điều hướng hiện tại. Media hosted beta được dẫn riêng trong [Deployment beta](deployment-beta.md), với phạm vi bằng chứng riêng.
 
 ## Tái tạo tour
 

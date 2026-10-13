@@ -8,7 +8,7 @@ compliance approval and must not receive real patient traffic.
 
 The following assets were captured from the stable synthetic beta alias on
 2026-08-31 and show public pages without account or patient data. Use the
-[root release record](../README.md#hosted-beta-release-record) and this runbook
+[deployment guide](deployment.md) and this runbook
 for deployment, API, database, and rollback evidence; the visuals alone are
 not a production-readiness or clinical-flow test.
 
