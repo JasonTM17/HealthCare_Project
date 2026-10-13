@@ -1,173 +1,98 @@
-# HealthCare System Architecture & Technical Specifications
+# Kiến trúc hệ thống HealthCare
 
-Tài liệu này mô tả toàn diện kiến trúc kỹ thuật hệ sinh thái **HealthCare Project** — nền tảng y tế số toàn diện theo tiêu chuẩn bệnh viện thông minh (Smart Hospital Platform).
+[Tài liệu](../README.md) · [Luồng nghiệp vụ](../business-workflows.md) · [Database](../database/schema-overview.md)
 
----
+## Cách đọc
 
-## Sơ đồ Kiến trúc Hệ thống Tổng thể (System Architecture)
+Sơ đồ logic mô tả trách nhiệm và đường gọi được sở hữu bởi nguồn trong repo. Sơ đồ deployment mô tả hai môi trường khác nhau; không ghép tất cả dịch vụ local vào sơ đồ cloud như thể chúng đã được triển khai cùng nhau.
 
-Sơ đồ dưới đây minh họa sự kết nối giữa các tầng: từ giao diện người dùng (Client / Next.js 16), cổng biên (Vercel Edge & BFF Gateway), các cụm dịch vụ ứng dụng (Spring Boot 3 & FastAPI AI Service) cho tới tầng lưu trữ dữ liệu (PostgreSQL, Redis, MinIO, Supabase) và quy trình vận hành CI/CD.
+[![Kiến trúc logic](../assets/architecture.png)](../assets/architecture.svg)
 
-![HealthCare System Architecture](../assets/architecture.png)
+Nguồn chỉnh sửa: [system-overview.mmd](system-overview.mmd). Bản ảnh có thể đọc trực tiếp trên GitHub; SVG giữ chữ và đường nối dạng vector. [Media guide](../media-guide.md) chỉ cách tái tạo và kiểm tra.
 
-> **Tệp nguồn đồ họa xuất bản**:
-> - Định dạng đồ họa vector chất lượng cao: [`docs/assets/architecture.svg`](../assets/architecture.svg)
-> - Định dạng ảnh siêu nét Retina 2K (2880x1960): [`docs/assets/architecture.png`](../assets/architecture.png)
-> - Định dạng Mermaid v11 nguyên bản: [`system-overview.mmd`](system-overview.mmd)
+## Các tầng và trách nhiệm
 
----
+| Tầng | Trách nhiệm | Executable owner |
+| --- | --- | --- |
+| UI | Public discovery, booking và portal theo role | [Next app](../../apps/frontend/app) |
+| BFF | Same-origin API, trusted upstream, origin/headers/deadline và phản hồi browser | [healthcare-bff.ts](../../apps/frontend/lib/server/healthcare-bff.ts), [route handlers](../../apps/frontend/app/api) |
+| Core | Auth, ownership, transaction, lifecycle và persistence | [Spring modules](../../apps/backend/src/main/java/com/healthcare) |
+| AI | Routing, retrieval, generation và validation riêng | [FastAPI app](../../apps/ai-service/app) |
+| Data | SQL business authority, transient coordination, object storage | [Migrations](../../apps/backend/src/main/resources/db/migration), [Compose](../../infrastructure/docker-compose.yml) |
+| Workers | Mail, notifications, scan, sync/retry và retention | Module workers tương ứng; không mặc định là job cloud độc lập |
 
-## Sơ đồ Mermaid.js v11 (Interactive Specification)
+Backend là **modular monolith**: module chia theo nghiệp vụ trong một Spring application, không phải mỗi module là một microservice. FastAPI là dịch vụ riêng vì runtime và nhiệm vụ AI khác core. [ADR-001](../adr/ADR-001-modular-monolith.md) sở hữu rationale.
 
-```mermaid
-flowchart TD
-    %% Theme & Styling Declarations
-    classDef client fill:#EFF6FF,stroke:#3B82F6,stroke-width:1.5px,color:#1E3A8A;
-    classDef edge fill:#ECFDF5,stroke:#10B981,stroke-width:1.5px,color:#065F46;
-    classDef backend fill:#EEF2FF,stroke:#6366F1,stroke-width:1.5px,color:#312E81;
-    classDef ai fill:#FAF5FF,stroke:#A855F7,stroke-width:1.5px,color:#581C87;
-    classDef data fill:#FFFBEB,stroke:#F59E0B,stroke-width:1.5px,color:#78350F;
-    classDef ops fill:#F8FAFC,stroke:#64748B,stroke-width:1.5px,color:#1E293B;
+## BFF và xác thực
 
-    %% -------------------------------------------------------------
-    %% LAYER 1: CLIENT & USER CHANNELS
-    %% -------------------------------------------------------------
-    subgraph ClientLayer["LAYER 1: CLIENT & USER INTERFACES"]
-        Users["Multi-role Users<br/>(Patients • Doctors • Admins)"]:::client
-        NextFrontend["Next.js 16 Web Portal<br/>(React 19, App Router, Turbopack, TailwindCSS)"]:::client
-        PatientPortal["Patient Hub<br/>(/patient)"]:::client
-        DoctorPortal["Doctor Clinical Studio<br/>(/doctor)"]:::client
-        AdminPortal["Admin CMS & QA Moderation<br/>(/admin)"]:::client
-        MobilePWA["Responsive Mobile PWA<br/>(390px-1440px Zero Layout Shift)"]:::client
-    end
+Browser gọi cùng origin website. BFF không phải quyền nghiệp vụ: một request qua đúng origin vẫn phải được Spring xác thực và kiểm tra role/ownership.
 
-    %% -------------------------------------------------------------
-    %% LAYER 2: GATEWAY & VERCEL EDGE
-    %% -------------------------------------------------------------
-    subgraph EdgeLayer["LAYER 2: GATEWAY & VERCEL EDGE NETWORK"]
-        CustomDomain["Custom Domain & Anycast CDN<br/>www.healthcare.id.vn (SSL/TLS 1.3)"]:::edge
-        EdgeSecurity["Edge Security & CORS Guard<br/>(BFF Origin Guard, 403 Untrusted Rejection)"]:::edge
-        BFFProxy["Next.js Route Handlers / BFF Proxy<br/>(/api/v1/* & /api/ai/chat SSE Stream)"]:::edge
-    end
+Browser session dùng cookie opaque do server quản lý. BFF service token chỉ thiết lập niềm tin giữa hai server, không đại diện quyền admin hoặc identity người bệnh. API JWT có hợp đồng riêng; không mô tả toàn bộ browser portal là JWT lưu trên client. [API/Auth](../api-reference.md#xác-thực-và-phiên-trình-duyệt).
 
-    %% -------------------------------------------------------------
-    %% LAYER 3: APPLICATION SERVICES (RENDER CLOUD CONTAINERS)
-    %% -------------------------------------------------------------
-    subgraph ServiceLayer["LAYER 3: APPLICATION SERVICES (RENDER CLOUD)"]
-        subgraph BackendMono["Core Backend Service (Spring Boot 3.5.x, Java 21)"]
-            SpringSec["Spring Security 6<br/>(JWT Stateless Auth, RBAC, Bounded OTP)"]:::backend
-            CatalogAPI["Hospital Catalog & Doctors API<br/>(Specialties, Branches, Packages)"]:::backend
-            BookingEngine["Booking & Appointment Lifecycle<br/>(Concurrency Lock & Rescheduling)"]:::backend
-            ClinicalRecords["Clinical Records & Diagnostic Files<br/>(Presigned URLs & Role Isolation)"]:::backend
-            PaymentReconcile["Bank Transfer Reconciliation<br/>(Automated Payment Verification)"]:::backend
-            RealtimeSSE["WebSocket / SSE Notification Stream<br/>(CMS & Booking Realtime Updates)"]:::backend
-        end
+## AI nằm sau Core
 
-        subgraph AIService["AI & RAG Intelligence Service (FastAPI, Python 3.12)"]
-            TriageEngine["Medical Symptom Intake & Triage<br/>(Structured Symptom Classifier)"]:::ai
-            RAGPipeline["RAG Pipeline & Vector Search<br/>(Hospital Guidelines & Protocols)"]:::ai
-            SafetyGuard["Medical Safety Guardrails<br/>(Prompt Injection Defense & Privacy Shield)"]:::ai
-            FallbackProvider["Fail-Closed Provider Fallback<br/>(Local Deterministic Rule + Cloud LLM)"]:::ai
-        end
-    end
+Spring gọi FastAPI qua service-authenticated HTTP. Public support và patient conversation có controller khác nhau. BFF không gọi trực tiếp một AI model để bỏ qua consent, quota hoặc source validation.
 
-    %% -------------------------------------------------------------
-    %% LAYER 4: DATA PERSISTENCE & STORAGE
-    %% -------------------------------------------------------------
-    subgraph DataLayer["LAYER 4: DATA PERSISTENCE & STORAGE STACK"]
-        PostgresDB[("PostgreSQL 16 (Primary DB)<br/>Flyway Versioned Migrations<br/>Transactional Catalog & Appointments")]:::data
-        RedisCache[("Redis / Key-Value Cache<br/>Sliding Window Rate Limit & Session Tokens")]:::data
-        MinIOStorage[("MinIO / S3 Object Storage<br/>Encrypted Medical Scans & Lab Results")]:::data
-        SupabaseSync[("Supabase Audited Boundary<br/>Healthcare Schema + RLS Projections")]:::data
-    end
+Hai bước retrieve/generate cho phép Core kiểm tra eligibility của nguồn trước khi generation. Các đường prepare/commit/lease phía nội bộ hỗ trợ giới hạn việc ghi câu trả lời khi request bị hủy. Việc có SSE route không tự chứng minh token streaming của provider; xem [AI system](../ai-system.md).
 
-    %% -------------------------------------------------------------
-    %% LAYER 5: DEVOPS, SECURITY & CI/CD
-    %% -------------------------------------------------------------
-    subgraph OpsLayer["LAYER 5: DEVOPS, SECURITY & OPERATIONS"]
-        GithubCI["GitHub Actions Enterprise CI/CD<br/>(Lint, Typecheck, Multi-arch Docker, SBOM)"]:::ops
-        ClamAVScan["ClamAV Antivirus Scanner<br/>(Attachment Scan Quarantine Pipe)"]:::ops
-        MailpitSink["Mailpit SMTP Dev Sink<br/>(Transactional Email & OTP Testing)"]:::ops
-    end
+## Dữ liệu và các bản chiếu
 
-    %% -------------------------------------------------------------
-    %% FLOW ARROWS & DATA PATHS
-    %% -------------------------------------------------------------
-    Users -->|HTTPS / Browsing| NextFrontend
-    NextFrontend --> PatientPortal
-    NextFrontend --> DoctorPortal
-    NextFrontend --> AdminPortal
-    NextFrontend --> MobilePWA
-    NextFrontend -->|Web Request| CustomDomain
-    CustomDomain --> EdgeSecurity
-    EdgeSecurity -->|Validated Origin| BFFProxy
+**PostgreSQL** sở hữu hồ sơ, cuộc hẹn, session, nội dung, history và hàng đợi nghiệp vụ. **Redis** hỗ trợ rate-limit và wake-up realtime; không sở hữu bản xuất bản CMS hay toàn bộ lịch sử hội thoại.
 
-    BFFProxy -->|Server-side REST Token Auth| SpringSec
-    BFFProxy -->|Streaming SSE Query| TriageEngine
+**MinIO/S3** chứa object, còn quyền/linkage/scan metadata thuộc Core. Không gọi presigned URL là encryption-at-rest: đó là quyền truy cập có thời hạn, không chứng minh mã hóa vật lý.
 
-    SpringSec --> CatalogAPI
-    SpringSec --> BookingEngine
-    SpringSec --> ClinicalRecords
-    SpringSec --> PaymentReconcile
-    SpringSec --> RealtimeSSE
+**Supabase** có hai vai trò cần phân biệt: PostgreSQL hosting và protected RAG projection khi chọn durable adapter. Đây không phải mặc định một database thứ hai tự nhận bản sao tất cả dữ liệu SQL. [Supabase](../../supabase/README.md) và [reconciliation](../../supabase/reconciliation/README.md) sở hữu contract.
 
-    BookingEngine -->|Internal HTTP Triage| TriageEngine
+## Deployment local
 
-    CatalogAPI -->|JDBC Transactions| PostgresDB
-    BookingEngine -->|JDBC Transactions| PostgresDB
-    PaymentReconcile -->|JDBC Transactions| PostgresDB
+![Compose topology](../assets/deployment-local.png)
 
-    SpringSec -->|Rate-limit Tokens| RedisCache
-    EdgeSecurity -->|Rate-limit Tokens| RedisCache
+Nguồn: [deployment-local.mmd](deployment-local.mmd), [Compose base](../../infrastructure/docker-compose.yml) và [demo overlay](../../infrastructure/docker-compose.local-demo.yml).
 
-    ClinicalRecords -->|S3 Presigned URLs| MinIOStorage
-    MinIOStorage -.->|Async Virus Inspection| ClamAVScan
-    PostgresDB -.->|Audited RLS Sync| SupabaseSync
+- Web, backend và local tools có cổng host loopback được cấu hình.
+- AI chỉ ở network internal, không gắn edge network. Compose có khai báo host port loopback 8000 (override bằng `AI_SERVICE_HOST_PORT`); đây là cấu hình ingress, không tạo provider egress. Kiểm tra khả năng kết nối host trên runtime thực tế, không suy ra từ khai báo port.
+- PostgreSQL, Redis và MinIO có volume; stop/start không xóa chúng.
+- Mailpit là email sink local, không phải production SMTP.
+- Scanner adapter/ClamAV là dependency cho tệp khi tính năng tương ứng được bật; có container healthy không chứng minh upload đã được phép.
+- Demo overlay chọn local AI và cờ demo UI; không dùng overlay như manifest production.
 
-    GithubCI -.->|Automated Verification| NextFrontend
-    GithubCI -.->|Automated Verification| SpringSec
-    GithubCI -.->|Automated Verification| TriageEngine
-    SpringSec -.->|Development Email Sink| MailpitSink
-```
+## Deployment hosted theo repo
 
----
+Nguồn lựa chọn hosted: [render-free-beta.yaml](../../render-free-beta.yaml), cùng [deployment notes](../deployment.md) và cấu hình FE tại [next.config.ts](../../apps/frontend/next.config.ts). Tên manifest có chữ beta không có nghĩa mọi comment hoặc cấu hình cũ vẫn hiện hành; đọc các khóa environment đang khai báo.
 
-## Chi tiết Kỹ thuật Các Tầng Kiến trúc (Layer-by-Layer Breakdown)
+~~~mermaid
+flowchart LR
+    Browser[Browser] --> Web[Next.js / hosted frontend]
+    Web --> Core[Render Spring service]
+    Core --> SQL[(Hosted PostgreSQL)]
+    Core --> Redis[(Configured Redis)]
+    Core --> AI[Render FastAPI via HTTPS + service token]
+    AI --> Rag[(Configured RAG adapter)]
+    AI -. conditional .-> Provider[External provider]
+~~~
 
-### 1. Tầng Client & Frontend (Next.js 16 + React 19)
-- **Kiến trúc App Router & Server Components**: Tối ưu hóa tải trang lần đầu (FCP < 0.8s) bằng Server Components rendering; Client Components chỉ dùng cho tương tác người dùng (đặt lịch, chat AI, upload ảnh).
-- **Trải nghiệm Responsive & PWA**: Hỗ trợ giao diện linh hoạt từ màn hình điện thoại (390px) đến màn hình Retina 4K không bị giật layout (CLS = 0).
-- **Phân hệ Portals chuyên biệt**:
-  - `/patient`: Cổng bệnh nhân tra cứu lịch khám, kết quả chẩn đoán, toa thuốc điện tử và phiên tư vấn y tế.
-  - `/doctor`: Cổng bác sĩ quản lý lịch trực, hàng đợi khám bệnh nhân, xuất kết quả lâm sàng và bài viết y khoa chuyên ngành.
-  - `/admin`: Cổng quản trị viện quản lý danh mục bác sĩ, khoa phòng, ca khám, phê duyệt nội dung AI & kiểm duyệt câu trả lời y tế.
+Manifest hosted có các cờ provider khác Compose local. Trạng thái live, account/provider credentials, release gate và mức sẵn sàng phải kiểm tra trực tiếp tại môi trường; không suy ra từ YAML. Storage/mail/payment/scanner có thể bị đóng trong hosted contract dù UI/module tồn tại trong mã nguồn.
 
-### 2. Tầng Gateway & Vercel Edge Network
-- **Custom Domain & SSL**: Phục vụ chính thức tại `www.healthcare.id.vn` với Anycast CDN toàn cầu, chứng chỉ SSL/TLS 1.3 tự động gia hạn.
-- **BFF (Backend-For-Frontend) Proxy**: Các yêu cầu từ trình duyệt được gửi qua Route Handlers `/api/v1/*` của Next.js. BFF chịu trách nhiệm chèn token bảo mật server-side, ẩn hoàn toàn địa chỉ IP và cổng dịch vụ nội bộ của backend.
-- **Origin Guard & Chống DDoS**: Kiểm tra header `Origin` nghiêm ngặt; từ chối mọi yêu cầu từ các domain lạ (`403 BFF_ORIGIN_INVALID`), đồng thời áp dụng rate-limiting chống quét tự động.
+## Nội dung và thông báo
 
-### 3. Tầng Dịch vụ Backend (Spring Boot 3.5.x, Java 21)
-- **Mô hình Modular Monolith**: Đóng gói các module nghiệp vụ tách biệt (Auth, Booking, Catalog, Notification, Billing) trên một codebase duy nhất nhằm đảm bảo hiệu năng và đơn giản hóa việc triển khai.
-- **Spring Security 6 & RBAC**: Cơ chế xác thực phi trạng thái (Stateless JWT), bảo vệ nghiêm ngặt theo các vai trò `ADMIN`, `DOCTOR`, `PATIENT`. Mã hóa mật khẩu chuẩn BCrypt và mã xác thực OTP có thời hạn chặt chẽ.
-- **Xử lý Đặt lịch & Khóa chỗ (Concurrency Control)**: Đảm bảo không xảy ra xung đột khi nhiều bệnh nhân cùng đặt một ca khám của bác sĩ tại cùng một khung giờ.
-- **Real-time Event Stream**: Sử dụng Server-Sent Events (SSE) và WebSocket để cập nhật trạng thái đơn đặt lịch và thông báo lâm sàng tức thì.
+[CMS realtime](cms-realtime.md) phân biệt save draft, publish snapshot, event metadata và client reconciliation. Redis pub/sub là tín hiệu đánh thức; khi reconnect, PostgreSQL và public API cung cấp sự thật hiện tại.
 
-### 4. Tầng Dịch vụ Trí tuệ Nhân tạo (FastAPI Python AI Service)
-- **Phân luồng & Tiếp nhận Triệu chứng (Triage Engine)**: Thu thập triệu chứng bệnh nhân ban đầu, gợi ý chuyên khoa phù hợp và mức độ khẩn cấp y tế.
-- **Kiến trúc RAG (Retrieval-Augmented Generation)**: Truy vấn thông tin dựa trên cơ sở tri thức y khoa chuẩn hóa, phác đồ điều trị của viện và các câu hỏi thường gặp (FAQs) thông qua vector embeddings.
-- **Rào chắn An toàn Y tế (Medical Safety Guardrails)**:
-  - Tự động chặn các cuộc tấn công Prompt Injection hoặc câu hỏi cố ý vượt rào.
-  - Từ chối chẩn đoán xác định mang tính thay thế bác sĩ hoặc yêu cầu xem hồ sơ bệnh án của bệnh nhân khác.
-- **Cơ chế Dự phòng Đóng an toàn (Fail-closed Fallback)**: Nếu nhà cung cấp mô hình ngôn ngữ bên ngoài gặp sự cố, hệ thống tự động kích hoạt luật dự phòng an toàn nội bộ (deterministic fallback), đảm bảo không trả lời sai lệch thông tin y khoa.
+Notification và email là hai kênh. Persist notification hoặc enqueue mail chưa chứng minh trình duyệt đã nhận hoặc SMTP đã deliver. [Operations](../operations.md) dẫn đến worker và runbook.
 
-### 5. Tầng Dữ liệu & Lưu trữ (Data Persistence & Storage)
-- **PostgreSQL 16**: Cơ sở dữ liệu quan hệ chính lưu trữ toàn bộ dữ liệu giao dịch, lịch hẹn, hồ sơ bệnh nhân. Cấu trúc bảng được quản lý phiên bản qua Flyway Migrations — danh mục bản di trú đầy đủ nằm tại `apps/backend/src/main/resources/db/migration/`.
-- **Redis / Key-Value**: Bộ nhớ đệm tốc độ cao phục vụ thuật toán Sliding Window Rate Limiting, lưu trữ tạm OTP và phiên đăng nhập.
-- **MinIO / AWS S3 Object Storage**: Lưu trữ an toàn các tệp đính kèm kết quả xét nghiệm, ảnh chụp X-quang/MRI và avatar bác sĩ. Tích hợp presigned URLs hạn chế thời gian truy cập.
-- **Supabase (Audited Data Boundary)**: Đồng bộ dữ liệu phục vụ báo cáo và phân tích chỉ số y tế với chính sách Row-Level Security (RLS) bảo vệ quyền riêng tư người bệnh.
+## Điểm cần giữ khi mở rộng
 
-### 6. Tầng Vận hành & DevOps (CI/CD & Security Operations)
-- **GitHub Actions Pipeline**: Tự động chạy ma trận kiểm thử (Linting, TypeScript Typecheck, Spring Boot Integration Tests, Playwright CMS Gate, Docker Multi-arch Build).
-- **Quét tệp độc hại ClamAV**: Quét virus tự động mọi tệp tin bệnh án được tải lên trước khi lưu vào kho lưu trữ vĩnh viễn.
-- **Môi trường cục bộ Docker Compose**: Khởi chạy đầy đủ 9 container dịch vụ mô phỏng 100% môi trường production chỉ với một câu lệnh duy nhất.
+| Quyết định | Vì sao cần giữ |
+| --- | --- |
+| Role + ownership phía Core | UI ẩn nút không bảo vệ API |
+| Backend-owned catalog IDs/actions | Model không được tự tạo doctor/slot/URL có quyền |
+| Migration append-only | Bảo toàn checksum và recovery của database đã chạy |
+| Public snapshot khác draft | Tránh lộ nội dung chưa được xuất bản |
+| Provider flags theo môi trường | Local fallback không chứng minh hosted provider readiness |
+| Runtime evidence khác source contract | Container, CI và cloud có snapshot riêng |
+
+## Các sơ đồ liên quan
+
+- [Booking/clinical/payment/governance](../business-workflows.md): sequence và state diagrams.
+- [ERD](../database/schema-overview.md): identity/catalog, clinical/payment và AI.
+- [AI flow](../ai-system.md): retrieval/eligibility/generation/commit.
+- [Security](../security.md): trust boundary và negative cases.

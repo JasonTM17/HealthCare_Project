@@ -1,221 +1,63 @@
-# AI Service
+# AI service HealthCare
 
-FastAPI AI/RAG service foundation. Rule-based triage and deterministic local
-embeddings work without provider credentials. OpenAI-compatible chat and
-embedding providers are opt-in; only local/demo/test runtimes may use a
-deterministic fallback after a remote-provider error.
+[AI system](../../docs/ai-system.md) · [Architecture](../../docs/architecture/system-overview.md) · [Security](../../docs/security.md)
 
-The provider-neutral contracts are `LLMClient`, `EmbeddingClient`,
-`Retriever`, and `RagServiceContract`. Remote responses are accepted only
-when they match the strict allow-listed recommendation shape; model-generated
-doctor IDs, URLs, schedules, and availability are never trusted.
+FastAPI service cho routing, retrieval, bounded generation và recommendation. Spring là user/business authority; service token bảo vệ hop vào FastAPI, không thay quyền patient/doctor.
 
-## Commands
+## Chạy local và checks
 
-```bash
+Dùng Python 3.12, tạo environment trong apps/ai-service và cài [requirements.txt](requirements.txt). Trên Windows:
+
+~~~powershell
 python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python -m pytest
-.venv\Scripts\ruff check .
-.venv\Scripts\mypy
-.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000 --no-access-log
-```
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python -m pytest
+.\.venv\Scripts\python -m ruff check .
+.\.venv\Scripts\python -m mypy
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000 --no-access-log
+~~~
 
-RAG documents default to the in-memory store. A Supabase/Postgres backend can
-be enabled explicitly with `RAG_STORAGE_BACKEND=supabase` and `SUPABASE_DB_URL`
-when durable persistence is required. Ingestion is disabled by default. To
-enable trusted ingestion, configure both `RAG_INGEST_ENABLED=true` and a secret
-`RAG_INGEST_TOKEN`, then send that token in the `X-RAG-Ingest-Token` header.
-Do not expose this endpoint publicly.
+Chọn đúng interpreter 3.12 trước tạo venv. Bare process phải cung cấp runtime/service authentication đúng [config.py](app/config.py); Compose không dùng unauthenticated local escape hatch. [Getting started](../../docs/getting-started.md) giải thích stack đầy đủ.
 
-The hosted Free beta intentionally uses `AI_PROVIDER=deepseek` for the public
-hospital-support chat surface, `EMBEDDING_PROVIDER=local`,
-`RAG_STORAGE_BACKEND=memory`, and protected ingestion from the Spring public
-catalog. Render Free web services can spin down and their local state is
-ephemeral, so Spring performs an initial sync and then reconciles every five
-minutes. This is a beta availability trade-off, not durable RAG persistence.
-The service and ingest tokens stay server-side in Render; only `/livez` is
-unauthenticated. Patient/clinical remote AI remains disabled.
+## Source navigation
 
-For the patient chatbot, the durable adapter must use the protected projection
-contract: `SUPABASE_DB_SCHEMA=healthcare`,
-`SUPABASE_RAG_TABLE=ai_chat_documents`, and
-`SUPABASE_RAG_RPC=match_chat_documents`. The database role is server-only;
-never put its DSN or a `service_role` credential in the frontend. The legacy
-`ai_documents`/`match_documents` pair remains for the older public catalog
-index and is rejected by the patient-chat adapter.
+| Boundary | Owner |
+| --- | --- |
+| HTTP routes/auth/health | [main.py](app/main.py) |
+| Configuration và runtime gates | [config.py](app/config.py) |
+| Chat routing/safety | [chatbot.py](app/chatbot.py), [emergency terms](app/emergency_terms.py) |
+| LLM providers và validation | [llm.py](app/llm.py), [providers.py](app/providers.py), [schemas.py](app/schemas.py) |
+| Embeddings/retrieval | [embeddings.py](app/embeddings.py), [rag.py](app/rag.py) |
+| Durable adapter | [supabase_rag.py](app/supabase_rag.py) |
+| Cancellation | [cancellation.py](app/cancellation.py) |
+| Public-answer acceleration | [public_chat_acceleration.py](app/public_chat_acceleration.py) |
+| Tests/typecheck | [tests](tests), [pyproject.toml](pyproject.toml) |
 
-Explicit hospital-support catalogue questions about lab tests or diagnostic
-imaging keep only matching service/specialty/package titles before candidate caps and
-bounded lexical rescue. This title filter never raises a relevance score or
-changes approval, expiry, source-validation or remote-provider gates. Generic
-diagnosis, doctor/booking requests and clinical modes keep their existing routing.
-Approved illustrative catalogue answers retain their visible sample disclosure
-when displayed in chat history; historical doctor/schedule fixture cleanup still
-applies. An empty stream `404` with chunk delivery disabled uses the existing
-JSON fallback and does not indicate provider streaming support.
+## Configuration groups
 
-When `RAG_STORAGE_BACKEND=supabase`, `/health` separates the three ways a
-durable-backed deployment can answer, so an operator never reads a refusal as
-fallback traffic. `rag_fallback_permitted` is static configuration: the process
-may degrade to the in-memory index (it requires a `local`/`test`/`demo` runtime,
-so a hosted runtime always reports `false`). `rag_fallback_active` is observed
-behaviour: an unfiltered retrieval is currently served from memory because the
-durable store is unavailable. `rag_fail_closed` is its exclusive counterpart:
-durable RAG was reachable and then became unavailable, so retrieval is refused
-rather than served from a possibly stale cache. `SUPABASE_RAG_FALLBACK_TO_MEMORY`
-still defaults to `true` for offline development, and any run that arms it logs
-`rag_fallback state=armed ...` at startup.
+| Nhóm | Khóa chính | Vì sao tách |
+| --- | --- | --- |
+| Service/runtime | AI_SERVICE_TOKEN, AI_SERVICE_RUNTIME, AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL | Local bare process khác Compose/hosted |
+| Provider | AI_PROVIDER, AI_API_KEY, AI_CHAT_MODEL, AI_BASE_URL, AI_TIMEOUT_SECONDS | Credential/model selection khác authorization cho patient text |
+| Embedding | EMBEDDING_PROVIDER và embedding model/dimension contract | Chat provider không tự có vector contract tương thích |
+| Storage | RAG_STORAGE_BACKEND, SUPABASE_DB_URL, schema/table/RPC | Primary business SQL khác protected retrieval projection |
+| Ingest | RAG_INGEST_ENABLED, RAG_INGEST_TOKEN | Trusted server indexing, không là public endpoint |
+| Policy | Patient/public remote flags, release/runtime/provenance settings | Đọc consumer thật, không suy ra semantics từ tên biến |
 
-Ingestion accepts `active`, `published`, and optional bounded metadata. Only
-documents with both flags enabled are searchable; sending an inactive or
-unpublished update removes the previous searchable version. Content is
-normalized to visible text, capped by `RAG_MAX_DOCUMENT_CHARS`, and embedded
-again only when its normalized content hash changes. Search combines bounded
-keyword/vector relevance and returns citations containing the stored source
-type, source ID, and title only.
+[Compose](../../infrastructure/docker-compose.yml) và [Render manifest](../../render-free-beta.yaml) có flags khác nhau. Comment hoặc báo cáo cũ “patient egress luôn HOLD” không sở hữu current behavior; config.py + llm.py + Spring policy và manifest được chọn mới xác định đường được phép. Một YAML flag không chứng minh live provider đã chạy.
 
-`POST /chat` accepts `{ "message": "...", "recent_turns": [...], "top_k": 5 }`
-and returns `{ "answer": "...", "disclaimer": "...", "citations": [...],
-"provenance": "..." }`. Recent turns and retrieved RAG content are bounded
-reference context. Citations are assembled from stored `source_type`,
-`source_id`, and `title` identities; provider-generated URLs and IDs are not
-accepted. Local/test fallback returns a deterministic answer with
-`provenance: "local_fallback"` and no citations.
+## RAG authority và projection
 
-The backend catalog mirror is eventually consistent: it runs on the configured
-schedule (five minutes by default) and removes SQL-deleted sources when a
-catalog type fits within `ai.rag-ingest.max-catalog-items`. Sync revisions keep
-an older in-flight index request from resurrecting a newer delete within the
-same AI process. If a type is larger than that safety bound, the sync keeps
-existing indexed rows instead of risking false deletion; the revision guard is
-also process-local, not a durable multi-instance knowledge-store guarantee.
-The durable Supabase backend preserves the same public contract but with
-database-backed persistence.
+Only active/published sources are searchable under ingestion contract. Source identity, hash/revision và provenance được giữ để Core xác minh; provider-generated URLs/doctor IDs không thành authority.
 
-Provider and safety settings are environment-backed:
+Memory index phù hợp local/ephemeral use; durable adapter là lựa chọn có điều kiện. Patient-chat protected projection dùng healthcare schema, ai_chat_documents table và match_chat_documents RPC theo adapter contract. Legacy public ai_documents/match_documents là contract khác; không tự thay hai cặp này cho nhau.
 
-```text
-AI_PROVIDER=rule_based_triage | deepseek | openai
-EMBEDDING_PROVIDER=local | <openai-compatible-provider>
-AI_API_KEY=
-AI_CHAT_MODEL=
-AI_EMBEDDING_MODEL=
-AI_BASE_URL=
-AI_TIMEOUT_SECONDS=10
-AI_MAX_INPUT_CHARS=10000
-AI_MAX_RETRIEVED_CHUNKS=5
-# Internal public-catalog over-fetch window; final answers still cap citations.
-AI_PUBLIC_RETRIEVAL_CANDIDATES=40
-AI_PATIENT_CHAT_REMOTE_ENABLED=false
-AI_CHAT_REMOTE_PROVIDER_ENABLED=false
-AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=false
-AI_SERVICE_RUNTIME=local
-REMOTE_AI_SYNTHETIC_ONLY=true
-REMOTE_AI_KILL_SWITCH=true
-REMOTE_AI_PROVIDER_ALLOWLIST=deepseek
-REMOTE_AI_HTTPS_HOST_ALLOWLIST=api.deepseek.com
-AI_CHAT_CIRCUIT_FAILURE_THRESHOLD=3
-AI_CHAT_CIRCUIT_RESET_SECONDS=30
-RAG_MAX_DOCUMENT_CHARS=20000
-RAG_MAX_DOCUMENTS=10000
+[Supabase README](../../supabase/README.md), [reconciliation](../../supabase/reconciliation/README.md) và adapter tests sở hữu durable setup. Catalog sync có bounded reconciliation và lag; không khẳng định một update SQL đã xuất hiện trong retrieval chỉ vì source row được lưu.
 
-# Legacy aliases, used only for AI_PROVIDER=deepseek when the corresponding
-# AI_* value is empty.
-DEEPSEEK_API_KEY=
-DEEPSEEK_MODEL=deepseek-v4-flash
-DEEPSEEK_EMBEDDING_MODEL=
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-```
+## Health, fallback và evidence
 
-The hard request bounds are 10,000 characters for patient/query input and
-20,000 characters for knowledge documents. A deployment can lower them with
-the settings above. `AI_CHAT_MODEL`, `AI_EMBEDDING_MODEL`, `AI_BASE_URL`, and
-`AI_API_KEY` take precedence; the corresponding `DEEPSEEK_*` values are
-legacy aliases used only when `AI_PROVIDER=deepseek` and the provider-neutral
-value is empty. When `AI_PROVIDER=deepseek` and no model is supplied, the
-default is `deepseek-v4-flash`. When `AI_PROVIDER=openai`, DeepSeek credentials
-and defaults are ignored; configure the provider-neutral key/model/base URL
-explicitly.
+livez xác nhận process sống. Authenticated health báo readiness theo cấu hình; không tự chứng minh authenticated provider generation. Fallback memory/local chỉ được dùng khi runtime/policy cho phép; hosted durable/provider outage phải giữ fail-closed khi contract yêu cầu.
 
-DeepSeek is a chat-generation provider in this contract, not an assumed vector
-model. Keep `EMBEDDING_PROVIDER=local` and the deterministic 384-dimensional
-`local-hash` profile for local/test and for the initial Supabase projection.
-Only switch to a remote embedding provider after its endpoint, dimension,
-model provenance, privacy review, and negative-PII tests have been approved.
-Remote patient-answer egress is **HOLD in this build**. Startup rejects either
-`AI_PATIENT_CHAT_REMOTE_ENABLED=true` or
-`AI_CHAT_REMOTE_PROVIDER_ENABLED=true`, and the runtime patient-chat gate also
-returns false defensively. Public hospital-support remote egress is controlled
-separately by `AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=true`. The
-OpenAI-compatible adapters remain only for isolated provider-contract tests
-and non-patient experimentation; they are not an authorization path for
-patient text. The synthetic beta therefore keeps patient chat grounded while
-the public support route can use the configured DeepSeek provider.
+Public support, patient history, clinical review, source eligibility, quota và cancellation là các boundary riêng. [AI system](../../docs/ai-system.md) mô tả chúng và liên kết Core owners. JSON/SSE delivery không tự chứng minh provider-token streaming.
 
-Embedding vectors are capped at 4,096 dimensions. Indexed documents retain
-their embedding model and provenance, reject mixed model/provenance/dimension
-contracts, and are bounded by `RAG_MAX_DOCUMENTS` (10,000 by default). The
-`/rag/sources` reconciliation endpoint is cursor-paginated and returns
-`next_cursor`, `complete`, and `total` metadata on paged requests; callers must
-not treat a single 5,000-row page as a complete snapshot.
-
-Provider adapters use no automatic retries and a bounded timeout of at most 60
-seconds. Patient chat and triage always resolve through the local provider in
-this build; local output is never presented as a successful remote result.
-`/health` returns HTTP 503 when authentication or the selected non-patient
-provider readiness is not valid. A configured public remote provider is
-treated as ready when `AI_PUBLIC_HOSPITAL_SUPPORT_REMOTE_ENABLED=true`; the
-health response still reports `remote_probe_required: true` when the selected
-provider is remote but the public-support flag is not enabled. Patient text
-and secrets are not logged.
-
-Patient conversation requests are local-only, independently of the provider
-chosen for non-patient AI routes. The two patient remote flags are fail-closed
-configuration errors rather than feature toggles in this release.
-Email addresses, phone numbers, UUID-like identifiers, access tokens and
-sensitive clinical markers are rejected before any remote call. Patient-record,
-patient-data, user-profile and patient-enumeration access/export requests are
-also refused before retrieval, even when the request does not use explicit
-"export" wording (for example, "list patients", "danh sách bệnh nhân" or
-"liệt kê toàn bộ bệnh nhân"). A
-bounded circuit opens after repeated provider failures. Spring remains the
-only owner of conversation history and sends only the six most recent turns.
-
-Protected AI routes require the same non-empty `AI_SERVICE_TOKEN` in the
-backend and AI service. The backend forwards it as `X-AI-Service-Token`.
-Missing tokens fail closed for Compose, staging, and every non-local runtime.
-
-For a bare local process only, an explicit escape hatch may be enabled with
-both `AI_SERVICE_RUNTIME=local` and
-`AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL=true`. This never applies to Compose:
-Compose sets a non-local runtime and refuses to render without a non-empty
-`AI_SERVICE_TOKEN`. Tokens are compared in memory and are never logged. The
-AI health endpoint also requires this token outside the explicit local escape
-hatch; the Compose healthcheck sends it in `X-AI-Service-Token`.
-
-Uvicorn access logging is disabled in the container and in the documented
-local command so free-text `/search` values are not emitted in request URLs.
-The backend's public search route remains a GET compatibility contract, so
-reverse proxies and application access logs must still be configured not to
-record query strings. The backend-to-AI search hop uses POST with a bounded
-request body.
-
-Specialty recommendations carry a visible disclaimer and citations when
-trusted knowledge is available. They do not claim a diagnosis or prescription,
-and they do not return doctor or appointment recommendations; those must be
-resolved by the authenticated backend against active catalog and schedule
-data. This slice models one fictional hospital/public catalog only; it does
-not provide tenant isolation or a multi-hospital data model.
-
-The model-output safety gate accepts the complete refusal statements
-`I cannot provide a prescription.` and `I cannot provide any prescription.`
-Affirmative continuations, diagnosis claims, drug instructions and dose-bearing
-cautions remain blocked. This exception does not widen approved-source mode.
-
-Citations are deliberately identity-only (`source_type`, `source_id`, and
-`title`) and are not authoritative clinical source URLs. The backend must
-resolve or verify any catalog follow-up; a URL or clinical authority cannot be
-inferred from an AI response. If a recommendation uses `local_fallback`, its
-retrieved citations are suppressed because the indexed context does not support
-the fallback result.
+Không ghi access logs có query/patient text, DSN, tokens hoặc raw provider errors vào repo. Tests/mock adapters không phải live-provider evidence. [Testing](../../docs/testing.md) giải thích gate đúng môi trường.

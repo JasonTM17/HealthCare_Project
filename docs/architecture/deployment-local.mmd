@@ -1,0 +1,24 @@
+flowchart TB
+    Browser[Browser / localhost:3000] --> FE[Frontend container]
+    FE --> BE[Backend container]
+    BE --> DB[(Postgres volume)]
+    BE --> Redis[(Redis volume)]
+    BE --> AI[AI internal-only container]
+    BE --> Minio[MinIO volume]
+    BE --> SMTP[Mailpit local sink]
+    BE --> Scanner[Private scanner adapter]
+    Scanner --> AV[ClamAV]
+    subgraph Internal[Compose default network: internal]
+        AI
+        Scanner
+        AV
+    end
+    subgraph Edge[Compose edge network / selected loopback ports]
+        FE
+        BE
+        DB
+        Redis
+        Minio
+        SMTP
+    end
+    Note[AI declares loopback port 8000 / internal network / no provider egress]

@@ -1,52 +1,43 @@
-# Backend
+# Backend HealthCare
 
-Spring Boot 3 backend baseline for HealthCare_Project.
+[Repo overview](../../README.md) · [Architecture](../../docs/architecture/system-overview.md) · [API](../../docs/api-reference.md)
 
-## Commands
+Spring Boot modular monolith, JDK 21; [pom.xml](pom.xml) và Maven wrapper sở hữu build/runtime contract.
 
-```bash
-mvn test
-mvn spring-boot:run
-```
+## Chạy và kiểm thử
 
-`mvn test` starts a disposable PostgreSQL 16 Testcontainer by default so
-Flyway and PostgreSQL-specific booking constraints are tested without touching
-the local application database. Set `TEST_DB_URL` only when targeting a
-dedicated external test database, and pair it with
-`TEST_DB_ALLOW_CLEANUP=true`; the integration base cleans test rows before each
-method.
+Từ repo root, đọc [Getting started](../../docs/getting-started.md) để chọn Compose hoặc process riêng. Từ apps/backend, sau khi cung cấp cấu hình dependencies:
 
-The AI gateway fails closed when `AI_SERVICE_TOKEN` is missing. For a bare
-local process only, explicitly set `AI_SERVICE_RUNTIME=local` and
-`AI_SERVICE_ALLOW_UNAUTHENTICATED_LOCAL=true`; Compose/staging/non-local
-runtimes require a non-empty shared token.
+~~~powershell
+.\mvnw.cmd spring-boot:run
+.\mvnw.cmd -B verify
+~~~
 
-## Appointment rescheduling
+Trước integration suite, chạy [backend test preflight](../../scripts/check-backend-test-preflight.ps1) và đọc [Testing](../../docs/testing.md). Integration DB cleanup chỉ được phép trên database test dedicated. Không khẳng định mọi suite tự tạo Testcontainer; [test infrastructure](src/test/java/com/healthcare) và [CI](../../.github/workflows/ci.yml) sở hữu dependency selection.
 
-Confirmed appointments can be moved without changing their booking code:
+## Navigation theo miền
 
-```http
-POST /api/v1/appointments/{bookingCode}/reschedule
-Content-Type: application/json
+| Boundary | Owner |
+| --- | --- |
+| Browser sessions/JWT/BFF trust | [auth](src/main/java/com/healthcare/auth), [security](src/main/java/com/healthcare/security) |
+| Hospital catalog | [hospital](src/main/java/com/healthcare/hospital) |
+| Booking/schedule | [appointment](src/main/java/com/healthcare/appointment), [scheduling](src/main/java/com/healthcare/scheduling) |
+| Clinical/care plan/consultation | [clinical](src/main/java/com/healthcare/clinical), [careplan](src/main/java/com/healthcare/careplan), [consultation](src/main/java/com/healthcare/consultation) |
+| Payment/review/webhook | [payment](src/main/java/com/healthcare/payment) |
+| CMS/publication | [cms](src/main/java/com/healthcare/cms) |
+| AI/policy/history/credits | [ai](src/main/java/com/healthcare/ai) |
+| Objects/documents/notifications | [storage](src/main/java/com/healthcare/storage), [document](src/main/java/com/healthcare/document), [notification](src/main/java/com/healthcare/notification) |
+| Schema | [Flyway migrations](src/main/resources/db/migration) |
+| Environment contract | [application.yml](src/main/resources/application.yml), [.env.example](../../.env.example) |
 
-{
-  "appointmentDate": "2026-08-24",
-  "startTime": "10:00:00",
-  "branchId": null,
-  "phone": "0901234567"
-}
-```
+## Invariants
 
-Authenticated patients may omit `phone`; anonymous local booking flows must
-provide the phone number attached to the appointment. The operation accepts
-only `CONFIRMED` appointments, validates the doctor's schedule and branch,
-and returns HTTP `409` without changing the original appointment when the
-target interval is occupied.
+Slot reservation belongs to transaction-scoped PostgreSQL locks and constraints; branch/schedule checks still apply on reschedule. Clinical role checks must include ownership/linkage. Payment webhook receipt is separate from authorized review. AI service authentication and source policy cannot be bypassed through a UI toggle.
 
-SQL `TIME` fields represent wall-clock values. `LocalTimeTypeContributor`
-registers JDBC 4.2 binding for `LocalTime` attributes and query parameters, so
-appointment overlap checks, schedules, quiet hours and reminder documents agree
-on UTC and non-UTC JVM hosts. Instant/offset timestamp mappings and the database
-schema remain unchanged. Do not enable the broader Hibernate direct-JDBC flag
-as a substitute, or rewrite historical rows automatically; compare any suspected
-legacy value with an independent source before proposing a data correction.
+[Business workflows](../../docs/business-workflows.md), [Security](../../docs/security.md) và [Database](../../docs/database/schema-overview.md) giải thích các boundary này với source owners.
+
+## Time và persistence
+
+SQL TIME là wall-clock scheduling; instant/offset timestamps là hợp đồng khác. LocalTimeTypeContributor đăng ký JDBC 4.2 binding để các query/attribute không phụ thuộc JVM timezone. Không sửa hàng lịch sử hoặc bật broad Hibernate flag thay cho chẩn đoán time mapping.
+
+Compose/staging/non-local AI hop cần shared service token. Bare local unauthenticated mode, nếu chọn, có escape-hatch riêng và không tương đương môi trường Compose/hosted. [AI README](../ai-service/README.md) sở hữu runtime/provider contract.

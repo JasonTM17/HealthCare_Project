@@ -30,7 +30,7 @@ docker ps --filter name=healthcare-local-demo --format "{{.Names}} | {{.Status}}
 | Mailpit (hộp thư demo) | http://localhost:8025 |
 | MinIO console | http://localhost:9001 |
 | Postgres | localhost:5434 (user `healthcare`, DB `healthcare`) |
-| AI service | **không publish ra host** — mạng `internal` theo thiết kế cô lập egress. Kiểm tra: `docker exec healthcare-local-demo-ai-service-1 python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/livez').status)"` |
+| AI service | Compose khai báo loopback `127.0.0.1:8000` qua `AI_SERVICE_HOST_PORT`; AI chỉ ở mạng `internal`, khả năng kết nối host cần kiểm tra theo runtime. Kiểm tra process bên trong container: `docker exec healthcare-local-demo-ai-service-1 python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8000/livez').status)"` |
 
 ## Tài khoản seed
 
