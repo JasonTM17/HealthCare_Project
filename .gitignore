@@ -122,3 +122,25 @@ scripts/local-dev-repair/
 # Junction compensating npm --prefix double-path in workflow gate commands (build-fix session 2026-10-01)
 apps/frontend/apps/
 .playwright-mcp/
+
+# Local collaboration and editor instructions (not public project documentation)
+/AGENTS.md
+/GEMINI.md
+/apps/frontend/AGENTS.md
+/apps/frontend/CLAUDE.md
+/.zcodeignore
+/skills-lock.json
+
+# Dated task briefs and raw verification output; curated docs live under docs/
+/ORIGINAL_REQUEST.md
+/PROJECT.md
+/TEST_READY.md
+/reports/
+/apps/backend/benchmark/BENCHMARK_REPORT.md
+/apps/backend/benchmark/*.csv
+/apps/backend/benchmark/*.json
+
+# Ad hoc local captures; keep intentional documentation media under docs/assets/
+/*.png
+/apps/frontend/tmp-*.png
+/apps/frontend/chat-page.png

@@ -11,8 +11,8 @@ local role accounts, runbook, and regression tests.
 
 Evergreen evidence owners:
 
-- Project instructions exist in `AGENTS.md` and `OPENCODE.md`; local AgentKit
-  runtime config may live outside tracked source.
+- Public contribution conventions live in [the contribution guide](contributing.md); local agent
+  runtime configuration may exist outside tracked source.
 - Backend, frontend, AI service, Docker Compose, migrations, tests, and CI are
   present under `apps/`, `infrastructure/`, and `.github/workflows/`.
 - Git branch, commit, and remote claims are kept in the delivery handoff and are
@@ -740,5 +740,5 @@ Commit discipline:
   browser auth to secure HTTP-only cookies remains a production hardening option.
 - The AI service supports deterministic local mode for offline demonstration and
   configurable providers through environment variables.
-- Git branch and remote policy follows `AGENTS.md` and the repository delivery
-  workflow; use intent-based branches and preserve exact-head evidence.
+- Git branch and remote policy follows [the contribution guide](contributing.md) and the repository
+  delivery workflow; use intent-based branches and preserve exact-head evidence.

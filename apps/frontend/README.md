@@ -46,4 +46,4 @@ Một build local thành công không chứng minh Vercel đã triển khai cùn
 
 Nhận diện/nội dung HealthCare là của dự án; site tham khảo chỉ định hướng information architecture. Rich-text editor dùng assets self-hosted và renderer chung; không tự thêm provider/cloud key để sửa một plugin path. Giấy phép repo không thay giấy phép dependency; kiểm tra tài liệu/license của thư viện khi phân phối.
 
-Đọc [AGENTS.md](AGENTS.md) trước frontend source changes.
+Đọc [hướng dẫn đóng góp](../../docs/contributing.md) trước khi sửa frontend.
