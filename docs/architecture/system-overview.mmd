@@ -7,13 +7,7 @@ flowchart TB
     CORE -->|"Service-authenticated HTTP"| AI["FastAPI · retrieve / generate / validate"]
     CORE -->|"Feature-gated"| STORE["MinIO / S3 · private objects"]
     CORE -->|"Feature-gated"| SCAN["Scanner adapter + ClamAV"]
-    CORE -->|"Outbox"| MAIL["Mailpit local / configured SMTP"]
+    CORE -. "Email / outbox khi bật" .-> MAIL["Mailpit local / configured SMTP"]
     AI --> MEM["Local memory RAG"]
     AI -. "Configured alternative" .-> PROJ["Protected Supabase RAG projection"]
     AI -. "Environment + policy gates" .-> LLM["Remote provider"]
-    classDef core fill:#eff6ff,stroke:#2563eb,color:#111827;
-    classDef data fill:#f0fdf4,stroke:#16a34a,color:#111827;
-    classDef optional fill:#faf5ff,stroke:#9333ea,color:#111827;
-    class UI,BFF,CORE,AI core;
-    class PG,REDIS,STORE data;
-    class PROJ,LLM,SCAN,MAIL optional;

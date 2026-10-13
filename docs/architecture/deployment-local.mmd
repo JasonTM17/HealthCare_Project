@@ -1,24 +1,15 @@
-flowchart TB
-    Browser[Browser / localhost:3000] --> FE[Frontend container]
-    FE --> BE[Backend container]
-    BE --> DB[(Postgres volume)]
-    BE --> Redis[(Redis volume)]
-    BE --> AI[AI internal-only container]
-    BE --> Minio[MinIO volume]
-    BE --> SMTP[Mailpit local sink]
-    BE --> Scanner[Private scanner adapter]
-    Scanner --> AV[ClamAV]
-    subgraph Internal[Compose default network: internal]
-        AI
-        Scanner
-        AV
+flowchart LR
+    Browser["Browser · localhost:3000"] --> FE["Next.js + BFF"]
+    subgraph Edge["edge + internal networks"]
+        FE --> BE["Spring Boot"]
+        BE --> DB[("PostgreSQL volume")]
+        BE --> Redis[("Redis volume")]
+        BE --> Minio[("MinIO volume")]
+        BE --> SMTP["Mailpit local sink"]
     end
-    subgraph Edge[Compose edge network / selected loopback ports]
-        FE
-        BE
-        DB
-        Redis
-        Minio
-        SMTP
+    subgraph Internal["internal network only"]
+        AI["FastAPI AI"]
+        Scanner["Scanner adapter"] --> AV["ClamAV"]
     end
-    Note[AI declares loopback port 8000 / internal network / no provider egress]
+    BE -->|"Service HTTP"| AI
+    BE -. "Feature-gated upload" .-> Scanner

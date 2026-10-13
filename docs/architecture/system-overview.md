@@ -6,9 +6,23 @@
 
 Sơ đồ logic mô tả trách nhiệm và đường gọi được sở hữu bởi nguồn trong repo. Sơ đồ deployment mô tả hai môi trường khác nhau; không ghép tất cả dịch vụ local vào sơ đồ cloud như thể chúng đã được triển khai cùng nhau.
 
-[![Kiến trúc logic](../assets/architecture.png)](../assets/architecture.svg)
+~~~mermaid
+flowchart TB
+    U["Khách · Bệnh nhân · Bác sĩ · Admin"] --> UI["Next.js UI / role portals"]
+    UI --> BFF["Same-origin BFF / route handlers"]
+    BFF -->|"Trusted HTTP + user session"| CORE["Spring Boot · modular monolith"]
+    CORE -->|"Transactions / authority"| PG[("PostgreSQL · Flyway")]
+    CORE -->|"Rate limit / wake-up"| REDIS[("Redis")]
+    CORE -->|"Service-authenticated HTTP"| AI["FastAPI · retrieve / generate / validate"]
+    CORE -->|"Feature-gated"| STORE["MinIO / S3 · private objects"]
+    CORE -->|"Feature-gated"| SCAN["Scanner adapter + ClamAV"]
+    CORE -. "Email / outbox khi bật" .-> MAIL["Mailpit local / configured SMTP"]
+    AI --> MEM["Local memory RAG"]
+    AI -. "Configured alternative" .-> PROJ["Protected Supabase RAG projection"]
+    AI -. "Environment + policy gates" .-> LLM["Remote provider"]
+~~~
 
-Nguồn chỉnh sửa: [system-overview.mmd](system-overview.mmd). Bản ảnh có thể đọc trực tiếp trên GitHub; SVG giữ chữ và đường nối dạng vector. [Media guide](../media-guide.md) chỉ cách tái tạo và kiểm tra.
+Sơ đồ Mermaid hiển thị trực tiếp theo theme GitHub. [Nguồn chỉnh sửa](system-overview.mmd) cần được cập nhật cùng khối trên khi topology đổi; đường chấm thể hiện nhánh có điều kiện.
 
 ## Các tầng và trách nhiệm
 
@@ -45,9 +59,25 @@ Hai bước retrieve/generate cho phép Core kiểm tra eligibility của nguồ
 
 ## Deployment local
 
-![Compose topology](../assets/deployment-local.png)
+~~~mermaid
+flowchart LR
+    Browser["Browser · localhost:3000"] --> FE["Next.js + BFF"]
+    subgraph Edge["edge + internal networks"]
+        FE --> BE["Spring Boot"]
+        BE --> DB[("PostgreSQL volume")]
+        BE --> Redis[("Redis volume")]
+        BE --> Minio[("MinIO volume")]
+        BE --> SMTP["Mailpit local sink"]
+    end
+    subgraph Internal["internal network only"]
+        AI["FastAPI AI"]
+        Scanner["Scanner adapter"] --> AV["ClamAV"]
+    end
+    BE -->|"Service HTTP"| AI
+    BE -. "Feature-gated upload" .-> Scanner
+~~~
 
-Nguồn: [deployment-local.mmd](deployment-local.mmd), [Compose base](../../infrastructure/docker-compose.yml) và [demo overlay](../../infrastructure/docker-compose.local-demo.yml).
+Nguồn chỉnh sửa: [deployment-local.mmd](deployment-local.mmd). Executable owners: [Compose base](../../infrastructure/docker-compose.yml) và [demo overlay](../../infrastructure/docker-compose.local-demo.yml). Edge và internal ở sơ đồ là kết nối container, không phải đường public internet; cổng host loopback được mô tả bên dưới.
 
 - Web, backend và local tools có cổng host loopback được cấu hình.
 - AI chỉ ở network internal, không gắn edge network. Compose có khai báo host port loopback 8000 (override bằng `AI_SERVICE_HOST_PORT`); đây là cấu hình ingress, không tạo provider egress. Kiểm tra khả năng kết nối host trên runtime thực tế, không suy ra từ khai báo port.

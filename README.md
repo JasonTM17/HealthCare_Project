@@ -2,9 +2,9 @@
 
 # HealthCare
 
-### Nền tảng bệnh viện số · Đặt lịch · Hồ sơ khám · Trợ lý AI
+### Nền tảng bệnh viện số cho bệnh nhân, bác sĩ và quản trị viên
 
-Một không gian chung cho **bệnh nhân, bác sĩ và quản trị viên**, từ tìm cơ sở khám đến theo dõi lịch hẹn, hồ sơ và nội dung y tế.
+Tìm dịch vụ, đặt lịch, theo dõi hồ sơ khám và vận hành bệnh viện trong một hệ thống; trợ lý AI hỗ trợ thông tin theo các ranh giới nguồn và quyền truy cập.
 
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
 ![Next.js](https://img.shields.io/badge/Next.js-16-111827?logo=nextdotjs)
@@ -13,201 +13,292 @@ Một không gian chung cho **bệnh nhân, bác sĩ và quản trị viên**, t
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-[Website](https://www.healthcare.id.vn) · [Bộ tài liệu](docs/README.md) · [Chạy local](docs/getting-started.md) · [Kiến trúc](docs/architecture/system-overview.md)
+[Website](https://www.healthcare.id.vn) · [Tài liệu](docs/README.md) · [Chạy local](docs/getting-started.md) · [Kiến trúc](docs/architecture/system-overview.md)
 
 </div>
 
-> Dự án sử dụng dữ liệu minh họa. Ảnh/GIF dưới đây ghi từ stack demo local; chúng minh họa giao diện và không xác nhận hoạt động ngân hàng, điều trị thực tế hay trạng thái triển khai của website. AI hỗ trợ thông tin và phân luồng, không thay thế bác sĩ.
+> Ảnh và GIF được ghi từ stack demo local với dữ liệu giả lập. Chúng cho thấy giao diện đã render, không xác nhận thao tác đặt lịch, thanh toán, điều trị hay trạng thái của website đang triển khai. Trợ lý AI hỗ trợ thông tin; quyết định y tế thuộc nhân viên chuyên môn. [Nguồn gốc media](docs/media-guide.md).
 
-## Khám phá nhanh
+## Mục lục
 
-- [Trải nghiệm và GIF](#trải-nghiệm-và-gif)
-- [Nghiệp vụ theo vai trò](#nghiệp-vụ-theo-vai-trò)
-- [Kiến trúc và điểm nhấn kỹ thuật](#kiến-trúc-và-điểm-nhấn-kỹ-thuật)
-- [Chạy dự án](#chạy-dự-án)
-- [Công nghệ và cấu trúc mã nguồn](#công-nghệ-và-cấu-trúc-mã-nguồn)
-- [API và kiểm thử](#api-và-kiểm-thử)
-- [Tài liệu chuyên sâu](#tài-liệu-chuyên-sâu)
-- [Đóng góp và giấy phép](#đóng-góp-và-giấy-phép)
+1. [Tổng quan sản phẩm](#tổng-quan-sản-phẩm)
+2. [Trải nghiệm và GIF](#trải-nghiệm-và-gif)
+3. [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
+4. [Luồng nghiệp vụ và dữ liệu](#luồng-nghiệp-vụ-và-dữ-liệu)
+5. [Trợ lý AI và ranh giới an toàn](#trợ-lý-ai-và-ranh-giới-an-toàn)
+6. [Chạy dự án trên máy mới](#chạy-dự-án-trên-máy-mới)
+7. [Công nghệ, mã nguồn và API](#công-nghệ-mã-nguồn-và-api)
+8. [Kiểm thử và tài liệu chuyên sâu](#kiểm-thử-và-tài-liệu-chuyên-sâu)
+9. [Đóng góp và giấy phép](#đóng-góp-và-giấy-phép)
 
-## Dự án giải quyết điều gì?
+## Tổng quan sản phẩm
 
-HealthCare tổ chức hành trình khám trong một hệ thống có nhiều cơ sở: tra cứu chuyên khoa và bác sĩ, chọn lịch phù hợp, xác nhận cuộc hẹn, theo dõi kết quả và trao đổi sau khám. Bác sĩ có cổng lâm sàng riêng; quản trị viên điều hành danh mục, lịch, nội dung, tài khoản và hàng đợi đối soát.
+HealthCare tổ chức hành trình khám trong một mô hình bệnh viện có nhiều chi nhánh. Người dùng khám phá chuyên khoa, bác sĩ và gói khám; chọn khung giờ; theo dõi cuộc hẹn và thông tin sau khám. Bác sĩ làm việc trong cổng lâm sàng riêng. Quản trị viên quản lý danh mục, nội dung, tài khoản và các hàng đợi cần quyết định của người có quyền.
 
-Các ranh giới kỹ thuật chính: giữ chỗ khi nhiều người chọn cùng khung giờ, quyền truy cập hồ sơ theo chủ sở hữu, phiên trình duyệt, xuất bản nội dung, lịch sử hội thoại AI và kiểm soát tệp đính kèm. Xem [phạm vi sản phẩm và thuật ngữ](docs/project-overview.md).
+| Vai trò | Hành trình trong ứng dụng | Điểm đọc tiếp |
+| --- | --- | --- |
+| Khách | Tìm cơ sở, chuyên khoa, bác sĩ, gói khám, bài viết và bắt đầu đặt lịch | [Luồng booking](docs/business-workflows.md#đặt-lịch-và-giữ-chỗ) |
+| Bệnh nhân | Xem lịch hẹn, hồ sơ, đơn thuốc, kết quả, chăm sóc, thông báo và hội thoại AI | [Cổng bệnh nhân](docs/project-overview.md#bệnh-nhân) |
+| Bác sĩ | Xem lịch khám, ghi nhận lâm sàng, tư vấn, kế hoạch chăm sóc và bài viết | [Cổng bác sĩ](docs/project-overview.md#bác-sĩ) |
+| Quản trị | Quản lý danh mục, lịch, người dùng, CMS, kiểm duyệt AI và đối soát | [Cổng quản trị](docs/project-overview.md#quản-trị-viên) |
+
+Chi nhánh trong sơ đồ dữ liệu là các đơn vị của **cùng một mô hình bệnh viện**; điều đó không tự chứng minh cô lập dữ liệu giữa nhiều bệnh viện độc lập. Quyền đọc hồ sơ được kiểm tra tại backend theo chủ sở hữu và liên kết chuyên môn. [Phạm vi và thuật ngữ](docs/project-overview.md) giải thích các vai trò.
 
 ## Trải nghiệm và GIF
 
-Các tour được ghi bằng trình duyệt thật trên localhost:3000, sử dụng dữ liệu seed giả lập. Video được chuyển sang GIF và giảm tốc độ khung hình để phù hợp GitHub. Không dựng giao diện hoặc thay API bằng mock. [Nguồn gốc và cách tái tạo media](docs/media-guide.md).
+Bốn tour dưới đây là video điều hướng trình duyệt thật, ghi trên `localhost:3000` từ dữ liệu seed giả lập rồi chuyển sang GIF. Mỗi tour chỉ mở màn hình; không tạo lịch, gửi chat, sửa hồ sơ, xuất bản nội dung hoặc phê duyệt tiền. [Media guide](docs/media-guide.md) ghi tuyến, kích thước, giới hạn và cách tái tạo.
 
 ### Khám phá dịch vụ
 
-Trang chủ → Chuyên khoa → Bác sĩ → Gói khám → Trang đặt lịch. Tour dừng ở giao diện lựa chọn; không tạo lịch hẹn.
+Trang chủ → Chuyên khoa → Bác sĩ → Gói khám → Đặt lịch.
 
-![Tour khám phá HealthCare](docs/assets/repo-tours/public-tour.gif)
+![Tour khám phá dịch vụ](docs/assets/repo-tours/public-tour.gif)
 
-| Trang chủ | Trải nghiệm mobile |
+| Trang chủ | Chuyên khoa |
 | --- | --- |
-| ![Trang chủ local](docs/assets/repo-tours/public-01.png) | ![Trang chủ ở chiều rộng 390px](docs/assets/repo-tours/public-mobile.png) |
+| ![Trang chủ demo local](docs/assets/repo-tours/public-01.png) | ![Danh sách chuyên khoa](docs/assets/repo-tours/public-02.png) |
+| **Bác sĩ** | **Trang đặt lịch** |
+| ![Danh sách bác sĩ](docs/assets/repo-tours/public-03.png) | ![Giao diện đặt lịch](docs/assets/repo-tours/public-05.png) |
+
+[Gói khám](docs/assets/repo-tours/public-04.png) · [Trang chủ ở viewport 390 px](docs/assets/repo-tours/public-mobile.png)
 
 ### Cổng bệnh nhân
 
-Dashboard → Lịch hẹn → Lịch sử khám → Đơn thuốc → Trợ lý AI. Tour cho thấy màn hình đọc dữ liệu; không thực hiện thanh toán hoặc gửi thông tin sức khỏe mới.
+Dashboard → Lịch hẹn → Lịch sử khám → Đơn thuốc → Trợ lý AI.
 
-![Tour bệnh nhân](docs/assets/repo-tours/patient-tour.gif)
+![Tour cổng bệnh nhân](docs/assets/repo-tours/patient-tour.gif)
 
-| Dashboard bệnh nhân | Lịch sử khám |
+| Tổng quan | Lịch hẹn |
 | --- | --- |
-| ![Dashboard bệnh nhân local](docs/assets/repo-tours/patient-01.png) | ![Lịch sử khám minh họa](docs/assets/repo-tours/patient-03.png) |
+| ![Dashboard bệnh nhân](docs/assets/repo-tours/patient-01.png) | ![Lịch hẹn của bệnh nhân](docs/assets/repo-tours/patient-02.png) |
+| **Lịch sử khám** | **Trợ lý AI** |
+| ![Lịch sử khám](docs/assets/repo-tours/patient-03.png) | ![Màn hình trợ lý AI](docs/assets/repo-tours/patient-05.png) |
+
+[Đơn thuốc](docs/assets/repo-tours/patient-04.png)
 
 ### Cổng bác sĩ
 
-Không gian lâm sàng → Lịch khám → Tư vấn → Kế hoạch chăm sóc → Bài viết. Mỗi vai trò sử dụng phiên trình duyệt riêng.
+Không gian lâm sàng → Lịch khám → Tư vấn → Kế hoạch chăm sóc → Bài viết.
 
-![Tour bác sĩ](docs/assets/repo-tours/doctor-tour.gif)
+![Tour cổng bác sĩ](docs/assets/repo-tours/doctor-tour.gif)
 
-| Không gian lâm sàng | Kế hoạch chăm sóc |
+| Không gian lâm sàng | Lịch khám |
 | --- | --- |
-| ![Dashboard bác sĩ local](docs/assets/repo-tours/doctor-01.png) | ![Kế hoạch chăm sóc minh họa](docs/assets/repo-tours/doctor-04.png) |
+| ![Dashboard bác sĩ](docs/assets/repo-tours/doctor-01.png) | ![Lịch khám của bác sĩ](docs/assets/repo-tours/doctor-02.png) |
+| **Tư vấn** | **Kế hoạch chăm sóc** |
+| ![Danh sách tư vấn](docs/assets/repo-tours/doctor-03.png) | ![Kế hoạch chăm sóc](docs/assets/repo-tours/doctor-04.png) |
+
+[Bài viết](docs/assets/repo-tours/doctor-05.png)
 
 ### Cổng quản trị
 
-Điều hành → Danh bạ bác sĩ → Tài khoản → CMS → Kiểm duyệt AI → Đối soát thanh toán. Tour chỉ mở màn hình; không lưu nội dung, đổi quyền hoặc duyệt giao dịch.
+Điều hành → Bác sĩ → Người dùng → CMS → Kiểm duyệt AI → Đối soát thanh toán.
 
-![Tour quản trị](docs/assets/repo-tours/admin-tour.gif)
+![Tour cổng quản trị](docs/assets/repo-tours/admin-tour.gif)
 
-| Điều hành bệnh viện | Quản lý bác sĩ |
+| Tổng quan vận hành | Danh bạ bác sĩ |
 | --- | --- |
-| ![Dashboard quản trị local](docs/assets/repo-tours/admin-01.png) | ![Danh bạ bác sĩ quản trị](docs/assets/repo-tours/admin-02.png) |
+| ![Dashboard quản trị](docs/assets/repo-tours/admin-01.png) | ![Quản lý bác sĩ](docs/assets/repo-tours/admin-02.png) |
+| **CMS** | **Đối soát thanh toán** |
+| ![Quản lý nội dung CMS](docs/assets/repo-tours/admin-04.png) | ![Hàng đợi đối soát thanh toán](docs/assets/repo-tours/admin-06.png) |
 
-## Nghiệp vụ theo vai trò
+[Người dùng](docs/assets/repo-tours/admin-03.png) · [Kiểm duyệt AI](docs/assets/repo-tours/admin-05.png)
 
-| Vai trò | Hành trình chính | Tài liệu |
-| --- | --- | --- |
-| Khách | Tìm cơ sở, chuyên khoa, bác sĩ, gói khám, đọc bài viết; bắt đầu đặt lịch và hỏi thông tin bệnh viện | [Luồng đặt lịch](docs/business-workflows.md#đặt-lịch-và-giữ-chỗ) |
-| Bệnh nhân | Lịch hẹn, hồ sơ, đơn thuốc, kết quả, tài liệu, tư vấn, chăm sóc, thông báo và hội thoại AI | [Cổng bệnh nhân](docs/project-overview.md#bệnh-nhân) |
-| Bác sĩ | Lịch khám, ghi nhận lâm sàng, tư vấn, kế hoạch chăm sóc, bài viết và review nội dung AI | [Cổng bác sĩ](docs/project-overview.md#bác-sĩ) |
-| Quản trị | Danh mục, lịch, tài khoản, CMS, hỏi đáp, tuyển dụng, đối soát và quản trị AI | [Cổng quản trị](docs/project-overview.md#quản-trị-viên) |
+## Kiến trúc hệ thống
 
-Có nhiều **chi nhánh trong cùng mô hình bệnh viện**. Không suy ra khả năng cô lập tenant của nhiều bệnh viện độc lập từ danh sách chi nhánh. Vai trò cũng không tự cấp quyền đọc mọi hồ sơ; backend kiểm tra quyền sở hữu và liên kết chuyên môn.
+Ứng dụng web dùng **Next.js** cho giao diện và các route BFF cùng origin. **Spring Boot** là nơi xác thực, kiểm tra quyền, xử lý giao dịch và lưu nghiệp vụ; đây là một modular monolith. **FastAPI** phục vụ retrieval/generation AI phía sau Core. PostgreSQL giữ dữ liệu nghiệp vụ; Redis dùng cho rate limit và tín hiệu realtime. Các tích hợp tệp, scanner và mail phụ thuộc cấu hình tính năng.
 
-## Kiến trúc và điểm nhấn kỹ thuật
+~~~mermaid
+flowchart TB
+    Browser["Khách / bệnh nhân / bác sĩ / admin"] --> UI["Next.js UI"]
+    UI --> BFF["Same-origin BFF"]
+    BFF -->|"Trusted HTTP + phiên người dùng"| Core["Spring Boot · modular monolith"]
+    Core -->|"Giao dịch và dữ liệu nghiệp vụ"| SQL[("PostgreSQL + Flyway")]
+    Core -->|"Rate limit / tín hiệu realtime"| Redis[("Redis")]
+    Core -->|"Service-authenticated HTTP"| AI["FastAPI · AI service"]
+    Core -. "Tính năng được bật" .-> Object["MinIO / S3 + scanner"]
+    Core -. "Theo cấu hình" .-> Mail["Mail / notification"]
+    AI --> Local["Local RAG"]
+    AI -. "Adapter được chọn" .-> Projection["Protected RAG projection"]
+    AI -. "Policy + environment" .-> Provider["Remote provider"]
+~~~
 
-[![Kiến trúc logic HealthCare](docs/assets/architecture.png)](docs/assets/architecture.svg)
+**Ranh giới quan trọng:** browser không nhận service token; BFF không cấp quyền nghiệp vụ; Core vẫn kiểm tra vai trò và quyền sở hữu. Đường chấm thể hiện lựa chọn hoặc tính năng có điều kiện, không khẳng định mọi tích hợp đang chạy trên website. [Sơ đồ phân tầng, Compose và hosted](docs/architecture/system-overview.md) · [Auth/BFF](docs/api-reference.md#xác-thực-và-phiên-trình-duyệt).
 
-Luồng chính: **Browser → Next.js/BFF → Spring Boot → PostgreSQL hoặc AI service**. Spring là ranh giới nghiệp vụ và quyền truy cập; FastAPI xử lý AI phía sau ranh giới đó. Redis hỗ trợ giới hạn tần suất và realtime; MinIO/scanner/mail là các tích hợp phụ thuộc môi trường.
+### Topology local
 
 ~~~mermaid
 flowchart LR
-    U[Khách / Bệnh nhân / Bác sĩ / Admin] --> W[Next.js UI]
-    W --> B[BFF cùng origin]
-    B --> S[Spring Boot API]
-    S --> D[(PostgreSQL)]
-    S --> R[(Redis)]
-    S --> A[FastAPI AI]
-    S --> O[Storage / scanner / mail]
+    User["Browser localhost:3000"] --> Web["Frontend + BFF"]
+    Web --> Api["Spring API"]
+    Api --> DB[("PostgreSQL")]
+    Api --> Cache[("Redis")]
+    Api --> AI["FastAPI trên network internal"]
+    Api -. "Feature flag" .-> Files["MinIO + scanner"]
+    Api -. "Local mail" .-> Inbox["Mailpit"]
 ~~~
 
-- **Giữ chỗ và chống trùng lịch:** transaction, khóa advisory PostgreSQL và các ràng buộc lịch hoạt động. [Luồng và máy trạng thái](docs/business-workflows.md).
-- **Phiên trình duyệt:** cookie phiên do server quản lý và CSRF cho yêu cầu thay đổi dữ liệu; API JWT có hợp đồng riêng. [Auth và BFF](docs/api-reference.md#xác-thực-và-phiên-trình-duyệt).
-- **AI có nguồn và giới hạn:** phân biệt câu hỏi công khai với hội thoại bệnh nhân; consent, nguồn được duyệt, quota và hủy yêu cầu là các ranh giới riêng. [AI/RAG](docs/ai-system.md).
-- **CMS xuất bản:** bản nháp, bản công khai và tín hiệu realtime có quyền hạn khác nhau. PostgreSQL giữ bản xuất bản; Redis đánh thức client. [CMS realtime](docs/architecture/cms-realtime.md).
-- **Thanh toán cần đối soát:** gửi mã giao dịch hoặc nhận webhook đưa giao dịch vào hàng đợi; trạng thái đã trả tiền cần quyết định được phép. [Luồng thanh toán](docs/business-workflows.md#thanh-toán-và-đối-soát).
-- **Tệp y tế có điều kiện:** bucket riêng, quyền truy cập, quét tệp và cờ tính năng. [Security](docs/security.md).
+Compose khai báo cổng AI loopback mặc định `127.0.0.1:8000` và AI gắn network internal; khai báo ingress này không tạo provider egress. Các cổng có thể đổi theo `.env`. [Compose base](infrastructure/docker-compose.yml) · [demo overlay](infrastructure/docker-compose.local-demo.yml) · [deployment chi tiết](docs/architecture/system-overview.md#deployment-local).
 
-[Kiến trúc chi tiết](docs/architecture/system-overview.md) có phân tầng, deployment local/hosted, luồng auth/AI và nguồn Mermaid chỉnh sửa được. [Database](docs/database/schema-overview.md) có ERD tách theo miền.
+## Luồng nghiệp vụ và dữ liệu
 
-## Chạy dự án
+### Đặt lịch: giữ chỗ trước khi xác nhận
 
-Yêu cầu Git và Docker Engine/Compose v2. Chạy từng dịch vụ trực tiếp cần Node.js/npm theo engines của frontend, Java 21 và Python 3.12. Thực hiện từ thư mục gốc repo.
+Người dùng chọn slot; backend kiểm tra lịch bác sĩ và giữ chỗ có hạn trong transaction. Mã OTP xác nhận trước khi cuộc hẹn chuyển sang `CONFIRMED`. Khóa slot và ràng buộc PostgreSQL xử lý các request cạnh tranh; UI vô hiệu hóa nút không đủ để ngăn trùng.
+
+~~~mermaid
+sequenceDiagram
+    actor Patient as Người đặt lịch
+    participant Web as Browser / BFF
+    participant Core as BookingService
+    participant DB as PostgreSQL
+    participant Mail as Email delivery
+    Patient->>Web: Chọn bác sĩ, ngày và slot
+    Web->>Core: POST /appointments/hold
+    Core->>DB: Transaction + slot lock + validation
+    alt Slot không hợp lệ hoặc đã bị chiếm
+        Core-->>Web: Từ chối / xung đột
+    else Hold hợp lệ
+        Core->>DB: PENDING_CONFIRMATION + hạn giữ
+        Core->>Mail: Gửi OTP (outbox khi bật)
+        Core-->>Web: Booking code và thời hạn
+        Patient->>Web: Nhập OTP
+        Web->>Core: POST /appointments/confirm
+        Core->>DB: Kiểm tra OTP, expiry và trạng thái
+        Core-->>Web: CONFIRMED khi hợp lệ
+    end
+~~~
+
+[BookingService](apps/backend/src/main/java/com/healthcare/appointment/service/BookingService.java), [slot locker](apps/backend/src/main/java/com/healthcare/appointment/service/PostgresAppointmentSlotLocker.java) và [luồng nghiệp vụ đầy đủ](docs/business-workflows.md#đặt-lịch-và-giữ-chỗ) là nguồn chính xác cho mọi nhánh và trạng thái.
+
+### Quan hệ dữ liệu chính
+
+Sơ đồ chỉ chọn các quan hệ giúp đọc hành trình bệnh nhân; schema đầy đủ thuộc [Flyway migrations](apps/backend/src/main/resources/db/migration). Dấu quan hệ tùy chọn không cấp quyền truy cập.
+
+~~~mermaid
+erDiagram
+    users o|--o| patient_profiles : account_binding
+    users o|--o| doctors : account_binding
+    doctors ||--o{ doctor_branches : assigned
+    branches ||--o{ doctor_branches : hosts
+    doctors ||--o{ doctor_specialties : has
+    specialties ||--o{ doctor_specialties : includes
+    patient_profiles ||--o{ appointments : books
+    doctors ||--o{ appointments : attends
+    appointments o|--o| medical_records : encounter
+    medical_records o|--o{ prescriptions : treatment
+    appointments ||--o| bank_transfer_payments : payment
+    appointments ||--o{ patient_care_plans : follow_up
+~~~
+
+PostgreSQL sở hữu appointment, hồ sơ, thanh toán, conversation history và CMS snapshot. Redis không thay thế SQL; object storage chứa tệp nhưng linkage/quyền và trạng thái quét thuộc Core. [ERD theo miền và migration](docs/database/schema-overview.md).
+
+### Các quyết định cần người có quyền
+
+| Tình huống | Điều kiện để chuyển trạng thái | Nguồn |
+| --- | --- | --- |
+| Cuộc hẹn | Hold, OTP, hết hạn, check-in và hủy theo quy tắc slot/owner | [Booking lifecycle](docs/business-workflows.md#vòng-đời-cuộc-hẹn) |
+| Thanh toán chuyển khoản | Mã giao dịch hoặc webhook vào hàng đợi; duyệt/từ chối theo policy và audit | [Payment flow](docs/business-workflows.md#thanh-toán-và-đối-soát) |
+| Nội dung CMS | Draft tách public snapshot; publish tạo version rồi client reconcile | [CMS realtime](docs/architecture/cms-realtime.md) |
+| Nguồn AI lâm sàng | Revision/hash, approval, revoke và expiry quyết định eligibility | [AI governance](docs/business-workflows.md#kiểm-duyệt-nguồn-ai) |
+
+## Trợ lý AI và ranh giới an toàn
+
+Hỗ trợ công khai chỉ dùng thông tin bệnh viện phù hợp. Hội thoại bệnh nhân có chủ sở hữu, mode, consent, quota và lifecycle riêng. Một lượt tạo câu trả lời đi qua Core để kiểm tra nguồn trước khi dùng provider. Hướng dẫn khẩn cấp cố định được nhận diện sau kiểm tra owner và trước mode/current-consent gate; nhánh đó không gọi provider nhưng vẫn đi qua idempotency và commit control.
+
+~~~mermaid
+flowchart TB
+    Request["Patient request"] --> Owner["Conversation owner"]
+    Owner --> Emergency{"Khẩn cấp?"}
+    Emergency -->|"Có"| Fixed["Hướng dẫn cố định"]
+    Emergency -->|"Không"| Gate["Mode · consent · safety"]
+    Gate -->|"Được phép"| Sources["Retrieve + source eligibility"]
+    Gate -->|"Safety action"| Bounded["Câu trả lời có giới hạn"]
+    Sources -->|"Nguồn hợp lệ"| Answer["Generation + validation"]
+    Sources -->|"Thiếu nguồn"| Bounded
+    Fixed --> Commit["Idempotency + permit + commit"]
+    Bounded --> Commit
+    Answer --> Commit
+    Commit --> History[("Conversation history")]
+~~~
+
+SSE hoặc hiệu ứng đánh máy không tự chứng minh provider stream token thật. Nguồn công khai, RAG projection và dữ liệu y tế riêng có authority khác nhau. [AI/RAG contract](docs/ai-system.md) · [Security](docs/security.md) · [AI service](apps/ai-service/README.md).
+
+## Chạy dự án trên máy mới
+
+Cần Git và Docker Engine với Compose v2. Chạy từng service ngoài Docker cần Node/npm theo [frontend engines](apps/frontend/package.json), Java 21 và Python 3.12. Bắt đầu từ thư mục gốc repo; điền mọi biến server-only bắt buộc trong `.env` trước khi khởi động.
 
 ~~~powershell
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-# Điền cấu hình server-only bắt buộc; xem Getting started.
+# Điền cấu hình bắt buộc theo docs/getting-started.md.
 docker compose -p healthcare-local-demo --env-file .env -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-demo.yml config --quiet
 docker compose -p healthcare-local-demo --env-file .env -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-demo.yml up -d --build
+docker compose -p healthcare-local-demo --env-file .env -f infrastructure/docker-compose.yml -f infrastructure/docker-compose.local-demo.yml ps
 ~~~
 
-[Getting started](docs/getting-started.md) nêu các nhóm cấu hình, health check và cách tránh ghi đè stack đang dùng. Không chạy với ô bí mật bắt buộc còn trống.
+Không chạy lệnh `up` khi ô bí mật bắt buộc còn trống hoặc khi tên project Compose trùng stack có dữ liệu cần giữ. [Getting started](docs/getting-started.md) mô tả preflight, biến môi trường, health check và cách tránh ghi đè stack hiện hữu.
 
-| Điểm truy cập local | Mục đích |
+| Điểm truy cập mặc định | Mục đích |
 | --- | --- |
-| http://localhost:3000 | Website và BFF |
-| http://localhost:8080/actuator/health | Health backend |
-| http://localhost:8025 | Mailpit, email thử nghiệm |
-| http://localhost:9001 | MinIO console local |
-| localhost:5434 | PostgreSQL local, cổng host mặc định |
+| [localhost:3000](http://localhost:3000) | Website và BFF |
+| [localhost:8080/actuator/health](http://localhost:8080/actuator/health) | Backend health |
+| [localhost:8025](http://localhost:8025) | Mailpit local |
+| [localhost:9001](http://localhost:9001) | MinIO console |
+| `localhost:5434` | PostgreSQL host port của demo |
 
-Compose khai báo cổng AI loopback mặc định `127.0.0.1:8000`, có thể đổi bằng `AI_SERVICE_HOST_PORT`; AI vẫn chỉ gắn network internal. Port declaration không chứng minh kết nối host đã hoạt động trên mọi runtime. [Compose](infrastructure/docker-compose.yml) là nguồn chính xác.
+Tài khoản seed local: `patient@healthcare.com`, `doctor@healthcare.com`, `admin@healthcare.com`. Mật khẩu và binding hồ sơ thuộc [demo runbook](docs/local-demo-runbook.md); tài khoản seed không được suy ra là có trên website public.
 
-### Tài khoản trải nghiệm local
+## Công nghệ, mã nguồn và API
 
-| Vai trò | Tài khoản seed | Trang sau đăng nhập |
+| Thành phần | Công nghệ | Nguồn |
 | --- | --- | --- |
-| Bệnh nhân | patient@healthcare.com | /patient/dashboard |
-| Bác sĩ | doctor@healthcare.com | /doctor/dashboard |
-| Quản trị | admin@healthcare.com | /admin |
+| Web và BFF | Next.js 16, React, TypeScript, Tailwind | [Frontend package](apps/frontend/package.json), [route handlers](apps/frontend/app/api) |
+| Core API | Spring Boot 3.5, Java 21, Security, JPA, Flyway | [Backend POM](apps/backend/pom.xml), [modules](apps/backend/src/main/java/com/healthcare) |
+| AI service | FastAPI, Python 3.12, retrieval/provider adapters | [Requirements](apps/ai-service/requirements.txt), [AI app](apps/ai-service/app) |
+| Data và local tools | PostgreSQL 16, Redis, MinIO, Mailpit, scanner/ClamAV | [Compose](infrastructure/docker-compose.yml) |
+| CI và infrastructure | GitHub Actions, Docker images, conditional hosted configuration | [Workflows](.github/workflows), [operations](docs/operations.md) |
 
-Mật khẩu demo và binding hồ sơ nằm trong [runbook local](docs/local-demo-runbook.md). Chỉ dùng với seed giả lập của stack local. Nút điền nhanh phụ thuộc cờ build demo; không suy ra tài khoản seed được bật trên website public.
+| Thư mục | Trách nhiệm chính |
+| --- | --- |
+| [apps/frontend](apps/frontend) | UI, browser API/BFF và rendered tests |
+| [apps/backend](apps/backend) | Nghiệp vụ, quyền, migration và Java tests |
+| [apps/ai-service](apps/ai-service) | Routing AI, retrieval, generation và Python tests |
+| [infrastructure](infrastructure) | Compose, scanner và local services |
+| [supabase](supabase) | Projection/RLS và reconciliation theo cấu hình |
+| [docs](docs/README.md) | Hướng dẫn và quyết định kỹ thuật |
 
-## Công nghệ và cấu trúc mã nguồn
+Browser dùng đường `/api/v1/*` cùng origin; BFF chuyển request tin cậy đến Spring. Method, DTO và quyền cuối cùng thuộc controller/service, không thuộc bảng tóm tắt này.
 
-| Thành phần | Công nghệ | Nguồn phiên bản/cấu hình |
+| Nhóm API | Owner | Điều cần chú ý |
 | --- | --- | --- |
-| Web | Next.js, React, TypeScript, Tailwind, TinyMCE, SortableJS, Chart.js | [package.json](apps/frontend/package.json) |
-| Core API | Spring Boot, Java 21, Spring Security, JPA, Flyway | [pom.xml](apps/backend/pom.xml) |
-| AI | FastAPI, Pydantic, provider/embedding adapters | [requirements](apps/ai-service/requirements.txt), [pyproject](apps/ai-service/pyproject.toml) |
-| Local data và phụ trợ | PostgreSQL, Redis, MinIO, Mailpit, ClamAV, scanner adapter | [Compose](infrastructure/docker-compose.yml) |
-| Automation | GitHub Actions và Docker images | [workflows](.github/workflows) |
+| Auth và browser session | [AuthController](apps/backend/src/main/java/com/healthcare/auth/AuthController.java) | Cookie/CSRF khác JWT APIs |
+| Danh mục và booking | [Hospital controllers](apps/backend/src/main/java/com/healthcare/hospital/controller), [AppointmentController](apps/backend/src/main/java/com/healthcare/appointment/controller/AppointmentController.java) | Public/role routes, hold, OTP, owner proof |
+| Clinical và chăm sóc | [Clinical controllers](apps/backend/src/main/java/com/healthcare/clinical/controller), [Careplan controllers](apps/backend/src/main/java/com/healthcare/careplan/controller) | Patient/doctor linkage |
+| Payment và CMS | [Payment controllers](apps/backend/src/main/java/com/healthcare/payment/controller), [CMS controllers](apps/backend/src/main/java/com/healthcare/cms/controller) | Audit, review và published snapshot |
+| Public/patient AI | [PublicAiChatController](apps/backend/src/main/java/com/healthcare/ai/controller/PublicAiChatController.java), [AiConversationController](apps/backend/src/main/java/com/healthcare/ai/chat/controller/AiConversationController.java) | Hai bề mặt, nguồn và consent riêng |
 
-| Thư mục | Đọc khi cần |
+[API reference](docs/api-reference.md) chỉ cách tìm method/path/DTO chính xác và phân biệt browser session, JWT, API public, API theo role và control plane nội bộ.
+
+## Kiểm thử và tài liệu chuyên sâu
+
+Chạy lệnh trong đúng thư mục của từng service và chuẩn bị môi trường theo [Testing](docs/testing.md). Bảng này là chỉ dẫn tái tạo, không phải tuyên bố toàn bộ suite vừa pass.
+
+| Thành phần | Lệnh chính | Điều kiện |
+| --- | --- | --- |
+| Frontend | `npm ci`, `npm run verify` | Chạy trong `apps/frontend` |
+| Backend | `.\mvnw.cmd -B verify` | Chạy trong `apps/backend` sau test preflight |
+| AI | `python -m pytest`, `python -m ruff check .`, `python -m mypy` | Chạy trong `apps/ai-service` với requirements đã cài |
+
+| Muốn đọc | Bắt đầu tại |
 | --- | --- |
-| [apps/frontend](apps/frontend) | Trang, UI, BFF và browser tests |
-| [apps/backend](apps/backend) | Module nghiệp vụ, security, migration và Java tests |
-| [apps/ai-service](apps/ai-service) | Routing AI, retrieval, provider và Python tests |
-| [infrastructure](infrastructure) | Compose, scanner, image và fixture infrastructure |
-| [supabase](supabase) | Projection/RLS và reconciliation có điều kiện |
-| [scripts](scripts) | Preflight, chạy local, backup/restore và verification |
-| [docs](docs/README.md) | Tài liệu người đọc |
-| `plans/` (local, Git ignored) | Kế hoạch và bằng chứng theo phiên |
-
-## API và kiểm thử
-
-Browser dùng /api/v1/* cùng origin website. Không gửi service token đến client. [API reference](docs/api-reference.md) dẫn đến controller/DTO và phân biệt browser session, JWT, API công khai, API theo vai trò và đường nội bộ.
-
-~~~powershell
-# Frontend, từ apps/frontend
-npm ci
-npm run verify
-
-# Backend, từ apps/backend sau preflight môi trường test
-.\mvnw.cmd -B verify
-
-# AI, từ apps/ai-service với environment đã cài requirements
-python -m pytest
-python -m ruff check .
-python -m mypy
-~~~
-
-[Testing](docs/testing.md) giải thích điều kiện PostgreSQL/MinIO/Docker, rendered tests, E2E và CI. Đây là hướng dẫn lệnh, không phải báo cáo rằng toàn bộ suite vừa chạy.
-
-## Tài liệu chuyên sâu
-
-| Nhu cầu | Tài liệu |
-| --- | --- |
-| Sản phẩm, vai trò, thuật ngữ | [Product overview](docs/project-overview.md) |
-| Cài đặt lần đầu | [Getting started](docs/getting-started.md) |
-| Hệ thống và deployment | [System architecture](docs/architecture/system-overview.md) |
-| Booking, clinical, payment, AI governance | [Business workflows](docs/business-workflows.md) |
-| Bảng và quan hệ | [Database/ERD](docs/database/schema-overview.md) |
-| API và auth contracts | [API reference](docs/api-reference.md) |
-| Retrieval, consent, provider | [AI system](docs/ai-system.md) |
-| Trust boundaries | [Security](docs/security.md) |
-| Test, review và CI | [Testing](docs/testing.md) |
-| Deploy, backup và phục hồi | [Operations](docs/operations.md) |
-| Đóng góp đúng scope | [Contributing](docs/contributing.md) |
-| Tái tạo ảnh/GIF và sơ đồ | [Media guide](docs/media-guide.md) |
+| Cài đặt và demo | [Getting started](docs/getting-started.md) · [local demo runbook](docs/local-demo-runbook.md) |
+| Kiến trúc và quyết định | [System overview](docs/architecture/system-overview.md) · [ADR index](docs/adr/README.md) |
+| Nghiệp vụ và dữ liệu | [Business workflows](docs/business-workflows.md) · [Database/ERD](docs/database/schema-overview.md) |
+| API, phiên và bảo mật | [API reference](docs/api-reference.md) · [Security](docs/security.md) |
+| AI, nguồn và consent | [AI system](docs/ai-system.md) · [AI service](apps/ai-service/README.md) |
+| Kiểm thử và vận hành | [Testing](docs/testing.md) · [Operations](docs/operations.md) |
+| Ảnh/GIF và provenance | [Media guide](docs/media-guide.md) · [metadata](docs/assets/repo-tours/provenance.json) |
 
 ## Đóng góp và giấy phép
 
-Đọc [Contributing](docs/contributing.md) và [AGENTS.md](AGENTS.md) trước khi sửa repo. Tách thay đổi theo miền, bảo toàn dữ liệu và chỉ báo gate đã thực sự chạy. Mã nguồn theo [MIT License](LICENSE).
+Đọc [Contributing](docs/contributing.md) và [AGENTS.md](AGENTS.md) trước khi sửa repo. Ghi rõ môi trường và gate thực sự đã chạy khi đề xuất thay đổi. Mã nguồn được phát hành theo [MIT License](LICENSE).
