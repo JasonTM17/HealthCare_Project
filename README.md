@@ -6,6 +6,8 @@
 
 Tìm dịch vụ, đặt lịch, theo dõi hồ sơ khám và vận hành bệnh viện trong một hệ thống; trợ lý AI hỗ trợ thông tin theo các ranh giới nguồn và quyền truy cập.
 
+**Ngôn ngữ:** [Tiếng Việt](README.md) · [English](README.en.md)
+
 [![CI](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/HealthCare_Project/actions/workflows/ci.yml)
 ![Next.js](https://img.shields.io/badge/Next.js-16-111827?logo=nextdotjs)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?logo=springboot&logoColor=white)
