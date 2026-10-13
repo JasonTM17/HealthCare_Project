@@ -19,8 +19,11 @@ Bộ tài liệu dành cho người đánh giá, developer mới và người v�
 | Quyết định kiến trúc | [Foundation](architecture/foundation.md), [ADR index](adr/README.md) |
 | CMS, preview, publish và realtime | [CMS realtime](architecture/cms-realtime.md), [TinyMCE](tinymce-integration.md) |
 | Binding bác sĩ demo | [Doctor identity](doctor-portal-identity.md) |
-| RAG local | [Local Postgres RAG](local-postgres-rag.md) |
+| Storage và retrieval RAG | [AI storage](ai-system.md#storage-backend-và-consistency), [AI service](../apps/ai-service/README.md) |
 | Kiểm thử giao diện render | [Rendered tests](frontend-rendered-tests.md) |
+| Thiết kế giao diện | [Design guide](design/README.md) |
+| Hỗ trợ tài khoản | [Quản lý mật khẩu](admin-account-passwords.md) |
+| Công cụ phát triển và vận hành | [Scripts](../scripts/README.md) |
 | Triển khai | [Deployment](deployment.md), [Beta notes](deployment-beta.md) |
 | Projection | [Supabase](../supabase/README.md), [Reconciliation](../supabase/reconciliation/README.md) |
 

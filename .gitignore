@@ -144,3 +144,39 @@ apps/frontend/apps/
 /*.png
 /apps/frontend/tmp-*.png
 /apps/frontend/chat-page.png
+
+# Historical session notes and raw design exports
+/docs/chat-ux-proposal.md
+/docs/chatbot-stability-fix.md
+/docs/deployment-beta-handoff.md
+/docs/local-postgres-rag.md
+/docs/reports/
+/docs/roadmap/2026-09-24-improvement-roadmap.md
+/docs/stitch-exports/
+/docs/design/stitch-doctor-schedule-raw.txt
+/docs/design/stitch-doctor-schedule-theme.json
+
+# Retired media pipelines; current role tours live in docs/assets/repo-tours/
+/docs/assets/demo.gif
+/docs/assets/screenshots/
+/assets/images/healthcare-public-*-2026-09-04.png
+/assets/videos/healthcare-demo.gif
+/assets/videos/healthcare-public-tour-2026-09-04.gif
+
+# Session probes and workstation-specific tooling
+/scripts/audit-r6-browser.mjs
+/scripts/challenge-m5-adversarial.mjs
+/scripts/interaction-round.mjs
+/scripts/probe-live.mjs
+/scripts/probe-doctors-pagination.mjs
+/scripts/probe-packages.mjs
+/scripts/probe-packages-all.mjs
+/scripts/capture_live_screenshots.js
+/scripts/process_screenshots.py
+/scripts/remove_stickers.py
+/scripts/verify-v82.mjs
+/scripts/update-patient-avatar.ps1
+/scripts/generate_demo_gif.py
+/scripts/stitch-mcp-call.mjs
+/scripts/verify-deploy-qa.mjs
+/scripts/seed-local-review-heads-topup.sql
