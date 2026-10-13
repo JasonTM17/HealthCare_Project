@@ -305,4 +305,4 @@ Most deeper handbook pages linked above are in Vietnamese; this English README p
 
 ## Contributing and license
 
-Read the [contribution guide](docs/contributing.md) and [AGENTS.md](AGENTS.md) before changing the repository. State the environment and the checks actually run when proposing a change. The source is released under the [MIT License](LICENSE).
+Read the [contribution guide](docs/contributing.md) before changing the repository. State the environment and the checks actually run when proposing a change. The source is released under the [MIT License](LICENSE).

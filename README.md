@@ -303,4 +303,4 @@ Chạy lệnh trong đúng thư mục của từng service và chuẩn bị môi
 
 ## Đóng góp và giấy phép
 
-Đọc [Contributing](docs/contributing.md) và [AGENTS.md](AGENTS.md) trước khi sửa repo. Ghi rõ môi trường và gate thực sự đã chạy khi đề xuất thay đổi. Mã nguồn được phát hành theo [MIT License](LICENSE).
+Đọc [hướng dẫn đóng góp](docs/contributing.md) trước khi sửa repo. Ghi rõ môi trường và gate thực sự đã chạy khi đề xuất thay đổi. Mã nguồn được phát hành theo [MIT License](LICENSE).

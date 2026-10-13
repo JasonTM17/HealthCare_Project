@@ -1,10 +1,10 @@
 # Đóng góp cho HealthCare
 
-[Tài liệu](README.md) · [Testing](testing.md) · [AGENTS.md](../AGENTS.md)
+[Tài liệu](README.md) · [Testing](testing.md)
 
 ## Bắt đầu một thay đổi
 
-Đọc root README, AGENTS gần file định sửa và `.agentkit/config.yaml`. Kiểm tra Git state, active plan, package/runtime metadata và tests liên quan. Giữ công việc dirty/untracked của người khác.
+Đọc root README, hướng dẫn đóng góp này và tài liệu gần phần định sửa. Kiểm tra Git state, package/runtime metadata và tests liên quan. Giữ công việc dirty/untracked của người khác.
 
 Tách trách nhiệm theo miền hiện có; tìm helper/module trước khi thêm lớp mới. Thay đổi UI/API/data cần dẫn đến executable owners và regression đúng boundary, không chỉ thêm prose.
 
@@ -12,7 +12,7 @@ Tách trách nhiệm theo miền hiện có; tìm helper/module trước khi th�
 
 | Việc cần làm | Bắt đầu |
 | --- | --- |
-| UI/public/portal | [Frontend app](../apps/frontend/app), [components](../apps/frontend/components), nested AGENTS |
+| UI/public/portal | [Frontend app](../apps/frontend/app), [components](../apps/frontend/components), [frontend guide](../apps/frontend/README.md) |
 | Browser requests | [api-client.ts](../apps/frontend/lib/api-client.ts) → [BFF](../apps/frontend/lib/server/healthcare-bff.ts) |
 | Business behavior | Controller → service → repository/entity trong [Core](../apps/backend/src/main/java/com/healthcare) |
 | Schema | [Migrations](../apps/backend/src/main/resources/db/migration) |
@@ -31,7 +31,7 @@ Code/runtime là nguồn hành vi; docs giải thích why/where và các giới 
 
 - Inspect diff/status trước stage; chỉ stage exact owned paths.
 - Không reset/clean, đổi Git identity, force-push hoặc lấy việc untracked khác vào một commit không liên quan.
-- Branch intent-based theo AGENTS; Conventional Commits mô tả mục tiêu.
+- Dùng nhánh tên theo mục tiêu và Conventional Commits mô tả thay đổi.
 - Không commit `.env`, DSN, keys, cookies, reports chứa secrets hoặc `.devin/`.
 - Repository yêu cầu owner-only authorship: không có agent/tool attribution trailer, header hoặc PR footer.
 - Commit, push, CI, merge và production verification là các trạng thái khác nhau; chỉ báo điều thực sự quan sát.
