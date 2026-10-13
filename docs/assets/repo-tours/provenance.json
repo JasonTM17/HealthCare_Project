@@ -1,0 +1,215 @@
+{
+  "sourceHead": "e5ea317dd9b601cef7d715bdd9a37ad7c297b313",
+  "environment": "local Compose, seeded fictional data",
+  "base": "http://localhost:3000",
+  "imageRevision": "unknown",
+  "sourceRuntimeParity": "NOT_VERIFIED",
+  "viewport": {
+    "desktop": [
+      1440,
+      900
+    ],
+    "mobile": [
+      390,
+      844
+    ]
+  },
+  "recording": "Playwright WebM, 1.5 second browser initialization trim, FFmpeg GIF 5 fps, width 960px",
+  "businessMutations": "none; authenticated read-only route tour",
+  "tours": [
+    {
+      "name": "public",
+      "recordedAt": "2026-10-13T03:48:06.390Z",
+      "expectedRoutes": 5,
+      "status": "PASS",
+      "routes": [
+        {
+          "route": "/",
+          "actualRoute": "/",
+          "screenshot": "public-01.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/specialties",
+          "actualRoute": "/specialties",
+          "screenshot": "public-02.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/doctors",
+          "actualRoute": "/doctors",
+          "screenshot": "public-03.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/packages",
+          "actualRoute": "/packages",
+          "screenshot": "public-04.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/dat-lich",
+          "actualRoute": "/dat-lich",
+          "screenshot": "public-05.png",
+          "headingCheck": "PASS"
+        }
+      ],
+      "gif": {
+        "name": "public",
+        "status": "PASS",
+        "frames": 114,
+        "width": 960,
+        "height": 600,
+        "durationMs": 22800,
+        "bytes": 5888895
+      }
+    },
+    {
+      "name": "doctor",
+      "recordedAt": "2026-10-13T03:49:01.966Z",
+      "expectedRoutes": 5,
+      "status": "PASS",
+      "routes": [
+        {
+          "route": "/doctor/dashboard",
+          "actualRoute": "/doctor/dashboard",
+          "screenshot": "doctor-01.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/doctor/appointments",
+          "actualRoute": "/doctor/dashboard#daily-appointments",
+          "screenshot": "doctor-02.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/doctor/consultations",
+          "actualRoute": "/doctor/consultations",
+          "screenshot": "doctor-03.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/doctor/care-plans",
+          "actualRoute": "/doctor/care-plans",
+          "screenshot": "doctor-04.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/doctor/articles",
+          "actualRoute": "/doctor/articles",
+          "screenshot": "doctor-05.png",
+          "headingCheck": "PASS"
+        }
+      ],
+      "gif": {
+        "name": "doctor",
+        "status": "PASS",
+        "frames": 126,
+        "width": 960,
+        "height": 600,
+        "durationMs": 25200,
+        "bytes": 7157563
+      }
+    },
+    {
+      "name": "admin",
+      "recordedAt": "2026-10-13T03:49:30.648Z",
+      "expectedRoutes": 6,
+      "status": "PASS",
+      "routes": [
+        {
+          "route": "/admin",
+          "actualRoute": "/admin",
+          "screenshot": "admin-01.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/admin/doctors",
+          "actualRoute": "/admin/doctors",
+          "screenshot": "admin-02.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/admin/users",
+          "actualRoute": "/admin/users",
+          "screenshot": "admin-03.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/admin/content",
+          "actualRoute": "/admin/content",
+          "screenshot": "admin-04.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/admin/ai-content-reviews",
+          "actualRoute": "/admin/ai-content-reviews",
+          "screenshot": "admin-05.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/admin/payments",
+          "actualRoute": "/admin/payments",
+          "screenshot": "admin-06.png",
+          "headingCheck": "PASS"
+        }
+      ],
+      "gif": {
+        "name": "admin",
+        "status": "PASS",
+        "frames": 153,
+        "width": 960,
+        "height": 600,
+        "durationMs": 30600,
+        "bytes": 6735555
+      }
+    },
+    {
+      "name": "patient",
+      "recordedAt": "2026-10-13T03:52:04.182Z",
+      "expectedRoutes": 5,
+      "status": "PASS",
+      "routes": [
+        {
+          "route": "/patient/dashboard",
+          "actualRoute": "/patient/dashboard",
+          "screenshot": "patient-01.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/patient/dashboard#appointments",
+          "actualRoute": "/patient/dashboard#appointments",
+          "screenshot": "patient-02.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/patient/dashboard#records",
+          "actualRoute": "/patient/dashboard#records",
+          "screenshot": "patient-03.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/patient/dashboard#prescriptions",
+          "actualRoute": "/patient/dashboard#prescriptions",
+          "screenshot": "patient-04.png",
+          "headingCheck": "PASS"
+        },
+        {
+          "route": "/patient/chat",
+          "actualRoute": "/patient/chat",
+          "screenshot": "patient-05.png",
+          "headingCheck": "PASS"
+        }
+      ],
+      "gif": {
+        "name": "patient",
+        "status": "PASS",
+        "frames": 134,
+        "width": 960,
+        "height": 600,
+        "durationMs": 26800,
+        "bytes": 7402513
+      }
+    }
+  ]
+}

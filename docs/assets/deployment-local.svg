@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1030" role="img" aria-labelledby="title desc">
+<title id="title">HealthCare / Local Compose</title><desc id="desc">Local demo deployment — loopback host ports; internal-only AI; no hosted topology claim.</desc>
+<defs>
+<marker id="blue" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#16a34a"/></marker>
+<marker id="purple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0,10 3.5,0 7" fill="#9333ea"/></marker>
+</defs>
+<style>text{font-family:Arial,Helvetica,sans-serif;fill:#111827}.title{font-size:30px;font-weight:700}.name{font-size:19px;font-weight:700}.sub{font-size:15px;fill:#475569}.label{font-size:14px;font-weight:600}</style>
+<rect width="1200" height="1030" fill="#ffffff"/>
+<rect width="1200" height="8" fill="#2563eb"/>
+<text x="60" y="66" class="title">HealthCare / Local Compose</text>
+<text x="60" y="96" class="sub">Local demo deployment — loopback host ports; internal-only AI; no hosted topology claim.</text>
+<rect x="60" y="218" width="680" height="706" rx="12" fill="#f8fafc" stroke="#94a3b8" stroke-dasharray="6 4"/>
+<rect x="800" y="218" width="360" height="706" rx="12" fill="#faf5ff" stroke="#c084fc" stroke-dasharray="6 4"/>
+<text x="88" y="246" class="label">EDGE network / local tools</text>
+<text x="822" y="246" class="label">INTERNAL-only dependencies</text>
+<rect x="80" y="132" width="620" height="64" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="390.0" y="163" text-anchor="middle" class="name">Browser / localhost:3000</text>
+<rect x="80" y="286" width="620" height="80" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="390.0" y="317" text-anchor="middle" class="name">Frontend container</text>
+<text x="390.0" y="344" text-anchor="middle" class="sub">Next.js UI + BFF</text>
+<rect x="80" y="452" width="620" height="88" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="390.0" y="483" text-anchor="middle" class="name">Backend container</text>
+<text x="390.0" y="510" text-anchor="middle" class="sub">Spring / bridges edge + internal networks</text>
+<rect x="820" y="452" width="300" height="88" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="970.0" y="483" text-anchor="middle" class="name">AI service</text>
+<text x="970.0" y="510" text-anchor="middle" class="sub">Loopback port declared: 8000</text>
+<rect x="80" y="644" width="620" height="104" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+<text x="390.0" y="675" text-anchor="middle" class="name">Data dependencies</text>
+<text x="390.0" y="702" text-anchor="middle" class="sub">PostgreSQL  ·  Redis  ·  MinIO</text>
+<text x="390.0" y="726" text-anchor="middle" class="sub">Named volumes preserve data across stop/start</text>
+<rect x="820" y="644" width="300" height="80" rx="8" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1.5"/>
+<text x="970.0" y="675" text-anchor="middle" class="name">Scanner adapter</text>
+<text x="970.0" y="702" text-anchor="middle" class="sub">Private authenticated HTTP</text>
+<rect x="80" y="842" width="620" height="64" rx="8" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1.5"/>
+<text x="390.0" y="873" text-anchor="middle" class="name">Mailpit / local SMTP sink</text>
+<rect x="820" y="842" width="300" height="64" rx="8" fill="#faf5ff" stroke="#d8b4fe" stroke-width="1.5"/>
+<text x="970.0" y="873" text-anchor="middle" class="name">ClamAV</text>
+<path d="M 390 196 V 286" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#blue)"/>
+<rect x="355.0" y="254" width="70" height="23" fill="#ffffff" opacity="0.97"/>
+<text x="390" y="269" text-anchor="middle" class="label">Web</text>
+<path d="M 390 366 V 452" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#blue)"/>
+<rect x="355.0" y="399" width="70" height="23" fill="#ffffff" opacity="0.97"/>
+<text x="390" y="414" text-anchor="middle" class="label">BFF</text>
+<path d="M 700 474 H 820" fill="none" stroke="#2563eb" stroke-width="2" marker-end="url(#blue)"/>
+<rect x="725.0" y="449" width="70" height="23" fill="#ffffff" opacity="0.97"/>
+<text x="760" y="464" text-anchor="middle" class="label">AI</text>
+<path d="M 390 540 V 644" fill="none" stroke="#16a34a" stroke-width="2" marker-end="url(#green)"/>
+<rect x="355.0" y="581" width="70" height="23" fill="#ffffff" opacity="0.97"/>
+<text x="390" y="596" text-anchor="middle" class="label">Data</text>
+<path d="M 700 514 H 766 V 684 H 820" fill="none" stroke="#9333ea" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#purple)"/>
+<path d="M 80 514 H 28 V 792 H 390 V 842" fill="none" stroke="#9333ea" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#purple)"/>
+<rect x="355.0" y="782" width="70" height="23" fill="#ffffff" opacity="0.97"/>
+<text x="390" y="797" text-anchor="middle" class="label">Outbox</text>
+<path d="M 970 724 V 842" fill="none" stroke="#9333ea" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#purple)"/>
+<rect x="935.0" y="772" width="70" height="23" fill="#ffffff" opacity="0.97"/>
+<text x="970" y="787" text-anchor="middle" class="label">Scan</text>
+<text x="60" y="966" class="sub">Legend: blue = request; green = data; dashed purple = scan/mail integration.</text>
+<text x="60" y="994" class="sub">AI: loopback port declared; no edge network/provider egress. Upload flags are separate. Mailpit is local-only.</text>
+</svg>
