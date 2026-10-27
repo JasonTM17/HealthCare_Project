@@ -7,5 +7,5 @@ httpx==0.28.1
 ruff==0.12.9
 mypy==1.17.1
 openai==1.97.0
-psycopg[binary]==3.2.10
+psycopg[binary]==3.3.6
 slowapi==0.1.9
