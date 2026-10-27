@@ -20,13 +20,13 @@
     "test:e2e:compose": "playwright test --config=playwright.compose.config.ts"
   },
   "dependencies": {
-    "@tinymce/tinymce-react": "^6.3.0",
+    "@tinymce/tinymce-react": "^6.3.1",
     "chart.js": "^4.5.1",
     "next": "^16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sortablejs": "^1.15.7",
-    "tinymce": "^8.9.0"
+    "tinymce": "^8.10.0"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
