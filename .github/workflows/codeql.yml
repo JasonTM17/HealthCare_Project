@@ -37,11 +37,11 @@ jobs:
           - language: java
             paths: apps/backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           # No build step: java uses build-mode "none"; JS/Python are
@@ -49,6 +49,6 @@ jobs:
           build-mode: none
           paths: ${{ matrix.paths }}
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
