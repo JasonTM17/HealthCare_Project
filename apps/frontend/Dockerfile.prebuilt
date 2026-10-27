@@ -2,12 +2,12 @@
 # not asked to run the in-image Turbopack build (which has killed the engine
 # repeatedly). Build parity is preserved because the host build runs the same
 # `npm run build` with CSP_UPGRADE_INSECURE_REQUESTS/NEXT_PUBLIC_SITE_URL set.
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS dependencies
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS dependencies
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runtime
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV BACKEND_INTERNAL_URL=http://backend:8080
