@@ -103,7 +103,7 @@
     <dependency>
       <groupId>io.minio</groupId>
       <artifactId>minio</artifactId>
-      <version>8.5.17</version>
+      <version>9.0.3</version>
     </dependency>
     <!-- ADR-005: offline deterministic rendering of synthetic clinical documents.
          Apache-2.0; chosen over OpenPDF (LGPL) for license posture parity. -->
