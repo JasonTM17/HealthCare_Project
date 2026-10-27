@@ -76,9 +76,7 @@ docker-compose.override.yml
 
 # IDE and OS files
 .idea/
-.vscode/settings.json
-.vscode/tasks.json
-.vscode/launch.json
+.vscode/
 .DS_Store
 Thumbs.db
 
@@ -180,3 +178,16 @@ apps/frontend/apps/
 /scripts/stitch-mcp-call.mjs
 /scripts/verify-deploy-qa.mjs
 /scripts/seed-local-review-heads-topup.sql
+preflight.txt
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store?
+._*
+ehthumbs.db
+desktop.ini
+.turbo/
+apps/frontend/.vercel/
