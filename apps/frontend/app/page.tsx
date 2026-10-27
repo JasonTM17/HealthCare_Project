@@ -599,12 +599,39 @@ export default function Home(): React.ReactElement {
       // failed response cannot leave stale booking identities actionable.
       setCatalog(null);
       try {
+        const specPromise = fetchSpecialties(0, 12);
+        const docPromise = fetchDoctors({ page: 0, size: 6 });
+        const pkgPromise = fetchPackages(0, 8);
+        const branchPromise = fetchBranches(0, 8);
+        const artPromise = fetchArticles(0, 6);
+
+        // Progressive stream-in: fast resources render immediately without waiting for slower ones
+        const updateSlot = (updater: (prev: HomeCatalog) => HomeCatalog) => {
+          if (cancelled) return;
+          setCatalog((prev) => updater(prev ?? {
+            specialties: [],
+            doctors: [],
+            packages: [],
+            branches: [],
+            articles: [],
+            specialtyTotal: 0,
+            doctorTotal: 0,
+            branchTotal: 0,
+          }));
+        };
+
+        void specPromise.then((s) => updateSlot((p) => ({ ...p, specialties: s.content, specialtyTotal: s.totalElements }))).catch(() => {});
+        void docPromise.then((d) => updateSlot((p) => ({ ...p, doctors: d.content, doctorTotal: d.totalElements }))).catch(() => {});
+        void pkgPromise.then((k) => updateSlot((p) => ({ ...p, packages: k.content }))).catch(() => {});
+        void branchPromise.then((b) => updateSlot((p) => ({ ...p, branches: b.content, branchTotal: b.totalElements }))).catch(() => {});
+        void artPromise.then((a) => updateSlot((p) => ({ ...p, articles: a.content }))).catch(() => {});
+
         const [specialties, doctors, packages, branches, articles] = await Promise.all([
-          fetchSpecialties(0, 12),
-          fetchDoctors({ page: 0, size: 6 }),
-          fetchPackages(0, 8),
-          fetchBranches(0, 8),
-          fetchArticles(0, 6),
+          specPromise,
+          docPromise,
+          pkgPromise,
+          branchPromise,
+          artPromise,
         ] as [
           Promise<Page<Specialty>>,
           Promise<Page<Doctor>>,
@@ -882,7 +909,7 @@ export default function Home(): React.ReactElement {
               title="Gói khám sức khỏe"
             />
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
-            {!catalogLoading && packages.length > 0 ? (
+            {packages.length > 0 ? (
               <div className={packageVisualStyles.homeRail} aria-label="Các gói khám sức khỏe">
                 {packages.slice(0, 4).map((packageItem, index) => (
                   <PackageVisualCard
@@ -927,7 +954,7 @@ export default function Home(): React.ReactElement {
               title="Chuyên khoa nổi bật"
             />
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
-            {!catalogLoading && filteredSpecialties.length > 0 ? (
+            {filteredSpecialties.length > 0 ? (
               <div className="hm-specialty-grid" aria-label="Các chuyên khoa nổi bật">
                 {filteredSpecialties.slice(0, 8).map((specialty, index) => (
                   <article className="hm-specialty-card" key={specialty.id}>
@@ -981,7 +1008,7 @@ export default function Home(): React.ReactElement {
               title="Đội ngũ bác sĩ"
             />
             <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
-            {!catalogLoading && homeDoctors.length > 0 ? (
+            {homeDoctors.length > 0 ? (
               <div className="hm-doctor-grid" aria-label="Bác sĩ nổi bật">
                 {homeDoctors.map((doctor) => {
                   const docSpecialtyId = catalog?.specialties
@@ -1070,7 +1097,7 @@ export default function Home(): React.ReactElement {
               </div>
               <div className="hm-branch-grid">
                 <CatalogStatus error={catalogError} hasData={Boolean(catalog)} loading={catalogLoading} onRetry={retryCatalog} unavailable={catalogUnavailable} />
-                {!catalogLoading && catalog && branches.map((branch, index) => (
+                {branches.length > 0 && branches.map((branch, index) => (
                   <article className="hm-branch-card" key={branch.id}>
                     <div className="hm-branch-card__media">
                       <Image
