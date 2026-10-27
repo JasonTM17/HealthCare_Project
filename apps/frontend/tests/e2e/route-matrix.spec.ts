@@ -40,6 +40,7 @@ const PUBLIC_ROUTES = [
   "/dat-lich",
   "/tra-cuu",
   "/chinh-sach-bao-mat",
+  "/dieu-khoan-su-dung",
   "/bac-si/route-audit",
   "/chuyen-khoa/route-audit",
   "/goi-kham/route-audit",

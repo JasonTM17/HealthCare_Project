@@ -1,0 +1,12 @@
+# Default owner for everything unless a narrower rule matches.
+* @JasonTM17
+
+# Sensitive surfaces: auth/security, data, AI boundaries, and delivery config.
+apps/backend/src/main/java/com/healthcare/auth/ @JasonTM17
+apps/backend/src/main/java/com/healthcare/security/ @JasonTM17
+apps/backend/src/main/resources/db/migration/ @JasonTM17
+apps/backend/src/main/java/com/healthcare/ai/ @JasonTM17
+apps/ai-service/ @JasonTM17
+.github/workflows/ @JasonTM17
+infrastructure/ @JasonTM17
+supabase/ @JasonTM17

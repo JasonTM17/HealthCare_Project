@@ -1,0 +1,23 @@
+name: Đề xuất tính năng / Feature request
+description: Đề xuất tính năng hoặc cải tiến
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Vấn đề cần giải quyết
+      description: Vai trò nào (guest/patient/doctor/admin) gặp vấn đề gì?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Đề xuất
+      description: Giải pháp mong muốn và các phương án đã cân nhắc.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Ràng buộc đã biết
+      description: Có đụng quyền/dữ liệu lâm sàng, thanh toán, AI source policy, hay migration không?

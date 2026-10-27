@@ -2896,6 +2896,100 @@ export const CMS_PAGE_MANIFESTS: readonly CmsPageManifest[] = [
         "fields": []
       }
     ]
+  },
+  {
+    "family": "dieu-khoan-su-dung",
+    "path": "/dieu-khoan-su-dung",
+    "label": "Điều khoản sử dụng",
+    "supportsDetail": false,
+    "detailSections": [],
+    "sections": [
+      {
+        "id": "intro",
+        "label": "Giới thiệu điều khoản",
+        "reorderable": false,
+        "fields": [
+          {
+            "id": "intro.eyebrow",
+            "label": "Dòng giới thiệu",
+            "kind": "text"
+          },
+          {
+            "id": "intro.title",
+            "label": "Tiêu đề",
+            "kind": "text"
+          },
+          {
+            "id": "intro.body",
+            "label": "Nội dung",
+            "kind": "text"
+          }
+        ]
+      },
+      {
+        "id": "terms",
+        "label": "Nội dung điều khoản",
+        "reorderable": false,
+        "fields": [
+          {
+            "id": "terms.item1.title",
+            "label": "Tiêu đề 1",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item2.title",
+            "label": "Tiêu đề 2",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item3.title",
+            "label": "Tiêu đề 3",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item4.title",
+            "label": "Tiêu đề 4",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item5.title",
+            "label": "Tiêu đề 5",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item1.body",
+            "label": "Nội dung điều khoản 1",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item2.body",
+            "label": "Nội dung điều khoản 2",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item3.body",
+            "label": "Nội dung điều khoản 3",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item4.body",
+            "label": "Nội dung điều khoản 4",
+            "kind": "text"
+          },
+          {
+            "id": "terms.item5.body",
+            "label": "Nội dung điều khoản 5",
+            "kind": "text"
+          }
+        ]
+      },
+      {
+        "id": "version",
+        "label": "Thông tin phiên bản",
+        "reorderable": false,
+        "fields": []
+      }
+    ]
   }
 ];
 

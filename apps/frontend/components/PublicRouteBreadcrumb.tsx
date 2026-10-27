@@ -7,6 +7,7 @@ const ROUTE_LABELS: Record<string, string> = {
   branches: "Cơ sở",
   careers: "Tuyển dụng",
   "chinh-sach-bao-mat": "Chính sách bảo mật",
+  "dieu-khoan-su-dung": "Điều khoản sử dụng",
   contact: "Liên hệ",
   "dat-lich": "Đặt lịch khám",
   doctors: "Bác sĩ",

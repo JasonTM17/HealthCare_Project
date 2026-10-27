@@ -462,9 +462,10 @@ Optional design support:
 
 Status: `DONE` for basic MVP hardening: JWT/refresh rotation, object-level RBAC,
 CORS, bounded uploads, negative authorization tests, protected AI ingest,
-per-process rate limiting, and CI secret hygiene. Distributed edge limiting,
-password recovery, penetration testing, and compliance review remain production
-gates.
+per-process rate limiting, OTP-based password reset via email (request/confirm
+endpoints plus `forgot-password`/`reset-password` routes), and CI secret
+hygiene. Distributed edge limiting, penetration testing, and compliance review
+remain production gates.
 
 Goal: explicitly review and harden security boundaries.
 
@@ -576,9 +577,6 @@ full clinical browser execution and production gates remain separate.
 
 ## Remaining external gates
 
-- On a Windows host without a working Docker backend, enable WSL 2/restart
-  Windows and start Docker before running the complete integration and 12-step
-  role-based browser E2E flow from `docs/LOCAL_RUNBOOK.md`.
 - Freeze a clean Git commit and verify the remote/branch state before each
   source-control delivery.
 - Production-only work: TLS/ingress, secrets manager, durable distributed RAG,
@@ -727,12 +725,13 @@ Commit discipline:
 
 ## Immediate Next Steps
 
-1. Run `wsl --install` from elevated PowerShell, restart Windows, and wait for
-   Docker Desktop to become ready.
-2. Follow `docs/LOCAL_RUNBOOK.md` to start, seed, and health-check the stack.
-3. Execute the documented 12-step role-based demo and `mvnw verify` with
+1. Follow `docs/LOCAL_RUNBOOK.md` to start, seed, and health-check the stack
+   (Docker Engine with Compose v2 must be running first; on a host without
+   Docker, install/enable it per the runbook before continuing).
+2. Execute the documented 12-step role-based demo and `mvnw verify` with
    Testcontainers available.
-4. Initialize or reconnect Git only if source-control delivery is required.
+3. Freeze a clean Git commit and verify remote/branch state before each
+   source-control delivery.
 
 ## Decisions for the local MVP
 

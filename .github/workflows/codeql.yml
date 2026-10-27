@@ -1,0 +1,54 @@
+name: codeql
+
+# Static analysis (SAST) complements dependency-scan.yml, which only covers
+# known CVEs in third-party packages. Java uses build-mode "none" so the job
+# does not need a full Maven build; that trades some precision for a bounded
+# runtime — bump to "autobuild" if deeper Java analysis is ever needed.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 5 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            paths: apps/frontend
+          - language: python
+            paths: apps/ai-service
+          - language: java
+            paths: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # No build step: java uses build-mode "none"; JS/Python are
+          # interpreted and ignore this key entirely.
+          build-mode: none
+          paths: ${{ matrix.paths }}
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
