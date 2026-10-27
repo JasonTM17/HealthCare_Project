@@ -233,7 +233,9 @@ const nextConfig: NextConfig = {
       }))),
     ];
   },
+  poweredByHeader: false,
   images: {
+    formats: ["image/avif", "image/webp"],
     // Next's default derivative TTL is 4 hours. The sources are 0.7-0.9 MB, so
     // re-optimizing them on every weekend-old cache miss is the expensive path;
     // retain the derivative for a week instead.

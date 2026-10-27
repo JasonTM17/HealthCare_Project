@@ -91,6 +91,12 @@ export default function RootLayout({
   return (
     <html lang="vi" data-scroll-behavior="smooth" suppressHydrationWarning
       className={beVietnamPro.variable}>
+      <head>
+        <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
+        <link rel="preconnect" href="https://images.pexels.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://images.pexels.com" />
+      </head>
       <body suppressHydrationWarning>
         <Script id="cms-preview-readonly" src="/cms-preview-guard.js" strategy="beforeInteractive" />
         <script
