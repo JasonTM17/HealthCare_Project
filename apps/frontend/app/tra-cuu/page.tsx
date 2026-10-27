@@ -21,12 +21,10 @@ const TRACKING_STEPS = [
   ["03", "Kiểm tra trạng thái", "Xem bác sĩ, cơ sở, khung giờ và các hướng dẫn cần xác nhận trước khi đến."],
 ] as const;
 
-// A guest who just found their appointment has proven ownership of the phone
-// a patient account must reuse for the old appointments to surface in the
-// portal. The masked public ticket response withholds that phone and drops
-// the email, so the bridge takes the phone snapshot from the successful
-// lookup itself and only ever prefills an email when the response carries a
-// real one. Values are validated first, then percent-encoded by
+// A guest who just found their appointment is holding the exact phone and
+// email that a patient account must reuse for the old appointments to surface
+// in the portal, so the found ticket bridges straight into registration with
+// both values prefilled. Values are validated first, then percent-encoded by
 // URLSearchParams (a leading "+" in an international number must survive the
 // query string).
 const REGISTER_PATH = "/auth/register";
@@ -66,12 +64,6 @@ export default function TraCuuPage() {
   const [phoneInput, setPhoneInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [appointment, setAppointment] = useState<AppointmentDetails | null>(null);
-  // Proof captured when a lookup succeeds: the contact phone the guest
-  // actually submitted and the API accepted, bound to the displayed ticket.
-  // The masked public response hides that phone, so the registration bridge
-  // and the cancel request reuse this snapshot instead of the mutable
-  // phoneInput; it is cleared whenever a new lookup starts.
-  const [lookupProof, setLookupProof] = useState<{ phone: string; bookingCode: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -82,11 +74,10 @@ export default function TraCuuPage() {
 
   useDialogFocus(cancelDialogRef, showCancelDialog, () => setShowCancelDialog(false));
 
-  // Once a lookup succeeds, both registration CTAs carry the phone that lookup
-  // just proved (the masked ticket response never exposes it); before that the
-  // hero CTA is a plain registration link.
-  const registerHref = lookupProof
-    ? buildRegisterHref(lookupProof.phone, appointment?.patientEmail)
+  // Once a ticket is found, the hero CTA carries the same verified identity as
+  // the ticket CTA; before a lookup it is a plain registration link.
+  const registerHref = appointment
+    ? buildRegisterHref(appointment.patientPhone, appointment.patientEmail)
     : REGISTER_PATH;
 
   const handleLookup = async (e: React.FormEvent) => {
@@ -94,9 +85,6 @@ export default function TraCuuPage() {
     if (isCmsPreviewRequested()) return;
     const requestId = ++lookupRequestRef.current;
     setAppointment(null);
-    // A new lookup invalidates the previous proof at once, so a stale phone
-    // can never be attached to a different ticket while the request runs.
-    setLookupProof(null);
     setCancelSuccess(false);
     setErrorMessage("");
     setLoading(false);
@@ -136,9 +124,6 @@ export default function TraCuuPage() {
       const data: AppointmentDetails = await res.json();
       if (requestId !== lookupRequestRef.current) return;
       setAppointment(data);
-      // The API just accepted this phone for this booking code — snapshot it
-      // as the proven identity for everything the ticket can trigger next.
-      setLookupProof({ phone: normalizedPhone, bookingCode: data.bookingCode });
     } catch (error) {
       if (requestId !== lookupRequestRef.current) return;
       setErrorMessage(
@@ -153,11 +138,7 @@ export default function TraCuuPage() {
 
   const handleCancelAppointment = async () => {
     if (isCmsPreviewRequested()) return;
-    // Cancel the displayed ticket with the phone the successful lookup proved
-    // for it — never the mutable input, which may have been edited since.
-    const proofPhone =
-      appointment && lookupProof?.bookingCode === appointment.bookingCode ? lookupProof.phone : null;
-    if (!appointment || !proofPhone || loading) return;
+    if (!appointment || loading) return;
     setLoading(true);
 
     try {
@@ -166,7 +147,7 @@ export default function TraCuuPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           reason: cancelReason || "Bệnh nhân yêu cầu hủy",
-          phone: proofPhone,
+          phone: phoneInput.trim(),
         }),
       });
       if (!res.ok) {
@@ -435,7 +416,7 @@ export default function TraCuuPage() {
                     <Link
                       className="min-h-[2.75rem] px-4 py-2 bg-teal-800 hover:bg-teal-900 text-white text-xs font-bold rounded-[4px] transition-colors flex items-center gap-1.5"
                       data-testid="tra-cuu-register-cta-ticket"
-                      href={lookupProof?.bookingCode === appointment.bookingCode ? registerHref : REGISTER_PATH}
+                      href={buildRegisterHref(appointment.patientPhone, appointment.patientEmail)}
                     >
                       <Icon name="user" size={15} /> Tạo tài khoản để lưu lịch vào cổng bệnh nhân
                     </Link>
