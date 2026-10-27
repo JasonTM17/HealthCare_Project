@@ -47,6 +47,11 @@ export interface PackageBookingModalProps {
   initialBranchId?: string;
 }
 
+// A stable empty default: a literal `= []` in the signature mints a new array
+// every render, which cascades through effectiveBranches -> currentBranch ->
+// the doctor-fetch effect into an endless refetch/render loop.
+const EMPTY_PROVIDED_BRANCHES: Branch[] = [];
+
 const PACKAGE_BOOKING_STEPS = [
   { id: 1, label: "Cơ sở y tế" },
   { id: 2, label: "Ngày & Giờ tiếp nhận" },
@@ -95,7 +100,7 @@ export default function PackageBookingModal({
   isOpen,
   onClose,
   packageItem,
-  branches: providedBranches = [],
+  branches: providedBranches = EMPTY_PROVIDED_BRANCHES,
   initialBranchId,
 }: PackageBookingModalProps) {
   const illustrativeInitialSelection = isIllustrativeCatalogue(packageItem) || isIllustrativeSelection({ branchId: initialBranchId })
@@ -345,7 +350,7 @@ export default function PackageBookingModal({
       cancelled = true;
       void task;
     };
-  }, [isOpen, illustrativeInitialSelection, currentBranch]);
+  }, [isOpen, illustrativeInitialSelection, currentBranch?.slug]);
 
   const intakeDoctor = useMemo(() => {
     if (!currentBranch) return loadedDoctors[0];

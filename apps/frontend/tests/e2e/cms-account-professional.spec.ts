@@ -212,10 +212,10 @@ test.describe("CMS native production UI with fixtures", () => {
       expect(fixture.requests.filter((request) => request.method !== "GET")).toHaveLength(0);
     });
   }
-  test("manifest covers exactly 18 families and seven UUID detail families", () => {
-    expect(CMS_PAGE_MANIFESTS).toHaveLength(18);
+  test("manifest covers exactly 19 families and seven UUID detail families", () => {
+    expect(CMS_PAGE_MANIFESTS).toHaveLength(19);
     expect(CMS_PAGE_MANIFESTS.filter((item) => item.supportsDetail)).toHaveLength(7);
-    expect(CMS_MOCK_ROUTES).toHaveLength(25);
+    expect(CMS_MOCK_ROUTES).toHaveLength(26);
     expect(CMS_MOCK_ROUTES.every((identity) => identity.sections.flatMap((section) => section.fields).length > 0)).toBe(true);
   });
   for (const identity of CMS_MOCK_ROUTES) for (const width of CMS_TEST_WIDTHS) {
