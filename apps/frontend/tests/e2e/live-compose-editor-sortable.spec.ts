@@ -196,7 +196,28 @@ test("article sections drag reorder persists through save and reload", async ({ 
   await sectionRows.nth(1).getByLabel("Tiêu đề section").fill("Phần thứ hai");
   await sectionRows.nth(1).getByLabel("Nội dung section").fill("Nội dung phần thứ hai.");
 
-  await sectionRows.nth(0).locator(".section-drag-handle").dragTo(sectionRows.nth(1));
+  // Section cards are ~700px tall: keep both rows inside an extra-tall viewport
+  // so pointer coordinates never leave the window mid-gesture, then sweep in
+  // phases — a small wake-up move, the main sweep, and a final nudge past the
+  // 65% swap threshold (same proven pattern as the CMS outline drag test).
+  await page.setViewportSize({ width: 1440, height: 2600 });
+  const sourceHandle = sectionRows.nth(0).locator(".section-drag-handle");
+  const targetRow = sectionRows.nth(1);
+  await sourceHandle.scrollIntoViewIfNeeded();
+  await targetRow.scrollIntoViewIfNeeded();
+  const sourceBox = (await sourceHandle.boundingBox())!;
+  const targetBox = (await targetRow.boundingBox())!;
+  const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + sourceBox.height / 2 };
+  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height / 2 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(start.x + 12, start.y + 12, { steps: 4 });
+    await page.mouse.move(end.x, end.y, { steps: 24 });
+    await page.mouse.move(end.x, end.y + 8, { steps: 4 });
+  } finally {
+    await page.mouse.up();
+  }
   await expect(page.getByText("Đã sắp xếp lại Section")).toBeVisible();
   await expect(sectionRows.nth(0).getByLabel("Tiêu đề section")).toHaveValue("Phần thứ hai");
   await expect(sectionRows.nth(1).getByLabel("Tiêu đề section")).toHaveValue("Phần đầu tiên");
