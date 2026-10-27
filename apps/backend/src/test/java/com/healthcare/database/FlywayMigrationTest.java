@@ -1277,11 +1277,22 @@ class FlywayMigrationTest extends TestcontainersIntegrationTest {
             String doctorBranches = table(schema, "doctor_branches");
 
             // The seed emits 20 shift rows per doctor-branch pair (Mon–Sat
-            // morning+afternoon+evening, Sun morning+afternoon) over 6 pairs.
+            // morning+afternoon+evening, Sun morning+afternoon) over 6 pairs,
+            // then adds a 7-day 21:00–23:59 late shift for the demo doctor at
+            // his linked branch so same-day booking journeys still run after
+            // the regular shifts end.
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + schedules,
                 Integer.class
-            )).isEqualTo(120);
+            )).isEqualTo(127);
+            assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from " + schedules + " s "
+                    + "join " + doctors + " d on d.id = s.doctor_id "
+                    + "where d.slug = 'nguyen-minh-khoi' "
+                    + "and s.start_time = '21:00:00'::time "
+                    + "and s.end_time = '23:59:00'::time",
+                Integer.class
+            )).isEqualTo(7);
             assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from " + schedules + " s "
                     + "left join " + doctorBranches + " db "
