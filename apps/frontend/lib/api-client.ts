@@ -299,7 +299,50 @@ async function apiErrorFromResponse(
   return new ApiError(message, res.status, path, { code, fieldErrors });
 }
 
+const PUBLIC_CATALOG_PREFIXES = [
+  "/hospital/specialties",
+  "/hospital/doctors",
+  "/hospital/branches",
+  "/hospital/packages",
+  "/hospital/services",
+  "/hospital/articles",
+  "/hospital/faqs",
+] as const;
+
+function isPublicCatalogPath(path: string): boolean {
+  return PUBLIC_CATALOG_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+interface CatalogCacheEntry {
+  expiresAt: number;
+  data: unknown;
+}
+
+const CATALOG_CACHE_TTL_MS = 120_000;
+const clientCatalogCache = new Map<string, CatalogCacheEntry>();
+const clientCatalogInFlight = new Map<string, Promise<unknown>>();
+
+export function clearCatalogCache(): void {
+  clientCatalogCache.clear();
+  clientCatalogInFlight.clear();
+}
+
 async function getJson<T>(path: string, init?: RequestInit, timeoutMs = API_REQUEST_TIMEOUT_MS): Promise<T> {
+  const isGet = !init?.method || init.method.toUpperCase() === "GET";
+  const canCache = isGet && init?.cache !== "no-store" && isPublicCatalogPath(path);
+
+  if (canCache) {
+    const cached = clientCatalogCache.get(path);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.data as T;
+    }
+    const inFlight = clientCatalogInFlight.get(path);
+    if (inFlight) {
+      return inFlight as Promise<T>;
+    }
+  }
+
+  const executeFetch = async (): Promise<T> => {
   const requestController = new AbortController();
   const callerSignal = init?.signal;
   const abortFromCaller = () => requestController.abort(callerSignal?.reason);
@@ -351,6 +394,28 @@ async function getJson<T>(path: string, init?: RequestInit, timeoutMs = API_REQU
     clearTimeout(timeoutId);
     callerSignal?.removeEventListener("abort", abortFromCaller);
   }
+  };
+
+  if (!canCache) {
+    return executeFetch();
+  }
+
+  const flight = executeFetch()
+    .then((result) => {
+      clientCatalogCache.set(path, {
+        expiresAt: Date.now() + CATALOG_CACHE_TTL_MS,
+        data: result,
+      });
+      clientCatalogInFlight.delete(path);
+      return result;
+    })
+    .catch((error) => {
+      clientCatalogInFlight.delete(path);
+      throw error;
+    });
+
+  clientCatalogInFlight.set(path, flight);
+  return flight;
 }
 
 const AUTH_CHANGE_EVENT = "healthcare-auth-session-change";

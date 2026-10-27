@@ -136,6 +136,66 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: "/chuyen-khoa/:slug*",
+        destination: "/specialties/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/bac-si/:slug*",
+        destination: "/doctors/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/goi-kham/:slug*",
+        destination: "/packages/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/dich-vu/:slug*",
+        destination: "/services/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/co-so",
+        destination: "/branches",
+        permanent: true,
+      },
+      {
+        source: "/co-so/:slug*",
+        destination: "/branches/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/co-so-y-te/:slug*",
+        destination: "/branches/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/bai-viet",
+        destination: "/articles",
+        permanent: true,
+      },
+      {
+        source: "/bai-viet/:slug*",
+        destination: "/articles/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/tin-tuc",
+        destination: "/articles",
+        permanent: true,
+      },
+      {
+        source: "/tin-tuc/:slug*",
+        destination: "/articles/:slug*",
+        permanent: true,
+      },
+      {
+        source: "/tim-kiem",
+        destination: "/search",
+        permanent: true,
+      },
+      {
         source: "/articles/dot-quy-nhan-biet-gio-vang",
         destination: "/articles/phong-ngua-dot-quy-o-nguoi-tre-va-trung-nien",
         permanent: false,
