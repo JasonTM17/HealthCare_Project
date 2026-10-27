@@ -44,10 +44,18 @@ public class DoctorService {
     }
 
     public Page<DoctorResponse> listActive(Pageable pageable, String specialtySlug, String branchSlug, String query) {
+        String normSpecialty = normalizeFilter(specialtySlug);
+        String normBranch = normalizeFilter(branchSlug);
+        String normQuery = normalizeFilter(query);
+
+        if (normSpecialty.isEmpty() && normBranch.isEmpty() && normQuery.isEmpty()) {
+            return listActive(pageable);
+        }
+
         Page<Doctor> page = doctorRepository.findActiveWithFilters(
-            normalizeFilter(specialtySlug),
-            normalizeFilter(branchSlug),
-            normalizeFilter(query),
+            normSpecialty,
+            normBranch,
+            normQuery,
             safePageable(pageable)
         );
         return toResponsePage(page);

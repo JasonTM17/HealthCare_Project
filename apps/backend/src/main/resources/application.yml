@@ -8,7 +8,7 @@ spring:
     hikari:
       maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
       minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:2}
-      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:5000}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:15000}
       # Managed Postgres (and Render's pooler) drops connections that outlive its
       # own idle timeout, and a pooled socket can be killed by the network while
       # it waits. Recycle every 4 minutes and keep idle connections alive every
