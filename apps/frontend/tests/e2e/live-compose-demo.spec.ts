@@ -58,6 +58,7 @@ const DEMO_DOCTOR_EMAIL = "doctor@healthcare.local";
 const DEMO_ADMIN_EMAIL = "admin@healthcare.local";
 const EXPECTED_UNAUTH_SESSION_PATH = "/api/v1/auth/browser-sessions/current";
 const EXPECTED_OPTIONAL_CMS_404_PATHS = new Set([
+  "/api/v1/cms/content/homepage.layout",
   "/api/v1/cms/content/homepage.sidebar",
   "/api/v1/cms/content/homepage.footer",
 ]);
@@ -1478,9 +1479,7 @@ test.describe("live Compose role-based demo", () => {
     expect(updatedTitle).not.toBe("Tìm chuyên khoa, bác sĩ và đặt lịch khám");
 
     const publicContext = await browser.newContext({ baseURL: BASE_URL });
-    const adminContext = await browser.newContext({ baseURL: BASE_URL });
     const publicPage = await newMonitoredPage(publicContext, browserIssues);
-    const adminPage = await newMonitoredPage(adminContext, browserIssues);
     let publicMainFrameNavigationsAfterLoad = 0;
     let ownedPublication: CmsContent | null = null;
 
@@ -1498,47 +1497,59 @@ test.describe("live Compose role-based demo", () => {
         if (frame === publicPage.mainFrame()) publicMainFrameNavigationsAfterLoad += 1;
       });
 
-      await loginViaUi(adminPage, DEMO_ADMIN_EMAIL, "/admin", "Điều hành bệnh viện");
-      await adminPage.goto(appUrl("/admin/content"));
-      await expect(adminPage.getByRole("heading", { name: "Cập nhật nội dung theo từng trang" })).toBeVisible();
-      await expect(adminPage.locator("#cms-payload-title")).toHaveValue(initialTitle);
-      await expect(adminPage.locator("#cms-payload-body")).toHaveValue(initialBody);
+      // The native CMS workspace manages homepage.layout; the legacy per-slot
+      // editor UI that used to drive homepage.hero no longer exists in the
+      // product. The publish and rollback contracts that UI called are still
+      // the supported admin API for this slot, so the journey exercises them
+      // directly while the patient shell keeps rendering the same live slot.
+      const adminSession = await loginApi(DEMO_ADMIN_EMAIL);
+      ownedPublication = await apiJson<CmsContent>(
+        "/admin/cms/content/homepage.hero",
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            componentType: initialHero.componentType ?? "HERO",
+            payload: publishPayload,
+            status: "PUBLISHED",
+            expectedVersion: initialHero.version,
+          }),
+        },
+        adminSession,
+      );
+      expect(ownedPublication.version).toBe(publishedVersion);
 
-      // Every guard-visible field is written, so no value left in the database
-      // can decide the outcome of this run.
-      await adminPage.locator("#cms-payload-eyebrow").fill(updatedEyebrow);
-      await adminPage.locator("#cms-payload-title").fill(updatedTitle);
-      await adminPage.locator("#cms-payload-body").fill(updatedBody);
-      await adminPage.locator("#cms-payload-ctaLabel").fill(updatedCtaLabel);
-      await adminPage.locator("#cms-payload-ctaHref").fill(updatedCtaHref);
-      const publishResponsePromise = adminPage.waitForResponse((response) => {
-        try {
-          const responseUrl = new URL(response.url());
-          return responseUrl.origin === new URL(BASE_URL).origin
-            && responseUrl.pathname === "/api/v1/admin/cms/content/homepage.hero"
-            && response.request().method() === "PUT";
-        } catch {
-          return false;
-        }
-      });
-      await adminPage.getByRole("button", { name: "Xuất bản" }).click();
-      const publishResponse = await publishResponsePromise;
-      expect(publishResponse.status()).toBe(200);
-      ownedPublication = await publishResponse.json() as CmsContent;
-
-      await expect(adminPage.getByText(`Đã xuất bản homepage.hero, version ${publishedVersion}.`)).toBeVisible();
       // Admin-authored copy must reach the patient shell verbatim, which is only
       // observable because the payload above is not placeholder-shaped.
       await expect(heroSlot).toContainText(updatedTitle, { timeout: CMS_PUBLIC_UPDATE_TIMEOUT_MS });
       await expect(heroSlot).toContainText(updatedBody, { timeout: CMS_PUBLIC_UPDATE_TIMEOUT_MS });
       await expect(heroSlot).toContainText(updatedEyebrow, { timeout: CMS_PUBLIC_UPDATE_TIMEOUT_MS });
       await expect(heroSlot).toHaveAttribute("data-cms-version", String(publishedVersion), { timeout: CMS_PUBLIC_UPDATE_TIMEOUT_MS });
-      const rollbackTarget = adminPage.getByRole("listitem").filter({ hasText: `v${initialHero.version} ·` });
-      await expect(rollbackTarget).toBeVisible();
-      await expect(rollbackTarget.getByRole("button", { name: "Rollback snapshot" })).toBeEnabled();
-      await rollbackTarget.getByRole("button", { name: "Rollback snapshot" }).click();
 
-      await expect(adminPage.getByText(new RegExp(`Đã rollback homepage\\.hero về snapshot event #\\d+, version mới ${rolledBackVersion}\\.`, "u"))).toBeVisible();
+      const history = await apiJson<CmsContentHistoryEntry[]>(
+        "/admin/cms/content/homepage.hero/history?limit=50",
+        {},
+        adminSession,
+      );
+      const rollbackTarget = history.find((entry) => (
+        entry.rollbackAvailable
+        && entry.version === initialHero.version
+        && sameHeroContent(entry, initialHero)
+      ));
+      if (!rollbackTarget) {
+        throw new Error(`No rollback snapshot found for homepage.hero version ${initialHero.version}.`);
+      }
+      const rolledBack = await apiJson<CmsContent>(
+        "/admin/cms/content/homepage.hero/rollback",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            changeId: rollbackTarget.eventId,
+            expectedVersion: publishedVersion,
+          }),
+        },
+        adminSession,
+      );
+      expect(rolledBack.version).toBe(rolledBackVersion);
       // The slot renders live catalog chips alongside CMS copy, and the catalog
       // may finish loading after the baseline capture — so byte-for-byte slot
       // equality races ambient content. The rollback invariant is narrower and
@@ -1558,7 +1569,6 @@ test.describe("live Compose role-based demo", () => {
       } catch (error) {
         restoreError = error;
       }
-      await adminPage.context().close().catch(() => undefined);
       await publicPage.context().close().catch(() => undefined);
       if (restoreError) throw restoreError;
     }

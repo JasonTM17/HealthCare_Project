@@ -1,12 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useEffect } from "react";
 import { fetchBranches } from "../lib/api-client";
-import AiTriageModal from "./AiTriageModal";
-import BookingModal, { type BookingSelection } from "./BookingModal";
+import type { BookingSelection } from "./BookingModal";
 import Footer from "./Footer";
 import Navbar from "./Navbar";
 import PublicRouteBreadcrumb from "./PublicRouteBreadcrumb";
@@ -37,6 +37,14 @@ interface PublicPageActions {
 const PublicPageActionsContext = createContext<PublicPageActions | null>(null);
 const EMPTY_BRANCHES: Branch[] = [];
 const PUBLIC_ASSISTANT_OPEN_EVENT = "healthcare:open-assistant";
+const BookingModal = dynamic(() => import("./BookingModal"), { ssr: false });
+const AiTriageModal = dynamic(() => import("./AiTriageModal"), { ssr: false });
+
+// The booking/triage flows are open-on-demand surfaces shipped as separate
+// chunks. Pointer or keyboard intent warms the chunk so the modal still opens
+// instantly on click.
+const prewarmBookingModal = (): void => { void import("./BookingModal"); };
+const prewarmAiTriageModal = (): void => { void import("./AiTriageModal"); };
 
 export function requestPublicAssistantOpen(): void {
   if (typeof window === "undefined") return;
@@ -66,12 +74,12 @@ export function PublicBookingButton({
 }) {
   const { openBooking, illustrativePage } = usePublicPageActions();
   const disabled = illustrativePage || isIllustrativeSelection(selection) || isIllustrativeCatalogue(catalogueItem);
-  return <button aria-label={disabled ? "Thông tin minh họa không nhận đặt lịch" : ariaLabel} className={className} disabled={disabled} title={disabled ? ILLUSTRATIVE_BOOKING_NOTICE : undefined} onClick={() => openBooking(selection)} type="button">{disabled ? "Chỉ xem minh họa" : children}</button>;
+  return <button aria-label={disabled ? "Thông tin minh họa không nhận đặt lịch" : ariaLabel} className={className} disabled={disabled} title={disabled ? ILLUSTRATIVE_BOOKING_NOTICE : undefined} onClick={() => openBooking(selection)} onFocus={prewarmBookingModal} onPointerEnter={prewarmBookingModal} type="button">{disabled ? "Chỉ xem minh họa" : children}</button>;
 }
 
 export function PublicAiButton({ children = "Tư vấn triệu chứng", className = "outline-button" }: { children?: ReactNode; className?: string }) {
   const { openAi } = usePublicPageActions();
-  return <button className={className} onClick={openAi} type="button">{children}</button>;
+  return <button className={className} onClick={openAi} onFocus={prewarmAiTriageModal} onPointerEnter={prewarmAiTriageModal} type="button">{children}</button>;
 }
 
 export function PublicBackLink({ href = "/", children = "← Về trang chính" }: { href?: string; children?: ReactNode }) {
@@ -145,16 +153,18 @@ export function PublicPageShell({
         <PublicRouteBreadcrumb pathname={pathname} />
         <main id="main-content" tabIndex={-1}><RouteCmsSlots>{children}</RouteCmsSlots></main>
         <Footer branches={effectiveBranches} cmsSlug={cmsSlug ?? undefined} />
-        <AiTriageModal
-          emergencyContact={emergencyContact}
-          emergencyContactIsHotline={emergencyContactIsHotline}
-          isOpen={triageOpen}
-          onClose={() => setTriageOpen(false)}
-          onSelectSpecialtyForBooking={(_name, specialtyId) => {
-            setTriageOpen(false);
-            actions.openBooking({ specialtyId });
-          }}
-        />
+        {triageOpen ? (
+          <AiTriageModal
+            emergencyContact={emergencyContact}
+            emergencyContactIsHotline={emergencyContactIsHotline}
+            isOpen
+            onClose={() => setTriageOpen(false)}
+            onSelectSpecialtyForBooking={(_name, specialtyId) => {
+              setTriageOpen(false);
+              actions.openBooking({ specialtyId });
+            }}
+          />
+        ) : null}
         {illustrativeNoticeOpen ? <IllustrativeBookingNotice onClose={() => setIllustrativeNoticeOpen(false)} /> : null}
         {(!onBookingRequest || illustrativePage) && bookingOpen ? (
           <BookingModal

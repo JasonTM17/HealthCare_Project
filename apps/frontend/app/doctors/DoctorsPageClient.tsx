@@ -14,7 +14,7 @@ import {
   PublicPageShell,
 } from "../../components/PublicPageShell";
 import ClinicalIcon from "../../components/ClinicalIcon";
-import { specialtyIdForDoctor } from "../../components/BookingModal";
+import { specialtyIdForDoctor } from "../../lib/doctor-specialty";
 import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 
 interface DoctorsPageClientProps {

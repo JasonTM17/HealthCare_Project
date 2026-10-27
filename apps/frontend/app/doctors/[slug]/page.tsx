@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { fetchDoctorBySlug, fetchSpecialties } from "../../../lib/api-client";
 import { safeSiteOrigin } from "../../../lib/site-url";
 import type { Doctor, Specialty } from "../../../types/hospital";
-import { specialtyIdForDoctor } from "../../../components/BookingModal";
+import { specialtyIdForDoctor } from "../../../lib/doctor-specialty";
 import {
   PublicAiButton,
   PublicBackLink,

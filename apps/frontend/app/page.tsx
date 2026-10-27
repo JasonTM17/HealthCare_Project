@@ -1,12 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import BranchMap from "../components/BranchMap";
-import AiTriageModal from "../components/AiTriageModal";
-import BookingModal, { specialtyIdForDoctor } from "../components/BookingModal";
+import { specialtyIdForDoctor } from "../lib/doctor-specialty";
 import CareExperience from "../components/CareExperience";
 import DailyHealthTip from "../components/DailyHealthTip";
 import { CmsLiveSlot } from "../components/cms";
@@ -34,6 +34,15 @@ import { safeTelephoneHref } from "../lib/phone";
 import { presentApiError } from "../lib/present-api-error";
 import { resolveArticleCoverImage, resolveArticleAlt } from "../lib/article-visuals";
 import type { Article, Branch, Doctor, HealthPackage, Specialty } from "../types/hospital";
+
+// The booking and triage flows are open-on-demand surfaces — thousands of
+// lines plus their own pickers — so they ship as separate chunks instead of
+// inflating the homepage's first-load JS.
+const BookingModal = dynamic(() => import("../components/BookingModal"), { ssr: false });
+const AiTriageModal = dynamic(() => import("../components/AiTriageModal"), { ssr: false });
+// Pointer/keyboard intent warms the lazy chunks so the modals open instantly.
+const prewarmBookingModal = (): void => { void import("../components/BookingModal"); };
+const prewarmAiTriageModal = (): void => { void import("../components/AiTriageModal"); };
 
 const HERO_IMAGE = CMS_SLOT_DEFAULT_IMAGES["homepage.hero"];
 const DEFAULT_QUICK_CHIPS = ["Tim mạch", "Nhi khoa", "Tiêu hóa", "Khám tổng quát"];
@@ -442,12 +451,12 @@ function HomeHeroCopy({
             <Icon name="arrow-up-right" size={18} />
           </a>
         ) : (
-          <button className="button button--amber" onClick={onBooking} type="button">
+          <button className="button button--amber" onClick={onBooking} onFocus={prewarmBookingModal} onPointerEnter={prewarmBookingModal} type="button">
             Đặt lịch khám
             <Icon name="calendar" size={18} />
           </button>
         )}
-        <button className="button button--hero-secondary" onClick={onTriage} type="button">
+        <button className="button button--hero-secondary" onClick={onTriage} onFocus={prewarmAiTriageModal} onPointerEnter={prewarmAiTriageModal} type="button">
           Gợi ý chuyên khoa
           <Icon name="stethoscope" size={18} />
         </button>
@@ -1224,12 +1233,14 @@ export default function Home(): React.ReactElement {
 
       <Footer branches={branches} cmsSlug="home" />
 
-      <AiTriageModal
-        isOpen={isAiTriageOpen}
-        onClose={() => setIsAiTriageOpen(false)}
-        onSelectSpecialtyForBooking={handleAiSpecialtySelect}
-        emergencyContact={contactPhone}
-      />
+      {isAiTriageOpen ? (
+        <AiTriageModal
+          isOpen
+          onClose={() => setIsAiTriageOpen(false)}
+          onSelectSpecialtyForBooking={handleAiSpecialtySelect}
+          emergencyContact={contactPhone}
+        />
+      ) : null}
 
       {isBookingOpen ? (
         <BookingModal

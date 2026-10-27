@@ -30,6 +30,7 @@ import {
   resendAppointmentOtp,
 } from "../lib/api-client";
 import { businessDate, formatBusinessDate } from "../lib/business-time";
+import { specialtyIdForDoctor } from "../lib/doctor-specialty";
 import { presentApiError } from "../lib/present-api-error";
 import { buildGoogleCalendarUrl, downloadIcsFile } from "../lib/appointment-calendar";
 import Icon from "./UiIcon";
@@ -340,35 +341,6 @@ function doctorMatchesSpecialty(doctor: Doctor, specialty?: Specialty): boolean 
     return true;
   }
   return false;
-}
-
-export function specialtyIdForDoctor(doctor: Doctor | undefined, specialties: Specialty[]): string {
-  if (!doctor) return "";
-
-  const docRecord = doctor as unknown as Record<string, unknown>;
-  if (typeof docRecord.specialtyId === "string" && docRecord.specialtyId) {
-    return docRecord.specialtyId;
-  }
-  if (Array.isArray(docRecord.specialties) && docRecord.specialties.length > 0) {
-    const first = docRecord.specialties[0] as { id?: string } | undefined;
-    if (first?.id) return first.id;
-  }
-
-  const primaryName = doctor.specialtyName?.trim().toLocaleLowerCase("vi-VN");
-  if (primaryName) {
-    const byName = specialties.find((specialty) => (
-      specialty.name.trim().toLocaleLowerCase("vi-VN") === primaryName
-    ));
-    if (byName) return byName.id;
-    const byPartialName = specialties.find((specialty) => {
-      const specName = specialty.name.trim().toLocaleLowerCase("vi-VN");
-      return primaryName.includes(specName) || specName.includes(primaryName);
-    });
-    if (byPartialName) return byPartialName.id;
-  }
-
-  return doctor.specialtySlugs?.map((slug) => specialties.find((specialty) => specialty.slug === slug))
-    .find((specialty): specialty is Specialty => Boolean(specialty))?.id ?? "";
 }
 
 function secondsUntil(value: string): number {

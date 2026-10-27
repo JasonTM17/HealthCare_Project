@@ -356,3 +356,29 @@ CROSS JOIN (
       AND s.start_time = shifts.start_time::time
       AND s.end_time = shifts.end_time::time
 );
+
+-- ── Demo doctor late shift ──────────────────────────────────────────────────
+-- The live E2E suite must book a genuine same-day slot whenever it runs. The
+-- regular shifts end at 21:00, so an evening run would always report
+-- BLOCKED_SAME_DAY_CLINICAL_FIXTURE. Give only the demo doctor a recurring
+-- late shift (21:00-23:59) at every linked branch; runs after midnight still
+-- block legitimately because a clinic day has ended.
+INSERT INTO doctor_schedules (id, doctor_id, branch_id, day_of_week, start_time, end_time, slot_duration_minutes, effective_from, effective_to, active)
+SELECT md5(format('schedule-late:%s:%s:%s', d.id, b.id, shifts.dow))::uuid,
+       d.id, b.id, shifts.dow, '21:00:00'::time, '23:59:00'::time, 30, '2026-01-01', NULL, true
+FROM doctors d
+JOIN doctor_branches db ON db.doctor_id = d.id
+JOIN branches b ON b.id = db.branch_id
+CROSS JOIN (
+    VALUES (1), (2), (3), (4), (5), (6), (7)
+) AS shifts(dow)
+WHERE d.slug = 'nguyen-minh-khoi'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM doctor_schedules s
+    WHERE s.doctor_id = d.id
+      AND s.branch_id = db.branch_id
+      AND s.day_of_week = shifts.dow
+      AND s.start_time = '21:00:00'::time
+      AND s.end_time = '23:59:00'::time
+);

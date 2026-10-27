@@ -119,11 +119,18 @@ public class BrowserSessionService {
     /**
      * Atomically accepts and extends an active session using PostgreSQL time.
      * The idle deadline is capped by the immutable absolute deadline.
+     *
+     * <p>The activity write is throttled to once a minute per session. Every
+     * authenticated request used to issue an UPDATE, which serialised
+     * concurrent same-user requests on the row lock and multiplied writes
+     * under portal page loads. The idle window still slides on each accepted
+     * touch — only at minute granularity, far below the 30-minute deadline.
      */
     @Transactional
     public Optional<ResolvedBrowserSession> resolveAndTouch(String rawSessionSecret) {
         if (!isPlausibleSecret(rawSessionSecret)) return Optional.empty();
 
+        String hash = sha256(rawSessionSecret);
         List<BrowserSessionContext> rows = jdbcTemplate.query("""
             UPDATE browser_sessions
                SET last_seen_at = CURRENT_TIMESTAMP,
@@ -135,6 +142,7 @@ public class BrowserSessionService {
                AND revoked_at IS NULL
                AND idle_expires_at > CURRENT_TIMESTAMP
                AND absolute_expires_at > CURRENT_TIMESTAMP
+               AND last_seen_at < CURRENT_TIMESTAMP - INTERVAL '60 seconds'
             RETURNING id, user_id, csrf_secret_hash, idle_expires_at, absolute_expires_at
             """,
             (rs, rowNum) -> new BrowserSessionContext(
@@ -144,14 +152,35 @@ public class BrowserSessionService {
                 rs.getObject("idle_expires_at", OffsetDateTime.class),
                 rs.getObject("absolute_expires_at", OffsetDateTime.class)
             ),
-            sha256(rawSessionSecret)
+            hash
         );
+        if (rows.isEmpty()) {
+            // Touched inside the throttle window (or the session changed
+            // concurrently): resolve with a read instead of another write.
+            rows = jdbcTemplate.query("""
+                SELECT id, user_id, csrf_secret_hash, idle_expires_at, absolute_expires_at
+                  FROM browser_sessions
+                 WHERE session_secret_hash = ?
+                   AND revoked_at IS NULL
+                   AND idle_expires_at > CURRENT_TIMESTAMP
+                   AND absolute_expires_at > CURRENT_TIMESTAMP
+                """,
+                (rs, rowNum) -> new BrowserSessionContext(
+                    rs.getObject("id", UUID.class),
+                    rs.getObject("user_id", UUID.class),
+                    rs.getString("csrf_secret_hash"),
+                    rs.getObject("idle_expires_at", OffsetDateTime.class),
+                    rs.getObject("absolute_expires_at", OffsetDateTime.class)
+                ),
+                hash
+            );
+        }
         if (rows.size() != 1) return Optional.empty();
 
         BrowserSessionContext context = rows.getFirst();
         User user = userRepository.findWithRolesById(context.userId()).orElse(null);
         if (user == null || !"ACTIVE".equals(user.getStatus()) || !user.isEmailVerified()) {
-            revokeByHash(sha256(rawSessionSecret), "ACCOUNT_INELIGIBLE");
+            revokeByHash(hash, "ACCOUNT_INELIGIBLE");
             return Optional.empty();
         }
         return Optional.of(new ResolvedBrowserSession(context, user));

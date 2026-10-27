@@ -1,11 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { PublicAiButton, PublicBookingButton, PublicPageShell } from "../../components/PublicPageShell";
-import { specialtyIdForDoctor } from "../../components/BookingModal";
-import PackageBookingModal from "../../components/PackageBookingModal";
+import { specialtyIdForDoctor } from "../../lib/doctor-specialty";
+const PackageBookingModal = dynamic(() => import("../../components/PackageBookingModal"), { ssr: false });
 import Icon from "../../components/UiIcon";
 import {
   ApiError,

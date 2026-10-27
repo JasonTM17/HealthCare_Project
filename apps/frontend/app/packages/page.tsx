@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ClinicalIcon from "../../components/ClinicalIcon";
@@ -9,7 +10,7 @@ import { presentApiError } from "../../lib/present-api-error";
 import type { HealthPackage } from "../../types/hospital";
 import CatalogPagination from "../../components/CatalogPagination";
 import PackageVisualCard, { packageVisualStyles } from "../../components/PackageVisualCard";
-import PackageBookingModal from "../../components/PackageBookingModal";
+const PackageBookingModal = dynamic(() => import("../../components/PackageBookingModal"), { ssr: false });
 import { isCmsPreviewRequested } from "../../lib/cms-preview-bridge";
 import { CmsNativeSection, CmsNativeText, CmsNativeSections } from "../../components/cms/cms-page-layout-provider";
 

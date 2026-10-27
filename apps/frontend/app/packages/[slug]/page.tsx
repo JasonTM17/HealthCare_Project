@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import PackageImage from "../../../components/PackageImage";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -9,7 +10,7 @@ import { fetchPackageBySlug } from "../../../lib/api-client";
 import { safeSiteOrigin } from "../../../lib/site-url";
 import { getPackageVisual } from "../../../lib/package-visuals";
 import type { HealthPackage } from "../../../types/hospital";
-import PackageBookingModal from "../../../components/PackageBookingModal";
+const PackageBookingModal = dynamic(() => import("../../../components/PackageBookingModal"), { ssr: false });
 import { JsonLd } from "../../../components/JsonLd";
 import { isCmsPreviewRequested } from "../../../lib/cms-preview-bridge";
 import { CmsNativeSection, CmsNativeText } from "../../../components/cms/cms-page-layout-provider";
