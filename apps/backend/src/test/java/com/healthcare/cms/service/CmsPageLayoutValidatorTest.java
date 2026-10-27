@@ -37,7 +37,7 @@ class CmsPageLayoutValidatorTest {
     void resolvesEveryCanonicalAndSupportedUuidDetailWithoutInventingPrivateOrAliasSlots() {
         for (String family : List.of("homepage", "about", "branches", "specialties", "doctors", "services", "packages",
             "articles", "careers", "search", "dat-lich", "contact", "faq", "huong-dan", "tra-cuu", "benh-pho-bien",
-            "gop-y", "chinh-sach-bao-mat")) {
+            "gop-y", "chinh-sach-bao-mat", "dieu-khoan-su-dung")) {
             assertThat(validator.validateAndSanitize(family + ".layout", payload(family + ".layout"))).isNotNull();
         }
         for (String family : List.of("branches", "specialties", "doctors", "services", "packages", "articles", "benh-pho-bien")) {

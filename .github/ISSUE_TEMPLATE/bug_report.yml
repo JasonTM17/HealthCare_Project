@@ -1,0 +1,49 @@
+name: Báo lỗi / Bug report
+description: Báo cáo hành vi sai hoặc regression
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Mô tả lỗi
+      description: Hành vi thực tế vs hành vi mong đợi.
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Thành phần
+      options:
+        - Frontend (apps/frontend)
+        - Backend (apps/backend)
+        - AI service (apps/ai-service)
+        - Database / migrations
+        - Infrastructure / Docker
+        - Không rõ
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Các bước tái hiện
+      description: Bao gồm vai trò đăng nhập (guest/patient/doctor/admin), route, và dữ liệu đầu vào.
+      placeholder: |
+        1. Đăng nhập với ...
+        2. Mở trang ...
+        3. Thấy ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Môi trường
+      description: Local Compose stack, website healthcare.id.vn, hay CI? Commit/phiên bản nào?
+      placeholder: "local demo stack, commit abc1234"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log / screenshot
+      description: Đã che hết token, cookie, email thật và dữ liệu cá nhân chưa? KHÔNG dán secret vào đây.
+      render: text

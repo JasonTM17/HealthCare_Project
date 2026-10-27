@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Báo cáo bảo mật
+    url: https://github.com/JasonTM17/HealthCare_Project/security/advisories/new
+    about: Lỗ hổng bảo mật KHÔNG mở public issue — dùng private vulnerability reporting.
+  - name: Tài liệu dự án
+    url: https://github.com/JasonTM17/HealthCare_Project/tree/main/docs
+    about: Hướng dẫn cài đặt, kiến trúc, API và vận hành.

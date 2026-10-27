@@ -34,6 +34,7 @@ const PUBLIC_PATHS = [
   "/contact",
   "/gop-y",
   "/chinh-sach-bao-mat",
+  "/dieu-khoan-su-dung",
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

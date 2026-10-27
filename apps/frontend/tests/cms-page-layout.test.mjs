@@ -29,7 +29,7 @@ const firstDoctor = "00000000-0000-4000-8000-000000000001";
 const secondDoctor = "00000000-0000-4000-8000-000000000002";
 
 test("canonical public manifest includes every family and unique stable field IDs", () => {
-  const families = ["homepage", "about", "branches", "specialties", "doctors", "services", "packages", "articles", "careers", "search", "dat-lich", "contact", "faq", "huong-dan", "tra-cuu", "benh-pho-bien", "gop-y", "chinh-sach-bao-mat"];
+  const families = ["homepage", "about", "branches", "specialties", "doctors", "services", "packages", "articles", "careers", "search", "dat-lich", "contact", "faq", "huong-dan", "tra-cuu", "benh-pho-bien", "gop-y", "chinh-sach-bao-mat", "dieu-khoan-su-dung"];
   assert.deepEqual(CMS_PAGE_MANIFESTS.map((entry) => entry.family).sort(), families.sort());
   for (const manifest of CMS_PAGE_MANIFESTS) {
     assert.equal(resolveCmsPageIdentity(manifest.path).slotKey, `${manifest.family}.layout`);

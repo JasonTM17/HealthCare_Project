@@ -11,6 +11,7 @@ const PUBLIC_METADATA_ROUTES = [
   "careers",
   "chinh-sach-bao-mat",
   "contact",
+  "dieu-khoan-su-dung",
   "dat-lich",
   "doctors",
   "faq",

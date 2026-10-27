@@ -47,12 +47,12 @@ async function collectSourceFiles(directory, files = []) {
   return files;
 }
 
-test("78 portal routes are partitioned across 4 functional portals without duplicates", async () => {
+test("79 portal routes are partitioned across 4 functional portals without duplicates", async () => {
   const pageFiles = await collectPageFiles(appRoot);
-  assert.equal(pageFiles.length, 78, "must contain exactly 78 App Router page.tsx files");
+  assert.equal(pageFiles.length, 79, "must contain exactly 79 App Router page.tsx files");
 
   const actualRoutes = pageFiles.map(routeForPage).sort();
-  assert.equal(new Set(actualRoutes).size, 78, "must contain zero duplicate route paths");
+  assert.equal(new Set(actualRoutes).size, 79, "must contain zero duplicate route paths");
 
   const isPatient = (r) => r === "/patient" || r.startsWith("/patient/");
   const isDoctor = (r) => r === "/doctor" || r.startsWith("/doctor/");
@@ -64,14 +64,14 @@ test("78 portal routes are partitioned across 4 functional portals without dupli
   const doctorRoutes = actualRoutes.filter(isDoctor);
   const adminRoutes = actualRoutes.filter(isAdmin);
 
-  assert.equal(publicRoutes.length, 34, "Public portal & auth must comprise exactly 34 routes");
+  assert.equal(publicRoutes.length, 35, "Public portal & auth must comprise exactly 35 routes");
   assert.equal(patientRoutes.length, 17, "Patient portal must comprise exactly 17 routes");
   assert.equal(doctorRoutes.length, 11, "Doctor portal must comprise exactly 11 routes");
   assert.equal(adminRoutes.length, 16, "Admin portal must comprise exactly 16 routes");
   assert.equal(
     publicRoutes.length + patientRoutes.length + doctorRoutes.length + adminRoutes.length,
-    78,
-    "all 78 routes must be fully partitioned across the 4 portals",
+    79,
+    "all 79 routes must be fully partitioned across the 4 portals",
   );
 
   // Key routes verification across all portals
@@ -98,6 +98,7 @@ test("78 portal routes are partitioned across 4 functional portals without dupli
     "/contact",
     "/gop-y",
     "/chinh-sach-bao-mat",
+    "/dieu-khoan-su-dung",
     "/dat-lich",
     "/tra-cuu",
     "/search",
