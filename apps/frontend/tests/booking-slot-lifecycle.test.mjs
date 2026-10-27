@@ -12,6 +12,18 @@ const modalPath = new URL("../components/BookingModal.tsx", import.meta.url);
 const apiPath = new URL("../lib/api.ts", import.meta.url);
 const clientPath = new URL("../lib/api-client.ts", import.meta.url);
 const secureRandomPath = new URL("../lib/secure-random.ts", import.meta.url);
+const doctorSpecialtyPath = new URL("../lib/doctor-specialty.ts", import.meta.url);
+
+let cachedDoctorSpecialty;
+function loadDoctorSpecialty() {
+  cachedDoctorSpecialty ??= transpileModule(
+    readFileSync(doctorSpecialtyPath, "utf8"),
+    "doctor-specialty.ts",
+    {},
+    {},
+  );
+  return cachedDoctorSpecialty;
+}
 
 let cachedSecureRandom;
 /**
@@ -83,6 +95,7 @@ function transpileModule(source, fileName, stubs = {}, globals = {}) {
     if (specifier === "./UiIcon" || specifier === "./useDialogFocus") return () => null;
     if (specifier === "../types/hospital") return {};
     if (specifier === "./secure-random") return loadSecureRandom();
+    if (specifier === "../lib/doctor-specialty") return loadDoctorSpecialty();
     throw new Error(`Unexpected transpiled dependency: ${specifier}`);
   };
 
