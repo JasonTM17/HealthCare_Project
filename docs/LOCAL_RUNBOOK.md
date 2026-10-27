@@ -593,7 +593,7 @@ Docker preflight above before starting them.
 
 On this class of dev machine another tool's Playwright install (observed: a
 `qoder-desktop-mcp-host` shipping Playwright 1.64-alpha manifests) periodically
-prunes `C:\Users\Admin\AppData\Local\ms-playwright` down to its own manifests,
+prunes `%LOCALAPPDATA%\ms-playwright` down to its own manifests,
 deleting the `chromium-*` / `chromium_headless_shell-*` builds the compose E2E
 suite needs. Symptom: `browserType.launch: Executable doesn't exist` from a
 suite that ran fine minutes earlier. Two durable responses:

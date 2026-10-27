@@ -23,7 +23,7 @@ PSQL = os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"),
 
 
 def psql_bin():
-    candidates = [PSQL, r"C:\Users\Admin\scoop\apps\postgresql\current\bin\psql.exe", "psql"]
+    candidates = [PSQL, os.path.expandvars(r"%USERPROFILE%\scoop\apps\postgresql\current\bin\psql.exe"), "psql"]
     for candidate in candidates:
         if candidate == "psql" or os.path.exists(candidate):
             return candidate
