@@ -68,6 +68,20 @@ export const metadata: Metadata = {
     locale: "vi_VN",
     siteName: "HealthCare",
     url: "./",
+    images: [
+      {
+        url: "/media/about-care-poster.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Bệnh viện đa khoa HealthCare",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "HealthCare | Bệnh viện đa khoa",
+    description: "Tìm hiểu chuyên khoa, bác sĩ, cơ sở và chủ động đặt lịch khám tại HealthCare.",
+    images: ["/media/about-care-poster.jpg"],
   },
 };
 
