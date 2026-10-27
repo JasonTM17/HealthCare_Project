@@ -30,7 +30,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import jakarta.validation.ConstraintViolationException;
 
 import java.util.List;
@@ -131,9 +130,11 @@ public class GlobalExceptionHandler {
      * — parent of CannotAcquireLockException — when lock_timeout expires.
      * Contention is retryable, never a 500.
      */
-    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    @ExceptionHandler({org.springframework.dao.PessimisticLockingFailureException.class,
+            jakarta.persistence.PessimisticLockException.class,
+            jakarta.persistence.LockTimeoutException.class})
     public ResponseEntity<ApiError> handlePessimisticLockingFailure(
-            org.springframework.dao.PessimisticLockingFailureException ex, WebRequest request) {
+            Exception ex, WebRequest request) {
         log.warn("Bounded lock wait expired on {}: {}", extractPath(request), ex.getMessage());
         ApiError error = new ApiError(
             409,
@@ -435,8 +436,9 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(404).body(error);
     }
 
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    public ResponseEntity<ApiError> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex, WebRequest request) {
+    @ExceptionHandler({org.springframework.dao.OptimisticLockingFailureException.class,
+            jakarta.persistence.OptimisticLockException.class})
+    public ResponseEntity<ApiError> handleOptimisticLockingFailure(Exception ex, WebRequest request) {
         log.warn("Optimistic locking failure on {}: {}", extractPath(request), ex.getMessage());
         ApiError error = new ApiError(
             409,

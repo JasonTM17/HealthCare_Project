@@ -137,8 +137,9 @@ public class DocumentService {
             // later contended row lock surfaces the same way as a contended
             // advisory lock — map both to the retryable 409, not a 500.
             return generateDocumentLocked(patientId, request, principal);
-        } catch (PessimisticLockingFailureException | jakarta.persistence.LockTimeoutException
-                | jakarta.persistence.PessimisticLockException exception) {
+        } catch (PessimisticLockingFailureException | org.springframework.dao.OptimisticLockingFailureException
+                | jakarta.persistence.LockTimeoutException | jakarta.persistence.PessimisticLockException
+                | jakarta.persistence.OptimisticLockException exception) {
             recordAuditSafely(principal, patientId,
                 request.sourceRecordId().toString(), ACTION_GENERATE, ClinicalAccessAuditService.DECISION_DENY, null);
             throw new BusinessException(409, "Tài liệu đang được tạo, vui lòng thử lại sau giây lát");
@@ -215,8 +216,11 @@ public class DocumentService {
             // Every source/actor/original row lock remains held across rendering,
             // object upload and publication/commit. Source facts are never edited.
             return storeAndFinalize(replacement, patientId, principal, pdf, false);
-        } catch (PessimisticLockingFailureException | jakarta.persistence.LockTimeoutException
-                | jakarta.persistence.PessimisticLockException exception) {
+        } catch (PessimisticLockingFailureException | org.springframework.dao.OptimisticLockingFailureException
+                | jakarta.persistence.LockTimeoutException | jakarta.persistence.PessimisticLockException
+                | jakarta.persistence.OptimisticLockException exception) {
+            // Deadlock victims surface as OptimisticLockException too: the
+            // recovery can simply be retried once the winner commits.
             throw new BusinessException(409, "Tài liệu đang được cập nhật, vui lòng thử lại sau giây lát");
         }
     }

@@ -840,7 +840,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
             assertThat(a.get("status").asText()).isEqualTo("AVAILABLE");
             assertThat(originalFingerprint(original)).isEqualTo(before);
             verify(objectStore, times(1)).put(any(String.class), any(byte[].class), any(String.class));
-        } finally { release.countDown(); executor.shutdownNow(); executor.awaitTermination(10, TimeUnit.SECONDS); }
+        } finally { release.countDown(); awaitExecutorReapingStrayLocks(executor); }
     }
 
     @org.junit.jupiter.params.ParameterizedTest
@@ -886,7 +886,7 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
             release.countDown();
             assertThat(generation.get(15, TimeUnit.SECONDS).getResponse().getStatus()).isEqualTo(201);
             assertThat(update.get(15, TimeUnit.SECONDS)).isGreaterThanOrEqualTo(1);
-        } finally { release.countDown(); executor.shutdownNow(); executor.awaitTermination(10, TimeUnit.SECONDS); }
+        } finally { release.countDown(); awaitExecutorReapingStrayLocks(executor); }
     }
 
     @Test
@@ -950,6 +950,18 @@ class DocumentGenerationIntegrationTest extends AbstractIntegrationTest {
         UUID id = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO patient_documents(id,patient_id,source_record_id,source_type,source_version,template_version,status,object_key,generated_by,idempotency_key) SELECT ?,id,?,?,1,'legacy','FAILED',?,user_id,? FROM patient_profiles WHERE id=?", id, sourceId, sourceType, "documents/synthetic-lost/" + id + ".pdf", "SYNTHETIC-LOST:" + id, patientId);
         return id;
+    }
+
+    private void awaitExecutorReapingStrayLocks(ExecutorService executor) throws InterruptedException {
+        executor.shutdownNow();
+        if (executor.awaitTermination(10, TimeUnit.SECONDS)) return;
+        // A worker that outlives the test may hold row locks and deadlock the
+        // next one: terminate backends still idle-in-transaction or waiting on
+        // a lock, then wait once more for the threads to unwind.
+        jdbcTemplate.execute("SELECT pg_terminate_backend(pid) FROM pg_stat_activity"
+                + " WHERE datname=current_database() AND pid<>pg_backend_pid()"
+                + " AND (wait_event_type='Lock' OR state LIKE 'idle in transaction%')");
+        executor.awaitTermination(10, TimeUnit.SECONDS);
     }
 
     private String originalFingerprint(UUID original) {
