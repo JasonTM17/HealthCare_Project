@@ -13,7 +13,7 @@ jobs:
     env:
       COMPOSE_PROJECT_NAME: healthcare-runtime-ci-${{ github.run_id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -26,7 +26,7 @@ jobs:
           HEALTHCARE_RUNTIME_ENV: ${{ runner.temp }}/healthcare-runtime.env
         run: ./scripts/start-and-verify-local-mvp.ps1 -EnvFile $env:HEALTHCARE_RUNTIME_ENV -DockerPath /usr/bin/docker
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
