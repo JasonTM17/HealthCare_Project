@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.m2 \
         -Dmaven.wagon.http.retryHandler.requestSentRetryEnabled=true \
         package
 
-FROM eclipse-temurin:21-jre@sha256:7a65df4b22d2de92d4e04056e884f3b9122d70b21e2847fd66084278bd0ce037
+FROM eclipse-temurin:25-jre@sha256:ecdc0adb37bde1a281c4d245a3cd535004b1fc8322d560f5b09463b248c81df0
 WORKDIR /app
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.revision=${VCS_REF} \
